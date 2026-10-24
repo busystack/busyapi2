@@ -1,5 +1,6 @@
-import {escape} from './document';
+import {escape,SourceError} from './document';
 import type {GraphReference,ReferenceGraph} from './reference_graph';
+import {mediaTypeOptions,mediaTypes} from './media_types';
 
 export type FormShape={types?:string[];literalType?:string;format?:string;contentEncoding?:string;properties?:Record<string,FormShape>;items?:FormShape;defaultContentType?:string};
 
@@ -52,10 +53,38 @@ export class FormSemantics {
         return {...shape,literalType:formLiteralType(shape),defaultContentType:formContentType(shape,scope.family)};
     }
 
-    media(family:string,resource:string,pointer:string){
+    media(family:string,resource:string,pointer:string,mediaType:string){
+        const value=this.graph.docs.get(resource)?.dataNode(pointer)?.value,shape=this.shape(resource,pointer+'/schema');
+        const parts=Object.fromEntries([...new Set([...Object.keys(shape.properties??{}),...Object.keys(value?.encoding??{})])].map(name=>{
+            const rule=value?.encoding?.[name],property=shape.properties?.[name],item=property?.types?.includes('array')?property.items:property;
+            const multipart=mediaType.split(';')[0].trim().toLowerCase()==='multipart/form-data';
+            const styled=(!multipart||family!=='3.0')&&['style','explode','allowReserved'].some(key=>Object.hasOwn(rule??{},key));
+            const doc=this.graph.docs.get(resource)!;
+            const at=[pointer+'/encoding/'+escape(name)+'/contentType',pointer+'/encoding/'+escape(name),pointer+'/schema/properties/'+escape(name),pointer+'/schema',pointer].find(at=>doc.dataNode(at))!;
+            const node=doc.dataNode(at)!;
+            let options:ReturnType<typeof mediaTypeOptions>|{error:string}|undefined;
+            try{options=styled?undefined:mediaTypeOptions(rule?.contentType??item?.defaultContentType??formContentType({},family));}
+            catch(error){if(!(error instanceof SourceError))throw error;options={error:error.message};}
+            return [name,{name,styled,...options,source:{resource,pointer:at,range:node.range}}];
+        }));
         return {multipartStyle:family!=='3.0',legacyBinary:family==='3.0',
             defaultContentType:formContentType({},family),
             styles:['form','spaceDelimited','pipeDelimited','deepObject',...(family==='3.2'?['tabDelimited']:[])],
-            shape:{defaultContentType:formContentType({},family),...this.shape(resource,pointer+'/schema')}};
+            shape:{defaultContentType:formContentType({},family),...shape},parts};
     }
+}
+
+export function formMediaIssues(graph:ReferenceGraph){
+    const issues:{resource:string;pointer:string;code:string;message:string;incomplete?:boolean;severity?:string}[]=[];
+    for(const scope of graph.scopes.values()){
+        if(scope.kind!=='encoding')continue;
+        const value=graph.docs.get(scope.resource)?.dataNode(scope.pointer)?.value?.contentType;
+        if(typeof value!=='string')continue;
+        try{mediaTypes(value);}catch(error){
+            if(!(error instanceof SourceError))throw error;
+            if(error.code==='request.form.media-parameters.unsupported')continue;
+            issues.push({...scope,pointer:scope.pointer+'/contentType',code:error.code,message:error.message});
+        }
+    }
+    return issues;
 }

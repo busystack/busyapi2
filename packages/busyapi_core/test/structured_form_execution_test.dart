@@ -134,7 +134,9 @@ String _data(String version, {bool invalid = false}) =>
     '}';
 
 class _DelayedFormEngine extends EngineProcess {
-  _DelayedFormEngine() : super(executable: runtimeNode, helper: runtimeHelper);
+  _DelayedFormEngine(this.method)
+    : super(executable: runtimeNode, helper: runtimeHelper);
+  final String method;
   final entered = Completer<void>(), release = Completer<void>();
   @override
   Future<Map<String, dynamic>> request(
@@ -143,7 +145,7 @@ class _DelayedFormEngine extends EngineProcess {
     String? requestId,
   }) async {
     final result = await super.request(method, params, requestId: requestId);
-    if (method == 'requestFormDataValues') {
+    if (method == this.method) {
       entered.complete();
       await release.future;
     }
@@ -295,66 +297,72 @@ void main() {
       );
     }
 
-  for (final outcome in ['cancelled', 'closed', 'version-changed']) {
-    test('structured form preparation cannot send after $outcome', () async {
-      final temp = await Directory.systemTemp.createTemp('busyapi-form-owner-');
-      addTearDown(() => temp.delete(recursive: true));
-      final engine = _DelayedFormEngine();
-      addTearDown(engine.close);
-      final file = File('${temp.path}/api.yaml');
-      final original = _source('3.0.4', 1, 'yaml');
-      await file.writeAsString(original);
-      final project = await BusyProject.open(file.path, engine);
-      addTearDown(project.close);
-      final analysis = await project.check(file.uri.toString());
-      final operation =
-          (analysis['projection']['operations'] as List).single as Map;
-      final plan = await project.prepareRequest(
-        file.uri.toString(),
-        resource: operation['resource'] as String,
-        pointer: operation['pointer'] as String,
-        occurrence: operation['occurrence'] as String,
+  for (final method in ['requestFormDataValues', 'requestFormMediaTypes'])
+    for (final outcome in ['cancelled', 'closed', 'version-changed']) {
+      test(
+        'structured form $method preparation cannot send after $outcome',
+        () async {
+          final temp = await Directory.systemTemp.createTemp(
+            'busyapi-form-owner-',
+          );
+          addTearDown(() => temp.delete(recursive: true));
+          final engine = _DelayedFormEngine(method);
+          addTearDown(engine.close);
+          final file = File('${temp.path}/api.yaml');
+          final original = _source('3.0.4', 1, 'yaml');
+          await file.writeAsString(original);
+          final project = await BusyProject.open(file.path, engine);
+          addTearDown(project.close);
+          final analysis = await project.check(file.uri.toString());
+          final operation =
+              (analysis['projection']['operations'] as List).single as Map;
+          final plan = await project.prepareRequest(
+            file.uri.toString(),
+            resource: operation['resource'] as String,
+            pointer: operation['pointer'] as String,
+            occurrence: operation['occurrence'] as String,
+          );
+          addTearDown(plan.close);
+          final token = RunCancellation(), data = _data('3.0.4');
+          final draft = OperationRequestDraft(
+            planIdentity: plan.identity,
+            body: RequestBodyDraft.formValue(json: data),
+          );
+          final pending = const ContractRequestBuilder().build(
+            plan,
+            draft,
+            resolveSecret: (_) async => null,
+            cancellation: token,
+          );
+          final checked = expectLater(
+            pending,
+            throwsA(
+              isA<CoreFailure>().having(
+                (failure) => failure.code,
+                'code',
+                outcome == 'cancelled'
+                    ? 'cancelled'
+                    : outcome == 'closed'
+                    ? 'request.closed'
+                    : 'request.draft.stale',
+              ),
+            ),
+          );
+          await engine.entered.future;
+          if (outcome == 'cancelled') token.cancel();
+          if (outcome == 'closed') project.close();
+          if (outcome == 'version-changed') {
+            final buffer = await project.buffer(file.uri.toString());
+            project.store.replace(
+              buffer.id,
+              buffer.text.replaceFirst('3.0.4', '3.1.2'),
+            );
+          }
+          engine.release.complete();
+          await checked;
+          expect(draft.body.text, data);
+          expect(await file.readAsString(), original);
+        },
       );
-      addTearDown(plan.close);
-      final token = RunCancellation(), data = _data('3.0.4');
-      final draft = OperationRequestDraft(
-        planIdentity: plan.identity,
-        body: RequestBodyDraft.formValue(json: data),
-      );
-      final pending = const ContractRequestBuilder().build(
-        plan,
-        draft,
-        resolveSecret: (_) async => null,
-        cancellation: token,
-      );
-      final checked = expectLater(
-        pending,
-        throwsA(
-          isA<CoreFailure>().having(
-            (failure) => failure.code,
-            'code',
-            outcome == 'cancelled'
-                ? 'cancelled'
-                : outcome == 'closed'
-                ? 'request.closed'
-                : 'request.draft.stale',
-          ),
-        ),
-      );
-      await engine.entered.future;
-      if (outcome == 'cancelled') token.cancel();
-      if (outcome == 'closed') project.close();
-      if (outcome == 'version-changed') {
-        final buffer = await project.buffer(file.uri.toString());
-        project.store.replace(
-          buffer.id,
-          buffer.text.replaceFirst('3.0.4', '3.1.2'),
-        );
-      }
-      engine.release.complete();
-      await checked;
-      expect(draft.body.text, data);
-      expect(await file.readAsString(), original);
-    });
-  }
+    }
 }

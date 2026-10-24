@@ -356,6 +356,83 @@ class OperationRequestPlan {
     required String requestId,
     RunCancellation? cancellation,
   }) async {
+    final result = await _formProjection(
+      'requestFormDataValues',
+      {'text': text},
+      requestId,
+      cancellation,
+    );
+    return RequestFormData.fromJson(result, text);
+  }
+
+  List<FormPartMediaOptions> formMediaOptions(String? mediaType) {
+    final body = result['requestBody'];
+    final content = body is Map ? body['content'] : null;
+    if (content is! List) return const [];
+    final declaration = content
+        .whereType<Map>()
+        .where((item) => item['mediaType'] == mediaType)
+        .singleOrNull;
+    final form = declaration?['form'];
+    return FormPartMediaOptions.fromJson(form is Map ? form['parts'] : null);
+  }
+
+  Future<ResolvedFormMediaTypes> formMediaTypes(
+    String mediaType,
+    Iterable<String> parts,
+    Map<String, String> choices, {
+    List<Map<String, String>> files = const [],
+    required String requestId,
+    RunCancellation? cancellation,
+  }) async {
+    final capturedParts = parts.toSet().toList(),
+        selected = Map<String, String>.of(choices);
+    final result = await _formProjection(
+      'requestFormMediaTypes',
+      {
+        ...snapshot.toJson(),
+        'resource': (operation['source'] as Map)['resource'],
+        'pointer': (operation['source'] as Map)['pointer'],
+        'occurrence': operation['occurrence'],
+        'mediaType': mediaType,
+        'parts': capturedParts,
+        'choices': selected,
+        'files': files,
+      },
+      requestId,
+      cancellation,
+    );
+    final types = result['types'], fileTypes = result['files'];
+    if (result['version'] != 1 ||
+        result['snapshot'] != snapshot.identity ||
+        result['identity'] != identity ||
+        types is! Map ||
+        types.keys.any(
+          (name) =>
+              name is! String ||
+              !capturedParts.contains(name) && !selected.containsKey(name),
+        ) ||
+        types.values.any((value) => value is! String) ||
+        fileTypes is! List ||
+        fileTypes.length != files.length ||
+        fileTypes.any((value) => value is! String)) {
+      throw CoreFailure(
+        'request.form.protocol',
+        'Invalid resolved part media types.',
+      );
+    }
+    return ResolvedFormMediaTypes(
+      Map.unmodifiable(types.cast<String, String>()),
+      List.unmodifiable(fileTypes.cast<String>()),
+    );
+  }
+
+  Future<Map<String, dynamic>> _formProjection(
+    String method,
+    Map<String, Object?> params,
+    String requestId,
+    RunCancellation? cancellation,
+  ) async {
     ensureCurrentOwner();
     if (outdated)
       throw CoreFailure(
@@ -363,9 +440,7 @@ class OperationRequestPlan {
         'Reconcile the changed operation before preparing form data.',
       );
     cancellation?.throwIfCancelled();
-    final work = _owner.engine.request('requestFormDataValues', {
-      'text': text,
-    }, requestId: requestId);
+    final work = _owner.engine.request(method, params, requestId: requestId);
     final result = cancellation == null
         ? await work
         : await Future.any<Map<String, dynamic>>([
@@ -385,7 +460,7 @@ class OperationRequestPlan {
         'request.draft.stale',
         'The operation changed during form preparation; no request was sent.',
       );
-    return RequestFormData.fromJson(result, text);
+    return result;
   }
 
   Future<RefactoringPlan> planEnvironment(

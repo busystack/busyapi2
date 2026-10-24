@@ -4,6 +4,7 @@ const {analyse}=require('./dist/model.cjs');
 const {requestOperation,requestParameterValues,planResponseExample,semanticDiffCoverage,executionCaseValues,planExecutionEnvironment}=require('./dist/execution.cjs');
 const {deriveBundle}=require('./dist/derived_bundle.cjs');
 const {requestFormDataValues}=require('./dist/execution.cjs');
+const {requestFormMediaTypes}=require('./dist/execution.cjs');
 
 test('structured form data preserves scalar kinds, exact JSON and literal reference-looking payloads',()=>{
  const text=' {"number":900719925474099312345678901234567890,"string":"\\u0030","false":false,"null":null,"empty":"","array":[],"nested":[{"$ref":"literal","n":1e-999}],"__proto__":"ordinary"} ';
@@ -40,6 +41,58 @@ for(const version of ['3.0.0','3.0.4','3.1.2','3.2.1'])test(`form transport meta
 });
 
 const id='file:///execution/openapi.json';
+for(const version of ['3.0.4','3.1.2','3.2.1'])test(`explicit part media choices use captured ${version} encoding semantics`,()=>{
+ const value={openapi:version,info:{title:'Part choices',version:'1'},paths:{'/form':{post:{requestBody:{content:{'multipart/form-data':{
+   schema:{type:'object',properties:{metadata:{type:'string'},image:{type:'string'},default:{type:'string'}}},
+   encoding:{metadata:{contentType:'application/json; profile="a,b", text/plain'},image:{contentType:'image/*'},literal:{contentType:'application/*+json;; profile="a,b"'},ignored:{style:'form',contentType:'application/json, text/plain'}}
+ }}},responses:{204:{description:'ok'}}}}}};
+ const packet={root:id,snapshot:version,resource:id,pointer:'/paths/~1form/post',resources:[{id,text:JSON.stringify(value),generation:1}],mediaType:'multipart/form-data',files:[]};
+ const plan=requestOperation(packet),parts=plan.requestBody.content[0].form.parts;
+ assert.deepEqual(parts.metadata.contentTypes,['application/json; profile="a,b"','text/plain']);
+ assert.equal(parts.metadata.requiresChoice,true);assert.equal(parts.image.allowsCustom,true);
+ assert.deepEqual(parts.literal.concreteTypes,['application/*+json;; profile="a,b"']);
+ assert.equal(parts.literal.allowsCustom,false);assert.equal(parts.literal.requiresChoice,false);
+ assert.equal(requestFormMediaTypes({...packet,parts:['literal'],choices:{}}).types.literal,'application/*+json;; profile="a,b"');
+ assert.throws(()=>requestFormMediaTypes({...packet,parts:['literal'],choices:{literal:'application/problem+json; profile="a,b"'}}));
+ assert.equal(parts.metadata.source.pointer,'/paths/~1form/post/requestBody/content/multipart~1form-data/encoding/metadata/contentType');
+ assert.equal(parts.default.source.pointer,'/paths/~1form/post/requestBody/content/multipart~1form-data/schema/properties/default');
+ for(const part of Object.values(parts))assert.ok(part.source.range[1]>part.source.range[0]);
+ assert.equal(parts.ignored.styled,!version.startsWith('3.0.'));
+ const selected=requestFormMediaTypes({...packet,parts:['metadata','image','default'],choices:{metadata:'application/json; profile="a,b"',image:'image/png'}});
+ assert.deepEqual({...selected.types},{metadata:'application/json; profile="a,b"',image:'image/png'});
+ assert.equal(selected.identity,plan.identity);assert.equal(selected.snapshot,version);
+ assert.throws(()=>requestFormMediaTypes({...packet,parts:['metadata'],choices:{}}),error=>error.code==='request.form.content-type');
+ for(const choice of ['application/json','text/xml','text/plain, application/json','image/*','text/plain\r\nX: evil'])
+   assert.throws(()=>requestFormMediaTypes({...packet,parts:['metadata'],choices:{metadata:choice}}));
+ assert.throws(()=>requestFormMediaTypes({...packet,parts:['image'],choices:{image:'application/png'}}));
+ assert.deepEqual(requestFormMediaTypes({...packet,parts:[],choices:{},files:[{name:'image',fallback:'application/octet-stream',selected:'image/png'},{name:'image',fallback:'image/jpeg',selected:'image/jpeg'}]}).files,['image/png','image/jpeg']);
+ assert.throws(()=>requestFormMediaTypes({...packet,parts:[],choices:{},files:[{name:'image',fallback:'image/png'}]}));
+ assert.throws(()=>requestFormMediaTypes({...packet,parts:['default'],choices:{default:'application/json'}}));
+ if(!version.startsWith('3.0.')){
+   assert.deepEqual({...requestFormMediaTypes({...packet,parts:['ignored'],choices:{}}).types},{});
+   assert.throws(()=>requestFormMediaTypes({...packet,parts:['ignored'],choices:{ignored:'text/plain'}}));
+ }else assert.equal(requestFormMediaTypes({...packet,parts:['ignored'],choices:{ignored:'text/plain'}}).types.ignored,'text/plain');
+ const changed={...packet,resources:[{...packet.resources[0],text:JSON.stringify(value).replace('application/json; profile=\\"a,b\\", text/plain','application/json')}]};
+ assert.throws(()=>requestFormMediaTypes({...changed,parts:['metadata'],choices:{metadata:'text/plain'}}));
+});
+test('part media list validation locates malformed quoted parameters without treating example text as declarations',()=>{
+ for(const contentType of ['','text/plain,','text/plain; x="unfinished','*/json']){
+  const value={openapi:'3.0.4',info:{title:'Invalid part',version:'1'},paths:{'/':{post:{requestBody:{content:{'multipart/form-data':{schema:{type:'object'},encoding:{a:{contentType}},example:{contentType:'not a media type'}}}},responses:{204:{description:'ok'}}}}}};
+  const report=analyse({root:id,snapshot:'invalid',resources:[{id,text:JSON.stringify(value),generation:1}]});
+  const findings=report.findings.filter(value=>value.code==='encoding.content-type');
+  assert.equal(findings.length,1,JSON.stringify(report));assert.equal(findings[0].pointer,'/paths/~1/post/requestBody/content/multipart~1form-data/encoding/a/contentType');
+  assert.ok(findings[0].range[1]>findings[0].range[0]);
+ }
+});
+test('repeated media parameters are an execution limitation rather than a grammar violation',()=>{
+ for(const contentType of ['text/plain; charset=utf-8; charset=utf-8','text/plain; charset=utf-8; charset=us-ascii']){
+  const value={openapi:'3.2.1',info:{title:'Parameter ambiguity',version:'1'},paths:{'/':{post:{requestBody:{content:{'multipart/form-data':{schema:{type:'object'},encoding:{a:{contentType}}}}},responses:{204:{description:'ok'}}}}}};
+  const packet={root:id,snapshot:'ambiguity',resources:[{id,text:JSON.stringify(value),generation:1}],resource:id,pointer:'/paths/~1/post',mediaType:'multipart/form-data',parts:['a'],choices:{},files:[]};
+  const analysis=analyse(packet);assert.equal(analysis.complete,true);assert.equal(analysis.findings.some(finding=>finding.severity==='error'),false);
+  assert.throws(()=>requestFormMediaTypes(packet),error=>error.code==='request.form.media-parameters.unsupported');
+  assert.equal(packet.resources[0].text,JSON.stringify(value));
+ }
+});
 const document={
  openapi:'3.2.1',info:{title:'Execution',version:'1'},
  servers:[{url:'https://{tenant}.example.invalid/v1',variables:{tenant:{default:'demo'}}}],

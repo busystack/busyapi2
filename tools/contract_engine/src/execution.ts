@@ -9,6 +9,7 @@ import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
 import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './swagger_operation';
 import {componentLocation} from './authoring';
 import {FormSemantics} from './form_semantics';
+import {mediaTypeChoice} from './media_types';
 
 const maximumItems = 2048;
 
@@ -146,6 +147,47 @@ export function planExecutionEnvironment(input:any) {
 
 type Located = {resource:string;pointer:string;generation:number;range:number[]};
 
+/** Resolve explicit part choices against the captured graph. No file extension,
+ * payload sniffing, environment or credential participates in this decision. */
+export function requestFormMediaTypes(input:any){
+  if(!Array.isArray(input.parts)||input.parts.length>maximumItems||input.parts.some((name:unknown)=>typeof name!=='string')||
+      !Array.isArray(input.files)||input.files.length>maximumItems||input.files.some((file:any)=>!file||typeof file.name!=='string'||typeof file.fallback!=='string'||file.selected!==undefined&&typeof file.selected!=='string')||
+      !input.choices||typeof input.choices!=='object'||Array.isArray(input.choices)||Object.keys(input.choices).length>maximumItems||
+      Object.values(input.choices).some(value=>typeof value!=='string'))
+    throw new SourceError('request.form.content-type','Expected bounded named part media selections');
+  const plan=requestOperation(input),content=plan.requestBody?.content.find((value:any)=>value.mediaType===input.mediaType);
+  if(!content||!['multipart/form-data','application/x-www-form-urlencoded'].includes(input.mediaType.split(';')[0].trim().toLowerCase()))
+    throw new SourceError('request.form.content-type','Select a captured form media declaration');
+  const multipart=input.mediaType.split(';')[0].trim().toLowerCase()==='multipart/form-data',types:Record<string,string>=Object.create(null);
+  const names=new Set<string>([...input.parts,...Object.keys(input.choices)]);
+  const resolve=(name:string,choice?:string,fallback?:string)=>{
+    const rule=content.encoding?.[name];
+    if(choice!==undefined&&!content.swaggerForm&&!Object.hasOwn(content.form?.parts??{},name))
+      throw new SourceError('request.form.content-type',`The selected part ${name} is absent from the captured form declaration`);
+    const styled=(!multipart||content.form?.multipartStyle===true)&&['style','explode','allowReserved'].some(key=>Object.hasOwn(rule??{},key));
+    if(styled){
+      if(choice!==undefined)throw new SourceError('request.form.content-type',`Part ${name} uses style serialization; its Content-Type selection no longer applies`);
+      return undefined;
+    }
+    if(rule?.contentType!==undefined){
+      return mediaTypeChoice(rule.contentType,choice);
+    }else if(choice!==undefined||fallback!==undefined){
+      // An omitted contentType has its native default, rather than granting an
+      // arbitrary alternative. Swagger has no per-part media restrictions.
+      const property=content.form?.shape?.properties?.[name];
+      const shape=property?.types?.includes('array')?property.items:property;
+      return mediaTypeChoice(content.swaggerForm?'*/*':shape?.defaultContentType??content.form?.defaultContentType,choice??(content.swaggerForm?fallback:undefined));
+    }
+    return undefined;
+  };
+  for(const name of names){
+    const type=resolve(name,Object.hasOwn(input.choices,name)?input.choices[name]:undefined);
+    if(type!==undefined)types[name]=type;
+  }
+  const files=input.files.map((file:any)=>resolve(file.name,file.selected??(Object.hasOwn(input.choices,file.name)?input.choices[file.name]:undefined),file.fallback)??'text/plain');
+  return {version:1,snapshot:input.snapshot,identity:plan.identity,types,files};
+}
+
 /**
  * A request plan is a located, immutable projection of one physical operation
  * occurrence.  It deliberately contains no credential or environment value.
@@ -251,7 +293,7 @@ export function requestOperation(input:any) {
         conversionError:['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?e.conversionError:undefined}));
       const mediaFamily=graph.scope(selected.resource,selected.pointer).family;
       entries.push({mediaType:name,family:mediaFamily,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:mediaFamily==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
-        form: ['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?forms.media(mediaFamily,selected.resource,selected.pointer):undefined,
+        form: ['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?forms.media(mediaFamily,selected.resource,selected.pointer,name):undefined,
         prefixEncoding:v?.prefixEncoding,itemEncoding:v?.itemEncoding,encoding:v?.encoding&&typeof v.encoding==='object'?Object.fromEntries(Object.entries(v.encoding).slice(0,maximumItems)):undefined});
     }
     return entries;

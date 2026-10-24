@@ -30,6 +30,7 @@ Future<PreparedFormValues> prepareFormValues(
   bool multipart,
   Future<Map<String, dynamic>> Function(Map<String, String>) parseJson, {
   RequestFormData? data,
+  Map<String, String> mediaTypes = const {},
 }) async {
   final metadata = declaration['form'];
   if (metadata is! Map || metadata['shape'] is! Map) {
@@ -42,8 +43,10 @@ Future<PreparedFormValues> prepareFormValues(
   final properties = shape['properties'];
   final encoding = declaration['encoding'];
   final groups = <String, List<String>>{};
-  for (final (name, text) in fields) {
+  final fieldOrder = <String, List<int>>{};
+  for (final (index, (name, text)) in fields.indexed) {
     (groups[name] ??= []).add(text);
+    (fieldOrder[name] ??= []).add(index);
   }
   if (data != null)
     for (final entry in data.fields.entries) {
@@ -130,7 +133,9 @@ Future<PreparedFormValues> prepareFormValues(
     final itemShape = array && items is Map ? items : fieldShape;
     final media = styled
         ? null
-        : rule['contentType'] as String? ?? contentType(itemShape);
+        : mediaTypes[entry.key] ??
+              rule['contentType'] as String? ??
+              contentType(itemShape);
     final jsonMedia =
         media?.split(';').first.trim().toLowerCase() == 'application/json' ||
         media?.split(';').first.trim().toLowerCase().endsWith('+json') == true;
@@ -208,6 +213,7 @@ Future<PreparedFormValues> prepareFormValues(
   }
   final parsed = await parseJson(jsonInputs);
   final content = <FormContentPart>[], styled = <FormStyleValue>[];
+  final contentOrder = <FormContentPart, int>{};
   final instance = <String>[];
   for (final entry in definitions.entries) {
     final definition = entry.value;
@@ -240,13 +246,21 @@ Future<PreparedFormValues> prepareFormValues(
         ),
       );
     } else {
-      for (final value in definition.values) {
-        content.add(
-          FormContentPart(entry.key, value.text, definition.mediaType!),
+      for (final (index, value) in definition.values.indexed) {
+        final part = FormContentPart(
+          entry.key,
+          value.text,
+          definition.mediaType!,
         );
+        content.add(part);
+        if (data == null) contentOrder[part] = fieldOrder[entry.key]![index];
       }
     }
   }
+  // Grouping is needed for schema evaluation, but literal rows retain their
+  // authored interleaving on the wire. Structured JSON has property/array order.
+  if (data == null)
+    content.sort((a, b) => contentOrder[a]!.compareTo(contentOrder[b]!));
   return PreparedFormValues(
     content,
     styled,

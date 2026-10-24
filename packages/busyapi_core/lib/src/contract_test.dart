@@ -380,6 +380,28 @@ class ContractTestRunner {
           (body['mediaType'] as String).isEmpty ||
           !body.containsKey('value'))
         invalid('body', 'Expected mediaType and a typed value.');
+      if (body.containsKey('partMediaTypes')) {
+        strings(
+          body['partMediaTypes'],
+          'body/partMediaTypes',
+          allowEmpty: true,
+        );
+        if (![
+              'multipart/form-data',
+              'application/x-www-form-urlencoded',
+            ].contains(
+              (body['mediaType'] as String)
+                  .split(';')
+                  .first
+                  .trim()
+                  .toLowerCase(),
+            ) ||
+            body['value'] is! Map)
+          invalid(
+            'body/partMediaTypes',
+            'Part media choices require object-valued form data.',
+          );
+      }
     }
     if (!value.containsKey('expect')) return;
     final expect = value['expect'];
@@ -446,15 +468,20 @@ class ContractTestRunner {
     if (rawBody is Map && exact['body'] is Map) {
       final media = rawBody['mediaType'] as String,
           text = exact['body']['text'] as String;
+      final partMediaTypes = rawBody['partMediaTypes'] is Map
+          ? (rawBody['partMediaTypes'] as Map).cast<String, String>()
+          : const <String, String>{};
       body = exact['body']['json'] == true
           ? switch (media.split(';').first.trim().toLowerCase()) {
               'application/x-www-form-urlencoded' => RequestBodyDraft.formValue(
                 json: text,
                 mediaType: media,
+                partMediaTypes: partMediaTypes,
               ),
               'multipart/form-data' => RequestBodyDraft.multipartValue(
                 json: text,
                 mediaType: media,
+                partMediaTypes: partMediaTypes,
               ),
               _ => RequestBodyDraft.raw(mediaType: media, text: text),
             }

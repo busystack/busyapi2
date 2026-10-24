@@ -25,6 +25,7 @@ import '../platform/secret_store.dart';
 import '../platform/external_uri_service.dart';
 import 'refactoring_review.dart';
 import 'workspace_controller.dart';
+import 'request_part_media.dart';
 
 enum RequestTimeoutKind { connect, overall, inactivity }
 
@@ -83,6 +84,7 @@ class RequestRunController extends ChangeNotifier {
   bool expanded = true, _disposed = false;
   bool bodyEnabled = false;
   bool bodyStructured = false;
+  final Map<String, String> partMediaTypes = {};
   int _epoch = 0;
   final Map<(BusyProject?, OperationRequestPlan?, String?), int>
   _credentialWrites = {};
@@ -265,10 +267,12 @@ class RequestRunController extends ChangeNotifier {
                   ? RequestBodyDraft.formValue(
                       json: bodyText,
                       mediaType: bodyMediaType!,
+                      partMediaTypes: Map.of(partMediaTypes),
                     )
                   : RequestBodyDraft.form(
                       formRows(bodyText),
                       mediaType: bodyMediaType!,
+                      partMediaTypes: Map.of(partMediaTypes),
                     ),
             RequestBodyKind.multipart =>
               bodyStructured
@@ -276,11 +280,13 @@ class RequestRunController extends ChangeNotifier {
                       json: bodyText,
                       files: List.of(bodyFiles),
                       mediaType: bodyMediaType!,
+                      partMediaTypes: Map.of(partMediaTypes),
                     )
                   : RequestBodyDraft.multipart(
                       formRows(bodyText),
                       List.of(bodyFiles),
                       mediaType: bodyMediaType!,
+                      partMediaTypes: Map.of(partMediaTypes),
                     ),
             RequestBodyKind.binaryFile =>
               bodyFiles.length == 1
@@ -319,6 +325,7 @@ class RequestRunController extends ChangeNotifier {
     if (busy || hasComposingInput) return;
     bodyMediaType = media;
     bodyFiles.clear();
+    partMediaTypes.clear();
     bodyKind = _kindForMedia(media);
     if (bodyKind != RequestBodyKind.form &&
         bodyKind != RequestBodyKind.multipart) {
@@ -333,6 +340,29 @@ class RequestRunController extends ChangeNotifier {
         'multipart/form-data' => RequestBodyKind.multipart,
         _ => RequestBodyKind.raw,
       };
+
+  void selectPartMedia(String name, String? media) {
+    if (busy) return;
+    if (media == null || media.isEmpty) {
+      partMediaTypes.remove(name);
+    } else {
+      partMediaTypes[name] = media;
+    }
+    refresh();
+  }
+
+  void selectFileMedia(int index, String? media) {
+    if (busy || index < 0 || index >= bodyFiles.length) return;
+    final file = bodyFiles[index];
+    bodyFiles[index] = MultipartFileValue(
+      name: file.name,
+      path: file.path,
+      filename: file.filename,
+      mediaType: file.mediaType,
+      selectedMediaType: media == null || media.isEmpty ? null : media,
+    );
+    refresh();
+  }
 
   void _observe() {
     if (owner == null) return;
@@ -375,6 +405,7 @@ class RequestRunController extends ChangeNotifier {
     timeoutInputs.clear();
     bodyKind = RequestBodyKind.raw;
     bodyStructured = false;
+    partMediaTypes.clear();
     connectTimeout = const Duration(seconds: 15);
     overallTimeout = const Duration(seconds: 60);
     inactivityTimeout = const Duration(seconds: 15);
@@ -713,6 +744,7 @@ class RequestRunController extends ChangeNotifier {
       _notify();
       return;
     }
+    if (bodyMediaType != type) partMediaTypes.clear();
     bodyMediaType = type;
     bodyText = text;
     bodyStructured = formData;
@@ -1275,6 +1307,7 @@ class _RequestDraftState {
       headers = List.of(run.customHeaders),
       kind = run.bodyKind,
       bodyStructured = run.bodyStructured,
+      partMediaTypes = Map.of(run.partMediaTypes),
       timeoutInputs = Map.of(run.timeoutInputs),
       timeouts = (
         run.connectTimeout,
@@ -1299,6 +1332,7 @@ class _RequestDraftState {
   final List<RequestHeaderValue> headers;
   final RequestBodyKind kind;
   final bool bodyStructured;
+  final Map<String, String> partMediaTypes;
   final (Duration, Duration, Duration) timeouts;
   final Map<RequestTimeoutKind, String> timeoutInputs;
   final Map<String, String> values, tls;
@@ -1310,6 +1344,10 @@ class _RequestDraftState {
   final int? security;
   int get bytes =>
       (body.length +
+          partMediaTypes.entries.fold<int>(
+            0,
+            (n, entry) => n + entry.key.length + entry.value.length,
+          ) +
           header.length +
           headerValue.length +
           values.entries.fold<int>(
@@ -1321,7 +1359,12 @@ class _RequestDraftState {
           files.fold<int>(
             0,
             (n, f) =>
-                n + f.name.length + f.path.length + (f.filename?.length ?? 0),
+                n +
+                f.name.length +
+                f.path.length +
+                (f.filename?.length ?? 0) +
+                f.mediaType.length +
+                (f.selectedMediaType?.length ?? 0),
           ) +
           tls.entries.fold<int>(
             0,
@@ -1335,6 +1378,7 @@ class _RequestDraftState {
     run.customHeaders.addAll(headers);
     run.bodyKind = kind;
     run.bodyStructured = bodyStructured;
+    run.partMediaTypes.addAll(partMediaTypes);
     run.timeoutInputs.addAll(timeoutInputs);
     run.connectTimeout = timeouts.$1;
     run.overallTimeout = timeouts.$2;
@@ -2996,21 +3040,12 @@ class _BodyEditor extends StatelessWidget {
                   : l.requestExactBody,
               onChanged: (value) => run.bodyText = value,
             ),
-          if (multipart)
+          if ((form || multipart) && run.bodyKind != RequestBodyKind.raw)
             BusyApiDisclosure(
               title: Text(l.requestPartEncoding),
               children: [
                 BusyApiStatusBox(message: l.requestPartEncodingHelp),
-                for (final declaration in content.where(
-                  (m) => m['mediaType'] == mediaType,
-                ))
-                  if (declaration['encoding'] case final Map encoding)
-                    for (final part in encoding.entries)
-                      BusyApiActionRow(
-                        title: part.key as String,
-                        subtitle:
-                            '${part.value['contentType'] ?? 'text/plain'} · ${part.value['headers'] is Map ? (part.value['headers'] as Map).keys.join(', ') : ''}',
-                      ),
+                RequestPartMediaEditor(run: run),
               ],
             ),
           if (!form) ...[

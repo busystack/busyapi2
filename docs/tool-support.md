@@ -31,6 +31,32 @@ JSON scalar kinds and numeric lexemes are retained. Empty collections that emit
 no fields are omitted from outgoing presence checks. File input remains explicit;
 a string in a saved case is never permission to read a file.
 
+The form-part controls provide explicit Content-Type selection for declared
+lists and media ranges. A concrete choice must match a declared range and its
+parameters. File overrides allow different types for files under the same field;
+picker MIME metadata does not satisfy a required choice. No payload sniffing is
+used. Environment drafts retain selections, and preparation checks them against
+the captured operation again after contract edits. Literal field rows retain
+their interleaving; typed JSON retains property and array order.
+Repeated media parameters are structurally accepted but execution refuses their
+ambiguous interpretation as unsupported; it does not choose a first/last value.
+
+Object-valued saved cases use `body.partMediaTypes` for shared field choices:
+
+```yaml
+body:
+  mediaType: multipart/form-data
+  value:
+    metadata: {id: 9007199254740993}
+  partMediaTypes:
+    metadata: application/json
+```
+
+The field applies to native form data, including URL-encoded content. It never
+grants file access or changes a literal whole-body representation. Positional,
+nested and transfer encodings still require further implementation and are
+reported as limitations before sending.
+
 Migration checks effective form encodings as well as media names. It removes
 ignored 3.0 multipart style fields before they could become active in 3.1.
 Swagger multipart arrays with a CSV/space/pipe separator are blocked for a 3.0
@@ -63,8 +89,6 @@ filesystem access.
 Ordinary preparation reuses verified assets offline. Explicit `--jar` and
 `--jre-archive` inputs must match the locks. CMake installs the verified runtime
 and notices in each build mode; package and Snap checks verify its inventory.
-
-Import and report conversion add no distributed dependency or new runtime asset. Normal CMake/debug/profile/IDE/release compilation includes their core/native source through the existing entries; the existing Git, Node, notices and mode-matched engine preparation remain unchanged. The CI examples under `examples/ci/` are ordinary user-facing YAML, not modifications of remote projects or hosted-run evidence. Full suites, installed/native acceptance and the six native performance runs remain deferred at the owner's request; focused checks and a development CLI build are not release qualification.
 
 `BUSYAPI_DISTRIBUTION=snap tools/build_linux.sh` keeps normal CMake and common installed-asset checks but omits standalone system-library copying. A previously assembled standalone inventory is refused in platform mode. The recipe's GNOME extension supplies libhandy and the complete WebKitGTK 4.1 platform, while core24 supplies libseccomp; only WebKit's missing development headers are added to the build packages. The ordinary Snap prime step verifies the exact generated GNOME/GPU launcher scripts and installs their original GPL-3.0 licence, templates/Makefiles and generation notice. `tools.test_snap_extension_notices` covers original/generated correspondence, repeatability, collisions, changed inputs and linked paths. The explicit `snap/hooks/configure` terminal endpoint is the same `#!/bin/true` placeholder that Snapcraft supplies for extension-only hooks; it does not replace or bypass GNOME's font-cache command chain. Prime checks require its staged executable, and `python3 -m tools.check_snap_package --prime UNPACKED_IMAGE --packaged` additionally requires the actual `meta/hooks/configure` handoff, namespaced GUI command and packaged icon. Regression tests exercise post-cache exec and missing/non-executable/linked/unexpected endpoints and desktop assets. These build checks do not substitute for actual strict-confined execution.
 

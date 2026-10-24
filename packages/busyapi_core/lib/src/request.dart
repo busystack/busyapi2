@@ -13,6 +13,7 @@ import 'content_selection.dart';
 import 'header_serialization.dart';
 import 'swagger_serialization.dart';
 import 'form_serialization.dart';
+import 'form_media_types.dart';
 import 'request_form_values.dart';
 import 'project.dart';
 import 'atomic_file_writer.dart';
@@ -117,9 +118,11 @@ class MultipartFileValue {
     required this.path,
     this.filename,
     this.mediaType = 'application/octet-stream',
+    this.selectedMediaType,
   });
   final String name, path, mediaType;
   final String? filename;
+  final String? selectedMediaType;
 }
 
 class RequestFormField {
@@ -133,16 +136,19 @@ class RequestBodyDraft {
       mediaType = null,
       text = null,
       file = null,
+      partMediaTypes = const {},
       fields = const [],
       files = const [];
   const RequestBodyDraft.raw({required this.mediaType, required this.text})
     : kind = RequestBodyKind.raw,
       file = null,
+      partMediaTypes = const {},
       fields = const [],
       files = const [];
   const RequestBodyDraft.form(
     this.fields, {
     this.mediaType = 'application/x-www-form-urlencoded',
+    this.partMediaTypes = const {},
   }) : kind = RequestBodyKind.form,
        text = null,
        file = null,
@@ -150,6 +156,7 @@ class RequestBodyDraft {
   const RequestBodyDraft.formValue({
     required String json,
     this.mediaType = 'application/x-www-form-urlencoded',
+    this.partMediaTypes = const {},
   }) : kind = RequestBodyKind.form,
        text = json,
        file = null,
@@ -159,6 +166,7 @@ class RequestBodyDraft {
     this.fields,
     this.files, {
     this.mediaType = 'multipart/form-data',
+    this.partMediaTypes = const {},
   }) : kind = RequestBodyKind.multipart,
        text = null,
        file = null;
@@ -166,6 +174,7 @@ class RequestBodyDraft {
     required String json,
     this.files = const [],
     this.mediaType = 'multipart/form-data',
+    this.partMediaTypes = const {},
   }) : kind = RequestBodyKind.multipart,
        text = json,
        file = null,
@@ -175,12 +184,14 @@ class RequestBodyDraft {
     required this.file,
   }) : kind = RequestBodyKind.binaryFile,
        text = null,
+       partMediaTypes = const {},
        fields = const [],
        files = const [];
   final RequestBodyKind kind;
   final String? mediaType, text, file;
   final List<RequestFormField> fields;
   final List<MultipartFileValue> files;
+  final Map<String, String> partMediaTypes;
 }
 
 class OperationRequestDraft {
@@ -1387,6 +1398,39 @@ class ContractRequestBuilder {
         : null;
     checkOwner();
     cancellation?.throwIfCancelled();
+    final resolvedMediaTypes =
+        (body.kind == RequestBodyKind.form ||
+            body.kind == RequestBodyKind.multipart)
+        ? await plan.formMediaTypes(
+            body.mediaType!,
+            {
+              ...body.fields.map((field) => field.name),
+              if (data != null)
+                ...data.fields.entries
+                    .where(
+                      (entry) =>
+                          entry.value.kind != RequestDataKind.array ||
+                          entry.value.items.isNotEmpty,
+                    )
+                    .map((entry) => entry.key),
+            },
+            body.partMediaTypes,
+            files: [
+              for (final file in body.files)
+                {
+                  'name': file.name,
+                  'fallback': file.mediaType,
+                  if (file.selectedMediaType != null)
+                    'selected': file.selectedMediaType!,
+                },
+            ],
+            requestId: 'form-media-${_runIdentity()}',
+            cancellation: cancellation,
+          )
+        : const ResolvedFormMediaTypes({}, []);
+    final partMediaTypes = resolvedMediaTypes.fields;
+    checkOwner();
+    cancellation?.throwIfCancelled();
     var fields = nativeForm == null
         ? body.fields
         : data != null
@@ -1434,6 +1478,7 @@ class ContractRequestBuilder {
         multipart,
         plan.parameterValues,
         data: data,
+        mediaTypes: partMediaTypes,
       );
       checkOwner();
       cancellation?.throwIfCancelled();
@@ -1441,13 +1486,6 @@ class ContractRequestBuilder {
         for (final part in form.content) RequestFormField(part.name, part.text),
       ];
       for (final part in form.content) {
-        if (part.contentType.contains(',') ||
-            part.contentType.split(';').first.contains('*')) {
-          throw CoreFailure(
-            'request.form.content-type',
-            'Choose a concrete declared Content-Type for form property ${part.name}.',
-          );
-        }
         validateTextCharset(part.contentType, [part.text]);
         validateTextCharset(body.mediaType!, [part.name, part.text]);
         partTypes[part.name] = part.contentType;
@@ -1560,10 +1598,10 @@ class ContractRequestBuilder {
 
           final encoding = declaration?['encoding'];
           final formMetadata = declaration?['form'];
-          String partHeaders(String name, {String? text}) {
+          String partHeaders(String name, {String? text, String? mediaType}) {
             final rule = encoding is Map ? encoding[name] : null;
             if (rule == null) {
-              final type = partTypes[name];
+              final type = mediaType ?? partMediaTypes[name] ?? partTypes[name];
               return type == null ? '' : 'Content-Type: $type\r\n';
             }
             if (rule is! Map ||
@@ -1584,10 +1622,13 @@ class ContractRequestBuilder {
                 ['style', 'explode', 'allowReserved'].any(rule.containsKey);
             final type = rfcStyle
                 ? 'text/plain'
-                : rule['contentType'] ?? partTypes[name];
+                : mediaType ??
+                      partMediaTypes[name] ??
+                      rule['contentType'] ??
+                      partTypes[name];
             var output = '';
             if (type != null) {
-              if (type is! String || type.contains(',')) {
+              if (type is! String) {
                 throw CoreFailure(
                   'request.multipart.encoding',
                   'Choose one declared part Content-Type for $name.',
@@ -1668,13 +1709,14 @@ class ContractRequestBuilder {
               '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(field.name)}"\r\n${partHeaders(fieldOwners[field] ?? field.name, text: field.value)}\r\n${field.value}\r\n',
             );
           }
-          for (final item in body.files) {
+          for (final (index, item) in body.files.indexed) {
             _partName(item.name);
-            _mediaType(item.mediaType);
+            final mediaType = resolvedMediaTypes.files[index];
+            _mediaType(mediaType);
             _uploadLimit(length);
             final captured = await _fileBody(
               item.path,
-              item.mediaType,
+              mediaType,
               cancellation,
               remainingBytes: maximumUploadBytes - length,
               checkOwner: checkOwner,
@@ -1683,8 +1725,9 @@ class ContractRequestBuilder {
             final size = captured.length;
             final filename = item.filename ?? p.basename(item.path);
             _partName(filename);
+            final headers = partHeaders(item.name, mediaType: mediaType);
             bytes(
-              '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(item.name)}"; filename="${_quoted(filename)}"\r\n${partHeaders(item.name).contains('Content-Type:') ? '' : 'Content-Type: ${item.mediaType}\r\n'}${partHeaders(item.name)}\r\n',
+              '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(item.name)}"; filename="${_quoted(filename)}"\r\n$headers\r\n',
             );
             chunks.add(captured);
             length += size;

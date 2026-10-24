@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:busyapi/l10n/generated/app_localizations.dart';
 import 'package:busyapi/src/app/app_theme.dart';
 import 'package:busyapi/src/app/busyapi_design.dart';
+import 'package:busyapi/src/app/busyapi_disclosure.dart';
 import 'package:busyapi/src/designer/form_value_editor.dart';
 import 'package:busyapi/src/source/source_editor.dart';
 import 'package:busyapi/src/comparison/review_comparison.dart';
@@ -2349,6 +2350,165 @@ paths:
           expect(f.run.result!.outgoing.valid, isTrue);
           expect(f.file.readAsStringSync(), original);
           expect(f.c.buffer!.text, original);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(() async {
+            await endpoint?.close(force: true);
+            await f.dispose();
+          });
+        }
+      },
+    );
+  }
+
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
+    testWidgets(
+      'F09 native part media controls retain explicit choices and reject changed declarations $version',
+      (tester) async {
+        tester.view.physicalSize = const Size(1500, 1200);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final f = _Fixture();
+        HttpServer? endpoint;
+        final received = <String>[];
+        late String original;
+        try {
+          await tester.runAsync(() async {
+            endpoint = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+            endpoint!.listen((request) async {
+              received.add(await utf8.decoder.bind(request).join());
+              request.response.statusCode = 204;
+              await request.response.close();
+            });
+            original =
+                '''# Retain native form source
+openapi: $version
+info: {title: Part controls, version: '1'}
+servers: [{url: 'http://127.0.0.1:${endpoint!.port}'}]
+paths:
+  /form:
+    post:
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [value, other]
+              properties:
+                value: {type: string}
+                other: {type: string}
+                image: {type: array, items: ${version.startsWith('3.0.') ? '{type: string, format: binary}' : '{}'}}
+            encoding:
+              value: {contentType: 'application/json, text/plain'}
+              other: {contentType: 'text/*'}
+              image: {contentType: 'image/*'}
+      responses: {'204': {description: ok}}
+''';
+            await f.open(original);
+          });
+          f.run.bodyText = 'value=雪+&\nother=hello';
+          await tester.pumpWidget(host(RequestRunPanel(run: f.run)));
+          final disclosure = find.widgetWithText(
+            BusyApiDisclosure,
+            'Declared form parts',
+          );
+          final disclosureButton = find
+              .descendant(of: disclosure, matching: find.byType(TextButton))
+              .first;
+          await tester.ensureVisible(disclosureButton);
+          await tester.tap(disclosureButton);
+          await tester.pumpAndSettle();
+          final choices = menu(tester, 'value · Content-Type');
+          final plain = choices.items
+              .whereType<BusyApiPopupMenuItem<int>>()
+              .singleWhere((item) => item.label == 'text/plain');
+          choices.onSelected(plain.menuValue);
+          await tester.pumpAndSettle();
+          final range = find.byWidgetPredicate(
+            (widget) =>
+                widget is RequestDraftEntry &&
+                widget.label == 'other · Concrete Content-Type',
+          );
+          final rangeInput = find.descendant(
+            of: range,
+            matching: find.byType(TextFormField),
+          );
+          await tester.ensureVisible(rangeInput);
+          await tester.enterText(rangeInput, 'text/plain; charset=utf-8');
+          await tester.pumpAndSettle();
+          f.run.selectEnvironment('local');
+          f.run.selectEnvironment(null);
+          await tester.pumpAndSettle();
+          expect(f.run.partMediaTypes, {
+            'value': 'text/plain',
+            'other': 'text/plain; charset=utf-8',
+          });
+          expect(f.run.draft().body.partMediaTypes, f.run.partMediaTypes);
+          await tester.runAsync(
+            () => HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp()),
+          );
+          expect(f.run.failure, isNull, reason: f.run.failureMessage);
+          expect(
+            received.single,
+            contains('name="value"\r\nContent-Type: text/plain\r\n\r\n雪+&\r\n'),
+          );
+          expect(
+            received.single,
+            contains(
+              'name="other"\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nhello\r\n',
+            ),
+          );
+          expect(f.run.result!.outgoing.complete, isTrue);
+          expect(f.run.result!.outgoing.valid, isTrue);
+          final binary = File('${f.dir.path}/upload.bin');
+          await tester.runAsync(() => binary.writeAsBytes([0, 255, 128]));
+          f.run.bodyFilePart = 'image';
+          f.run.addBodyFile(XFile(binary.path, name: 'upload.bin'));
+          await tester.pumpAndSettle();
+          final fileChoice = find.byWidgetPredicate(
+            (widget) =>
+                widget is RequestDraftEntry &&
+                widget.label == 'image · upload.bin · Concrete Content-Type',
+          );
+          final fileInput = find.descendant(
+            of: fileChoice,
+            matching: find.byType(TextFormField),
+          );
+          if (fileInput.evaluate().isEmpty) {
+            await tester.ensureVisible(disclosureButton);
+            await tester.tap(disclosureButton);
+            await tester.pumpAndSettle();
+          }
+          await tester.ensureVisible(fileInput);
+          await tester.enterText(fileInput, 'image/png');
+          await tester.pumpAndSettle();
+          expect(
+            f.run.draft().body.files.single.selectedMediaType,
+            'image/png',
+          );
+          f.run.selectEnvironment('local');
+          f.run.selectEnvironment(null);
+          await tester.pumpAndSettle();
+          expect(f.run.bodyFiles.single.selectedMediaType, 'image/png');
+          await tester.runAsync(() async {
+            f.c.sourceEdit(
+              f.c.active!,
+              original.replaceFirst(
+                'application/json, text/plain',
+                'application/json',
+              ),
+            );
+            await f.c.analyse();
+            await f.run.reconcileDraft();
+            await HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp());
+          });
+          expect(f.run.partMediaTypes['value'], 'text/plain');
+          expect(f.run.failure, 'request.form.content-type');
+          expect(received, hasLength(1));
+          expect(f.run.bodyText, 'value=雪+&\nother=hello');
+          expect(f.file.readAsStringSync(), original);
+          expect(tester.takeException(), isNull);
         } finally {
           await tester.pumpWidget(const SizedBox.shrink());
           await tester.runAsync(() async {
