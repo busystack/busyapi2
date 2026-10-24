@@ -49,7 +49,7 @@ export function referenceValue(graph:ReferenceGraph,from:GraphScope,to:GraphScop
    append(resolveUri(to.resource,to.resource),keyword==='$dynamicRef'?'#'+encodeURIComponent(suffix):fragment(to.pointer));
   append(target,keyword==='$dynamicRef'?'#'+encodeURIComponent(suffix):fragment(suffix));
   for(const value of attempts) {
-   const result=graph.resolve(value,from,keyword==='$dynamicRef');
+   const result=graph.resolveReference(value,from,keyword);
    if(result.resolution==='resolved'&&to.resource===result.targetResource&&to.pointer===result.targetPointer)return value;
   }
  }catch { /* No guessed address when a pointer/identity cannot be represented. */ }

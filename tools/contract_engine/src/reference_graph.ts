@@ -28,6 +28,7 @@ export type OperationOccurrence = {source:GraphTarget;pathItem:GraphTarget;path:
 export type GraphReference = GraphScope & {
     keyword: string; value: string; targetUri?: string;
     targetResource?: string; targetPointer?: string;
+    targetFamily?: string;
     candidateResources?: string[];
     resolution: string; dynamic?: { anchor: string; candidates: GraphTarget[] };
     connection?: 'security' | 'discriminator' | 'operationId' | 'operationRef';
@@ -165,7 +166,7 @@ export class ReferenceGraph {
             const before = this.indexed.size;
             for (let i = 0; i < this.pending.length; i++) {
                 const ref = this.pending[i];
-                const resolved = this.resolveReference(ref);
+                const resolved = this.resolveEdge(ref);
                 Object.assign(ref, resolved);
                 if (ref.targetResource !== undefined && ref.targetPointer !== undefined && ref.resolution === 'resolved') {
                     const scope = this.scope(ref.targetResource, ref.targetPointer);
@@ -178,19 +179,22 @@ export class ReferenceGraph {
         // A later reached fragment may declare an identifier/anchor needed by
         // an earlier edge. Re-resolve all edges against the complete index.
         for (const ref of this.references) {
-            delete ref.targetResource; delete ref.targetPointer; delete ref.dynamic;
-            Object.assign(ref, this.resolveReference(ref));
+            delete ref.targetResource; delete ref.targetPointer; delete ref.targetFamily; delete ref.dynamic;
+            Object.assign(ref, this.resolveEdge(ref));
             if (ref.resolution !== 'resolved') {
                 const code = ref.resolution === 'unavailable' ? 'reference.unavailable' :
                     ref.resolution === 'ambiguous' ? 'reference.ambiguous' :
                     ref.resolution === 'invalid' ? 'reference.uri' :
+                    ref.resolution === 'incompatible-family' ? 'reference.family.unsupported' :
                     ref.resolution === 'unsupported' ? 'reference.dialect.unsupported' : 'reference.missing';
                 this.issue({ ...ref, pointer: ref.pointer + '/' + escape(ref.keyword) }, code,
                     ref.resolution === 'unavailable' ? 'Referenced identity is unavailable or outside approved access' :
                     ref.resolution === 'ambiguous' ? 'Reference identity has multiple definitions' :
+                    ref.resolution === 'incompatible-family' ? `This reference combines OpenAPI ${ref.family} and ${ref.targetFamily} object semantics; cross-family evaluation involving a legacy specification is unsupported. Use a definition authored for the referring family.` :
                     ref.resolution === 'unsupported' ? 'Reference evaluation requires support for the declared schema dialect' :
                     ref.resolution === 'invalid' ? 'Invalid URI reference or JSON Pointer fragment' : 'Reference target does not exist',
-                    ['unavailable', 'ambiguous', 'unsupported'].includes(ref.resolution));
+                    ['unavailable', 'ambiguous', 'unsupported', 'incompatible-family'].includes(ref.resolution),
+                    ref.resolution === 'incompatible-family' ? 'warning' : undefined);
             }
         }
         this.checkReferenceChains();
@@ -345,7 +349,7 @@ export class ReferenceGraph {
         return this.scopes.get(key(resource, at))!;
     }
 
-    private resolveReference(ref: GraphReference): Partial<GraphReference> {
+    private resolveEdge(ref: GraphReference): Partial<GraphReference> {
         if (ref.connection === 'operationId') {
             const targets = [...this.scopes.values()].filter(scope => scope.kind === 'operation' && this.docs.get(scope.resource)?.dataNode(scope.pointer)?.value?.operationId === ref.value);
             if (targets.length !== 1) return {resolution: targets.length ? 'ambiguous' : 'missing', candidateTargets: targets, candidateResources: [...new Set(targets.map(t => t.resource))]};
@@ -360,9 +364,30 @@ export class ReferenceGraph {
             if (this.docs.get(this.root)?.dataNode(pointer)) return {resolution: 'resolved', targetResource: this.root, targetPointer: pointer};
             if (ref.connection === 'security' && ref.family !== '3.2') return {resolution: 'missing', targetResource: this.root, targetPointer: pointer};
         }
-        return this.resolve(ref.value, ref, ref.keyword === '$dynamicRef');
+        return this.resolveReference(ref.value, ref, ref.keyword);
     }
 
+    /** Object-context resolution shared by graph edges, authoring choices,
+     * evaluation adapters and refactoring proofs. operationRef identifies an
+     * operation without substituting its object into the referring context. */
+    resolveReference(value: string, scope: GraphScope, keyword = '$ref'): Partial<GraphReference> {
+        const resolved = this.resolve(value, scope, keyword === '$dynamicRef');
+        if (keyword === '$ref' && resolved.resolution === 'resolved') {
+            const target = this.scope(resolved.targetResource!, resolved.targetPointer!);
+            // Legacy Reference Objects do not switch schema dialects (3.0
+            // §§4.3.1,4.7.23; 2.0 §§6.4.17–18). Preserve the declared family
+            // of both documents and report this ambiguous combination instead
+            // of evaluating one under the other's rules. Modern document
+            // ownership and JSON Schema dialect boundaries remain intact.
+            if (isNativeFamily(target.family) && target.family !== scope.family &&
+                (!modernFamily(scope.family) || !modernFamily(target.family)))
+                return {...resolved, targetFamily: target.family, resolution: 'incompatible-family'};
+        }
+        return resolved;
+    }
+
+    /** URI/Pointer identity primitive. Contract substitutions and address
+     * choices must use resolveReference to retain the object context. */
     resolve(value: string, scope: GraphScope, dynamic = false): Partial<GraphReference> {
         if (scope.kind === 'schema' && !supportedSchemaDialect(scope))
             return { resolution: 'unsupported' };

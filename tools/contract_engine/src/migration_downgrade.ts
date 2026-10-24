@@ -43,7 +43,7 @@ export function downgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migrati
             for(const name of Object.keys(value.responses??{}).filter(name=>!name.startsWith('x-'))){
                 let response=value.responses[name];
                 if(typeof response?.$ref==='string'){
-                    const reference=graph.resolve(response.$ref,graph.scope(scope.resource,scope.pointer+'/responses/'+escape(name)));
+                    const reference=graph.resolveReference(response.$ref,graph.scope(scope.resource,scope.pointer+'/responses/'+escape(name)));
                     if(reference.resolution==='resolved')response=graph.docs.get(reference.targetResource!)!.dataNode(reference.targetPointer!)!.value;
                 }
                 represented.push(Object.keys(response?.content??{}).sort());
@@ -57,7 +57,7 @@ export function downgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migrati
                 source.move(body,pointer+'/parameters/'+index);
                 let request=value.requestBody;
                 if(typeof request?.$ref==='string'){
-                    const ref=graph.resolve(request.$ref,graph.scope(scope.resource,scope.pointer+'/requestBody'));
+                    const ref=graph.resolveReference(request.$ref,graph.scope(scope.resource,scope.pointer+'/requestBody'));
                     if(ref.resolution==='resolved')request=graph.docs.get(ref.targetResource!)!.dataNode(ref.targetPointer!)!.value;
                 }
                 if(request?.content)source.set(pointer+'/consumes',Object.keys(request.content));

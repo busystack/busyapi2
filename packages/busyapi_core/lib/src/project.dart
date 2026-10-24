@@ -302,7 +302,7 @@ Map<String, dynamic> _mergeSchemaEvaluation(
         'schema': {
           'complete': evaluated?['complete'] == true,
           'producer': evaluated?['producer'] ?? 'hyperjump+busyapi-exact',
-          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+6',
+          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+7',
           if (evaluated != null) ...{
             'configuration': evaluated['configuration'],
             'coverage': evaluated['coverage'],
@@ -1658,7 +1658,7 @@ class BusyProject {
         result['snapshot'] == snapshot.identity &&
         result['root'] == snapshot.root &&
         result['producer'] == 'hyperjump+busyapi-exact' &&
-        result['producerVersion'] == '1.18.0+6' &&
+        result['producerVersion'] == '1.18.0+7' &&
         result['complete'] is bool &&
         result['configuration'] is String &&
         result['coverage'] is Map &&

@@ -23,7 +23,7 @@ import {discriminatorRelationships} from './authoring_relationships';
 import {restrictedSchemaDialect,swaggerSchemaDialect} from './specification';
 import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,swaggerMetaIdentity,SchemaEvaluationScope} from './swagger_schema';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+6',configuration:'oas20-draft4-restricted:structural20-2017-08-27:oas30-restricted:structural30-2024-10-18:draft2020-12:structural31-2026-08-03:structural32-2026-08-30:oas31-2024-11-10:oas32-2026-02-26:oas32-2025-09-17:format-annotation:exact-cst-v4:canonical-graph-addresses:runtime-media-v2:form-context-v1'};
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+7',configuration:'oas20-draft4-restricted:structural20-2017-08-27:oas30-restricted:structural30-2024-10-18:draft2020-12:structural31-2026-08-03:structural32-2026-08-30:oas31-2024-11-10:oas32-2026-02-26:oas32-2025-09-17:format-annotation:exact-cst-v4:canonical-graph-addresses:runtime-media-v2:form-context-v1:reference-family-v1'};
 let configured=false,running=false;
 const standardIds=new Set<string>(),reservedIds=new Set<string>(),standardMetas=new Map<string,any>();
 const standardSources=new Map<string,any>();
@@ -257,7 +257,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
     let owner=doc,pointer=scope.pointer+'/examples/'+escape(name),value=child.value;
     const seen=new Set<string>();
     while(value&&typeof value.$ref==='string') {
-     const resolved=graph.resolve(value.$ref,graph.scope(owner.id,pointer));
+     const resolved=graph.resolveReference(value.$ref,graph.scope(owner.id,pointer));
      if(resolved.resolution!=='resolved'){complete=false;break;}
      const key=resolved.targetResource+'#'+resolved.targetPointer;
      if(seen.has(key)||seen.size>=128){complete=false;break;}seen.add(key);

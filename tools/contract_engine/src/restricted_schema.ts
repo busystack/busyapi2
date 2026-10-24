@@ -17,7 +17,7 @@ export function restrictedSchemaIssues(graph: ReferenceGraph): GraphIssue[] {
         if (!value || typeof value !== 'object') return false;
         const nested = new Set(seen); nested.add(identity);
         if (typeof value.$ref === 'string') {
-            const ref = graph.resolve(value.$ref, scope);
+            const ref = graph.resolveReference(value.$ref, scope);
             const target = ref.resolution === 'resolved' && graph.scopes.get(ref.targetResource + '#' + ref.targetPointer);
             return !!target && requires(target, name, nested);
         }
