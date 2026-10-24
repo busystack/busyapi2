@@ -334,7 +334,7 @@ void main() {
       );
     }
     test(
-      '$version unevaluated constrained response cannot pass a contract case',
+      '$version constrained text response reports its schema violation and cannot pass a case',
       () async {
         final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
         addTearDown(() => server.close(force: true));
@@ -378,11 +378,17 @@ void main() {
           selectedCases: ['text'],
           resolveSecret: (_) async => null,
         );
-        expect(report.complete, false);
+        expect(report.complete, true);
         expect(report.passed, false);
-        expect(report.cases.single.complete, false);
+        expect(report.cases.single.complete, true);
         expect(report.cases.single.passed, false);
-        expect(report.toJson()['status'], 'incomplete');
+        expect(report.toJson()['status'], 'failed');
+        expect(
+          report.cases.single.findings.any(
+            (f) => f['code'] == 'runtime.schema.incompatible',
+          ),
+          true,
+        );
       },
     );
     test('$version empty root servers have the usable default', () async {
@@ -1285,75 +1291,87 @@ void main() {
     });
   }
   for (final version in ['3.1.2', '3.2.1']) {
-    test(
-      'F03 $version CLI and JUnit preserve constrained non-JSON incompleteness',
-      () async {
-        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-        addTearDown(() => server.close(force: true));
-        server.listen((request) async {
-          await request.drain<void>();
-          request.response.headers.contentType = ContentType.text;
-          request.response.write('BAD');
-          await request.response.close();
-        });
-        await prepare(
-          contract(
-            version,
-            servers: [
-              {'url': 'http://127.0.0.1:${server.port}'},
-            ],
-            operation: {
-              'responses': {
-                '200': {
-                  'description': 'ok',
-                  'content': {
-                    'text/plain': {
-                      'schema': {'type': 'string', 'pattern': r'^OK$'},
+    for (final represented in [true, false]) {
+      test(
+        'F03 $version CLI and JUnit distinguish known text violations from unknown media: $represented',
+        () async {
+          final mediaType = represented
+              ? 'text/plain'
+              : 'application/x-undefined';
+          final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+          addTearDown(() => server.close(force: true));
+          server.listen((request) async {
+            await request.drain<void>();
+            request.response.headers.set('content-type', mediaType);
+            request.response.write('BAD');
+            await request.response.close();
+          });
+          await prepare(
+            contract(
+              version,
+              servers: [
+                {'url': 'http://127.0.0.1:${server.port}'},
+              ],
+              operation: {
+                'responses': {
+                  '200': {
+                    'description': 'ok',
+                    'content': {
+                      mediaType: {
+                        'schema': {'type': 'string', 'pattern': r'^OK$'},
+                      },
                     },
                   },
                 },
               },
+            ),
+            configuration: {
+              'tests': [
+                {
+                  'name': 'selected',
+                  'operation': {'method': 'GET', 'path': '/pets'},
+                },
+              ],
             },
-          ),
-          configuration: {
-            'tests': [
-              {
-                'name': 'selected',
-                'operation': {'method': 'GET', 'path': '/pets'},
-              },
+          );
+          final junit = '${directory.path}/report.xml';
+          final result = await Process.run(
+            '$testBundle/busyapi',
+            [
+              'test',
+              directory.path,
+              '--case',
+              'selected',
+              '--json',
+              '--junit',
+              junit,
             ],
-          },
-        );
-        final junit = '${directory.path}/report.xml';
-        final result = await Process.run(
-          '$testBundle/busyapi',
-          [
-            'test',
-            directory.path,
-            '--case',
-            'selected',
-            '--json',
-            '--junit',
-            junit,
-          ],
-          environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
-          includeParentEnvironment: false,
-        );
-        expect(
-          result.exitCode,
-          2,
-          reason: '${result.stderr}\n${result.stdout}',
-        );
-        final machine = jsonDecode(result.stdout as String) as Map;
-        expect(machine['complete'], false);
-        expect(machine['passed'], false);
-        expect(machine['cases'].single['passed'], false);
-        final xml = await File(junit).readAsString();
-        expect(xml, contains('tests="1" failures="0" errors="1"'));
-        expect(xml, contains('name="complete" value="false"'));
-        expect(xml, contains('<error'));
-      },
-    );
+            environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
+            includeParentEnvironment: false,
+          );
+          expect(
+            result.exitCode,
+            represented ? 1 : 2,
+            reason: '${result.stderr}\n${result.stdout}',
+          );
+          final machine = jsonDecode(result.stdout as String) as Map;
+          expect(machine['complete'], represented);
+          expect(machine['passed'], false);
+          expect(machine['cases'].single['passed'], false);
+          final xml = await File(junit).readAsString();
+          expect(
+            xml,
+            contains(
+              represented
+                  ? 'tests="1" failures="1" errors="0"'
+                  : 'tests="1" failures="0" errors="1"',
+            ),
+          );
+          expect(xml, contains('name="complete" value="$represented"'));
+          expect(xml, contains(represented ? '<failure' : '<error'));
+        },
+      );
+    }
     test(
       'F03 $version representation and input limits retain honest request coverage',
       () async {

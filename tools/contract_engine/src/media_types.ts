@@ -33,7 +33,7 @@ export function mediaTypes(text:string,ranges=true):MediaType[] {
             }else value=word();
             // The generic grammar permits repetition; its meaning depends on
             // the media type definition. Do not invent first/last-wins matching.
-            if(parameters.has(name))throw new SourceError('request.form.media-parameters.unsupported','Repeated media type parameters need a media-specific interpretation before this form can be sent');
+            if(parameters.has(name))throw new SourceError('request.form.media-parameters.unsupported','Repeated media type parameters need a media-specific interpretation before this form can be sent',[0,0],'unsupported');
             parameters.set(name,name==='charset'?value.toLowerCase():value);space();
         }
         result.push({text:text.slice(start,at).trim(),type,subtype,parameters});

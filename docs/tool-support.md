@@ -14,6 +14,28 @@ for 2.0; choose native Reference, native HTML or Swagger UI. Renderer
 compatibility remains separate from native authoring support and current
 acceptance status in the [support matrix](implementation/native-openapi-support.md).
 
+Runtime body checks decode captured HTTP bytes through the shared engine before
+applying the captured schema. `text/plain` uses its Unicode string value. Native
+3.0 `type: string, format: binary` uses an exact one-octet-per-character view for
+raw binary media, so length counts octets; byte values map to U+0000–U+00FF for
+enum and pattern assertions. A modern `format: binary` annotation does not select
+this legacy interpretation. Unknown representations remain explicitly incomplete.
+
+Finite JSONL/NDJSON, JSON text sequences and server-sent events map to ordered
+arrays. In 3.2, `schema` checks the complete array and `itemSchema` checks each
+item separately, including parameter/header content and saved cases. Numeric
+tokens retain their authored precision. Line-oriented parsing accepts a final
+record without LF and rejects empty lines and lone CR separators. JSON sequences
+ignore consecutive record separators and require trailing whitespace for scalar
+records to exclude truncation. SSE applies UTF-8 replacement decoding, joins data
+lines, ignores comments/unknown fields, retains valid fields from dispatched
+blocks and discards an unfinished final event. Retry values stay exact integers.
+The event-object policy includes only fields supplied in each dispatched block;
+it does not fabricate absent event/id/retry fields. An explicitly empty event
+type becomes `message`, and exactly one leading SSE byte order mark is removed. Bounded work, incomplete
+receipt and unimplemented codecs remain incomplete. These finite checks do not
+establish incremental evaluation of an unbounded stream or nested multipart.
+
 Form execution uses the captured schema to interpret numeric and boolean fields,
 repeated array items and JSON object values. Explicit URL-encoded styles share
 the parameter serializer. Multipart style fields are ignored in 3.0 and applied

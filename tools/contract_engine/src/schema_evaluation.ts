@@ -15,6 +15,7 @@ import {createGraph} from './engine';
 import {knownDialects,supportedSchemaDialect,GraphScope,schemaAddress} from './reference_graph';
 import {SourceDocument,SourceError,escape} from './document';
 import {createExactNumericAdapter} from './exact_numbers';
+import {evaluateRuntimeInstances} from './runtime_evaluation';
 import {typedSchemaDocument,embeddedSchemaDocument} from './schema_document';
 import {safeFinding} from './security_design';
 import {schemaRoots,nestedSchemaBoundaries} from './schema_boundaries';
@@ -22,7 +23,7 @@ import {discriminatorRelationships} from './authoring_relationships';
 import {restrictedSchemaDialect,swaggerSchemaDialect} from './specification';
 import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,swaggerMetaIdentity,SchemaEvaluationScope} from './swagger_schema';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+5',configuration:'oas20-draft4-restricted:structural20-2017-08-27:oas30-restricted:structural30-2024-10-18:draft2020-12:structural31-2026-08-03:structural32-2026-08-30:oas31-2024-11-10:oas32-2026-02-26:oas32-2025-09-17:format-annotation:exact-cst-v4:canonical-graph-addresses'};
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+5',configuration:'oas20-draft4-restricted:structural20-2017-08-27:oas30-restricted:structural30-2024-10-18:draft2020-12:structural31-2026-08-03:structural32-2026-08-30:oas31-2024-11-10:oas32-2026-02-26:oas32-2025-09-17:format-annotation:exact-cst-v4:canonical-graph-addresses:runtime-media-v1'};
 let configured=false,running=false;
 const standardIds=new Set<string>(),reservedIds=new Set<string>(),standardMetas=new Map<string,any>();
 const standardSources=new Map<string,any>();
@@ -329,53 +330,9 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    }
   }
   const runtime=input.runtimeInstances??[];
-  if(!Array.isArray(runtime)||runtime.length>2048)throw new SourceError('limit.runtime.instances','Runtime conformance input exceeds 2048 instances');
-  for(let index=0;index<runtime.length;index++){
-   const supplied=runtime[index];
-   if(!supplied||typeof supplied!=='object'||typeof supplied.text!=='string'||supplied.text.length>64*1024*1024||
-      typeof supplied.subject!=='string'||supplied.subject.length>1024||typeof supplied.location!=='string'||supplied.location.length>4096||
-      supplied.schema!==undefined&&(!supplied.schema||typeof supplied.schema.resource!=='string'||typeof supplied.schema.pointer!=='string'))
-    throw new SourceError('runtime.instance','Runtime conformance requires bounded text, subject, location and schema identity');
-   let instance:SourceDocument;
-   try{
-    const identity=createHash('sha256').update(JSON.stringify([input.snapshot,index,supplied.subject])).digest('hex');
-    instance=new SourceDocument(supplied.text,'urn:busyapi:runtime:'+identity,true,'json');
-    if(instance.issues.length)throw new SourceError('runtime.syntax','Runtime JSON is invalid');
-   }catch(error){
-    if(error instanceof SourceError && error.code.startsWith('limit.')){
-     complete=false;
-     runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:false,valid:false,reason:'instance-limit'});
-     runtimeFindings.push({version:1,category:'runtime',code:'runtime.body.limit',severity:'warning',subject:supplied.subject,location:supplied.location,pointer:'',range:[0,0],message:'The runtime JSON exceeds a bounded parser limit; its schema check was not performed.',producer:schemaProducer.name,producerVersion:schemaProducer.version,snapshot:input.snapshot});
-     continue;
-    }
-    runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:true,valid:false,reason:'invalid-json'});
-    runtimeFindings.push({version:1,category:'runtime',code:'runtime.body.syntax',severity:'error',subject:supplied.subject,location:supplied.location,pointer:'',range:[0,0],message:'The runtime value is not valid JSON.',producer:schemaProducer.name,producerVersion:schemaProducer.version,snapshot:input.snapshot});
-    continue;
-   }
-   // Media syntax is required even when there is no applicable schema.
-   if(supplied.schema===undefined){
-    runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:true,valid:true,syntax:'json'});instances++;continue;
-   }
-   const scope=evaluationScopes.get(supplied.schema.resource+'#'+supplied.schema.pointer);
-   if(scope?.kind!=='schema'){
-    complete=false;runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:false,valid:false,reason:'schema-unavailable'});continue;
-   }
-   try{
-    const ast=await getCompiled(scope);
-    if(!ast){complete=false;runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:false,valid:false,reason:'schema-incomplete'});continue;}
-    exact.setDirection(supplied.subject.startsWith('request-') ? 'request' : supplied.subject.startsWith('response-') ? 'response' : undefined);
-    const result:any=interpret(ast,exact.exactInstance(instance),BASIC);instances++;
-    exact.setDirection(undefined);
-    runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:true,valid:result.valid,schema:{resource:scope.resource,pointer:scope.pointer}});
-    if(!result.valid)for(const error of result.errors.slice(0,32)){
-     const pointer=decodeURIComponent(new URL(error.instanceLocation).hash.slice(1));
-     const source=instance.dataNode(pointer);
-     runtimeFindings.push({version:1,category:'runtime',code:'runtime.schema.incompatible',severity:'error',subject:supplied.subject,location:supplied.location,pointer,range:source?.range??[0,0],message:'The runtime value does not satisfy the captured response or input schema.',keyword:error.keyword,schema:{resource:scope.resource,pointer:scope.pointer,range:graph.docs.get(scope.resource)?.dataNode(scope.pointer)?.range},producer:schemaProducer.name,producerVersion:schemaProducer.version,snapshot:input.snapshot});
-    }
-   }catch(error){
-    observeFailure?.(error);complete=false;runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:false,valid:false,reason:'evaluation-failed'});
-   }
-  }
+  const checkedRuntime=await evaluateRuntimeInstances(runtime,{snapshot:input.snapshot,graph,scopes:evaluationScopes,exact,compile:getCompiled,producer:schemaProducer,observeFailure});
+  complete=complete&&checkedRuntime.complete;instances+=checkedRuntime.instances;
+  runtimeEvaluations.push(...checkedRuntime.evaluations);runtimeFindings.push(...checkedRuntime.findings);
   if(limited)add(root,'','limit.schema.findings','Schema evaluation reached its bounded work or finding limit. Shown results are not exhaustive.','warning');
   return {version:1,snapshot:input.snapshot,root:input.root,producer:schemaProducer.name,producerVersion:schemaProducer.version,configuration:schemaProducer.configuration+(input.policyAnnotations===true?':policy-annotations':''),
    complete,findings,evaluations,runtimeEvaluations,runtimeFindings,skipped,schemas,instances,coverage:{schemaKeywords:'dated-oas-and-draft2020-12-meta',instances:runtime.length?'selected-runtime-values-and-authored-json-compatible-examples':'authored-json-compatible-examples',numbers:'exact-cst-decimal',dynamicScope:'validator-evaluation-stack',format:'annotation-only',runtime:runtime.length?'selected-operation-values':'not-requested'}};

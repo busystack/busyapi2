@@ -1097,14 +1097,15 @@ tests:
       reason: 'F04A aliased bounds must fail the whole selection before the first request.',
     );
   });
-  test('H05 sequential constraints stay incomplete in core history saved cases CLI JSON and JUnit', () async {
-    var body = '{"id":1}\n';
+  test('H05 sequential constraints evaluate whole media and items in core history saved cases CLI JSON and JUnit', () async {
+    var body = '{"id":1}\n', header = '{}';
+    final receivedBodies = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
     server.listen((request) async {
-      await request.drain<void>();
+      receivedBodies.add(await utf8.decoder.bind(request).join());
       request.response.headers.set('content-type', 'application/jsonl');
-      request.response.headers.set('x-sequence', '{}');
+      request.response.headers.set('x-sequence', header);
       request.response.write(body);
       await request.response.close();
     });
@@ -1140,25 +1141,32 @@ tests: [{name: finite, operation: {method: post, path: /items}, body: {mediaType
       ),
       resolveSecret: (_) async => null,
     );
-    expect(parameterOnly.outgoing.complete, false);
+    expect(parameterOnly.outgoing.complete, true);
     expect(
       parameterOnly.received.findings.any(
-        (f) => f['code'] == 'runtime.response.header.items.unchecked',
+        (f) =>
+            f['code'] == 'runtime.schema.incompatible' &&
+            f['location'] == 'X-Sequence',
       ),
       true,
     );
     expect(
       parameterOnly.outgoing.valid,
-      true,
-      reason: 'An unsupported sequential codec must not fabricate a typed schema mismatch.',
+      false,
+      reason: 'The actual decoded query item lacks its required id.',
     );
     expect(
       parameterOnly.outgoing.findings.any(
-        (f) => f['code'] == 'runtime.request.parameter.items.unchecked',
+        (f) =>
+            f['code'] == 'runtime.schema.incompatible' &&
+            f['location'] == 'query:stream',
       ),
       true,
     );
+    expect(parameterOnly.received.complete, true);
+    expect(parameterOnly.received.valid, false);
     await parameterOnly.close();
+    header = '{"id":1}';
     for (final specimen in [
       '{"id":1}\n',
       '{"id":"wrong"}\n',
@@ -1177,15 +1185,26 @@ tests: [{name: finite, operation: {method: post, path: /items}, body: {mediaType
         ),
         resolveSecret: (_) async => null,
       );
-      expect(result.outgoing.complete, isFalse);
-      expect(result.received.complete, isFalse);
-      expect(result.conforming, isFalse);
+      expect(
+        result.outgoing.complete,
+        isTrue,
+        reason: '${result.outgoing.findings}',
+      );
+      expect(result.outgoing.valid, isTrue);
+      expect(receivedBodies.last, '{"id":1}');
+      expect(
+        result.received.complete,
+        isTrue,
+        reason: '${result.received.findings}',
+      );
+      expect(result.received.valid, specimen == '{"id":1}\n');
+      expect(result.conforming, specimen == '{"id":1}\n');
       expect(
         ContractRequestRecord.fromResult(
           result,
           recordedAt: DateTime.now(),
         ).conformanceComplete,
-        isFalse,
+        isTrue,
       );
       await result.close();
     }
@@ -1196,8 +1215,9 @@ tests: [{name: finite, operation: {method: post, path: /items}, body: {mediaType
       resolveSecret: (_) async => null,
     );
     expect(report.passed, isFalse);
-    expect(report.cases.single.status, 'incomplete');
-    expect(CiReports.junit(report), contains('<error'));
+    expect(report.complete, true);
+    expect(report.cases.single.status, 'failed');
+    expect(CiReports.junit(report), contains('<failure'));
     final cli = await Process.run('$testBundle/busyapi', [
       'test',
       temp.path,
@@ -1207,11 +1227,35 @@ tests: [{name: finite, operation: {method: post, path: /items}, body: {mediaType
       '--junit',
       '${temp.path}/sequence.xml',
     ]);
-    expect(cli.exitCode, 2, reason: '${cli.stdout} ${cli.stderr}');
+    expect(cli.exitCode, 1, reason: '${cli.stdout} ${cli.stderr}');
     expect((jsonDecode(cli.stdout as String) as Map)['passed'], isFalse);
+    expect((jsonDecode(cli.stdout as String) as Map)['complete'], isTrue);
     expect(
       File('${temp.path}/sequence.xml').readAsStringSync(),
-      contains('<error'),
+      contains('<failure'),
     );
+    body = '{"id":1}\n';
+    final passing = await const ContractTestRunner().run(
+      project,
+      root,
+      selectedCases: ['finite'],
+      resolveSecret: (_) async => null,
+    );
+    expect(passing.complete, true);
+    expect(passing.passed, true);
+    final passingCli = await Process.run('$testBundle/busyapi', [
+      'test',
+      temp.path,
+      '--case',
+      'finite',
+      '--json',
+    ]);
+    expect(
+      passingCli.exitCode,
+      0,
+      reason: '${passingCli.stdout} ${passingCli.stderr}',
+    );
+    expect((jsonDecode(passingCli.stdout as String) as Map)['complete'], true);
+    expect((jsonDecode(passingCli.stdout as String) as Map)['passed'], true);
   });
 }

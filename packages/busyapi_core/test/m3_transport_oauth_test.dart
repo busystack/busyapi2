@@ -541,14 +541,11 @@ paths:
           );
         }
         if (mode == 'items') {
-          expect(result.received.complete, false);
+          expect(result.received.complete, true);
+          expect(result.received.valid, false);
           expect(
             result.received.findings.any(
-              (f) =>
-                  f['code'] ==
-                  (version == '3.2.1'
-                      ? 'runtime.response.items.unchecked'
-                      : 'runtime.response.body.unchecked'),
+              (f) => f['code'] == 'runtime.schema.incompatible',
             ),
             true,
           );

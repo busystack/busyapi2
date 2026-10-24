@@ -718,15 +718,28 @@ class RuntimeSchemaInstance {
     required this.text,
     this.schemaResource,
     this.schemaPointer,
+    this.itemSchemaResource,
+    this.itemSchemaPointer,
+    this.mediaType,
+    this.mediaBase64 = false,
   });
   final String subject, location, text;
   final String? schemaResource, schemaPointer;
+  final String? itemSchemaResource, itemSchemaPointer, mediaType;
+  final bool mediaBase64;
   Map<String, Object?> toJson() => {
     'subject': subject,
     'location': location,
     'text': text,
     if (schemaResource != null)
       'schema': {'resource': schemaResource, 'pointer': schemaPointer},
+    if (itemSchemaResource != null)
+      'itemSchema': {
+        'resource': itemSchemaResource,
+        'pointer': itemSchemaPointer,
+      },
+    if (mediaType != null) 'mediaType': mediaType,
+    if (mediaBase64) 'mediaBase64': true,
   };
 }
 

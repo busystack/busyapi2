@@ -3446,12 +3446,14 @@ class ContractRequestExecutor {
               .parameters[OperationRequestDraft.parameterKey(location, name)];
       if (value == null || !value.present) continue;
       Map? schema = parameter['schema'] as Map?;
+      Map? contentMedia;
       var typedContentSupported = true, jsonContent = false;
       if (parameter['content'] is List) {
         final content = (parameter['content'] as List)
             .whereType<Map>()
             .toList();
         if (content.length == 1) {
+          contentMedia = content.single;
           schema ??= content.single['schema'] as Map?;
           final mediaType = (content.single['mediaType'] as String)
               .split(';')
@@ -3463,7 +3465,8 @@ class ContractRequestExecutor {
               jsonContent ||
               mediaType == 'text/plain' ||
               mediaType == 'application/x-www-form-urlencoded' && value.json;
-          if (content.single['itemSchema'] is Map) {
+          if (content.single['itemSchema'] is Map &&
+              !_nativeMedia(content.single)) {
             checksComplete = false;
             findings.add(
               _finding(
@@ -3475,6 +3478,41 @@ class ContractRequestExecutor {
             );
           }
         }
+      }
+      if (_nativeMedia(contentMedia) &&
+          value.representation !=
+              RequestValueRepresentation.serializedParameter) {
+        var text = value.text;
+        if (value.json && contentMedia?['dataModel'] == 'text') {
+          final trimmed = text.trim();
+          // Only a JSON string needs decoding. Numeric spelling is already
+          // the exact scalar representation used by the request serializer.
+          text = trimmed.startsWith('"')
+              ? jsonDecode(trimmed) as String
+              : trimmed;
+        }
+        if (utf8.encode(text).length > _evaluationLimit) {
+          checksComplete = false;
+          findings.add(
+            _finding(
+              'runtime.request.parameter.limit',
+              'warning',
+              'The parameter exceeds the bounded evaluation input.',
+              location: '$location:$name',
+            ),
+          );
+        } else {
+          instances.add(
+            _mediaInstance(
+              contentMedia,
+              subject: 'request-parameter',
+              location: '$location:$name',
+              text: text,
+              mediaType: contentMedia!['mediaType'] as String,
+            ),
+          );
+        }
+        continue;
       }
       if (schema == null && !jsonContent) continue;
       if (jsonContent && utf8.encode(value.text).length > _evaluationLimit) {
@@ -3586,6 +3624,10 @@ class ContractRequestExecutor {
           }
         }
       if (draft.body.kind == RequestBodyKind.raw &&
+          (media?['form'] is Map ||
+              (draft.body.mediaType ?? '').toLowerCase().startsWith(
+                'multipart/',
+              )) &&
           (media?['encoding'] != null ||
               media?['prefixEncoding'] != null ||
               media?['itemEncoding'] != null)) {
@@ -3599,50 +3641,67 @@ class ContractRequestExecutor {
           ),
         );
       }
-      if (media?['itemSchema'] is Map) {
-        checksComplete = false;
-        findings.add(
-          _finding(
-            'runtime.request.items.unchecked',
-            'information',
-            'Sequential itemSchema evaluation is unsupported; outgoing item constraints were not evaluated.',
-            location: draft.body.mediaType ?? '',
-          ),
-        );
-      }
-      if (schema is Map || _jsonMedia(draft.body.mediaType ?? '')) {
+      if (schema is Map && schema['unconstrained'] != true ||
+          media?['itemSchema'] is Map ||
+          _nativeMedia(media) ||
+          _jsonMedia(draft.body.mediaType ?? '')) {
         if (preparedBody?.formInstance != null &&
             utf8.encode(preparedBody!.formInstance!).length <=
                 _evaluationLimit) {
           instances.add(
-            RuntimeSchemaInstance(
+            _mediaInstance(
+              media,
               subject: 'request-body',
               location: draft.body.mediaType ?? '',
               text: preparedBody.formInstance!,
-              schemaResource: schema?['resource'] as String?,
-              schemaPointer: schema?['pointer'] as String?,
             ),
           );
-        } else if (draft.body.kind == RequestBodyKind.raw &&
-            _jsonMedia(draft.body.mediaType ?? '') &&
+        } else if (preparedBody != null &&
+            preparedBody.length <= _evaluationLimit) {
+          final bytes = BytesBuilder(copy: false);
+          await for (final chunk in preparedBody.open()) {
+            cancellation?.throwIfCancelled();
+            plan.ensureCurrentOwner();
+            bytes.add(chunk);
+            if (bytes.length > _evaluationLimit) {
+              throw CoreFailure(
+                'runtime.body.changed',
+                'Captured request bytes exceeded their evaluation boundary.',
+              );
+            }
+          }
+          instances.add(
+            _mediaInstance(
+              media,
+              subject: 'request-body',
+              location: draft.body.mediaType ?? '',
+              text: base64Encode(bytes.takeBytes()),
+              mediaType: preparedBody.mediaType ?? draft.body.mediaType,
+              mediaBase64: true,
+            ),
+          );
+        } else if (preparedBody == null &&
+            draft.body.kind == RequestBodyKind.raw &&
             utf8.encode(draft.body.text ?? '').length <= _evaluationLimit) {
           instances.add(
-            RuntimeSchemaInstance(
+            _mediaInstance(
+              media,
               subject: 'request-body',
               location: draft.body.mediaType ?? '',
               text: draft.body.text ?? '',
-              schemaResource: schema?['resource'] as String?,
-              schemaPointer: schema?['pointer'] as String?,
+              mediaType: draft.body.mediaType,
             ),
           );
-        } else if (_jsonMedia(draft.body.mediaType ?? '') ||
-            schema?['unconstrained'] != true) {
+        } else if (_nativeMedia(media) ||
+            _jsonMedia(draft.body.mediaType ?? '') ||
+            schema?['unconstrained'] != true ||
+            media?['itemSchema'] is Map) {
           checksComplete = false;
           findings.add(
             _finding(
               'runtime.request.body.unchecked',
               'information',
-              'The body was sent as authored; an applicable schema check was not performed for this representation or input size.',
+              'The body was sent as authored; its representation exceeded the bounded schema-evaluation input.',
               location: draft.body.mediaType ?? '',
             ),
           );
@@ -3656,9 +3715,11 @@ class ContractRequestExecutor {
       '$runId-outgoing',
       {
         'parameters': 'selected-values',
-        'body': instances.any((value) => value.subject == 'request-body')
-            ? 'selected-json-body'
-            : 'not-applicable-or-unchecked',
+        'body': _bodyCoverage(
+          instances,
+          'request-body',
+          'not-applicable-or-unchecked',
+        ),
       },
       checksComplete: checksComplete,
       cancellation: cancellation,
@@ -3743,6 +3804,35 @@ class ContractRequestExecutor {
         );
       }
       if (name.toLowerCase() == 'content-type' || values == null) continue;
+      final headerMedia = (header['content'] as List? ?? const [])
+          .whereType<Map>()
+          .toList();
+      if (headerMedia.length == 1 &&
+          _nativeMedia(headerMedia.single) &&
+          values.length == 1) {
+        if (utf8.encode(values.single).length > _evaluationLimit) {
+          checksComplete = false;
+          findings.add(
+            _finding(
+              'runtime.response.header.limit',
+              'warning',
+              'The header representation exceeds the bounded evaluation input.',
+              location: name,
+            ),
+          );
+        } else {
+          instances.add(
+            _mediaInstance(
+              headerMedia.single,
+              subject: 'response-header',
+              location: name,
+              text: values.single,
+              mediaType: headerMedia.single['mediaType'] as String,
+            ),
+          );
+        }
+        continue;
+      }
       if ((header['content'] as List? ?? const []).whereType<Map>().any(
         (media) => media['itemSchema'] is Map,
       )) {
@@ -3833,7 +3923,8 @@ class ContractRequestExecutor {
     }
     final supportedCharset =
         validContentType &&
-        (charset == null ||
+        (media?['dataModel'] == 'event-stream' ||
+            charset == null ||
             charset == 'utf-8' ||
             charset == 'utf8' ||
             charset == 'us-ascii' ||
@@ -3864,6 +3955,7 @@ class ContractRequestExecutor {
         response.receiptComplete &&
         response.decodingComplete &&
         supportedCharset &&
+        media?['dataModel'] != 'event-stream' &&
         isInspectableTextMedia(contentType)) {
       try {
         final codec = charset == 'us-ascii'
@@ -3900,25 +3992,17 @@ class ContractRequestExecutor {
         ),
       );
     }
-    if (bodyPermitted && media?['itemSchema'] is Map) {
-      checksComplete = false;
-      findings.add(
-        _finding(
-          'runtime.response.items.unchecked',
-          'information',
-          'Sequential itemSchema evaluation is unsupported; item constraints were not evaluated.',
-          location: contentType ?? '',
-        ),
-      );
-    }
     if (bodyPermitted &&
         response.decodingComplete &&
         !invalidTextEncoding &&
         schema?['file'] != true &&
         supportedCharset &&
         (_jsonMedia(contentType ?? '') ||
+            _nativeMedia(media) ||
+            media?['itemSchema'] is Map ||
             schema is Map && schema['unconstrained'] != true)) {
       if (!response.receiptComplete) {
+        checksComplete = false;
         findings.add(
           _finding(
             'runtime.response.body.incomplete',
@@ -3927,51 +4011,25 @@ class ContractRequestExecutor {
             location: contentType ?? '',
           ),
         );
-      } else if (_jsonMedia(contentType ?? '')) {
-        if (response.decodedLength > _evaluationLimit) {
-          checksComplete = false;
-          findings.add(
-            _finding(
-              'runtime.response.body.limit',
-              'warning',
-              'The JSON response exceeds the bounded schema-evaluation input.',
-              location: contentType ?? '',
-            ),
-          );
-        } else {
-          try {
-            final text = utf8.decode(
-              await response.decodedBytes(),
-              allowMalformed: false,
-            );
-            instances.add(
-              RuntimeSchemaInstance(
-                subject: 'response-body',
-                location: contentType ?? '',
-                text: text,
-                schemaResource: schema?['resource'] as String?,
-                schemaPointer: schema?['pointer'] as String?,
-              ),
-            );
-          } on FormatException {
-            findings.add(
-              _finding(
-                'runtime.response.body.encoding',
-                'error',
-                'The JSON response body is not valid UTF-8.',
-                location: contentType ?? '',
-              ),
-            );
-          }
-        }
-      } else {
+      } else if (response.decodedLength > _evaluationLimit) {
         checksComplete = false;
         findings.add(
           _finding(
-            'runtime.response.body.unchecked',
-            'information',
-            'The response bytes were retained, but this non-JSON media type was not schema-evaluated.',
+            'runtime.response.body.limit',
+            'warning',
+            'The response exceeds the bounded schema-evaluation input.',
             location: contentType ?? '',
+          ),
+        );
+      } else {
+        instances.add(
+          _mediaInstance(
+            media,
+            subject: 'response-body',
+            location: contentType ?? '',
+            mediaType: contentType,
+            text: base64Encode(await response.decodedBytes()),
+            mediaBase64: true,
           ),
         );
       }
@@ -3989,9 +4047,11 @@ class ContractRequestExecutor {
             ? 'forbidden-content'
             : !bodyPermitted
             ? 'not-applicable'
-            : instances.any((value) => value.subject == 'response-body')
-            ? 'selected-json-body'
-            : 'not-applicable-or-incomplete',
+            : _bodyCoverage(
+                instances,
+                'response-body',
+                'not-applicable-or-incomplete',
+              ),
       },
       checksComplete: checksComplete,
       cancellation: cancellation,
@@ -4007,6 +4067,47 @@ class ContractRequestExecutor {
       );
     }
     return evaluated;
+  }
+
+  static bool _nativeMedia(Map? media) =>
+      media?['dataModel'] is String && media?['dataModel'] != 'opaque';
+
+  static String _bodyCoverage(
+    List<RuntimeSchemaInstance> instances,
+    String subject,
+    String absent,
+  ) {
+    final selected = instances.where((instance) => instance.subject == subject);
+    if (selected.isEmpty) return absent;
+    return selected.any(
+          (instance) =>
+              instance.mediaType != null && !_jsonMedia(instance.mediaType!),
+        )
+        ? 'selected-media-body'
+        : 'selected-json-body';
+  }
+
+  static RuntimeSchemaInstance _mediaInstance(
+    Map? media, {
+    required String subject,
+    required String location,
+    required String text,
+    String? mediaType,
+    bool mediaBase64 = false,
+  }) {
+    final schema = media?['schema'] as Map?,
+        itemSchema = media?['itemSchema'] as Map?;
+    return RuntimeSchemaInstance(
+      subject: subject,
+      location: location,
+      text: text,
+      mediaType: mediaType,
+      mediaBase64: mediaBase64,
+      schemaResource: schema?['resource'] as String?,
+      schemaPointer: schema?['pointer'] as String?,
+      itemSchemaResource: itemSchema?['resource'] as String?,
+      itemSchemaPointer: itemSchema?['pointer'] as String?,
+    );
   }
 
   static Future<ContractConformance> _evaluate(
