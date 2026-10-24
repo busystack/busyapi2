@@ -331,6 +331,8 @@ class _MigrationReviewState extends State<_MigrationReview> {
                     ? l.migrationDiscardIgnored
                     : value == 'discard-unrecognized-schema-keyword'
                     ? l.migrationDiscardAnnotation
+                    : value == 'omit-ignored-body'
+                    ? l.migrationOmitIgnoredBody
                     : value,
                 enabled: !busy,
                 onSelected: (value) => setState(() {

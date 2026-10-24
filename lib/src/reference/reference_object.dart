@@ -569,7 +569,22 @@ class _ReferenceObjectViewState extends State<ReferenceObjectView> {
               children: [
                 for (final field
                     in (page['effective'] as List).whereType<Map>())
-                  if (field['complete'] == false &&
+                  if (field['ignored'] == true)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        BusyApiStatusBox(
+                          message: l.requestBodyIgnored(
+                            field['method'] as String,
+                          ),
+                        ),
+                        link(
+                          contractFieldLabel(context, field['name'] as String),
+                          field['source'] as Map,
+                        ),
+                      ],
+                    )
+                  else if (field['complete'] == false &&
                       field['name'] != 'parameters')
                     BusyApiStatusBox(
                       message: l.referenceEffectiveIncomplete,

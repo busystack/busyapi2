@@ -14,6 +14,13 @@ for 2.0; choose native Reference, native HTML or Swagger UI. Renderer
 compatibility remains separate from native authoring support and current
 acceptance status in the [support matrix](implementation/native-openapi-support.md).
 
+OpenAPI 3.0 request-body declarations remain editable and inspectable on every
+method. Its consumption rule ignores them for GET, HEAD, DELETE, OPTIONS and
+TRACE; they neither force an outgoing body nor constrain an explicitly entered
+body. Request and native Reference show that distinction, including offline HTML.
+POST, PUT and PATCH retain their declared body semantics. Swagger 2.0 and modern
+OpenAPI retain their own body rules. See [OAS 3.0 §4.7.10.1](https://spec.openapis.org/oas/v3.0.4.html#operation-object).
+
 Runtime body checks decode captured HTTP bytes through the shared engine before
 applying the captured schema. `text/plain` uses its Unicode string value. Native
 3.0 `type: string, format: binary` uses an exact one-octet-per-character view for
@@ -95,6 +102,12 @@ Migration checks effective form encodings as well as media names. It removes
 ignored 3.0 multipart style fields before they could become active in 3.1.
 Swagger multipart arrays with a CSV/space/pipe separator are blocked for a 3.0
 target, whose repeated-part encoding cannot preserve those delimiters.
+Upgrading a 3.0 document with an ignored request-body declaration requires an
+explicit decision to omit that declaration from the migrated copy. Otherwise a
+modern target would activate it. The original declaration, examples and source
+remain intact in the original files. Migration to 3.0 blocks an active body on a
+method whose target declaration would be ignored, including callback operations.
+A composed Swagger 2.0 upgrade to 3.1/3.2 retains the originally active body.
 
 Contract-case JSON reports include `dispatched` and `operationalFailure`. Coverage
 counts operation occurrences handed to the HTTP transport; refused preparation

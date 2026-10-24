@@ -793,6 +793,8 @@
   "requestStructuredValue": "Use an exact JSON value",
   "requestIncludeBody": "Include request body",
   "requestBodyPresence": "Keep an absent body distinct from an intentionally empty value.",
+  "requestBodyIgnored": "OpenAPI 3.0 consumers ignore this {method} request-body declaration. It remains available in Source and Design.",
+  "@requestBodyIgnored": {"placeholders":{"method":{"type":"String"}}},
   "requestLiteralFields": "Literal fields (name=value, one per line; names may repeat)",
   "requestExactBody": "Authored text or exact JSON bytes",
   "requestMultipartName": "Multipart field name",
@@ -1094,6 +1096,7 @@
   "migrationPresentation": "Restructuring changes the presentation of some moved values. Review every affected resource.",
   "migrationDiscardIgnored": "Discard ignored reference siblings in the copy",
   "migrationDiscardAnnotation": "Discard the inactive schema annotation in the copy",
+  "migrationOmitIgnoredBody": "Omit the ignored request-body declaration from the copy",
   "migrationKeepUnresolved": "Leave this decision unresolved",
   "migrationOutputExists": "Choose a new migration directory. Existing output is preserved.",
   "migrationPublished": "The migrated copy was created. Original documents are preserved."

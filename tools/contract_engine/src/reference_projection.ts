@@ -7,12 +7,13 @@ import {ParameterSemantics} from './parameter_semantics';
 import {GraphTarget,ReferenceGraph} from './reference_graph';
 import {createHash} from 'node:crypto';
 import {isNativeFamily} from './specification';
+import {ignoresRequestBody} from './operation_semantics';
 
 // Hash exact UTF-16 units so even a preserved lone surrogate cannot collapse
 // into the UTF-8 replacement character. This is a view ID, not a resource URI.
 const operationNavigationId=(root:string,occurrence:string)=>createHash('sha256').update(Buffer.from(occurrence.slice(root.length),'utf16le')).digest('hex');
 
-function operationEffective(graph:ReferenceGraph,resource:string,pointer:string,path:GraphTarget|undefined,located:(resource:string,pointer:string)=>any,parameterOffset=0,all=false,parameterSemantics=new ParameterSemantics(graph)) {
+function operationEffective(graph:ReferenceGraph,resource:string,pointer:string,path:GraphTarget|undefined,located:(resource:string,pointer:string)=>any,parameterOffset=0,all=false,parameterSemantics=new ParameterSemantics(graph),method?:string) {
     const doc=graph.docs.get(resource)!,node=doc.dataNode(pointer)!,root=graph.docs.get(graph.root)!,effective:any[]=[];
     if(!path){
         const parts=segments(pointer);parts.splice(parts.at(-2)==='additionalOperations'?-2:-1);
@@ -38,6 +39,8 @@ function operationEffective(graph:ReferenceGraph,resource:string,pointer:string,
     const offset=all?0:Math.min(Math.max(0,Number.isSafeInteger(parameterOffset)?parameterOffset:0),Math.max(0,(Math.ceil(visible.length/50)-1)*50));
     effective.push({name:'parameters',entries:all?visible:visible.slice(offset,offset+50),count:visible.length,offset,
         complete:parameters.complete,invalid:!parameters.valid,overriddenCount:parameters.entries.length-visible.length});
+    if(method&&node.children.has('requestBody')&&ignoresRequestBody(graph.scope(resource,pointer).family,method.toUpperCase()))
+        effective.push({name:'requestBody',origin:'operation',inherited:false,complete:true,ignored:true,policy:'oas30-http-method',method:method.toUpperCase(),source:located(resource,pointer+'/requestBody')});
     return effective;
 }
 
@@ -205,7 +208,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
     const contextOffset=Math.min(Math.max(0,Number.isSafeInteger(input.contextOffset)?input.contextOffset:0),Math.max(0,(Math.ceil(contexts.length/50)-1)*50));
     if(input.occurrence!==undefined&&!selected&&input.definitionOnly!==true)throw new SourceError('reference.occurrence','The requested operation occurrence does not select this physical source');
     if (kind === 'operation' && node.value && node.kind === 'object') {
-        if(selected)effective=operationEffective(graph,doc.id,node.pointer,selected.pathItem,located,input.parameterOffset);
+        if(selected)effective=operationEffective(graph,doc.id,node.pointer,selected.pathItem,located,input.parameterOffset,false,undefined,selected.method);
     }
     const parentPointer=node.pointer.slice(0,node.pointer.lastIndexOf('/')),parent=graph.scopes.get(doc.id+'#'+parentPointer);
     const richText=input.data!==true&&doc.nodes.get(node.pointer)?.alias===undefined&&!!parent&&richTextField(parent.kind,family,doc.dataNode(parentPointer)?.value,segments(node.pointer).at(-1)!,segments(parentPointer).at(-1));
@@ -290,7 +293,7 @@ export function referenceDocument(input:any) {
             occurrence:occurrence.occurrence,path:occurrence.path,method:occurrence.method,customMethod:occurrence.customMethod===true,role:occurrence.role,
             navigationId:operationNavigationId(input.root,occurrence.occurrence),
             pathItem:location(occurrence.pathItem.resource,occurrence.pathItem.pointer),
-            effective:operationEffective(graph,scope.resource,scope.pointer,occurrence.pathItem,location,0,true,parameterSemantics),
+            effective:operationEffective(graph,scope.resource,scope.pointer,occurrence.pathItem,location,0,true,parameterSemantics,occurrence.method),
         })):[];
         const effective=scope.kind==='operation'&&operationContexts.length===1?operationContexts[0].effective:[];
         const usages=(incoming.get(JSON.stringify([scope.resource,scope.pointer]))??[]).map(reference=>({

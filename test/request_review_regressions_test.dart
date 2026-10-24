@@ -11,6 +11,7 @@ import 'package:busyapi/src/app/busyapi_design.dart';
 import 'package:busyapi/src/app/busyapi_disclosure.dart';
 import 'package:busyapi/src/designer/form_value_editor.dart';
 import 'package:busyapi/src/source/source_editor.dart';
+import 'package:busyapi/src/reference/reference_object.dart';
 import 'package:busyapi/src/comparison/review_comparison.dart';
 import 'package:busyapi/src/workspace/request_run.dart';
 import 'package:busyapi/src/workspace/test_run.dart';
@@ -202,6 +203,77 @@ Future<void> expectCompleteCopy(
 }
 
 void main() {
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
+    testWidgets(
+      '$version request panel reflects method-specific body applicability',
+      (tester) async {
+        final fixture = _Fixture();
+        final original = '''openapi: $version
+info: {title: Method body, version: "1"}
+paths:
+  /payload:
+    get:
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: string}, example: snow}}
+      responses: {204: {description: Empty}}
+''';
+        try {
+          await tester.runAsync(() => fixture.open(original));
+          final ignored = version == '3.0.4';
+          expect(fixture.run.plan!.ignoredRequestBody != null, ignored);
+          expect(fixture.run.bodyEnabled, !ignored);
+          await tester.pumpWidget(
+            host(
+              SingleChildScrollView(child: RequestRunPanel(run: fixture.run)),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final context = tester.element(find.byType(RequestRunPanel));
+          expect(
+            find.text(AppLocalizations.of(context)!.requestBodyIgnored('GET')),
+            ignored ? findsOneWidget : findsNothing,
+          );
+          final message = AppLocalizations.of(context)!
+              .requestBodyIgnored('GET');
+          await tester.pumpWidget(
+            host(
+              ReferenceObjectView(
+                controller: fixture.c,
+                target: fixture.operation,
+                reveal: (_) {},
+                open: (_) {},
+              ),
+            ),
+          );
+          final watch = Stopwatch()..start();
+          while (find
+                  .text('Effective declarations and ownership')
+                  .evaluate()
+                  .isEmpty &&
+              watch.elapsed < const Duration(seconds: 10)) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)),
+            );
+            await tester.pump();
+          }
+          expect(
+            find.text('Effective declarations and ownership'),
+            findsOneWidget,
+          );
+          expect(find.text(message), ignored ? findsOneWidget : findsNothing);
+          expect(fixture.c.store!.get(fixture.c.root!).text, original);
+          expect(
+            await tester.runAsync(() => fixture.file.readAsString()),
+            original,
+          );
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(fixture.dispose);
+        }
+      },
+    );
+  }
   for (final (location, long) in [
     ('header', false),
     ('query', false),

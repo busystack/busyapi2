@@ -2,7 +2,7 @@ name: busyapi
 title: BusyAPI
 version: '0.1.0'
 summary: Native OpenAPI contract workspace
-description: Source-preserving native authoring for OpenAPI 3.1 and 3.2.
+description: Source-preserving native authoring for Swagger 2.0 and OpenAPI 3.0, 3.1 and 3.2.
 license: Apache-2.0
 icon: assets/branding/busyapi_logo.svg
 base: core24

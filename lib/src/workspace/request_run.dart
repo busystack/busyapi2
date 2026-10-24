@@ -2509,6 +2509,10 @@ class RequestRunPanel extends StatelessWidget {
                       BusyApiStatusBox(message: l.requestHeadersGenerated),
                     ],
                   ),
+                  if (plan.ignoredRequestBody case final ignored?)
+                    BusyApiStatusBox(
+                      message: l.requestBodyIgnored(ignored.method),
+                    ),
                   if (plan.result['requestBody'] is Map ||
                       run.bodyEnabled ||
                       run.bodyMediaType != null)

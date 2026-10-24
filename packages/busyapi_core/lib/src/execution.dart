@@ -270,6 +270,35 @@ class ExecutionEnvironment {
   }
 }
 
+/// The engine owns the method/family rule. Consumers retain this located
+/// declaration for inspection while excluding it from effective body inputs.
+class IgnoredRequestBody {
+  const IgnoredRequestBody._(this.method, this.source);
+  final String method;
+  final CoreFailureSource source;
+
+  static IgnoredRequestBody? parse(Object? value) {
+    if (value == null) return null;
+    if (value
+        case {
+          'reason': 'oas30-http-method',
+          'method': String method,
+          'source': {
+            'resource': String resource,
+            'pointer': String pointer,
+            'range': [int start, int end],
+          },
+        }
+        when start >= 0 && end >= start) {
+      return IgnoredRequestBody._(
+        method,
+        CoreFailureSource(resource, pointer, SourceRange(start, end)),
+      );
+    }
+    throw CoreFailure('request.protocol', 'Invalid ignored body declaration');
+  }
+}
+
 class OperationRequestPlan {
   OperationRequestPlan._(
     this._owner,
@@ -278,11 +307,14 @@ class OperationRequestPlan {
     this.result,
     this.saved,
     this._revision,
-  );
+  ) : ignoredRequestBody = IgnoredRequestBody.parse(
+        result['ignoredRequestBody'],
+      );
   final BusyProject _owner;
   final AnalysisSnapshot snapshot;
   final ExecutionConfiguration configuration;
   final Map<String, dynamic> result;
+  final IgnoredRequestBody? ignoredRequestBody;
   final bool saved;
   final int _revision;
   bool _closed = false;

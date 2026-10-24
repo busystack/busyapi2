@@ -888,6 +888,13 @@ void _verifyReferenceDocument(
             field['name'] is! String ||
             field['source'] != null && !located(field['source']))
           invalid();
+        if (field['ignored'] != null &&
+            (field['ignored'] != true ||
+                field['policy'] != 'oas30-http-method' ||
+                field['method'] is! String ||
+                (field['method'] as String).isEmpty ||
+                !located(field['source'])))
+          invalid();
         if (field['entries'] != null) {
           if (field['entries'] is! List ||
               field['count'] != (field['entries'] as List).length)
@@ -1308,6 +1315,10 @@ String _referenceHtml(Map document, String Function(String) portable) {
         if (effective['default'] != null)
           html.write(
             '<p>Specification default, not authored: <code>${escape(jsonEncode(effective['default']))}</code></p>',
+          );
+        if (effective['ignored'] == true)
+          html.write(
+            '<p>OpenAPI 3.0 consumers ignore this ${escape(effective['method'])} request-body declaration. The authored declaration is retained below.</p>',
           );
         for (final entry in effective['entries'] as List? ?? [])
           html.write(

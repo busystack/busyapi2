@@ -13,6 +13,7 @@ import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
 import {evaluateSchemas} from './schema_evaluation';
 import {runtimeMediaKind} from './runtime_media';
+import {ignoresRequestBody} from './operation_semantics';
 
 const maximumItems = 2048;
 
@@ -419,8 +420,11 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     }
   }
   const bodyField=node.children.has('requestBody')?{resource:input.resource,pointer:input.pointer+'/requestBody'}:undefined;
+  const method=context.customMethod?context.method:context.method.toUpperCase();
+  const ignoredRequestBody=bodyField&&ignoresRequestBody(operation.family,method)
+    ?{method,reason:'oas30-http-method',source:location(bodyField.resource,bodyField.pointer)}:undefined;
   let requestBody:any;
-  if(bodyField){const selected=follow({...bodyField,kind:'request-body'},'request-body'),v=selected.node.value;requestBody={required:v?.required===true,source:location(bodyField.resource,bodyField.pointer),definition:selected.source,content:media(selected.resource,selected.pointer+'/content',v?.content)};}
+  if(bodyField&&!ignoredRequestBody){const selected=follow({...bodyField,kind:'request-body'},'request-body'),v=selected.node.value;requestBody={required:v?.required===true,source:location(bodyField.resource,bodyField.pointer),definition:selected.source,content:media(selected.resource,selected.pointer+'/content',v?.content)};}
   if(family==='2.0'){
     const projected=parameters.visible.map(parameter),body=projected.find(p=>p.in==='body'),form=projected.filter(p=>p.in==='formData');
     const consumes=swaggerMedia(graph,input.resource,input.pointer,'consumes');
@@ -443,10 +447,10 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location).map(item=>({...item,dataModel:runtimeMediaKind(item.mediaType,true)})):media(selected.resource,selected.pointer+'/content',v?.content)});
   }
   const identity=createHash('sha256').update(JSON.stringify([input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
-  return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method:context.customMethod?context.method:context.method.toUpperCase(),customMethod:context.customMethod===true,path:context.path,
+  return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method,customMethod:context.customMethod===true,path:context.path,
     operationId:typeof node.value.operationId==='string'?node.value.operationId:undefined,summary:typeof node.value.summary==='string'?node.value.summary:undefined,
     source:location(input.resource,input.pointer),occurrence:context.occurrence,pathItem:location(context.pathItem.resource,context.pathItem.pointer)},
-    servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes,anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,responses,
+    servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes,anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,ignoredRequestBody,responses,
     producer:'busyapi-contract-engine',producerVersion:'0.1.0',complete:true};
 }
 

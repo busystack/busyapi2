@@ -36,9 +36,17 @@ void main() {
       messenger.setMockMethodCallHandler(MethodChannel(name), null);
     }
   });
-  for (final stale in [false, true]) {
+  for (final (stale, ignoredBody) in [
+    (false, false),
+    (true, false),
+    (false, true),
+  ]) {
     testWidgets(
-      'native migration reviews captured changes and ${stale ? 'rejects stale source' : 'publishes a separate copy'}',
+      'native migration reviews captured changes and ${stale
+          ? 'rejects stale source'
+          : ignoredBody
+          ? 'requires an ignored-body decision'
+          : 'publishes a separate copy'}',
       (tester) async {
         tester.view.physicalSize = const Size(1400, 1200);
         tester.view.devicePixelRatio = 1;
@@ -48,8 +56,14 @@ void main() {
               'busyapi-migration-widget-',
             ),
             file = File('${temp.path}/api.yaml');
-        const original =
+        const base =
             '# Keep\nopenapi: 3.0.4\ninfo: {title: Original, version: "1"}\npaths: {}\ncomponents: {schemas: {Value: {type: string, nullable: true}}}\n';
+        final original = ignoredBody
+            ? base.replaceFirst(
+                'paths: {}',
+                'paths: {"/data": {get: {requestBody: {required: true, content: {application/json: {schema: {type: string}, example: snow}}}, responses: {204: {description: Empty}}}}}',
+              )
+            : base;
         file.writeAsStringSync(original);
         final c = WorkspaceController(
           EngineProcess(executable: runtimeNode, helper: runtimeHelper),
@@ -115,6 +129,54 @@ void main() {
           );
           await ready(() => destination.evaluate().isNotEmpty);
           await tester.runAsync(() => tester.tap(destination));
+          if (ignoredBody) {
+            final choice = find.byWidgetPredicate(
+              (widget) =>
+                  widget is BusyApiComboRow<String> &&
+                  widget.title == 'migration.body.ignored-activation',
+            );
+            await ready(() => choice.evaluate().isNotEmpty);
+            final publish = find.widgetWithText(
+              BusyApiDialogButton,
+              'Create migrated copy',
+            );
+            expect(
+              tester.widget<BusyApiDialogButton>(publish).onPressed,
+              isNull,
+            );
+            expect(
+              Directory('${temp.path}/busyapi-migrated').existsSync(),
+              false,
+            );
+            final messenger = TestDefaultBinaryMessengerBinding
+                .instance
+                .defaultBinaryMessenger;
+            const channel = MethodChannel('busyapi/native_menus');
+            messenger.setMockMethodCallHandler(channel, (call) async {
+              if (call.method != 'show') return null;
+              final entries = (call.arguments as Map)['entries'] as List;
+              final index = entries.indexWhere(
+                (entry) =>
+                    entry['label'] ==
+                    'Omit the ignored request-body declaration from the copy',
+              );
+              expect(index, greaterThanOrEqualTo(0));
+              return index;
+            });
+            addTearDown(
+              () => messenger.setMockMethodCallHandler(channel, null),
+            );
+            await tester.ensureVisible(choice);
+            await tester.tap(choice);
+            await tester.pumpAndSettle();
+            expect(
+              find.text(
+                'Omit the ignored request-body declaration from the copy',
+              ),
+              findsOneWidget,
+            );
+            await tester.runAsync(() => tester.tap(review));
+          }
           await ready(
             () => find.byType(BusyApiReviewComparison).evaluate().isNotEmpty,
           );
@@ -123,6 +185,10 @@ void main() {
           );
           expect(comparison.before, contains('Unsaved'));
           expect(comparison.after, contains('3.2.1'));
+          if (ignoredBody) {
+            expect(comparison.before, contains('requestBody'));
+            expect(comparison.after, isNot(contains('requestBody')));
+          }
           expect(file.readAsStringSync(), original);
           expect(c.buffer!.text, contains('3.0.4'));
           final publish = find.widgetWithText(
@@ -166,6 +232,13 @@ void main() {
             );
             expect(c.buffer!.text, contains('3.0.4'));
             expect(c.buffer!.dirty, true);
+            if (ignoredBody) {
+              expect(c.buffer!.text, contains('requestBody'));
+              expect(
+                File('$path/openapi.yaml').readAsStringSync(),
+                isNot(contains('requestBody')),
+              );
+            }
           }
           final close = find.widgetWithText(BusyApiDialogButton, 'Close');
           await ready(() => close.evaluate().isNotEmpty);

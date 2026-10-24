@@ -16,6 +16,7 @@ import {serverTemplate} from './derived_bundle';
 import {hasRelativeMarkdownLinks} from './markdown_links';
 import {migrationRequestSignatures} from './migration_invariants';
 import {migrateEncodings} from './migration_encoding';
+import {checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
@@ -40,6 +41,7 @@ export async function planMigration(input:MigrationInput) {
     const decisionRevision=digest(JSON.stringify([input.snapshot,input.targetVersion,input.resources.map((resource:Resource)=>[resource.id,resource.generation,resource.text,resource.aliases]).sort((a:any,b:any)=>String(a[0]).localeCompare(String(b[0])))]));
     const decisionChoices=new Map<string,string[]>();
     const problems:MigrationProblem[]=[],accepted=new Set<string>(),stages:{from:string;to:string}[]=[],presentationChanges:{resource:string;pointer:string}[]=[];
+    const ignoredBodyOmissions:MigrationLocation[]=[];
     let origins=new Map<string,MigrationLocation[]>();
     for(const doc of original.values())for(const pointer of doc.nodes.keys())origins.set(key(doc.id,pointer),[{resource:doc.id,pointer}]);
     const sourceLocation=(resource:string,pointer:string)=>{
@@ -67,6 +69,7 @@ export async function planMigration(input:MigrationInput) {
         return {analysis,schemas};
     };
     await validate(resources,input.root);
+    if(!problems.length)checkRequestBodyTarget(initial,resources,target.family,issue);
     for(const doc of original.values())for(const node of doc.nodes.values())if(node.shared||node.keyShared){issue({resource:doc.id,pointer:node.pointer},'migration.source.shared','Shared YAML nodes require an ownership-preserving migration mapping before this plan can be published','implementation');break;}
     const order=[...nativeFamilies],start=order.indexOf(from.family),finish=order.indexOf(target.family);
     const route=start<=finish?order.slice(start,finish+1):target.family==='2.0'?[from.family,target.family]:order.slice(finish,start+1).reverse();
@@ -75,8 +78,10 @@ export async function planMigration(input:MigrationInput) {
         const before=route[index],after=route[index+1],context=createGraph({...input,resources}),{graph}=context;
         const sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
         try {
+            ignoredBodyOmissions.push(...migrateOperationBodies(graph,sources,before,after,from.family,issue));
             for(const scope of graph.scopes.values()){
                 const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value,source=sources.get(scope.resource)!;
+                if(source.current(scope.pointer)===undefined)continue;
                 if(isReferenceObject(value,scope.kind,scope.family)&&scope.kind!=='path-item'){
                     const siblings=Object.keys(value).filter(name=>name!=='$ref');
                     if(siblings.length&&modernFamily(after)&&!modernFamily(before)&&issue(scope,'migration.reference.ignored-siblings','The target would activate ignored Reference Object siblings; explicitly discard those preserved values or revise the source','decision',['discard-ignored-siblings']))for(const name of siblings)source.remove(scope.pointer+'/'+escape(name));
@@ -192,6 +197,9 @@ export async function planMigration(input:MigrationInput) {
     }
     for(const origin of exactPayloads){
         const [resource,pointer]=JSON.parse(origin) as [string,string],expected=migrationValueIdentity(original.get(resource)!,pointer),locations=origins.get(origin)??[];
+        // Only an explicit, graph-bound omission decision can remove values
+        // inside an ignored declaration. Originals remain independent inputs.
+        if(ignoredBodyOmissions.some(location=>location.resource===resource&&(pointer===location.pointer||pointer.startsWith(location.pointer+'/'))))continue;
         if(!locations.length)issue({resource,pointer},'migration.invariant.payload','An authored payload or extension lost its captured source owner','implementation');
         for(const location of locations){
             const node=finalContext.docs.get(identifiers.get(location.resource)!)?.dataNode(location.pointer);
