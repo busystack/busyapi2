@@ -787,17 +787,9 @@ void main() {
       );
 
       expect(built.method, 'purge');
-      await expectLater(
-        const ContractHttpTransport().send(built),
-        throwsA(
-          isA<CoreFailure>().having(
-            (e) => e.code,
-            'unsupported transport',
-            'request.method.unsupported',
-          ),
-        ),
-      );
-      expect(lines, isEmpty);
+      final exact = await const ContractHttpTransport().send(built);
+      await exact.close();
+      expect(lines, ['purge /pets HTTP/1.1']);
       final checked = await project!.check(plan.snapshot.root);
       final operations = (checked['projection']['operations'] as List)
           .whereType<Map>()
@@ -844,17 +836,47 @@ void main() {
         selectedCases: ['lower', 'upper'],
         resolveSecret: (_) async => null,
       );
-      expect(report.complete, false);
+      expect(report.complete, true);
       expect(report.cases.first.operation, 'purge /pets');
-      expect(report.cases.first.complete, false);
+      expect(report.cases.first.complete, true);
+      expect(report.cases.first.passed, true);
       expect(report.cases.first.operationalFailure, false);
       expect(report.cases.last.operation, 'PURGE /pets');
       expect(report.cases.last.passed, true);
+      final cli = await Process.run(
+        '$testBundle/busyapi',
+        [
+          'test',
+          directory.path,
+          '--case',
+          'lower',
+          '--case',
+          'upper',
+          '--json',
+        ],
+        environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
+        includeParentEnvironment: false,
+      );
+      expect(cli.exitCode, 0, reason: '${cli.stdout}\n${cli.stderr}');
+      final cliReport = jsonDecode(cli.stdout as String) as Map;
+      expect(cliReport['complete'], true);
+      expect((cliReport['cases'] as List).map((value) => value['operation']), [
+        'purge /pets',
+        'PURGE /pets',
+      ]);
+      expect(
+        (cliReport['cases'] as List).every((value) => value['passed'] == true),
+        true,
+      );
       expect(lines, [
+        'purge /pets HTTP/1.1',
         'GET /pets HTTP/1.1',
         'POST /pets HTTP/1.1',
         'QUERY /pets HTTP/1.1',
         'PURGE /pets HTTP/1.1',
+        'purge /pets HTTP/1.1',
+        'PURGE /pets HTTP/1.1',
+        'purge /pets HTTP/1.1',
         'PURGE /pets HTTP/1.1',
       ]);
     },

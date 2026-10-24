@@ -21,15 +21,14 @@ import 'project.dart';
 import 'atomic_file_writer.dart';
 import 'storage.dart';
 import 'gzip_framing.dart';
+import 'exact_http_method.dart';
 
 typedef SecretResolver = Future<String?> Function(String reference);
 
 // Representation headers on these responses describe content that HTTP does
 // not transfer. Keep this decision shared by decoding, validation and display.
 bool _responseBodyPermitted(String method, int status) =>
-    method.toUpperCase() != 'HEAD' &&
-    status >= 200 &&
-    !{204, 205, 304}.contains(status);
+    method != 'HEAD' && status >= 200 && !{204, 205, 304}.contains(status);
 
 // Keep possible gzip member headers on fresh input chunks. The pinned SDK's
 // streaming inflater can reject a following member after an empty member when
@@ -2489,14 +2488,9 @@ class ContractHttpTransport {
     try {
       input.plan.ensureCurrentPreparation();
       cancellation?.throwIfCancelled();
-      // Dart 3.13.4 HttpClient._openUrl uppercases methods before writing. Refuse
-      // before opening a socket rather than executing another operation.
-      if (input.method != input.method.toUpperCase()) {
-        throw CoreFailure(
-          'request.method.unsupported',
-          'The pinned native HTTP client cannot preserve this custom method’s capitalization; no request was sent',
-        );
-      }
+      final exact = input.method == input.method.toUpperCase()
+          ? null
+          : ExactHttpMethod(input.method);
       SecurityContext? context;
       try {
         context = input.tls.custom
@@ -2523,6 +2517,10 @@ class ContractHttpTransport {
       final client = HttpClient(context: context)
         ..connectionTimeout = input.connectTimeout
         ..autoUncompress = false;
+      if (exact != null) {
+        client.connectionFactory = (uri, proxyHost, proxyPort) =>
+            exact.connect(uri, proxyHost, proxyPort, context: context);
+      }
       final clock = Stopwatch()..start();
       final deadline = _HttpDeadline(
         client,
@@ -2535,7 +2533,10 @@ class ContractHttpTransport {
         for (var redirect = 0; ; redirect++) {
           cancellation?.throwIfCancelled();
           final request = await deadline.wait(
-            client.openUrl(method, uri),
+            client.openUrl(
+              exact == null ? method : ExactHttpMethod.wireMethod,
+              uri,
+            ),
             limit: input.connectTimeout,
           );
           // Abort may happen before close() (for example during upload). Observe
@@ -2549,6 +2550,7 @@ class ContractHttpTransport {
           deadline.request = request;
           request.followRedirects = false;
           request.maxRedirects = 0;
+          if (exact != null) request.persistentConnection = false;
           for (final header in input.headers) {
             request.headers.add(header.$1, header.$2, preserveHeaderCase: true);
           }
