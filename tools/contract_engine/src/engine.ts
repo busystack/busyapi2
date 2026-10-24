@@ -292,7 +292,7 @@ export function inspect(input: any) {
         for(let i=0;i<tokens.length;i++) {
             const next=at+'/'+escape(tokens[i]),existing=doc.nodes.get(next);
             field=fieldsFor(kind,family,doc.nodes.get(at)?.value??{},segments(at).at(-1)).find(f=>f.name===tokens[i]);
-            const childKind=children({[tokens[i]]:{}},kind,family)[0]?.[2];
+            const childKind=children({[tokens[i]]:{}},kind,family,doc.nodes.get(at)?.value??{})[0]?.[2];
             if(!field||!childKind||!['object','array','schema'].includes(field.type)) {field=undefined;break;}
             if(!missing&&existing)owner=existing;
             else missing=true;
@@ -308,7 +308,7 @@ export function inspect(input: any) {
         const parts = segments(input.pointer), name = parts.pop()!, parentPointer = parts.length ? '/' + parts.map(escape).join('/') : '';
         const parent = doc.nodes.get(parentPointer), parentScope = graph.scopes.get(doc.id + '#' + parentPointer);
         const field = parent && parentScope && fieldsFor(parentScope.kind, family, parent.value).find(f => f.name === name);
-        const kind = parentScope && children({[name]: {}}, parentScope.kind, family)[0]?.[2];
+        const kind = parentScope && children({[name]: {}}, parentScope.kind, family, parent?.value)[0]?.[2];
         if (parent && field && kind && ['object', 'array', 'schema'].includes(field.type)) {
             const generation = input.resources.find((r: Resource) => r.id === doc.id).generation;
             return {version: 1, snapshot: input.snapshot, root: input.root, resource: doc.id, generation, pointer: input.pointer, kind, absent: true,
@@ -329,7 +329,7 @@ export function inspect(input: any) {
     const definitions = fieldsFor(scope.kind, family, node.value, segments(node.pointer).at(-1));
     const fields = definitions.map(field => {
         const child = node.children.get(field.name);
-        const childKind = children({[field.name]: {}}, scope.kind, family)[0]?.[2];
+        const childKind = children({[field.name]: {}}, scope.kind, family, node.value)[0]?.[2];
         return {...field, childKind, present: !!child, ...(child ? {dataType: child.value===null?'null':Array.isArray(child.value)?'array':typeof child.value, target: located(child, graph.scopes.get(doc.id + '#' + child.pointer)?.kind ?? 'data'),
             ...(typeof child.value !== 'object' && String(child.value).length <= 16384 ? {value: child.value} : {}),
             ...(child.range[1] - child.range[0] <= 16384 ? {raw: doc.dataJson(child.pointer)} : {}), count: child.children.size} : {})};

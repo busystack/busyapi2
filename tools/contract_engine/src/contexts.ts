@@ -10,9 +10,12 @@ const methods32 = Object.freeze([...methods31, 'query']);
 const methods20 = Object.freeze(methods31.filter(method => method !== 'trace'));
 export const standardOperationMethods = (family: string): readonly string[] => family === '2.0' ? methods20 : family === '3.2' ? methods32 : methods31;
 // Only specification positions carry references; payloads and metadata do not.
-export function children(value: any, kind: string, family = '3.2'): Child[] {
+// Bounded projections can supply one child plus its complete owner. Context
+// selectors (such as a Swagger parameter's in) do not require enumerating siblings.
+export function children(value: any, kind: string, family = '3.2', owner = value): Child[] {
     if (!value || typeof value !== 'object')
         return [];
+    const context = owner && typeof owner === 'object' ? owner : value;
     const out: Child[] = [];
     const one = (key: string, next: string) => {
         if (Object.hasOwn(value, key))
@@ -105,7 +108,7 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
         case 'parameter':
         case 'header':
             if(family==='2.0') {
-                if(kind==='parameter'&&value.in==='body')one('schema','schema');
+                if(kind==='parameter'&&context.in==='body')one('schema','schema');
                 else one('items','items');
             }else {one('schema', 'schema');one('content', 'content-map');one('examples', 'example-map');}
             break;
@@ -172,8 +175,8 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
             one('externalDocs', 'external-documentation');
             for (const k of ['properties', ...(modernFamily(family) ? ['patternProperties', '$defs', 'dependentSchemas'] : [])])
                 one(k, 'schema-map');
-            if(family==='2.0'&&Array.isArray(value.items))one('items','schema-array');
-            for (const k of [...(family==='2.0'&&Array.isArray(value.items)?[]:['items']), ...(typeof value.additionalProperties === 'boolean' && !modernFamily(family) ? [] : ['additionalProperties']), ...(family==='2.0'?[]:['not']), ...(modernFamily(family) ? ['unevaluatedProperties', 'unevaluatedItems', 'contains', 'propertyNames', 'if', 'then', 'else', 'contentSchema'] : [])])
+            if(family==='2.0'&&Array.isArray(context.items))one('items','schema-array');
+            for (const k of [...(family==='2.0'&&Array.isArray(context.items)?[]:['items']), ...(typeof context.additionalProperties === 'boolean' && !modernFamily(family) ? [] : ['additionalProperties']), ...(family==='2.0'?[]:['not']), ...(modernFamily(family) ? ['unevaluatedProperties', 'unevaluatedItems', 'contains', 'propertyNames', 'if', 'then', 'else', 'contentSchema'] : [])])
                 one(k, 'schema');
             for (const k of ['allOf', ...(family==='2.0'?[]:['anyOf', 'oneOf']), ...(modernFamily(family) ? ['prefixItems'] : [])])
                 one(k, 'schema-array');

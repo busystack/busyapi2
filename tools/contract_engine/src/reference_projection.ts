@@ -95,7 +95,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
         // Determine the containing Reference Object once, then classify only
         // this bounded page. Enumerating a whole large property map for each
         // 50-row request would defeat the native lazy view.
-        const context = referenceData ? undefined : children({[name]:child.value},kind,family).find(([key])=>key===name)?.[2];
+        const context = referenceData ? undefined : children({[name]:child.value},kind,family,node.value).find(([key])=>key===name)?.[2];
         const schema = kind === 'schema-map' && node.pointer.endsWith('/properties') ? doc.dataNode(node.pointer.slice(0, -11)) : undefined;
         const pointer=node.pointer+'/'+escape(name),value=read(doc.id,pointer)!;
         return {name, ...located(doc.id, pointer), kind:context??'data', data:!context, nodeKind: value.kind, count: value.children.size,

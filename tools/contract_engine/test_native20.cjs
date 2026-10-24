@@ -3,7 +3,7 @@ const {test}=require('node:test');
 const YAML=require('yaml');
 const {analyse,createGraph,inspect,propose}=require('./dist/model.cjs');
 const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
-const {referenceDocument}=require('./dist/reference_projection.cjs');
+const {referenceDocument,referencePage}=require('./dist/reference_projection.cjs');
 const {deriveBundle}=require('./dist/derived_bundle.cjs');
 const {requestOperation}=require('./dist/execution.cjs');
 const {planRename}=require('./dist/refactoring.cjs');
@@ -21,6 +21,43 @@ for(const json of [true,false])test(`Swagger schema fields have one reference ed
   assert.equal(fields.filter(field=>field.name==='$ref').length,1);
   assert.equal(new Set(fields.map(field=>field.name)).size,fields.length);
  }
+});
+for(const json of [true,false])test(`Swagger body schema authoring retains its parameter context ${json?'JSON':'YAML'}`,()=>{
+ const value=api(),pointer='/paths/~1pets~1{id}/post/parameters/1';
+ delete value.paths['/pets/{id}'].post.parameters[1].schema;
+ const input=capture(value,json),body=inspect({...input,pointer}),field=body.fields.find(field=>field.name==='schema');
+ assert.equal(field.present,false);assert.equal(field.type,'object');assert.equal(field.childKind,'schema');
+ const absent=inspect({...input,pointer:pointer+'/schema'});assert.equal(absent.absent,true);assert.equal(absent.kind,'schema');assert.equal(absent.parent.pointer,pointer);
+ const plan=propose({...input,target:target(input,pointer),actions:[{kind:'create',pointer:pointer+'/schema',value:{}}]});
+ let text=input.resources[0].text;for(const edit of [...plan.edits].reverse())text=text.slice(0,edit.start)+edit.replacement+text.slice(edit.end);
+ const changed={...input,resources:[{...input.resources[0],text}]},schema=inspect({...changed,pointer:pointer+'/schema'});
+ assert.equal(schema.kind,'schema');assert.equal(schema.fields.filter(field=>field.name==='$ref').length,1);
+ assert.equal(analyse(changed).status,'complete',JSON.stringify(analyse(changed).findings));
+ const parameter=referenceDocument(changed).sections.find(section=>section.kind==='parameter'&&section.source.pointer===pointer);
+ assert(parameter,JSON.stringify(referenceDocument(changed).sections.map(section=>({kind:section.kind,pointer:section.source.pointer}))));
+ assert.equal(parameter.entries.find(field=>field.name==='schema').kind,'schema');
+ assert.equal(parameter.entries.find(field=>field.name==='schema').target.pointer,pointer+'/schema');
+ const entry=referencePage({...changed,pointer}).entries.find(field=>field.name==='schema');
+ assert.equal(entry.kind,'schema');assert.equal(entry.data,false);
+});
+for(const json of [true,false])test(`Swagger native body and non-body reference pages preserve child boundaries ${json?'JSON':'YAML'}`,()=>{
+ const input=capture(api(),json),body=referencePage({...input,pointer:'/paths/~1pets~1{id}/post/parameters/1'}),query=referencePage({...input,pointer:'/paths/~1pets~1{id}/post/parameters/0'});
+ assert.equal(body.entries.find(field=>field.name==='schema').kind,'schema');
+ assert.equal(body.entries.find(field=>field.name==='schema').data,false);
+ assert.equal(query.entries.find(field=>field.name==='items').kind,'items');
+ assert.equal(query.entries.find(field=>field.name==='items').data,false);
+});
+for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const json of [true,false])test(`child metadata retains invalid schema correction and boolean field contexts ${version} ${json?'JSON':'YAML'}`,()=>{
+ const legacy=version==='2.0',root='file:///approved/context.'+(json?'json':'yaml'),prefix=legacy?'/definitions':'/components/schemas';
+ const schemas={Bad:null,Closed:{type:'object',additionalProperties:false},...(legacy?{Tuple:{type:'array',items:[{type:'string'}]}}:{})};
+ const value={...(legacy?{swagger:version}:{openapi:version}),info:{title:'Context',version:'1'},paths:{},...(legacy?{definitions:schemas}:{components:{schemas}})};
+ const input={root,resource:root,snapshot:'child-context',resources:[{id:root,text:json?JSON.stringify(value):YAML.stringify(value),generation:1}]},before=input.resources[0].text;
+ assert.equal(inspect({...input,pointer:prefix+'/Bad'}).kind,'schema');
+ assert.equal(analyse(input).status,'invalid');
+ const closed=referencePage({...input,pointer:prefix+'/Closed'}).entries.find(field=>field.name==='additionalProperties');
+ assert.equal(closed.kind,legacy||version.startsWith('3.0')?'data':'schema');assert.equal(closed.data,legacy||version.startsWith('3.0'));
+ if(legacy){const tuple=inspect({...input,pointer:prefix+'/Tuple'}).fields.find(field=>field.name==='items');assert.equal(tuple.childKind,'schema-array');}
+ assert.equal(input.resources[0].text,before);
 });
 for(const json of [true,false])test(`Swagger media lists expose array metadata before creation ${json?'JSON':'YAML'}`,()=>{
  const value=api(),operation=value.paths['/pets/{id}'].post;
