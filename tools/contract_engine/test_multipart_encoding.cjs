@@ -31,9 +31,36 @@ for(const version of ['3.0.0','3.0.4','3.1.0','3.1.2','3.2.0','3.2.1'])for(const
 });
 
 function mutate(input,change){
- const value=JSON.parse(input.resources[0].text);change(value.paths['/upload'].post.requestBody.content['multipart/form-data'],value);
- return {...input,resources:[{...input.resources[0],text:JSON.stringify(value)},...input.resources.slice(1)]};
+ const value=YAML.parse(input.resources[0].text);change(value.paths['/upload'].post.requestBody.content['multipart/form-data'],value);
+ return {...input,resources:[{...input.resources[0],text:input.root.endsWith('.yaml')?'# Native changed fixture\n'+YAML.stringify(value):JSON.stringify(value)},...input.resources.slice(1)]};
 }
+
+for(const version of ['3.0.0','3.0.1','3.0.2','3.0.3','3.0.4','3.1.2','3.2.1'])for(const format of ['json','yaml'])test(`${version} ${format} unencoded binary parts retain a family-owned octet instance directive`,async()=>{
+ const input=mutate(packet(version,format),media=>{
+  media.schema={type:'object',properties:{raw:{$ref:'shared.yaml#/Field'},values:{type:'array',items:{$ref:'shared.yaml#/Field'}},number:{type:'integer'}}};delete media.encoding;
+ });
+ input.resources[1].text='Field: {allOf: [{$ref: "#/Binary"}]}\nBinary: {type: string, format: binary, maxLength: 4}\n';
+ const result=await requestMultipartEncoding({...input,parts:[{name:'raw',kind:'string'},{name:'number',kind:'other'}],files:['raw','values']});
+ for(const name of ['raw','values']){
+  const directive=result.parts[name].string;
+  assert.equal(directive.instanceEncoding,version.startsWith('3.0.')?'octets':undefined);
+  assert.equal(directive.schemaEncoded,false);assert.equal(directive.encoding,undefined);
+  if(version.startsWith('3.0.'))assert.deepEqual(directive.instanceSource,directive.source);
+  if(version.startsWith('3.0.')){assert.equal(directive.source.resource,external);assert.equal(directive.source.pointer,'/Binary/format');assert.ok(directive.source.range[1]>0);}
+ }
+ assert.deepEqual(result.parts.number.other,{schemaEncoded:false});
+});
+test('binary instance directives survive an explicit MIME transfer header',async()=>{
+ const input=mutate(packet('3.0.4'),media=>{media.schema={type:'object',properties:{raw:{type:'string',format:'binary'}}};media.encoding={raw:{headers:{'Content-Transfer-Encoding':{schema:{type:'string',enum:['base64']}}}}};});
+ const result=await requestMultipartEncoding({...input,parts:[],files:['raw']});
+ assert.equal(result.parts.raw.string.instanceEncoding,'octets');assert.equal(result.parts.raw.string.schemaEncoded,false);assert.equal(result.parts.raw.string.encoding,'base64');
+ assert.equal(result.parts.raw.string.instanceSource.pointer,'/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/raw/format');
+ assert.ok(result.parts.raw.string.source.pointer.endsWith('/headers/Content-Transfer-Encoding'));
+});
+for(const [keyword,code]of [['allOf','request.multipart.encoding.undefined'],['oneOf','request.multipart.encoding.unsupported']])test(`${keyword} cannot silently choose between binary and encoded part instances`,async()=>{
+ const input=mutate(packet('3.0.4'),media=>{media.schema={type:'object',properties:{raw:{[keyword]:[{type:'string',format:'binary'},{type:'string',format:'byte'}]}}};delete media.encoding;});
+ await assert.rejects(requestMultipartEncoding({...input,parts:[],files:['raw']}),error=>error.code===code&&error.kind==='unsupported'&&error.source.range[1]>0);
+});
 for(const version of ['3.0.4','3.1.2','3.2.1'])test(`${version} conflicting transfer headers and unresolved references cannot be prepared`,async()=>{
  const input=packet(version);
  for(const schema of [{type:'string',enum:['binary']},{type:'string',pattern:'^quoted-printable$'}]){

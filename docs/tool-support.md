@@ -103,6 +103,15 @@ incomplete serialization. These choices are an input policy, not a server
 interoperability guarantee. Positional and nested encodings still require
 implementation and are reported as limitations before sending.
 
+Native 3.0 `format: binary` multipart fields and files use the same octet-string
+instance policy as raw binary bodies. Entered text supplies its UTF-8 bytes;
+selected files supply their immutable captured bytes. Length, enum and pattern
+checks apply before MIME transfer encoding. Mixed field/file arrays retain actual
+part order, and adjacent exact numeric values survive reconstruction. Large
+conversions run off the UI isolate and remain subject to the instance-size limit.
+Schema-format and transfer-header provenance remain separate. Modern format
+annotations do not opt into this 3.0 mapping.
+
 Migration checks effective form encodings as well as media names. It removes
 ignored 3.0 multipart style fields before they could become active in 3.1.
 Swagger multipart arrays with a CSV/space/pipe separator are blocked for a 3.0

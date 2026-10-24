@@ -1,5 +1,7 @@
 import 'model.dart';
 
+enum MultipartInstanceEncoding { octets }
+
 /// Serialization directives checked by the captured contract engine. Encoded
 /// schema instances and raw selected files have different input representations.
 class MultipartTransferEncoding {
@@ -9,37 +11,53 @@ class MultipartTransferEncoding {
     this.resource,
     this.pointer,
     this.range,
+    this.instanceEncoding,
+    this.instanceSource,
   });
   final String? encoding, resource, pointer;
   final SourceRange? range;
   final bool schemaEncoded;
+  final MultipartInstanceEncoding? instanceEncoding;
+  final CoreFailureSource? instanceSource;
 
   factory MultipartTransferEncoding.fromJson(Object? raw) {
     if (raw is! Map || raw['schemaEncoded'] is! bool) _invalid();
-    final encoding = raw['encoding'], source = raw['source'];
+    final encoding = raw['encoding'], instance = raw['instanceEncoding'];
+    final source = _multipartSource(raw['source']),
+        instanceSource = _multipartSource(raw['instanceSource']);
     if (encoding != null && (encoding is! String || encoding.isEmpty))
       _invalid();
-    if (source != null &&
-        (source is! Map ||
-            source['resource'] is! String ||
-            source['pointer'] is! String ||
-            source['range'] is! List ||
-            (source['range'] as List).length != 2 ||
-            (source['range'] as List).any((value) => value is! int) ||
-            (source['range'][0] as int) < 0 ||
-            (source['range'][1] as int) < (source['range'][0] as int)))
+    if (instance != null && instance != 'octets' ||
+        (instance != null) != (instanceSource != null) ||
+        instance != null && raw['schemaEncoded'] == true)
       _invalid();
     if (raw['schemaEncoded'] == true && encoding == null) _invalid();
     return MultipartTransferEncoding(
       schemaEncoded: raw['schemaEncoded'] as bool,
       encoding: encoding as String?,
-      resource: source?['resource'] as String?,
-      pointer: source?['pointer'] as String?,
-      range: source == null
-          ? null
-          : SourceRange(source['range'][0] as int, source['range'][1] as int),
+      resource: source?.resource,
+      pointer: source?.pointer,
+      range: source?.range,
+      instanceEncoding: instance == 'octets'
+          ? MultipartInstanceEncoding.octets
+          : null,
+      instanceSource: instanceSource,
     );
   }
+}
+
+CoreFailureSource? _multipartSource(Object? source) {
+  if (source == null) return null;
+  if (source
+      case {
+        'resource': String resource,
+        'pointer': String pointer,
+        'range': [int start, int end],
+      }
+      when start >= 0 && end >= start) {
+    return CoreFailureSource(resource, pointer, SourceRange(start, end));
+  }
+  _invalid();
 }
 
 class MultipartPartEncoding {

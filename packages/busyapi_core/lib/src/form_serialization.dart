@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'model.dart';
 import 'multipart_encoding.dart';
@@ -316,13 +317,44 @@ class _FormValue {
   final List<_FormScalar> values;
 }
 
+/// The engine selected an unencoded octet string (OAS 3.0 §4.4.2). Count its
+/// exact JSON transport size before allocating escaped control characters.
+Future<({String json, int byteLength})?> multipartOctetInstance(
+  List<int> bytes,
+  int budget,
+) async {
+  if (bytes.length >= 262144)
+    return Isolate.run(() => _multipartOctetInstance(bytes, budget));
+  return _multipartOctetInstance(bytes, budget);
+}
+
+({String json, int byteLength})? _multipartOctetInstance(
+  List<int> bytes,
+  int budget,
+) {
+  var size = 2;
+  for (final byte in bytes) {
+    size += byte == 34 || byte == 92 || const [8, 9, 10, 12, 13].contains(byte)
+        ? 2
+        : byte < 32
+        ? 6
+        : byte < 128
+        ? 1
+        : 2;
+    if (size > budget) return null;
+  }
+  if (size > budget) return null;
+  return (json: jsonEncode(latin1.decode(bytes)), byteLength: size);
+}
+
 /// Merge captured file string representations without round-tripping exact
 /// numeric field values through Dart's JSON number representation.
 String multipartInstanceWithFiles(
   RequestFormData fields,
   Map<String, List<String>> files,
-  Map declaration,
-) {
+  Map declaration, {
+  Set<String> replacedFields = const {},
+}) {
   final shape = (declaration['form'] as Map)['shape'] as Map;
   final properties = shape['properties'];
   final values = <String, String>{
@@ -331,7 +363,7 @@ String multipartInstanceWithFiles(
   for (final entry in files.entries) {
     final existing = fields.fields[entry.key];
     final items = <String>[
-      if (existing != null)
+      if (existing != null && !replacedFields.contains(entry.key))
         ...existing.kind == RequestDataKind.array
             ? existing.items.map((item) => item.raw)
             : [existing.raw],

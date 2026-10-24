@@ -1645,6 +1645,7 @@ class ContractRequestBuilder {
               ? 0
               : utf8.encode(form!.instance!).length;
           final fileInstances = <String, List<String>>{};
+          final replacedFields = <String>{};
           void bytes(String value) {
             final encoded = Uint8List.fromList(utf8.encode(value));
             _uploadLimit(length + encoded.length);
@@ -1696,6 +1697,22 @@ class ContractRequestBuilder {
             } on CoreFailure catch (failure) {
               throw _multipartFailure(failure, transfer, field.name);
             }
+            if (typedFiles &&
+                transfer?.instanceEncoding ==
+                    MultipartInstanceEncoding.octets) {
+              final instance = await multipartOctetInstance(
+                utf8.encode(field.value),
+                16 * 1024 * 1024 - instanceBytes,
+              );
+              if (instance == null) {
+                typedFiles = false;
+              } else {
+                final name = fieldOwners[field] ?? field.name;
+                instanceBytes += instance.byteLength;
+                (fileInstances[name] ??= []).add(instance.json);
+                replacedFields.add(name);
+              }
+            }
             checkOwner();
             cancellation?.throwIfCancelled();
             bytes(
@@ -1732,22 +1749,38 @@ class ContractRequestBuilder {
                   );
             if (!identical(encoded, captured)) captures.add(encoded);
             final size = encoded.length;
+            final octets =
+                transfer?.instanceEncoding == MultipartInstanceEncoding.octets;
+            final instanceBody = octets ? captured : encoded;
             if (typedFiles &&
-                transfer?.schemaEncoded == true &&
-                instanceBytes + size < 16 * 1024 * 1024) {
+                (octets || transfer?.schemaEncoded == true) &&
+                instanceBytes + instanceBody.length < 16 * 1024 * 1024) {
               final capturedBytes = BytesBuilder(copy: false);
-              await for (final chunk in encoded.open()) {
+              await for (final chunk in instanceBody.open()) {
                 checkOwner();
                 cancellation?.throwIfCancelled();
                 capturedBytes.add(chunk);
               }
               try {
-                var text = utf8.decode(capturedBytes.takeBytes());
-                if (transfer!.encoding!.toLowerCase() == 'base64')
-                  text = text.replaceAll('\r\n', '');
-                final json = jsonEncode(text);
-                instanceBytes += utf8.encode(json).length;
-                (fileInstances[item.name] ??= []).add(json);
+                final ({String json, int byteLength})? instance;
+                if (octets) {
+                  instance = await multipartOctetInstance(
+                    capturedBytes.takeBytes(),
+                    16 * 1024 * 1024 - instanceBytes,
+                  );
+                } else {
+                  var text = utf8.decode(capturedBytes.takeBytes());
+                  if (transfer!.encoding!.toLowerCase() == 'base64')
+                    text = text.replaceAll('\r\n', '');
+                  final json = jsonEncode(text);
+                  instance = (json: json, byteLength: utf8.encode(json).length);
+                }
+                if (instance == null) {
+                  typedFiles = false;
+                } else {
+                  instanceBytes += instance.byteLength;
+                  (fileInstances[item.name] ??= []).add(instance.json);
+                }
               } on FormatException {
                 typedFiles = false;
               }
@@ -1770,8 +1803,8 @@ class ContractRequestBuilder {
           }
           bytes('--$boundary--\r\n');
           _uploadLimit(length);
-          var instance = body.files.isEmpty ? form?.instance : null;
-          if (body.files.isNotEmpty &&
+          var instance = typedFiles ? form?.instance : null;
+          if (fileInstances.isNotEmpty &&
               typedFiles &&
               instanceBytes < 16 * 1024 * 1024) {
             final values = await plan.formData(
@@ -1783,6 +1816,7 @@ class ContractRequestBuilder {
               values,
               fileInstances,
               declaration!,
+              replacedFields: replacedFields,
             );
             if (utf8.encode(instance).length > 16 * 1024 * 1024)
               instance = null;

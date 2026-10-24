@@ -1,7 +1,8 @@
 import {escape,SourceError,type Range} from './document';
 import {ReferenceGraph,supportedSchemaDialect,type GraphReference,type GraphTarget} from './reference_graph';
 
-export type MultipartTransfer={encoding?:string;schemaEncoded:boolean;source?:{resource:string;pointer:string;range:number[]}};
+type MultipartSource={resource:string;pointer:string;range:number[]};
+export type MultipartTransfer={encoding?:string;schemaEncoded:boolean;instanceEncoding?:'octets';instanceSource?:MultipartSource;source?:MultipartSource};
 export type MultipartHeaderCandidate={name:string;values:string[];schema:GraphTarget;implicit:boolean;literalExample:boolean;source:GraphTarget};
 
 /** MIME codecs implemented by the native transport. This is a serialization
@@ -43,6 +44,7 @@ export class MultipartEncoding {
      * keywords are read from payload examples or from another schema dialect. */
     schemaEncoding(schema:GraphTarget,name:string,array:boolean):MultipartTransfer {
         const values=new Map<string,GraphTarget>();
+        let binary:GraphTarget|undefined;
         let work=0;
         const visit=(target:GraphTarget,path:string[],active:ReadonlySet<string>,conditional=false):void=>{
             if(++work>2048)this.failure('limit.request.encoding','Multipart schema inspection exceeds 2048 locations',target);
@@ -77,15 +79,23 @@ export class MultipartEncoding {
                 return;
             }
             const encoding=scope.family==='3.0'?value.format==='byte'?'base64':undefined:typeof value.contentEncoding==='string'?value.contentEncoding:undefined;
+            if(scope.family==='3.0'&&value.format==='binary'){
+                if(conditional)this.failure('request.multipart.encoding.unsupported','Conditional binary part representations need an explicit part-shape selection',target);
+                binary={...target,pointer:target.pointer+'/format'};
+            }
             if(encoding!==undefined){
                 if(conditional)this.failure('request.multipart.encoding.unsupported','Conditional part encodings need an explicit serialized representation',target);
                 values.set(encoding,{...target,pointer:target.pointer+(scope.family==='3.0'?'/format':'/contentEncoding')});
             }
         };
         visit(schema,[name,...(array?['items']:[])],new Set());
-        if(values.size>1)this.failure('request.multipart.encoding.undefined','Applicable part schemas specify conflicting transfer encodings',schema,true);
+        if(values.size>1||binary&&values.size)this.failure('request.multipart.encoding.undefined','Applicable part schemas specify conflicting binary or encoded representations',binary??schema,true);
         const first=values.entries().next().value;
-        if(!first)return {schemaEncoded:false};
+        if(!first){
+            if(!binary)return {schemaEncoded:false};
+            const source={resource:binary.resource,pointer:binary.pointer,range:this.graph.docs.get(binary.resource)!.dataNode(binary.pointer)!.range};
+            return {schemaEncoded:false,instanceEncoding:'octets',instanceSource:source,source};
+        }
         const [encoding,source]=first;
         return {encoding,schemaEncoded:true,source:{resource:source.resource,pointer:source.pointer,range:this.graph.docs.get(source.resource)!.dataNode(source.pointer)!.range}};
     }
