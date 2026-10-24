@@ -63,7 +63,7 @@ delete bound20.$defs['parameters-list'].uniqueItems;
 delete bound20.$defs.security.uniqueItems;
 const schemas: Readonly<Record<string, any>> = Object.freeze({'2.0': bound20, '3.0': bound30, '3.1': schema31, '3.2': schema32});
 export const structuralSchema = (family: string): any => schemas[family];
-export const structuralRevisions = Object.freeze({'2.0': '2017-08-27', '3.0': '2024-10-18', '3.1': '2025-09-15', '3.2': '2025-09-17'});
+export const structuralRevisions = Object.freeze({'2.0': '2017-08-27', '3.0': '2024-10-18', '3.1': '2026-08-03', '3.2': '2026-08-30'});
 export const structuralEvaluator = new Ajv2020({strict: false, allErrors: true, validateFormats: false});
 const boundDraft04 = bindDraft4(draft04);
 boundDraft04.$id = 'urn:busyapi:structural:draft04';

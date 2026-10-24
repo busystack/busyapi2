@@ -20,10 +20,19 @@ Unmodified OpenAPI JSON from the OpenAPI Initiative specification registry:
   Ajv structural stage. Source Schema Objects use the pinned evaluator's
   separate OAS 3.0 dialect, supplemented by normative rules and exact bounds;
   authored documents are never converted into modern JSON Schema.
-- [3.1 schema, 2025-09-15](https://github.com/OAI/spec.openapis.org/blob/main/oas/3.1/schema/2025-09-15)
-- [3.2 schema, 2025-09-17](https://github.com/OAI/spec.openapis.org/blob/main/oas/3.2/schema/2025-09-17)
+- [3.1 schema, 2026-08-03](https://spec.openapis.org/oas/3.1/schema/2026-08-03),
+  SHA-256 `59f106413cb48c31299f96f024c938d3628aed6cd02cd14bcfb2fcaae7a130b6`.
+- [3.2 schema, 2026-08-30](https://spec.openapis.org/oas/3.2/schema/2026-08-30),
+  SHA-256 `ec53db6e114b768ff2d273b232bda210f51b70c5e57d57ac8daf7e8496a6e073`.
 - [3.1 dialect](https://spec.openapis.org/oas/3.1/dialect/2024-11-10) and [vocabulary meta-schema](https://spec.openapis.org/oas/3.1/meta/2024-11-10), 2024-11-10
-- [3.2 dialect](https://spec.openapis.org/oas/3.2/dialect/2025-09-17) and [vocabulary meta-schema](https://spec.openapis.org/oas/3.2/meta/2025-09-17), 2025-09-17
+- [3.2 dialect](https://spec.openapis.org/oas/3.2/dialect/2026-02-26),
+  SHA-256 `9375b7042aa0b01848403f0a9ebf12a3425e01a9e24337ce12624f10fea73833`,
+  and [vocabulary meta-schema](https://spec.openapis.org/oas/3.2/meta/2026-02-26),
+  SHA-256 `f444d02ef7d36f30293983fad8118c823a3c70a49a8e5aa6f1afe21215e35417`.
+  The previous [2025-09-17 dialect](https://spec.openapis.org/oas/3.2/dialect/2025-09-17)
+  and [vocabulary](https://spec.openapis.org/oas/3.2/meta/2025-09-17) remain bundled
+  as separately dated resources for explicit source selection. The `base` alias
+  uses the current dated publication; it never changes through runtime fetching.
 
 Copyright OpenAPI Initiative contributors, Apache-2.0. See the repository LICENSE and the runtime-binding explanation in `docs/architecture.md`. These informational schemas are structural checks, not a substitute for the normative specifications.
 

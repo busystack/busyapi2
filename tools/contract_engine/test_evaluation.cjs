@@ -12,6 +12,17 @@ const api=(version,schema,examples)=>{
  const media={schema,examples:Object.fromEntries(examples.map((value,i)=>['case'+i,{value}]))};
  return {openapi:version,info:{title:'Evaluation',version:'1'},paths:{'/p':{get:{responses:{'200':{description:'Read',content:{'application/json':media}}}}}}};
 };
+for(const version of ['3.1.2','3.2.1'])for(const dialect of ['base','2025-09-17','2026-02-26'])test(`current and previous explicit OAS 3.2 dialect resources stay distinct in ${version}: ${dialect}`,async()=>{
+ const schema={$schema:'https://spec.openapis.org/oas/3.2/dialect/'+dialect,$id:'https://schemas.invalid/dated-tree',$dynamicAnchor:'node',type:['object','null'],properties:{id:{type:'integer'},child:{$dynamicRef:'#node'}},required:['id'],additionalProperties:false};
+ const input=snapshot(api(version,schema,[{id:1,child:{id:2}},null,{id:1,child:{id:'wrong'}}]));
+ const result=await evaluateSchemas(input);assert.equal(result.complete,true,JSON.stringify(result.findings));assert.deepEqual(result.evaluations.map(e=>e.valid),[true,true,false]);
+ assert.equal(createGraph(input).graph.scope(root,'/paths/~1p/get/responses/200/content/application~1json/schema').dialect,schema.$schema);
+ assert.equal((await standardResource({uri:schema.$schema})).found,true);
+});
+test('current OAS 3.2 vocabulary requires a discriminator propertyName',async()=>{
+ const value=api('3.2.1',{oneOf:[{type:'string'},{type:'integer'}],discriminator:{}},['x']);
+ const result=await evaluateSchemas(snapshot(value));assert(result.findings.some(f=>f.code==='schema.keyword.invalid'));assert(!result.evaluations.some(e=>e.valid));
+});
 for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`referenced documents evaluate their own dialect and example representation ${version} ${json?'JSON':'YAML'}`,async()=>{
  const family=version.slice(0,3),entry=family==='3.1'?'3.2.1':'3.1.2',suffix=json?'json':'yaml';
  const id=root.replace('.json','.'+suffix),part='file:///approved/part.'+suffix;

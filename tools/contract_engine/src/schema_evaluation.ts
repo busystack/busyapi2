@@ -9,6 +9,8 @@ import dialect31 from '../schemas/oas31-dialect.json';
 import vocabulary31 from '../schemas/oas31-vocabulary.json';
 import dialect32 from '../schemas/oas32-dialect.json';
 import vocabulary32 from '../schemas/oas32-vocabulary.json';
+import previousDialect32 from '../schemas/oas32-dialect-2025-09-17.json';
+import previousVocabulary32 from '../schemas/oas32-vocabulary-2025-09-17.json';
 import {createGraph} from './engine';
 import {knownDialects,supportedSchemaDialect,GraphScope,schemaAddress} from './reference_graph';
 import {SourceDocument,SourceError,escape} from './document';
@@ -20,18 +22,20 @@ import {discriminatorRelationships} from './authoring_relationships';
 import {restrictedSchemaDialect,swaggerSchemaDialect} from './specification';
 import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,swaggerMetaIdentity,SchemaEvaluationScope} from './swagger_schema';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+4',configuration:'oas20-draft4-restricted:structural20-2017-08-27:oas30-restricted:structural30-2024-10-18:draft2020-12:oas31-2024-11-10:oas32-2025-09-17:format-annotation:exact-cst-v4:canonical-graph-addresses'};
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+5',configuration:'oas20-draft4-restricted:structural20-2017-08-27:oas30-restricted:structural30-2024-10-18:draft2020-12:structural31-2026-08-03:structural32-2026-08-30:oas31-2024-11-10:oas32-2026-02-26:oas32-2025-09-17:format-annotation:exact-cst-v4:canonical-graph-addresses'};
 let configured=false,running=false;
 const standardIds=new Set<string>(),reservedIds=new Set<string>(),standardMetas=new Map<string,any>();
 const standardSources=new Map<string,any>();
 function standards() {
  if(configured)return;
  installSwaggerSchemaDialect();
+ registerSchema(previousVocabulary32);registerSchema(previousDialect32);
+ loadDialect(previousDialect32.$id,previousDialect32.$vocabulary,true);
  for(const [family,dialect,vocabulary]of [['3.1',dialect31,vocabulary31],['3.2',dialect32,vocabulary32]] as any[]) {
   registerSchema(vocabulary);
   const alias=`https://spec.openapis.org/oas/${family}/dialect/base`;
   unregisterSchema(alias);registerSchema(dialect,alias);registerSchema(dialect);
-  loadDialect(alias,dialect.$vocabulary,true);
+  loadDialect(alias,dialect.$vocabulary,true);loadDialect(dialect.$id,dialect.$vocabulary,true);
  }
  // The library's automatic meta path builds rounded JS instances. Every
  // authored schema is instead explicitly meta-evaluated from canonical CST
@@ -39,7 +43,7 @@ function standards() {
  setShouldValidateSchema(false);setShouldValidateFormat(false);
  for(const uri of getAllRegisteredSchemaUris()) {
   reservedIds.add(uri);
-  if(uri.startsWith('https://json-schema.org/draft/2020-12/')||uri.startsWith('http://json-schema.org/draft-04/')||knownDialects.has(uri)||uri===swaggerMetaIdentity||[vocabulary31.$id,vocabulary32.$id].includes(uri))standardIds.add(uri);
+  if(uri.startsWith('https://json-schema.org/draft/2020-12/')||uri.startsWith('http://json-schema.org/draft-04/')||knownDialects.has(uri)||uri===swaggerMetaIdentity||[vocabulary31.$id,vocabulary32.$id,previousVocabulary32.$id].includes(uri))standardIds.add(uri);
  }
  configured=true;
 }

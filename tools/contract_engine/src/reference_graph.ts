@@ -11,6 +11,7 @@ export const knownDialects = new Set([
     'https://spec.openapis.org/oas/3.1/dialect/2024-11-10',
     'https://spec.openapis.org/oas/3.2/dialect/base',
     'https://spec.openapis.org/oas/3.2/dialect/2025-09-17',
+    'https://spec.openapis.org/oas/3.2/dialect/2026-02-26',
 ]);
 
 export type GraphTarget = { resource: string; pointer: string; kind: string };
