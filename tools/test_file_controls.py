@@ -341,7 +341,7 @@ class NativeInput:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('test_executable', type=Path)
-    parser.add_argument('--openapi', choices=['3.0.0', '3.0.4', '3.1.2', '3.2.1'], default='3.2.1')
+    parser.add_argument('--openapi', choices=['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'], default='3.2.1')
     parser.add_argument('--format', choices=['yaml', 'json'], default='yaml')
     parser.add_argument('--authoring', action='store_true', help='Also exercise native metadata, schemas, recursion/composition, OAuth/security requirements, parameters, headers/media/examples/links and webhook/callback controls')
     parser.add_argument('--session', action='store_true', help=argparse.SUPPRESS)

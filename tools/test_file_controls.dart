@@ -14,7 +14,7 @@ import 'package:busyapi/src/designer/schema_tree.dart';
 import 'package:busyapi/src/source/source_editor.dart';
 import 'package:busyapi/src/workspace/workspace_controller.dart';
 import 'package:busyapi_core/busyapi_core.dart'
-    show CoreFailure, FilePublication;
+    show CoreFailure, FilePublication, SpecificationFamily;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -81,11 +81,13 @@ Future<String> _run() async {
           Platform.environment['BUSYAPI_FILE_CONTROLS_VERSION'] ?? '3.2.1',
       format = Platform.environment['BUSYAPI_FILE_CONTROLS_FORMAT'] ?? 'yaml';
   _expect(
-    ['3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
+    ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
         ['yaml', 'json'].contains(format),
     'fixture-version-format',
   );
-  final json = format == 'json',
+  final swagger = version == '2.0',
+      declaration = swagger ? 'swagger' : 'openapi',
+      json = format == 'json',
       createdName = 'created.$format',
       unusedName = 'unused.$format';
   final sourceDirectory = Directory('$directory/project');
@@ -100,9 +102,9 @@ Future<String> _run() async {
   );
   final rootBytes = utf8.encode(
         json
-            ? '\ufeff{\r\n "openapi":"$version","info":{"title":"Native 雪😀","version":"1"},\n'
+            ? '\ufeff{\r\n "$declaration":"$version","info":{"title":"Native 雪😀","version":"1"},\n'
                   ' "paths":{},"x-example":{"\$ref":"literal","large":9007199254740993.00}}'
-            : '\ufeffopenapi: $version\r\ninfo: {title: "Native 雪😀", version: "1"}\n'
+            : '\ufeff$declaration: ${swagger ? "'2.0'" : version}\r\ninfo: {title: "Native 雪😀", version: "1"}\n'
                   'paths: {}\r\nx-example: {"\$ref": "literal", large: 9007199254740993.00}',
       ),
       unusedBytes = utf8.encode(
@@ -230,6 +232,15 @@ Future<String> _run() async {
         View.of(target).physicalSize.height,
       ],
     });
+    if (editable) {
+      await _wait(
+        () =>
+            target.mounted &&
+            target.widget is EditableText &&
+            (target.widget as EditableText).focusNode.hasFocus,
+        '$code-focused',
+      );
+    }
   }
 
   Future<void> button(String label) => click(
@@ -326,13 +337,21 @@ Future<String> _run() async {
   );
   Future<void> choose(String title, String label) async {
     if (controller.form == null) {
+      bool hasInlineFields() =>
+          _elements((w) => w is BusyApiGroupedTextEntry && !w.readOnly).any(
+            (element) =>
+                element.findAncestorWidgetOfExactType<Designer>() != null &&
+                element.findAncestorWidgetOfExactType<AuthoredSchemaTree>() ==
+                    null,
+          );
       bool currentModel() =>
           !controller.checking &&
           controller.projection?['info']?['generation'] ==
               project.store.get(root.uri.toString()).generation &&
-          controller.draft?.buffer ==
-              (controller.selectedResource ?? controller.root) &&
-          controller.draft?.pointer == controller.selectedPointer;
+          (!hasInlineFields() ||
+              controller.draft?.buffer ==
+                      (controller.selectedResource ?? controller.root) &&
+                  controller.draft?.pointer == controller.selectedPointer);
       if (!currentModel()) {
         stdout.writeln(
           'BUSYAPI_NATIVE_COMBO_WAIT ${jsonEncode({'field': title, 'checking': controller.checking, 'currentGeneration': controller.projection?['info']?['generation'] == project.store.get(root.uri.toString()).generation})}',
@@ -341,7 +360,8 @@ Future<String> _run() async {
       // A field becomes clean before its durable checkpoint and subsequent
       // current projection finish. Opening an old frame's menu in between
       // correctly retires that stale menu when controls reconcile. Observe
-      // the completed model, as inline entry() does, before the next action.
+      // the completed model before the next action. A page with only a type
+      // selector (such as a new Swagger security scheme) has no inline draft.
       await _wait(currentModel, 'native-combo-current-model');
     }
     await _wait(
@@ -410,7 +430,10 @@ Future<String> _run() async {
         .cast<Map<String, dynamic>>()
         .where(controller.isSelected)
         .firstOrNull;
-    if (controller.selectedPointer != '/info' && operation == null) {
+    if (controller.selectedPointer != '/info' &&
+        (operation == null ||
+            controller.specification?.family ==
+                SpecificationFamily.swagger20)) {
       final identity = (
         controller.root,
         controller.selectedResource,
@@ -501,6 +524,599 @@ Future<String> _run() async {
     controller.setMode('Design');
     await _wait(() => !controller.checking, 'authoring-snapshot');
     await _wait(selectedPageMounted, 'native-selected-page-mounted');
+  }
+
+  Future<void> exerciseSource({
+    required String modelPointer,
+    required String modelReference,
+    required File movedFile,
+    required String movedReference,
+    String movedPointer = '',
+  }) async {
+    await route(modelPointer);
+    await headerMenu('View mode', 'Source');
+    await _wait(() => controller.mode == 'Source', 'native-source-mounted');
+    await _wait(
+      () => _elements((w) => w is SourceEditor).length == 1,
+      'native-source-control-mounted',
+    );
+    final sourceElements = _elements((w) => w is SourceEditor);
+    _expect(sourceElements.length == 1, 'native-source-owner');
+    final initialSourceState =
+        (sourceElements.single as StatefulElement).state as SourceEditorState;
+    SourceEditorState liveSource() {
+      final active = _elements(
+        (w) =>
+            w is SourceEditor &&
+            identical(w.buffer, controller.buffer) &&
+            (w.isCurrent?.call() ?? true),
+      );
+      _expect(active.length == 1, 'native-source-current-owner');
+      return (active.single as StatefulElement).state as SourceEditorState;
+    }
+
+    final beforeCompletion = controller.buffer!.text;
+    final modelScope = await project.inspectObject(
+      controller.root!,
+      root.uri.toString(),
+      modelPointer,
+    );
+    _expect(
+      modelScope['generation'] == controller.buffer!.generation,
+      'native-completion-captured-owner',
+    );
+    final modelRange = (modelScope['range'] as List).cast<int>();
+    final stringType = RegExp(r'(?:"type"\s*:\s*"|type:\s*)(string)')
+        .firstMatch(beforeCompletion.substring(modelRange[0], modelRange[1]));
+    _expect(stringType != null, 'native-completion-context');
+    liveSource().reveal(modelRange[0] + stringType!.end - 3);
+    await keys(['Control_L+space']);
+    await _wait(
+      () =>
+          _elements((w) => w.key == const ValueKey('source-assistance-popup'))
+              .isNotEmpty &&
+          _elements((w) => w is Text && w.data == 'object').isNotEmpty,
+      'native-completion-popup',
+    );
+    await keys(['Return']);
+    await _wait(
+      () => controller.buffer!.text != beforeCompletion,
+      'native-completion-accepted',
+    );
+    final completed = controller.buffer!.text;
+    await keys(['Control_L+z']);
+    await _wait(
+      () => controller.buffer!.text == beforeCompletion,
+      'native-completion-one-undo',
+    );
+    await keys(['Control_L+Shift_L+z']);
+    await _wait(
+      () => controller.buffer!.text == completed,
+      'native-completion-one-redo',
+    );
+    await keys(['Control_L+z']);
+    await _wait(
+      () => controller.buffer!.text == beforeCompletion,
+      'native-completion-restore',
+    );
+    liveSource().reveal(controller.buffer!.text.indexOf('title') + 2);
+    await keys(['F1']);
+    await _wait(
+      () => _elements(
+        (w) => w is Text && w.data?.startsWith('Authored title') == true,
+      ).isNotEmpty,
+      'native-field-help-origin',
+    );
+    await keys(['Escape']);
+    final referenceOffset = controller.buffer!.text.indexOf(modelReference);
+    _expect(referenceOffset >= 0, 'native-definition-reference');
+    final modelDefinition = await project.inspectObject(
+      controller.root!,
+      root.uri.toString(),
+      modelPointer,
+    );
+    final modelStart = (modelDefinition['range'] as List).first as int;
+    liveSource().reveal(referenceOffset + 4);
+    await keys(['Control_L+b']);
+    await _wait(
+      () =>
+          controller.active == root.uri.toString() &&
+          controller.mode == 'Source' &&
+          controller.buffer!.selection.base == modelStart &&
+          controller.buffer!.selection.extent == modelStart,
+      'native-go-to-definition',
+    );
+    stdout.writeln(
+      'BUSYAPI_NATIVE_SOURCE_OWNER ${jsonEncode({'initialMounted': initialSourceState.mounted, 'replaced': !identical(initialSourceState, liveSource()), 'checking': controller.checking})}',
+    );
+    liveSource().reveal(0);
+    await _wait(
+      () => _elements(
+        (w) =>
+            w is BusyApiCompactIconButton &&
+            w.tooltip.startsWith('Fold source section at line ') &&
+            w.onPressed != null,
+      ).isNotEmpty,
+      'native-fold-control',
+    );
+    final foldKey = _elements(
+      (w) =>
+          w is BusyApiCompactIconButton &&
+          w.tooltip.startsWith('Fold source section at line ') &&
+          w.onPressed != null,
+    ).first.widget.key;
+    await click(
+      (w) => w is BusyApiCompactIconButton && w.key == foldKey,
+      'native-fold',
+    );
+    await _wait(
+      () => controller
+          .sourceFolds(controller.root!, root.uri.toString())
+          .isNotEmpty,
+      'native-fold-view-state',
+    );
+    await keys(['Control_L+a', 'Control_L+c']);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    _expect(
+      copied?.text ==
+              beforeCompletion
+                  .replaceAll('\r\n', '\n')
+                  .replaceAll('\r', '\n') &&
+          controller.buffer!.text == beforeCompletion,
+      'native-fold-full-document-copy',
+    );
+    final headerReference = controller.buffer!.text.indexOf(movedReference);
+    _expect(headerReference >= 0, 'native-cross-file-reference');
+    final movedDefinition = await project.inspectObject(
+      controller.root!,
+      movedFile.uri.toString(),
+      movedPointer,
+    );
+    final movedStart = (movedDefinition['range'] as List).first as int;
+    liveSource().reveal(headerReference + 5);
+    await keys(['Control_L+b']);
+    await _wait(
+      () =>
+          controller.active == movedFile.uri.toString() &&
+          controller.mode == 'Source' &&
+          controller.buffer!.selection.base == movedStart &&
+          controller.buffer!.selection.extent == movedStart,
+      'native-cross-file-definition',
+    );
+  }
+
+  Future<void> history(
+    String before,
+    String after,
+    String code, {
+    bool restore = false,
+  }) async {
+    _expect(before != after, '$code-changed');
+    String current() => project.store.get(root.uri.toString()).text;
+    await keys(['Control_L+z']);
+    await _wait(() => current() == before, '$code-one-undo');
+    await keys(['Control_L+Shift_L+z']);
+    await _wait(() => current() == after, '$code-one-redo');
+    if (restore) {
+      await keys(['Control_L+z']);
+      await _wait(() => current() == before, '$code-restore');
+    }
+  }
+
+  Future<void> stringEntry(String value) async {
+    await row('Add entry');
+    await entry('Text value', value, dialog: true);
+    await button('Apply');
+    await _wait(
+      () => controller.form == null && !controller.formApplying,
+      'native-string-entry-close',
+    );
+  }
+
+  Future<void> exerciseSwagger() async {
+    await route('/info');
+    await entry('Title', 'Native accepted');
+    await entry('API version', '2');
+    await row('Contact');
+    await entry('Name', 'Native owner');
+    await entry('email', 'native@example.test');
+    await route('/info');
+    await row('License');
+    await entry('Name', 'Example licence');
+    await entry('url', 'https://example.test/licence');
+    await route('');
+    await entry('host', 'example.test');
+    await entry('basePath', '/v1');
+    for (final (field, value) in [
+      ('schemes', 'https'),
+      ('consumes', 'application/json'),
+      ('produces', 'application/json'),
+    ]) {
+      await route('');
+      await row(field);
+      await stringEntry(value);
+    }
+    await route('');
+    await row('Tags');
+    await addEntry();
+    await entry('Name', 'General');
+    await entry('Description', 'Native tag');
+
+    await route('');
+    await row('definitions');
+    await addEntry('Model');
+    await choose('Type', 'object');
+    await row('Properties');
+    await addEntry('name');
+    await choose('Type', 'string');
+    await entry('Description', 'Native property');
+    await route('/definitions/Model/properties');
+    await click(
+      (w) => w is BusyApiSwitchRow && w.title == 'Required',
+      'swagger-required-property',
+    );
+    await _wait(
+      () => _elements(
+        (w) => w is BusyApiSwitchRow && w.title == 'Required' && w.value,
+      ).isNotEmpty,
+      'swagger-required-authored',
+    );
+    await addEntry('next');
+    await entry(r'$ref', '#/definitions/Model');
+    await route('/definitions/Model');
+    await row('allOf');
+    await addEntry();
+    await choose('Type', 'object');
+    await entry('Description', 'Authored composition branch');
+
+    await route('');
+    await row('securityDefinitions');
+    await addEntry('ApiKey');
+    await choose('Type', 'apiKey');
+    await entry('Name', 'X-Native-Key');
+    await choose('in', 'header');
+    await route('/securityDefinitions');
+    await addEntry('Basic');
+    await choose('Type', 'basic');
+    await route('/securityDefinitions');
+    await addEntry('OAuth');
+    await choose('Type', 'oauth2');
+    await choose('flow', 'application');
+    await entry('tokenUrl', 'https://example.test/token');
+    await row('scopes');
+    await addEntry('read');
+    await route('/securityDefinitions/OAuth/scopes');
+    await row('read');
+    await entry('Text value', 'Read example data', dialog: true);
+    await button('Apply');
+    await _wait(
+      () => controller.form == null && !controller.formApplying,
+      'swagger-scope-close',
+    );
+    await route('');
+    await row('Security');
+    await row('Add scheme alternative (OR)');
+    await button('Apply');
+    await _wait(
+      () => controller.form == null && !controller.formApplying,
+      'swagger-security-or-close',
+    );
+    await row('Alternative 1');
+    await row('Add combined scheme (AND)');
+    await button('Apply');
+    await _wait(
+      () => controller.form == null && !controller.formApplying,
+      'swagger-security-and-close',
+    );
+    await route('/security');
+    await row('Add scheme alternative (OR)');
+    await choose('Security scheme definition', 'Basic · api.$format');
+    await button('Apply');
+    await _wait(
+      () => controller.form == null && !controller.formApplying,
+      'swagger-security-second-close',
+    );
+
+    await route('/info');
+    await row('Add Operation');
+    await entry('Path', '/native', dialog: true);
+    await button('Apply');
+    await _wait(
+      () => controller.form == null && !controller.formApplying,
+      'swagger-operation-close',
+    );
+    await entry('Summary', 'Native operation');
+    await entry('operationId', 'nativeOperation');
+    await row('Parameters');
+    await addEntry();
+    await entry('Name', 'limit');
+    await choose('in', 'query');
+    await choose('Type', 'integer');
+    await route('/paths/~1native/get/parameters');
+    await addEntry();
+    await entry('Name', 'payload');
+    await choose('in', 'body');
+    await choose('Required', 'true');
+    await row('schema');
+    await entry(r'$ref', '#/definitions/Model');
+    await route('/paths/~1native/get');
+    await row('Responses');
+    await addEntry('204');
+    await entry('Description', 'Bodyless native response');
+    await route('/paths/~1native/get/responses');
+    await addEntry('200');
+    await entry('Description', 'Native response');
+    await row('Headers');
+    await addEntry('X-Trace');
+    await choose('Type', 'string');
+    await entry('Description', 'Native response header');
+    await route('/paths/~1native/get/responses/200');
+    await row('schema');
+    await entry(r'$ref', '#/definitions/Model');
+    await route('/paths/~1native/get/responses/200');
+    await data(
+      'Examples',
+      r'{"application/json":{"name":"Model","$ref":"literal data","large":900719925474099312345678901.00}}',
+    );
+
+    await route('/paths');
+    await addEntry('/upload');
+    await row('post');
+    await entry('Summary', 'Native upload');
+    await row('consumes');
+    await stringEntry('multipart/form-data');
+    await route('/paths/~1upload/post');
+    await row('Parameters');
+    await addEntry();
+    await entry('Name', 'asset');
+    await choose('in', 'formData');
+    await choose('Type', 'file');
+    await choose('Required', 'true');
+    await route('/paths/~1upload/post/parameters');
+    await addEntry();
+    await entry('Name', 'tags');
+    await choose('in', 'formData');
+    await choose('Type', 'array');
+    await choose('collectionFormat', 'multi');
+    await row('items');
+    await choose('Type', 'string');
+    await route('/paths/~1upload/post');
+    await row('Responses');
+    await addEntry('204');
+    await entry('Description', 'Bodyless upload response');
+
+    await route('/definitions/Model');
+    final beforeRename = controller.buffer!.text;
+    await row('Rename component');
+    await entry('Name', 'Renamed', dialog: true);
+    await button('Apply');
+    await review('Review refactoring');
+    final renamed = controller.buffer!.text;
+    _expect(
+      renamed.contains('#/definitions/Renamed') &&
+          !renamed.contains('#/definitions/Model'),
+      'swagger-rename-recursive-consumers',
+    );
+    await history(beforeRename, renamed, 'swagger-rename', restore: true);
+    await route('/definitions/Model');
+    await row('Add schema keyword');
+    await choose('Name', 'discriminator');
+    await button('Apply');
+    await entry('JSON-compatible data value', '"name"', dialog: true);
+    await button('Apply');
+    await _wait(
+      () => controller.form == null && !controller.formApplying,
+      'swagger-discriminator-close',
+    );
+    await route('/paths/~1native/get/responses/200');
+    final beforeExtraction = controller.buffer!.text;
+    await row('Extract to component…');
+    await entry('Name', 'SharedResponse', dialog: true);
+    await button('Apply');
+    await review('Review component extraction');
+    final extracted = controller.buffer!.text;
+    _expect(
+      extracted.contains('#/responses/SharedResponse'),
+      'swagger-native-response-reference',
+    );
+    await history(beforeExtraction, extracted, 'swagger-extract');
+    await route('/paths/~1native/get/responses/200');
+    await row('Inline this occurrence…');
+    await review('Review reference inlining');
+    final inlined = controller.buffer!.text;
+    await history(extracted, inlined, 'swagger-inline');
+    await route('/responses/SharedResponse');
+    await row('Delete object…');
+    await review('Review object deletion');
+    await history(
+      inlined,
+      controller.buffer!.text,
+      'swagger-definition-delete',
+    );
+    await route('/paths/~1native/get/responses/200');
+    await row('Extract to component…');
+    await entry('Name', 'ResponseFile', dialog: true);
+    await choose('Component destination', 'New source file…');
+    await button('Apply');
+    await entry('Destination path', 'responses.$format', dialog: true);
+    await button('Apply');
+    await review('Review extraction to source file');
+    final responseFile = File('${sourceDirectory.path}/responses.$format');
+    final moved = File('${sourceDirectory.path}/moved-responses.$format');
+    _expect(
+      !responseFile.existsSync() &&
+          project.store.buffers.containsKey(responseFile.uri.toString()),
+      'swagger-extract-virtual-file',
+    );
+    await headerMenu('Sidebar view', 'Files');
+    await _wait(
+      () =>
+          _elements(
+            (w) =>
+                w is BusyApiSidebarRecordRow<String> &&
+                w.title == 'responses.$format',
+          ).length ==
+          1,
+      'swagger-response-file-mounted',
+    );
+    final sourceRow = _elements(
+      (w) =>
+          w is BusyApiSidebarRecordRow<String> &&
+          w.title == 'responses.$format',
+    );
+    _expect(sourceRow.length == 1, 'swagger-response-file-row');
+    Element? fileMenu;
+    void locate(Element e) {
+      if (e.widget case Tooltip(message: 'File actions')) fileMenu = e;
+      e.visitChildren(locate);
+    }
+
+    sourceRow.single.visitChildren(locate);
+    _expect(fileMenu != null, 'swagger-move-menu');
+    await click((w) => identical(w, fileMenu!.widget), 'swagger-file-move');
+    await keys(['Down', 'Return']);
+    await entry('Destination path', 'moved-responses.$format', dialog: true);
+    await button('Apply');
+    final beforeMove = project.store.get(root.uri.toString()).text;
+    await review('Review file move');
+    final afterMove = project.store.get(root.uri.toString()).text;
+    await history(beforeMove, afterMove, 'swagger-file-move');
+    final movedReference = await project.inspectObject(
+      controller.root!,
+      root.uri.toString(),
+      '/paths/~1native/get/responses/200',
+    );
+    _expect(
+      movedReference['value'][r'$ref'] ==
+              'moved-responses.$format#/ResponseFile' &&
+          !responseFile.existsSync() &&
+          !moved.existsSync(),
+      'swagger-file-reference-and-publication-boundary',
+    );
+
+    await exerciseSource(
+      modelPointer: '/definitions/Model',
+      modelReference: '#/definitions/Model',
+      movedFile: moved,
+      movedReference: 'moved-responses.$format',
+      movedPointer: '/ResponseFile',
+    );
+    final checked = await project.check(controller.root!);
+    _expect(
+      checked['complete'] == true &&
+          !(checked['findings'] as List).cast<Map>().any(
+            (f) =>
+                f['severity'] == 'error' &&
+                ['syntax', 'openapi'].contains(f['category']),
+          ),
+      'swagger-authored-contract-validity',
+    );
+    final rootObject = await project.inspectObject(
+      controller.root!,
+      root.uri.toString(),
+      '',
+    );
+    final value = jsonDecode(
+      await project.readDataValue(rootObject),
+    ) as Map<String, dynamic>;
+    _expect(
+      value['swagger'] == '2.0' &&
+          !value.containsKey('openapi') &&
+          !value.containsKey('components') &&
+          !value.containsKey('servers'),
+      'swagger-native-structure',
+    );
+    _expect(
+      value['host'] == 'example.test' &&
+          value['basePath'] == '/v1' &&
+          listEquals((value['schemes'] as List).cast<String>(), ['https']),
+      'swagger-native-server',
+    );
+    final model = value['definitions']['Model'] as Map;
+    _expect(
+      model['discriminator'] == 'name' &&
+          model['properties']['next'][r'$ref'] == '#/definitions/Model' &&
+          model['allOf'].length == 1 &&
+          listEquals((model['required'] as List).cast<String>(), ['name']),
+      'swagger-schema-recursion-composition-discriminator',
+    );
+    final native = value['paths']['/native']['get'] as Map;
+    _expect(
+      native['parameters'][0]['type'] == 'integer' &&
+          native['parameters'][0]['in'] == 'query' &&
+          native['parameters'][1]['in'] == 'body' &&
+          native['parameters'][1]['schema'][r'$ref'] == '#/definitions/Model' &&
+          !(native['responses']['204'] as Map).containsKey('schema') &&
+          !native.containsKey('requestBody'),
+      'swagger-native-parameter-and-response-shapes',
+    );
+    final movedObject = await project.inspectObject(
+      controller.root!,
+      moved.uri.toString(),
+      '/ResponseFile',
+    );
+    final movedValue = jsonDecode(
+      await project.readDataValue(movedObject),
+    ) as Map<String, dynamic>;
+    _expect(
+      movedValue['schema'][r'$ref'] == 'api.$format#/definitions/Model',
+      'swagger-moved-schema-reference',
+    );
+    _expect(
+      movedValue['headers']['X-Trace']['type'] == 'string' &&
+          movedValue['examples']['application/json'][r'$ref'] ==
+              'literal data' &&
+          utf8
+              .decode(project.store.get(moved.uri.toString()).bytes())
+              .contains('900719925474099312345678901.00'),
+      'swagger-header-example-context-and-exact-source',
+    );
+    _expect(
+      value['securityDefinitions']['Basic']['type'] == 'basic' &&
+          value['securityDefinitions']['OAuth']['flow'] == 'application' &&
+          value['securityDefinitions']['OAuth']['scopes']['read'] ==
+              'Read example data' &&
+          value['security'].length == 2,
+      'swagger-security',
+    );
+    final upload = value['paths']['/upload']['post'] as Map;
+    _expect(
+      upload['parameters'][0]['type'] == 'file' &&
+          upload['parameters'][0]['in'] == 'formData' &&
+          upload['parameters'][1]['collectionFormat'] == 'multi' &&
+          upload['parameters'][1]['items']['type'] == 'string',
+      'swagger-file-and-items',
+    );
+    final authored = project.store.get(root.uri.toString()).bytes();
+    _expect(
+      utf8.decode(authored).contains('9007199254740993.00') &&
+          utf8.decode(authored).contains('literal'),
+      'swagger-exact-values',
+    );
+    await keys(['Control_L+s']);
+    await _wait(
+      () =>
+          listEquals(root.readAsBytesSync(), authored) &&
+          moved.existsSync() &&
+          controller.publications.pendingFileBuffers(project).isEmpty,
+      'swagger-save-publication',
+    );
+    _expect(
+      !responseFile.existsSync() &&
+          listEquals(
+            moved.readAsBytesSync(),
+            project.store.get(moved.uri.toString()).bytes(),
+          ),
+      'swagger-published-resource-bytes',
+    );
+    await controller.open(root.path);
+    _expect(
+      listEquals(controller.buffer!.bytes(), authored),
+      'swagger-save-reopen',
+    );
+    stdout.writeln(
+      'BUSYAPI_NATIVE_AUTHORING_PASS native-swagger host-basePath-schemes consumes-produces definitions body-formData-file collectionFormat-items headers-response-examples security-oauth discriminator recursion composition refactoring source history save-reopen swagger=2.0 format=$format',
+    );
   }
 
   try {
@@ -671,6 +1287,10 @@ Future<String> _run() async {
       'deletion-archive-bytes',
     );
     if (Platform.environment['BUSYAPI_FILE_CONTROLS_AUTHORING'] == '1') {
+      if (swagger) {
+        await exerciseSwagger();
+        return 'swagger=2.0 format=$format';
+      }
       await route('/info');
       await entry('Title', 'Native accepted');
       await entry('API version', '2');
@@ -1049,137 +1669,12 @@ Future<String> _run() async {
         'native-file-move-one-redo',
       );
 
-      await route('/components/schemas/Model');
-      await headerMenu('View mode', 'Source');
-      await _wait(() => controller.mode == 'Source', 'native-source-mounted');
-      await _wait(
-        () => _elements((w) => w is SourceEditor).length == 1,
-        'native-source-control-mounted',
+      await exerciseSource(
+        modelPointer: '/components/schemas/Model',
+        modelReference: '#/components/schemas/Model',
+        movedFile: movedHeaderFile,
+        movedReference: 'moved-headers.$format',
       );
-      final sourceElements = _elements((w) => w is SourceEditor);
-      _expect(sourceElements.length == 1, 'native-source-owner');
-      final sourceState =
-          (sourceElements.single as StatefulElement).state as SourceEditorState;
-      final beforeCompletion = controller.buffer!.text;
-      final stringType = RegExp(r'(?:"type"\s*:\s*"|type:\s*)(string)')
-          .firstMatch(beforeCompletion);
-      _expect(stringType != null, 'native-completion-context');
-      sourceState.reveal(stringType!.end - 3);
-      await keys(['Control_L+space']);
-      await _wait(
-        () =>
-            _elements((w) => w.key == const ValueKey('source-assistance-popup'))
-                .isNotEmpty &&
-            _elements((w) => w is Text && w.data == 'object').isNotEmpty,
-        'native-completion-popup',
-      );
-      await keys(['Return']);
-      await _wait(
-        () => controller.buffer!.text != beforeCompletion,
-        'native-completion-accepted',
-      );
-      final completed = controller.buffer!.text;
-      await keys(['Control_L+z']);
-      await _wait(
-        () => controller.buffer!.text == beforeCompletion,
-        'native-completion-one-undo',
-      );
-      await keys(['Control_L+Shift_L+z']);
-      await _wait(
-        () => controller.buffer!.text == completed,
-        'native-completion-one-redo',
-      );
-      await keys(['Control_L+z']);
-      await _wait(
-        () => controller.buffer!.text == beforeCompletion,
-        'native-completion-restore',
-      );
-      sourceState.reveal(controller.buffer!.text.indexOf('title') + 2);
-      await keys(['F1']);
-      await _wait(
-        () => _elements(
-          (w) => w is Text && w.data?.startsWith('Authored title') == true,
-        ).isNotEmpty,
-        'native-field-help-origin',
-      );
-      await keys(['Escape']);
-      final referenceOffset = controller.buffer!.text.indexOf(
-        '#/components/schemas/Model',
-      );
-      _expect(referenceOffset >= 0, 'native-definition-reference');
-      final modelDefinition = await project.inspectObject(
-        controller.root!,
-        root.uri.toString(),
-        '/components/schemas/Model',
-      );
-      final modelStart = (modelDefinition['range'] as List).first as int;
-      sourceState.reveal(referenceOffset + 4);
-      await keys(['Control_L+b']);
-      await _wait(
-        () =>
-            controller.active == root.uri.toString() &&
-            controller.mode == 'Source' &&
-            controller.buffer!.selection.base == modelStart &&
-            controller.buffer!.selection.extent == modelStart,
-        'native-go-to-definition',
-      );
-      sourceState.reveal(0);
-      await _wait(
-        () => _elements(
-          (w) =>
-              w is BusyApiCompactIconButton &&
-              w.tooltip.startsWith('Fold source section at line ') &&
-              w.onPressed != null,
-        ).isNotEmpty,
-        'native-fold-control',
-      );
-      final foldKey = _elements(
-        (w) =>
-            w is BusyApiCompactIconButton &&
-            w.tooltip.startsWith('Fold source section at line ') &&
-            w.onPressed != null,
-      ).first.widget.key;
-      await click(
-        (w) => w is BusyApiCompactIconButton && w.key == foldKey,
-        'native-fold',
-      );
-      await _wait(
-        () => controller
-            .sourceFolds(controller.root!, root.uri.toString())
-            .isNotEmpty,
-        'native-fold-view-state',
-      );
-      await keys(['Control_L+a', 'Control_L+c']);
-      final copied = await Clipboard.getData(Clipboard.kTextPlain);
-      _expect(
-        copied?.text ==
-                beforeCompletion
-                    .replaceAll('\r\n', '\n')
-                    .replaceAll('\r', '\n') &&
-            controller.buffer!.text == beforeCompletion,
-        'native-fold-full-document-copy',
-      );
-      final headerReference = controller.buffer!.text.indexOf(
-        'moved-headers.$format',
-      );
-      _expect(headerReference >= 0, 'native-cross-file-reference');
-      final movedDefinition = await project.inspectObject(
-        controller.root!,
-        movedHeaderFile.uri.toString(),
-        '',
-      );
-      final movedStart = (movedDefinition['range'] as List).first as int;
-      sourceState.reveal(headerReference + 5);
-      await keys(['Control_L+b']);
-      await _wait(
-        () =>
-            controller.active == movedHeaderFile.uri.toString() &&
-            controller.mode == 'Source' &&
-            controller.buffer!.selection.base == movedStart &&
-            controller.buffer!.selection.extent == movedStart,
-        'native-cross-file-definition',
-      );
-
       final analysis = await project.check(controller.root!);
       final projection = analysis['projection'] as Map;
       _expect(
