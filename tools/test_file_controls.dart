@@ -16,6 +16,7 @@ import 'package:busyapi/src/workspace/workspace_controller.dart';
 import 'package:busyapi_core/busyapi_core.dart'
     show CoreFailure, FilePublication;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -80,7 +81,8 @@ Future<String> _run() async {
           Platform.environment['BUSYAPI_FILE_CONTROLS_VERSION'] ?? '3.2.1',
       format = Platform.environment['BUSYAPI_FILE_CONTROLS_FORMAT'] ?? 'yaml';
   _expect(
-    ['3.1.2', '3.2.1'].contains(version) && ['yaml', 'json'].contains(format),
+    ['3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
+        ['yaml', 'json'].contains(format),
     'fixture-version-format',
   );
   final json = format == 'json',
@@ -122,9 +124,27 @@ Future<String> _run() async {
   final input = StreamIterator(
     stdin.transform(utf8.decoder).transform(const LineSplitter()),
   );
+  final pointerEvents = <Map<String, Object?>>[];
+  var observingClick = false;
+  void observePointer(PointerEvent event) {
+    if (!observingClick ||
+        pointerEvents.length >= 16 ||
+        event is! PointerDownEvent && event is! PointerUpEvent) {
+      return;
+    }
+    pointerEvents.add({
+      'type': event.runtimeType.toString(),
+      'point': [event.position.dx, event.position.dy],
+      'buttons': event.buttons,
+    });
+  }
+
+  GestureBinding.instance.pointerRouter.addGlobalRoute(observePointer);
   var step = 0;
   Future<void> send(Map<String, Object> action) async {
     final current = ++step;
+    observingClick = action['kind'] == 'click';
+    pointerEvents.clear();
     stdout.writeln(
       'BUSYAPI_FILE_CONTROLS_INPUT ${jsonEncode({'version': 1, 'step': current, ...action})}',
     );
@@ -133,6 +153,12 @@ Future<String> _run() async {
           input.current == 'ack:$current',
       'input-owner',
     );
+    if (observingClick) {
+      stdout.writeln(
+        'BUSYAPI_NATIVE_POINTER ${jsonEncode({'requested': action['point'], 'scale': action['scale'], 'viewport': action['viewport'], 'observed': pointerEvents})}',
+      );
+    }
+    observingClick = false;
   }
 
   Future<void> click(
@@ -350,6 +376,68 @@ Future<String> _run() async {
     );
   }
 
+  Future<void> headerMenu(String tooltip, String label) async {
+    await _wait(
+      () =>
+          _elements(
+            (w) =>
+                w is BusyApiHeaderPopupMenuButton<String> &&
+                w.tooltip == tooltip,
+          ).length ==
+          1,
+      'native-header-menu-unique',
+    );
+    final element = _elements(
+      (w) => w is BusyApiHeaderPopupMenuButton<String> && w.tooltip == tooltip,
+    ).single;
+    final menu = element.widget as BusyApiHeaderPopupMenuButton<String>;
+    final entries = (await menu.itemBuilder(element))
+        .whereType<BusyApiPopupMenuItem<String>>()
+        .where((entry) => entry.enabled)
+        .toList();
+    final index = entries.indexWhere((entry) => entry.label == label);
+    _expect(index >= 0, 'native-header-menu-choice');
+    await click(
+      (w) => w is BusyApiHeaderPopupMenuButton<String> && w.tooltip == tooltip,
+      'native-header-menu',
+    );
+    await send({'kind': 'menu-ready'});
+    await keys(['Home', for (var i = 0; i < index; i++) 'Down', 'Return']);
+  }
+
+  bool selectedPageMounted() {
+    final operation = (controller.projection?['operations'] as List? ?? [])
+        .cast<Map<String, dynamic>>()
+        .where(controller.isSelected)
+        .firstOrNull;
+    if (controller.selectedPointer != '/info' && operation == null) {
+      final identity = (
+        controller.root,
+        controller.selectedResource,
+        controller.selectedPointer,
+      );
+      return _elements(
+            (w) =>
+                w is! AuthoredSchemaTree &&
+                w.key is ValueKey &&
+                (w.key as ValueKey).value == identity,
+          ).length ==
+          1;
+    }
+    final heading = operation == null
+        ? 'Overview'
+        : '${operation['method'].toString().toUpperCase()} ${operation['path']}';
+    return _elements((w) => w is Text && w.data == heading)
+            .where(
+              (element) =>
+                  element.findAncestorWidgetOfExactType<Designer>() != null &&
+                  (element.widget as Text).style ==
+                      Theme.of(element).textTheme.headlineSmall,
+            )
+            .length ==
+        1;
+  }
+
   Future<void> addEntry([String? name]) async {
     final parent = controller.selectedPointer;
     await row('Add entry');
@@ -362,6 +450,17 @@ Future<String> _run() async {
           controller.selectedPointer != parent,
       'native-entry-close-and-selection',
     );
+    // Selection changes before its current-generation object page replaces
+    // the previous frame. Do not locate the next action in that old page.
+    await _wait(
+      () =>
+          !controller.checking &&
+          controller.projection?['info']?['generation'] ==
+              project.store.get(root.uri.toString()).generation &&
+          selectedPageMounted(),
+      'native-entry-current-model',
+    );
+    await WidgetsBinding.instance.endOfFrame;
   }
 
   Future<void> data(String field, String raw) async {
@@ -401,43 +500,13 @@ Future<String> _run() async {
     });
     controller.setMode('Design');
     await _wait(() => !controller.checking, 'authoring-snapshot');
-    final operation = (controller.projection?['operations'] as List? ?? [])
-        .cast<Map<String, dynamic>>()
-        .where(controller.isSelected)
-        .firstOrNull;
-    final ownerIdentity = (controller.root, root.uri.toString(), pointer);
-    await _wait(() {
-      if (pointer != '/info' && operation == null) {
-        // ValueKey equality includes its generic type. Compare the captured
-        // record value, not an inferred nullable/non-nullable key type.
-        return _elements(
-              (w) =>
-                  w is! AuthoredSchemaTree &&
-                  w.key is ValueKey &&
-                  (w.key as ValueKey).value == ownerIdentity,
-            ).length ==
-            1;
-      }
-      final heading = operation == null
-          ? 'Overview'
-          : '${operation['method'].toString().toUpperCase()} ${operation['path']}';
-      return _elements((w) => w is Text && w.data == heading)
-              .where(
-                (element) =>
-                    element.findAncestorWidgetOfExactType<Designer>() != null,
-              )
-              .length ==
-          1;
-    }, 'native-selected-page-mounted');
+    await _wait(selectedPageMounted, 'native-selected-page-mounted');
   }
 
   try {
-    await click((w) => w is BusyApiActionRow && w.title == 'Files', 'files');
+    await headerMenu('Sidebar view', 'Files');
     for (final accept in [false, true]) {
-      await click(
-        (w) => w is BusyApiActionRow && w.title == 'New source file…',
-        'new-file',
-      );
+      await headerMenu('Sidebar view', 'New source file…');
       await click(
         (w) => w is BusyApiGroupedTextEntry && w.label == 'Destination path',
         'filename',
@@ -767,15 +836,17 @@ Future<String> _run() async {
       await addEntry('self');
       await entry('operationId', 'nativeOperation');
 
-      await route('');
-      await row('webhooks');
-      await addEntry('event');
-      await row('post');
-      await entry('Summary', 'Native webhook');
-      await row('Operation details and overrides');
-      await row('Responses');
-      await addEntry('204');
-      await entry('Description', 'Bodyless webhook response');
+      if (!version.startsWith('3.0.')) {
+        await route('');
+        await row('webhooks');
+        await addEntry('event');
+        await row('post');
+        await entry('Summary', 'Native webhook');
+        await row('Operation details and overrides');
+        await row('Responses');
+        await addEntry('204');
+        await entry('Description', 'Bodyless webhook response');
+      }
       await route('/paths/~1native/get');
       await row('Operation details and overrides');
       await row('Callbacks');
@@ -903,10 +974,7 @@ Future<String> _run() async {
             project.store.buffers.containsKey(headerFile.uri.toString()),
         'native-extraction-virtual-new-file',
       );
-      await click(
-        (w) => w is BusyApiActionRow && w.title == 'Files',
-        'native-move-files',
-      );
+      await headerMenu('Sidebar view', 'Files');
       await _wait(
         () =>
             _elements(
@@ -982,7 +1050,7 @@ Future<String> _run() async {
       );
 
       await route('/components/schemas/Model');
-      await click((w) => w is Text && w.data == 'Source', 'native-source-mode');
+      await headerMenu('View mode', 'Source');
       await _wait(() => controller.mode == 'Source', 'native-source-mounted');
       await _wait(
         () => _elements((w) => w is SourceEditor).length == 1,
@@ -1182,7 +1250,10 @@ Future<String> _run() async {
                 'Read example data',
         'native-security-alternatives-combined-oauth',
       );
-      for (final summary in ['Native webhook', 'Native callback']) {
+      for (final summary in [
+        if (!version.startsWith('3.0.')) 'Native webhook',
+        'Native callback',
+      ]) {
         final related = (projection['operations'] as List)
             .cast<Map>()
             .singleWhere((item) => item['value']['summary'] == summary);
@@ -1247,10 +1318,11 @@ Future<String> _run() async {
         'native-authoring-reopen',
       );
       stdout.writeln(
-        'BUSYAPI_NATIVE_AUTHORING_PASS overview tags contact licence operation parameter bodyless-response headers media examples links recursion composition security-oauth-requirements webhook callback server-variable exact-save-reopen openapi=$version format=$format',
+        'BUSYAPI_NATIVE_AUTHORING_PASS overview tags contact licence operation parameter bodyless-response headers media examples links recursion composition security-oauth-requirements ${version.startsWith('3.0.') ? '' : 'webhook '}callback server-variable exact-save-reopen openapi=$version format=$format',
       );
     }
   } finally {
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(observePointer);
     await input.cancel();
   }
   return 'openapi=$version format=$format';

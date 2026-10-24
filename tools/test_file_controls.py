@@ -119,12 +119,49 @@ class NativeInput:
         window = GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), self.window)
         if not window or not window.is_viewable() or self.owner(self.window) != self.pid:
             raise RuntimeError('Test window is not visible or no longer owned')
+        pointer_root, pointer_child = ctypes.c_ulong(), ctypes.c_ulong()
+        root_x, root_y, local_x, local_y, mask = (ctypes.c_int(), ctypes.c_int(),
+                                                ctypes.c_int(), ctypes.c_int(), ctypes.c_uint())
+        if not self.x.XQueryPointer(
+                self.display, self.x.XDefaultRootWindow(self.display),
+                ctypes.byref(pointer_root), ctypes.byref(pointer_child),
+                ctypes.byref(root_x), ctypes.byref(root_y), ctypes.byref(local_x),
+                ctypes.byref(local_y), ctypes.byref(mask)):
+            raise RuntimeError('Pointer state is unavailable; no input sent')
+        if mask.value & 0x1f00:
+            raise RuntimeError('A desktop pointer button is held; no input sent')
         return window
 
     def surface(self, viewport):
         if (not isinstance(viewport, list) or len(viewport) != 2 or
                 not all(isinstance(v, (float, int)) and math.isfinite(v) and 1 <= v <= 16384 for v in viewport)):
             raise ValueError('Invalid fixture viewport')
+        window = self.ready()
+        # A Flutter viewport that exactly fills GTK's client rectangle has a
+        # native geometry proof independent of accessibility component RPCs.
+        # Both dimensions and GTK's CSD insets belong to this PID-verified
+        # mapped window; a partial match grants no coordinate authority.
+        atom = self.x.XInternAtom(self.display, b'_GTK_FRAME_EXTENTS', False)
+        kind, count, remaining, bits, data = (ctypes.c_ulong(), ctypes.c_ulong(),
+                                             ctypes.c_ulong(), ctypes.c_int(), ctypes.c_void_p())
+        status = self.x.XGetWindowProperty(
+            self.display, self.window, atom, 0, 4, False, self.cardinal,
+            ctypes.byref(kind), ctypes.byref(bits), ctypes.byref(count),
+            ctypes.byref(remaining), ctypes.byref(data))
+        try:
+            if (not status and kind.value == self.cardinal and bits.value == 32 and
+                    count.value == 4 and remaining.value == 0 and data.value):
+                left, right, top, bottom = ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))[:4]
+                width, height = self.dimensions(window)
+                if (left + right < width and top + bottom < height and
+                        (width - left - right, height - top - bottom) == tuple(viewport)):
+                    valid, x, y = window.get_origin()
+                    if not valid:
+                        raise RuntimeError('Owned client origin is unavailable')
+                    return x + left, y + top, viewport[0], viewport[1]
+        finally:
+            if data.value:
+                self.x.XFree(data)
         desktop = Atspi.get_desktop(0)
         roots = [desktop.get_child_at_index(i) for i in range(desktop.get_child_count())]
         queue = [(app, 0) for app in roots if app.get_process_id() == self.pid]
@@ -304,7 +341,7 @@ class NativeInput:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('test_executable', type=Path)
-    parser.add_argument('--openapi', choices=['3.1.2', '3.2.1'], default='3.2.1')
+    parser.add_argument('--openapi', choices=['3.0.0', '3.0.4', '3.1.2', '3.2.1'], default='3.2.1')
     parser.add_argument('--format', choices=['yaml', 'json'], default='yaml')
     parser.add_argument('--authoring', action='store_true', help='Also exercise native metadata, schemas, recursion/composition, OAuth/security requirements, parameters, headers/media/examples/links and webhook/callback controls')
     parser.add_argument('--session', action='store_true', help=argparse.SUPPRESS)
