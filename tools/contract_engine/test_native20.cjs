@@ -14,6 +14,31 @@ const api=()=>({swagger:'2.0',info:{title:'Native 雪😀',version:'3.2.1'},host
  definitions:{Pet:{type:'object',properties:{id:{type:'integer',minimum:111},name:{type:'string'}}}},parameters:{Id:{name:'id',in:'path',required:true,type:'integer'}},responses:{Pet:{description:'Pet',schema:{$ref:'#/definitions/Pet'},headers:{'X-Values':{type:'array',items:{type:'integer'},collectionFormat:'ssv'}},examples:{'application/json':{name:'雪😀',id:111,$ref:'literal'}}}},securityDefinitions:{Basic:{type:'basic'},OAuth:{type:'oauth2',flow:'application',tokenUrl:'https://api.invalid/token',scopes:{read:'Read'}}},security:[{Basic:[]}],'x-preserved':{zero:0,empty:'',false:false}});
 function capture(value,json=true,extra=[]){const root='file:///approved/swagger.'+(json?'json':'yaml');return{root,resource:root,snapshot:'native20',resources:[{id:root,text:(json?JSON.stringify(value):'# preserved\r\n'+YAML.stringify(value).replaceAll('\n','\r\n')).replaceAll('111','9007199254740993.00'),generation:1,identity:'original'},...extra]};}
 function target(input,pointer){const doc=new SourceDocument(input.resources[0].text,input.root),node=doc.node(pointer);return{root:input.root,resource:input.root,pointer,generation:1,range:node.range,expected:doc.text.slice(...node.range)};}
+for(const json of [true,false])test(`Swagger schema fields have one reference editor ${json?'JSON':'YAML'}`,()=>{
+ for(const schema of [{},{type:'object'},{$ref:'#/definitions/Other'}]){
+  const value=api();value.definitions.Pet=schema;value.definitions.Other={type:'string'};
+  const input=capture(value,json),fields=inspect({...input,pointer:'/definitions/Pet'}).fields;
+  assert.equal(fields.filter(field=>field.name==='$ref').length,1);
+  assert.equal(new Set(fields.map(field=>field.name)).size,fields.length);
+ }
+});
+for(const json of [true,false])test(`Swagger media lists expose array metadata before creation ${json?'JSON':'YAML'}`,()=>{
+ const value=api(),operation=value.paths['/pets/{id}'].post;
+ for(const field of ['schemes','consumes','produces']){delete value[field];delete operation[field];}
+ const input=capture(value,json);
+ for(const pointer of ['', '/paths/~1pets~1{id}/post']){
+  const page=inspect({...input,pointer});
+  for(const name of ['schemes','consumes','produces']){
+   const field=page.fields.find(field=>field.name===name);
+   assert.equal(field.present,false);assert.equal(field.type,'array',pointer+'/'+name);assert.equal(field.childKind,'string-array');
+   const plan=propose({...input,target:target(input,pointer),actions:[{kind:'create',pointer:pointer+'/'+name,value:[]}]}),source=input.resources[0].text;
+   let text=source;for(const edit of [...plan.edits].reverse())text=text.slice(0,edit.start)+edit.replacement+text.slice(edit.end);
+   const changed={...input,resources:[{...input.resources[0],text}]};
+   const list=inspect({...changed,pointer:pointer+'/'+name});assert.equal(list.kind,'string-array');assert.equal(list.count,0);
+   assert.equal(analyse(changed).status,'complete',JSON.stringify(analyse(changed).findings));
+  }
+ }
+});
 for(const json of [true,false])test(`Swagger native ${json?'JSON':'YAML'} owners, editing, documentation, request and bundle`,async()=>{
  const input=capture(api(),json),before=input.resources[0].text,result=analyse(input);
  assert.equal(result.status,'complete',JSON.stringify(result.findings));assert.equal(result.specification.family,'2.0');assert.equal(result.operations.length,1);

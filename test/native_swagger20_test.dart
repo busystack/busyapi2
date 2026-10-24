@@ -109,6 +109,13 @@ void main() {
           );
           await ready(() => uniqueItems.evaluate().isNotEmpty);
           expect(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is BusyApiGroupedTextEntry && widget.label == r'$ref',
+            ),
+            findsOneWidget,
+          );
+          expect(
             tester.widget<BusyApiComboRow<String>>(uniqueItems).enabled,
             true,
           );

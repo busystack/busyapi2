@@ -162,7 +162,7 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
     if(family==='2.0'&&['parameter','header','items'].includes(kind)&&value?.type==='array')required.add('items');
     if(family==='2.0'&&kind==='security'&&value?.type==='oauth2')required.add('scopes');
     if (kind === 'schema' && !modernFamily(family)) {
-        fields.unshift({name: '$ref', type: 'string'});
+        if (!fields.some(field => field.name === '$ref')) fields.unshift({name: '$ref', type: 'string'});
         for (const field of fields) {
             if (['items', 'additionalProperties', 'not'].includes(field.name)) field.type = 'schema';
             if (['allOf', 'oneOf', 'anyOf'].includes(field.name)) field.type = 'array';
@@ -216,14 +216,28 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
 function describe(name: string, field: any, standard: any) {
     if (field === true) return {name, type: 'any'};
     const seen = new Set<any>();
-    while (typeof field.$ref==='string' && !seen.has(field)) {
-        seen.add(field);
-        const referenced = structuralReference(field.$ref,standard);
-        if (!referenced) break;
-        field = {...referenced, ...Object.fromEntries(Object.entries(field).filter(([key]) => key !== '$ref'))};
+    const parts: any[] = [];
+    const collect = (part: any) => {
+        if (!part || typeof part !== 'object' || seen.has(part)) return;
+        seen.add(part);
+        const referenced = typeof part.$ref === 'string' ? structuralReference(part.$ref, standard) : undefined;
+        if (referenced) collect(referenced);
+        // The pinned Swagger artifact expresses media lists as an allOf of
+        // a referenced array (OAS 2.0 §§6.4.1, 6.4.5). Its authoring type must
+        // survive that wrapper; this describes artifact metadata, not payloads.
+        for (const child of part.allOf ?? []) collect(child);
+        parts.push(referenced ? Object.fromEntries(Object.entries(part).filter(([key]) => key !== '$ref')) : part);
+    };
+    collect(field);
+    let description: any = {name};
+    for (const part of parts) {
+        const options = part.enum ?? (Object.hasOwn(part, 'const') ? [part.const] : undefined);
+        description = {...description,
+            ...(part.type || options || part.$dynamicRef || part.$ref ? {type: part.type ?? (options ? typeof options[0] : part.$dynamicRef ? 'schema' : 'object')} : {}),
+            ...(options ? {options: description.options ? description.options.filter((value: any) => options.includes(value)) : options} : {}),
+            ...(Object.hasOwn(part, 'default') ? {effectiveDefault: part.default} : {})};
     }
-    return {name, ...(field.type || field.enum || Object.hasOwn(field, 'const') || field.$dynamicRef || field.$ref ? {type: field.type ?? (field.enum ? typeof field.enum[0] : Object.hasOwn(field, 'const') ? typeof field.const : field.$dynamicRef ? 'schema' : 'object')} : {}),
-        ...(field.enum ? {options: field.enum} : Object.hasOwn(field, 'const') ? {options: [field.const]} : {}), ...(Object.hasOwn(field, 'default') ? {effectiveDefault: field.default} : {})};
+    return description;
 }
 function schemaFields() {
     const groups: Record<string, string[]> = {
