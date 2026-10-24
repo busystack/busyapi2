@@ -23,18 +23,27 @@ export function swaggerLocatedContent(system,Source) {
     return element(Content,{pointer:section.pointer});
   }
   function Schemas(){
-    const {presentation,labels}=current(),at='/components/schemas';
+    const {presentation,labels}=current(),at=presentationSection(presentation,'/definitions')?.kind==='schema-map'?'/definitions':'/components/schemas';
     if(!presentationSection(presentation,at))return null;
     if(typeof labels.schemas!=='string'||!labels.schemas)throw Error('busyapi.documentation.labels');
     return element('section',{className:'models is-open'},element('h4',null,labels.schemas),element(Content,{pointer:at}));
   }
   function Webhooks(){
     const {presentation,labels}=current();
-    if(!presentation.spec.openapi.startsWith('3.2.')||!presentationSection(presentation,'/webhooks'))return null;
+    if(!presentation.spec.openapi?.startsWith('3.2.')||!presentationSection(presentation,'/webhooks'))return null;
     if(typeof labels.webhooks!=='string'||!labels.webhooks)throw Error('busyapi.documentation.labels');
     return element('section',{className:'webhooks'},element('h2',null,labels.webhooks),element(Content,{pointer:'/webhooks'}));
   }
   return {
+    response:Original=>props=>{
+      const {presentation}=current();
+      if(presentation.spec.swagger!=='2.0')return element(Original,props);
+      const section=presentationSection(presentation,pointer(props.specPath?.toArray?.()??[]),{followReference:true});
+      if(section?.kind!=='response')throw Error('busyapi.documentation.content-source');
+      // Swagger 2 response examples, headers and schema have native owners;
+      // 3.x media hooks cannot supply their exact authored content.
+      return element(Content,{pointer:section.pointer});
+    },
     Model:()=>Schema,
     Models:()=>Schemas,
     BaseLayout:Original=>props=>element(React.Fragment,null,element(Original,props),element(Webhooks)),

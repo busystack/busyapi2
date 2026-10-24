@@ -17,6 +17,11 @@ function fake(prepare) {
     createRoot:(_element,options)=>{state.rootOptions=options;return{render:value=>{state.rendered=value;},unmount:()=>state.unmounted++};}};
   return {api,state};
 }
+test('pinned Redoc Swagger conversion is an explicit renderer limitation and never runs',async()=>{
+  const text=JSON.stringify({swagger:'2.0',info:{title:'Native Swagger',version:'1'},paths:{}});
+  const input=graphAddressedDisplay(text,referenceDocument({root,snapshot:'swagger',resources:[{id:root,text,generation:1}]}),'https://display.invalid/index.html',{addresses:'document-pointer'});
+  const {api,state}=fake();await assert.rejects(mountRedocReference(input,{}, {api,onError:()=>{},labels}),/redoc-swagger-conversion/);assert.equal(state.request,undefined);assert.equal(state.rendered,undefined);assert.equal(input.spec.swagger,'2.0');
+});
 test('Redoc uses only supplied graph pointers and supported read-only/telemetry/logo options without mutating source',async()=>{
   const input=presentation(),captured=JSON.stringify(input),{api,state}=fake(),errors=[];
   const result=await mountRedocReference(input,{}, {api,onError:code=>errors.push(code),labels});

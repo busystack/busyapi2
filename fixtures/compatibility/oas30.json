@@ -1,0 +1,94 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Compatibility fixture 30",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/things": {
+      "get": {
+        "operationId": "listThings",
+        "summary": "Compatibility operation sentinel",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "pipeDelimited",
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schema-legacy.json#/Thing"
+                },
+                "example": {
+                  "name": "fixture",
+                  "$ref": "payload data",
+                  "precise": 9007199254740993.00
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.invalid/v1"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "Composed": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "Escaped": {
+        "$ref": "schema-legacy.json#/a~1b"
+      },
+      "Nullable": {
+        "type": "string",
+        "nullable": true
+      }
+    },
+    "securitySchemes": {
+      "Key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Key"
+      }
+    }
+  },
+  "security": [
+    {
+      "Key": []
+    }
+  ]
+}

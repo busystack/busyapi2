@@ -264,6 +264,88 @@ void renderer_fixture() {
   g_assert_cmpuint(observed.source,==,1);
   busyapi_documentation_window_close(window);g_assert_cmpuint(observed.closed,==,1);
 }
+void production_legacy_renderer_fixture() {
+  const char* directory=g_getenv("BUSYAPI_DOCUMENTATION_PRODUCTION_FIXTURES");g_assert_nonnull(directory);
+  const char* name=std::strrchr(g_test_get_path(),'/');g_assert_nonnull(name);name++;
+  g_autofree gchar* metadata_file=g_build_filename(directory,name,"presentation.ini",nullptr);
+  g_autoptr(GKeyFile) metadata=g_key_file_new();g_autoptr(GError) error=nullptr;
+  g_assert_true(g_key_file_load_from_file(metadata,metadata_file,G_KEY_FILE_NONE,&error));g_assert_no_error(error);
+  g_autofree gchar* snapshot=g_key_file_get_string(metadata,"presentation","snapshot",&error);g_assert_no_error(error);
+  const guint count=g_key_file_get_integer(metadata,"presentation","source_count",&error);g_assert_no_error(error);
+  Observation observed;observed.source_index=g_key_file_get_integer(metadata,"presentation","source_index",&error);g_assert_no_error(error);g_assert_cmpuint(observed.source_index,<,count);
+  g_autoptr(GHashTable) resources=g_hash_table_new_full(g_str_hash,g_str_equal,g_free,reinterpret_cast<GDestroyNotify>(g_bytes_unref));
+  const bool swagger=g_str_has_prefix(name,"swagger-");
+  const std::vector<const char*> names=swagger?std::vector<const char*>{"index.html","swagger.js","swagger.css","bootstrap.js"}:std::vector<const char*>{"index.html","redoc.js","bootstrap.js"};
+  for(const char* asset:names){
+    g_autofree gchar* filename=g_build_filename(directory,name,asset,nullptr);gchar* contents=nullptr;gsize size=0;
+    g_file_get_contents(filename,&contents,&size,&error);g_assert_no_error(error);
+    g_hash_table_insert(resources,g_strdup(asset),g_bytes_new_take(contents,size));
+  }
+  g_autofree gchar* expected_file=g_build_filename(directory,name,"expected.json",nullptr);
+  gchar* expected=nullptr;gsize expected_size=0;g_file_get_contents(expected_file,&expected,&expected_size,&error);g_assert_no_error(error);
+  g_autofree gchar* encoded=g_base64_encode(reinterpret_cast<const guchar*>(expected),expected_size);g_free(expected);
+  g_autoptr(BusyApiDocumentationWindow) window=create(resources,&observed,snapshot,count);
+  pump_until([&]{return observed.ready||!observed.failure.empty();});g_assert_cmpstr(observed.failure.c_str(),==,"");g_assert_cmpuint(observed.ready,==,1);
+  auto* context=webkit_web_view_get_context(busyapi_documentation_window_get_view(window));
+  g_assert_true(webkit_web_context_is_ephemeral(context));g_assert_true(webkit_web_context_get_sandbox_enabled(context));
+  g_autofree gchar* reader=g_strdup_printf(R"JS(
+    window.legacyDone=false;window.legacyFailure='';window.legacySeen=[];window.legacyValues=Object.create(null);
+    window.legacyExpected=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob('%s'),v=>v.charCodeAt(0))));
+    (async()=>{
+      const routes=new Set(['#/']),visited=new Set(),sleep=()=>new Promise(resolve=>setTimeout(resolve,30));
+      const capture=()=>{
+        legacySeen.push(document.body.innerText);
+        for(const node of document.querySelectorAll('[data-busyapi-authored-value]'))if(node.getClientRects().length&&getComputedStyle(node).visibility!=='hidden'){
+          const key=node.getAttribute('data-busyapi-authored-value'),values=legacyValues[key]??=[];if(!values.includes(node.textContent))values.push(node.textContent);
+        }
+      };
+      for(let routeCount=0;routeCount<40;routeCount++){
+        const route=[...routes].find(value=>!visited.has(value));if(route===undefined)break;
+        visited.add(route);location.hash=route.slice(1);await sleep();
+        const definitions=new Set();
+        for(let pass=0;pass<50;pass++){
+          for(const branch of document.querySelectorAll('[data-busyapi-authored-branch]'))branch.open=true;
+          await sleep();capture();
+          for(const anchor of document.querySelectorAll('a[href]')){const target=new URL(anchor.href);if(target.hash.startsWith('#/'))routes.add(target.hash);}
+          if(document.querySelector('[data-busyapi-source="%u"]'))window.legacySourceRoute=route;
+          const button=[...document.querySelectorAll('[data-busyapi-definition]')].find(node=>node.getClientRects().length&&!definitions.has(node.getAttribute('data-busyapi-definition')));
+          const back=button?null:[...document.querySelectorAll('button')].find(node=>node.getClientRects().length&&node.textContent.startsWith('← '));
+          if(button||back){
+            const control=button||back,panel=control.closest('[data-busyapi-authored-panel]');
+            const target=button?button.getAttribute('data-busyapi-definition'):panel?.getAttribute('data-busyapi-authored-panel');
+            if(button)definitions.add(target);control.click();
+            const deadline=performance.now()+3000;
+            while(panel?.isConnected&&panel.querySelector(':scope > [data-busyapi-authored-content]')?.getAttribute('data-busyapi-authored-content')!==target){
+              if(performance.now()>deadline)throw Error('Legacy native definition did not mount');await sleep();
+            }
+          }
+          for(const node of [document.scrollingElement,...document.querySelectorAll('.api-content,[data-scroll-container]')])if(node)node.scrollTop+=400;
+        }
+        for(const tab of document.querySelectorAll('[role=tab]'))if(tab.textContent==='Example Value')tab.click();
+        await sleep();capture();
+      }
+      if(routes.size>=40||window.legacySourceRoute===undefined)throw Error('Incomplete native legacy route/source inventory');
+    })().catch(error=>{legacyFailure=String(error.message);}).finally(()=>{legacyDone=true;});'started'
+  )JS",encoded,observed.source_index);
+  evaluate(window,reader);pump_until([&]{return evaluate(window,"legacyDone")=="true";});g_assert_true(evaluate(window,"legacyFailure===''")=="true");
+  for(const char* text:{"Compatibility operation sentinel","Schema property sentinel","payload data","Unsaved native legacy capture sentinel"}){
+    g_autofree gchar* check=g_strdup_printf("legacySeen.join('\\n').includes('%s')",text);
+    if(evaluate(window,check)!="true")g_test_message("Missing legacy content: %s; %.3000s",text,evaluate(window,"legacySeen.join('\\n').slice(-3000)").c_str());
+    g_assert_true(evaluate(window,check)=="true");
+  }
+  for(const char* check:{"legacyValues[legacyExpected.minimum]?.includes('9007199254740993')","legacyValues[legacyExpected.schemaExample]?.includes('9007199254740993.0')","legacyValues[legacyExpected.example]?.includes(legacyExpected.exampleValue)"}){
+    if(evaluate(window,check)!="true")g_test_message("Missing exact legacy field: %s; %.5000s",check,evaluate(window,"JSON.stringify(legacyValues)").c_str());
+    g_assert_true(evaluate(window,check)=="true");
+  }
+  g_assert_cmpuint(observed.blocked,==,0);
+  evaluate(window,"location.hash=legacySourceRoute.slice(1);'source'");
+  g_autofree gchar* exists=g_strdup_printf("!!document.querySelector('[data-busyapi-source=\"%u\"]')",observed.source_index);
+  pump_until([&]{return evaluate(window,exists)=="true";});
+  g_autofree gchar* click=g_strdup_printf("document.querySelector('[data-busyapi-source=\"%u\"]').click();'clicked'",observed.source_index);
+  evaluate(window,click);pump_until([&]{return observed.source==1;});
+  g_assert_true(busyapi_documentation_window_set_outdated(window,"Outdated legacy capture"));evaluate(window,click);pump_until([&]{return observed.blocked>0;});g_assert_cmpuint(observed.source,==,1);
+  busyapi_documentation_window_close(window);g_assert_cmpuint(observed.closed,==,1);
+}
 void production_renderer_fixture() {
   const char* directory=g_getenv("BUSYAPI_DOCUMENTATION_PRODUCTION_FIXTURES");g_assert_nonnull(directory);
   const char* name=std::strrchr(g_test_get_path(),'/');g_assert_nonnull(name);name++;
@@ -504,6 +586,9 @@ int main(int argc,char** argv){
     }
   }
   if(g_getenv("BUSYAPI_DOCUMENTATION_PRODUCTION_FIXTURES")){
+    for(const char* name:{"redoc-production-30","swagger-production-20","swagger-production-30"}){
+      g_autofree gchar* path=g_strconcat("/renderers/",name,nullptr);g_test_add_func(path,production_legacy_renderer_fixture);
+    }
     for(const char* name:{"redoc-production-31","redoc-production-32","swagger-production-31","swagger-production-32"}){
       g_autofree gchar* path=g_strconcat("/renderers/",name,nullptr);g_test_add_func(path,production_renderer_fixture);
     }

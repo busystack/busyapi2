@@ -41,6 +41,56 @@ void main() {
     await temp.delete(recursive: true);
   });
 
+  test('Swagger retains native Reference and explicitly rejects Redoc vendor conversion', () async {
+    final root = File('${temp.path}/swagger.yaml');
+    await root.writeAsString(
+      'swagger: "2.0"\ninfo: {title: Native, version: "1"}\npaths: {}\n',
+    );
+    final original = await root.readAsBytes();
+    project = await BusyProject.open(root.path, engine);
+    final presentation = (await project!.captureDocumentationPresentation(
+      root.uri.toString(),
+    )).toJson();
+    final redoc = await DocumentationRuntime.forEngine(engine);
+    await expectLater(
+      redoc.page(
+        presentation,
+        labels: defaultDocumentationLabels,
+        native: true,
+      ),
+      throwsA(
+        isA<CoreFailure>().having(
+          (error) => error.code,
+          'code',
+          'documentation.renderer.version',
+        ),
+      ),
+    );
+    final swagger = await DocumentationRuntime.forEngine(
+      engine,
+      preset: 'swagger',
+    );
+    expect(
+      (await swagger.page(
+        presentation,
+        labels: defaultDocumentationLabels,
+        native: true,
+      )).keys,
+      contains('swagger.js'),
+    );
+    final output = await project!.prepareDocumentation(
+      root.uri.toString(),
+      '${temp.path}/native',
+    );
+    addTearDown(output.close);
+    await output.publish();
+    expect(
+      await File('${output.destination}/index.html').readAsString(),
+      contains('OpenAPI 2.0'),
+    );
+    expect(await root.readAsBytes(), original);
+  });
+
   test('1-MiB located documentation fits the bounded entry without dropping graph or source actions', () async {
     final root = File('${temp.path}/large.json');
     await root.writeAsString(

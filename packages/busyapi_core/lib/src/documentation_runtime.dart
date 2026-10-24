@@ -10,13 +10,13 @@ import 'model.dart';
 
 const _redocAdapter = {
   'producer': 'busyapi-redoc-read-only',
-  'version': '6',
+  'version': '7',
   'package': 'redoc',
   'packageVersion': '3.0.1',
 };
 const _swaggerAdapter = {
   'producer': 'busyapi-swagger-read-only',
-  'version': '5',
+  'version': '6',
   'package': 'swagger-ui',
   'packageVersion': '5.33.2',
   'clientPackage': 'swagger-client',
@@ -249,6 +249,17 @@ class DocumentationRuntime {
         throw CoreFailure(
           'documentation.presentation',
           'The captured documentation page is malformed',
+        );
+      }
+      // Redoc CE 3.0.1's Q9/T9 preparation path always converts Swagger to
+      // 3.x, including with skipBundle. Native support must preserve 2.0;
+      // reject this external renderer before it can change display semantics.
+      if (selectedPreset == 'redoc' &&
+          (captured['projection'] as Map)['family'] == '2.0') {
+        throw CoreFailure(
+          'documentation.renderer.version',
+          'Redoc CE 3.0.1 converts Swagger 2.0 internally. Choose native Reference '
+              'or Swagger UI to preserve this specification.',
         );
       }
       final payload = jsonEncode({

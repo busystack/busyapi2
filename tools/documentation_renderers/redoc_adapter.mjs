@@ -5,7 +5,7 @@ import {redocAuthoredContent} from './redoc_content.mjs';
 import {documentationSourceFactory} from './source_actions.mjs';
 
 export const redocAdapterIdentity=Object.freeze({
-  producer:'busyapi-redoc-read-only',version:'6',package:'redoc',packageVersion:'3.0.1',
+  producer:'busyapi-redoc-read-only',version:'7',package:'redoc',packageVersion:'3.0.1',
 });
 
 // Markdoc's parsed descriptions are untrusted data. Display text only: no
@@ -41,6 +41,7 @@ export async function mountRedocReference(presentation,element,{api,onError,sign
   // lookalike object cannot bypass graph capture or source freshness checks.
   if(presentation?.addresses!=='document-pointer'||presentationNode(presentation,'')?.kind!=='root')
     throw Error('busyapi.documentation.projection');
+  if(presentation.spec.swagger==='2.0')throw Error('busyapi.documentation.redoc-swagger-conversion');
   if(!api?.React?.createElement||typeof api.createRoot!=='function'||!api.HashRouter||
       typeof api.prepareApiDocs!=='function'||!api.Redoc||
       typeof onError!=='function'||typeof labels?.schemas!=='string'||!labels.schemas.trim())

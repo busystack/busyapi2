@@ -1,11 +1,18 @@
 # Tool support
 
-Native 3.0 authoring now uses its own Schema Object semantics, field metadata,
-reference rules and exact instance evaluation. Creation accepts every 3.0 patch;
-normal workflows retain the declaration. Native Reference and native HTML export
+Native Swagger 2.0 and OpenAPI 3.0 authoring use their own Schema Object semantics,
+field metadata, reference rules and exact instance evaluation. Creation accepts
+the published patches in every approved family; normal workflows retain the declaration. Native Reference and native HTML export
 use the same captured graph. Swagger/Redoc, Prism, generation and comparison
 qualification remain separate. The evolving [family/workflow matrix](implementation/native-openapi-support.md)
 records actual coverage and outstanding native and packaged checks.
+
+Swagger UI **5.33.2** with client **3.38.2** has adapters for all four families.
+Redoc CE **3.0.1** supports native 3.0/3.1/3.2 display input but internally
+converts Swagger 2.0 even with `skipBundle`. BusyAPI therefore rejects Redoc
+for 2.0; choose native Reference, native HTML or Swagger UI. Renderer
+compatibility remains separate from native authoring support and current
+acceptance status in the [support matrix](implementation/native-openapi-support.md).
 
 ## External tools
 

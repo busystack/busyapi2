@@ -16,7 +16,7 @@ test('assembled Redoc assets contain exact reviewed code, all notices and no dev
   const {manifest,files}=await buildRedocAssets();
   assert.deepEqual(Object.keys(files).sort(),['THIRD_PARTY_NOTICES.txt','assets.json','bootstrap.js','redoc.js','third-party.json']);
   for(const [name,digest]of Object.entries(manifest.files))assert.equal(hash(files[name]),digest);
-  assert.deepEqual(manifest.adapter,{producer:'busyapi-redoc-read-only',version:'6',package:'redoc',packageVersion:'3.0.1'});
+  assert.deepEqual(manifest.adapter,{producer:'busyapi-redoc-read-only',version:'7',package:'redoc',packageVersion:'3.0.1'});
   assert.equal(manifest.identity,hash(JSON.stringify({adapter:manifest.adapter,files:manifest.files})));
   const inventory=JSON.parse(files['third-party.json']);
   assert.equal(inventory.packages.length,52);
@@ -42,7 +42,7 @@ test('unreviewed compilation inputs fail closed rather than producing empty noti
 test('assembled Swagger module retains original and adapted notices with truthful distribution roles',async()=>{
   const {manifest,files}=await buildSwaggerAssets();
   assert.equal(manifest.preset,'swagger');
-  assert.deepEqual(manifest.adapter,{producer:'busyapi-swagger-read-only',version:'5',package:'swagger-ui',packageVersion:'5.33.2',
+  assert.deepEqual(manifest.adapter,{producer:'busyapi-swagger-read-only',version:'6',package:'swagger-ui',packageVersion:'5.33.2',
     clientPackage:'swagger-client',clientPackageVersion:'3.38.2'});
   assert.equal(manifest.identity,hash(JSON.stringify({adapter:manifest.adapter,files:manifest.files})));
   assert.deepEqual(Object.keys(files).sort(),['THIRD_PARTY_NOTICES.txt','assets.json','bootstrap.js','swagger-ui-es-bundle-core.js.LICENSE.txt','swagger.css','swagger.js','third-party.json']);

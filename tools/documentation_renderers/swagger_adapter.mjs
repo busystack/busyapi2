@@ -5,7 +5,7 @@ import {presentationNode,presentationValue} from './graph_display.mjs';
 import {documentationSourceFactory} from './source_actions.mjs';
 import {swaggerLocatedContent} from './swagger_content.mjs';
 export const swaggerAdapterIdentity = Object.freeze({
-  producer: 'busyapi-swagger-read-only', version: '5',
+  producer: 'busyapi-swagger-read-only', version: '6',
   package: 'swagger-ui', packageVersion: '5.33.2',
   clientPackage:'swagger-client',clientPackageVersion:'3.38.2',
 });
@@ -38,6 +38,7 @@ export function busyApiSwaggerPlugin(system) {
   if(typeof resolveDocument!=='function')throw Error('busyapi.documentation.plugin-api');
   let resolvedInput, resolvedBaseDoc, resolvedStrategies, resolvedDocument;
   const ExampleContext=system.React.createContext(null);
+  const located=swaggerLocatedContent(system,Source);
   let sourceFactory,SourceControl;
   const pointer = parts => parts.length?'/'+parts.map(value=>String(value).replaceAll('~','~0').replaceAll('/','~1')).join('/'):'';
   function Source(props) {
@@ -168,7 +169,7 @@ export function busyApiSwaggerPlugin(system) {
       Markdown: props => system.React.createElement('span', {style: {whiteSpace: 'pre-wrap'}}, typeof props.source === 'string' ? props.source : ''),
     },
     wrapComponents: {
-      ...swaggerLocatedContent(system,Source),
+      ...located,
       InfoContainer: Original => props => system.React.createElement(system.React.Fragment,null,
         system.React.createElement(Original,props),system.React.createElement(Source,{pointer:''})),
       operation: Original => props => system.React.createElement('div',{'data-busyapi-operation-source':pointer(props.specPath?.toArray?.()??[])},
@@ -178,7 +179,7 @@ export function busyApiSwaggerPlugin(system) {
         system.React.useLayoutEffect(()=>{if(typeof props.value==='string')context?.onMedia?.(props.value);},[context?.onMedia,props.value]);
         return system.React.createElement(Original,props);
       },
-      response: Original => function ResponseWithExactExamples(props) {
+      response: Original => located.response(function ResponseWithExactExamples(props) {
         const [media,setMedia]=system.React.useState(null);
         const value={path:props.specPath?.toArray?.()??[],selectedKey:props.activeExamplesKey,getMedia:()=>media,onMedia:setMedia};
         // The upstream response component calls .toJS() on inline booleans.
@@ -189,7 +190,7 @@ export function busyApiSwaggerPlugin(system) {
         return system.React.createElement(ExampleContext.Provider,{value},
           system.React.createElement(Original,{...props,response}),system.React.createElement(MediaFallback,{context:value}),
           system.React.createElement(Source,{pointer:pointer(value.path)}));
-      },
+      }),
       modelExample: Original => function AuthoredModelExample(props) {
         const context=system.React.useContext(ExampleContext),value=exampleValue(props,context);
         // Use exact captured data, including false/zero/null/string values.

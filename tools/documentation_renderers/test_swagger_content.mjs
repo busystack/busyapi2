@@ -8,6 +8,19 @@ const root='https://contracts.invalid/openapi.json';
 const labels={schemas:'Schemas',webhooks:'Webhooks',previousPage:'Previous',nextPage:'Next',page:(page,pages)=>page+'/'+pages,definition:'Read definition',dynamicReference:'Possible dynamic targets',inherited:'Inherited'};
 const React={Fragment:'fragment',createElement:(type,props,...children)=>({type,props,children}),useState:()=>{throw Error('Presentation hooks are deferred until rendering');}};
 const specPath=parts=>({toArray:()=>parts});
+for(const version of ['2.0','3.0.4'])test(`native older-family Swagger models, response owners and absent webhooks: ${version}`,()=>{
+  const swagger=version==='2.0',model={type:'integer',minimum:111};
+  const response={description:'Exact native response',...(swagger?{schema:{$ref:'#/definitions/N'},examples:{'application/json':111}}:{content:{'application/json':{schema:{$ref:'#/components/schemas/N'},example:111}}})};
+  const value={[swagger?'swagger':'openapi']:version,info:{title:'Native',version:'1'},paths:{'/p':{get:{responses:{200:response}}}},...(swagger?{definitions:{N:model}}:{components:{schemas:{N:model}}})};
+  const text=JSON.stringify(value).replaceAll('111','9007199254740993.00'),projection=referenceDocument({root,snapshot:version,resources:[{id:root,text,generation:1}]}),presentation=graphAddressedDisplay(text,projection,'https://display.invalid/index.html');
+  const hooks=swaggerLocatedContent({React,Im:{},getConfigs:()=>({busyApiPresentation:()=>presentation,busyApiLabels:labels})},()=>null);
+  const at=swagger?'/definitions':'/components/schemas';
+  assert.equal(hooks.Models(null)().children[1].props.pointer,at);
+  assert.equal(hooks.BaseLayout('Original')({}).children[1].type(),null);
+  const shown=hooks.response('Original')({specPath:specPath(['paths','/p','get','responses','200'])});
+  if(swagger)assert.equal(shown.props.pointer,'/paths/~1p/get/responses/200');else assert.equal(shown.type,'Original');
+  assert.equal(presentation.canonicalText,text);assert(text.includes('9007199254740993.00'));
+});
 function fixture(version){
   const value={openapi:version,info:{title:'Source coordinates',version:'1'},paths:{'/p':{
     parameters:[{name:'filter',in:'query',schema:{type:'string'}},{name:'Filter',in:'query',schema:{type:'string'}}],

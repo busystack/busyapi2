@@ -31,7 +31,7 @@ def main():
     parser.add_argument('--cli', type=Path, default=ROOT / 'build/test-runtime/busyapi', help='Exact bundled CLI whose installed assets are tested')
     parser.add_argument('--runtime-module', type=Path, help='Exercise the ordinary installed documentation module through its real on-demand loader')
     parser.add_argument('--prepare', type=Path, help='Prepare a new owned fixture directory without launching it (for actual confined runtime testing; never shipped)')
-    parser.add_argument('--case', choices=['ordinary', 'adversarial', 'crash-reopen', 'cancel-loading', 'invalid-resources', 'ephemeral-storage', 'outdated-snapshot', 'swagger-31', 'swagger-32', 'redoc-31', 'redoc-32', 'redoc-production-31', 'redoc-production-32', 'swagger-production-31', 'swagger-production-32'], help='Run one native host/renderer case')
+    parser.add_argument('--case', choices=['ordinary', 'adversarial', 'crash-reopen', 'cancel-loading', 'invalid-resources', 'ephemeral-storage', 'outdated-snapshot', 'swagger-31', 'swagger-32', 'redoc-31', 'redoc-32', *[f'{preset}-production-{family}' for preset in ['redoc', 'swagger'] for family in ['20', '30', '31', '32'] if (preset, family) != ('redoc', '20')]], help='Run one native host/renderer case')
     args = parser.parse_args()
     if args.prepare and args.session:
         parser.error('Fixture preparation and execution are separate operations')
@@ -100,13 +100,24 @@ def main():
             dart = os.environ.get('BUSYAPI_DART') or shutil.which('dart')
             if not dart or '3.13.4' not in subprocess.check_output([dart, '--version'], text=True):
                 raise RuntimeError('Set BUSYAPI_DART to the pinned Dart 3.13.4 SDK for production fixture capture')
-            for family in ['31', '32']:
+            for family in ['20', '30', '31', '32']:
+                if production_case and not args.case.endswith('-' + family):
+                    continue
                 source = Path(staging) / ('source-' + family)
                 source.mkdir()
                 shutil.copyfile(ROOT / ('fixtures/compatibility/oas' + family + '.json'), source / 'root.json')
-                shutil.copyfile(ROOT / 'fixtures/compatibility/schema.json', source / 'schema.json')
+                schema_name = 'schema-legacy.json' if family in ['20', '30'] else 'schema.json'
+                shutil.copyfile(ROOT / 'fixtures/compatibility' / schema_name, source / schema_name)
                 for preset in ['redoc', 'swagger']:
-                    subprocess.run([dart, 'run', 'tool/native_documentation_fixture.dart', str(args.cli), str(source / 'root.json'), str(Path(staging) / 'renderer-assets' / (preset + '-production-' + family))], check=True, cwd=ROOT / 'packages/busyapi_core', timeout=45)
+                    if production_case and not args.case.startswith(preset + '-'):
+                        continue
+                    if (preset, family) == ('redoc', '20'):
+                        # The pinned vendor always converts Swagger to 3.x.
+                        # Core/adapter tests qualify the explicit rejection;
+                        # no native renderer acceptance is claimed for it.
+                        continue
+                    producer = 'native_legacy_documentation_fixture.dart' if family in ['20', '30'] else 'native_documentation_fixture.dart'
+                    subprocess.run([dart, 'run', 'tool/' + producer, str(args.cli), str(source / 'root.json'), str(Path(staging) / 'renderer-assets' / (preset + '-production-' + family))], check=True, cwd=ROOT / 'packages/busyapi_core', timeout=45)
         if args.prepare:
             print('Prepared test-only fixture: ' + str(executable))
             print('Run with BUSYAPI_DOCUMENTATION_PRODUCTION_FIXTURES=' + str(Path(staging) / 'renderer-assets') if args.production else 'No production renderer fixtures requested')

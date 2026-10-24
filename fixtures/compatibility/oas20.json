@@ -1,0 +1,86 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Compatibility fixture 20",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/things": {
+      "get": {
+        "operationId": "listThings",
+        "summary": "Compatibility operation sentinel",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "pipes"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "$ref": "schema-legacy.json#/Thing"
+            },
+            "examples": {
+              "application/json": {
+                "name": "fixture",
+                "$ref": "payload data",
+                "precise": 9007199254740993.00
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "host": "api.invalid",
+  "basePath": "/v1",
+  "schemes": [
+    "https"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "definitions": {
+    "Composed": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "Escaped": {
+      "$ref": "schema-legacy.json#/a~1b"
+    }
+  },
+  "securityDefinitions": {
+    "Key": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "X-Key"
+    }
+  },
+  "security": [
+    {
+      "Key": []
+    }
+  ]
+}

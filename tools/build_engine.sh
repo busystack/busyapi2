@@ -50,6 +50,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" tools/documentation_renderers/test_graph_display.mjs
 "$node_bin" tools/documentation_renderers/test_source_actions.mjs
 "$node_bin" tools/documentation_renderers/test_swagger_adapter.mjs
+"$node_bin" tools/documentation_renderers/test_swagger_content.mjs
 "$node_bin" tools/documentation_renderers/test_redoc_adapter.mjs
 "$node_bin" tools/documentation_renderers/test_redoc_content.mjs
 "$node_bin" tools/documentation_renderers/test_license_declarations.mjs
