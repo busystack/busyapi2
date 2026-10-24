@@ -13,6 +13,7 @@ import 'content_selection.dart';
 import 'header_serialization.dart';
 import 'swagger_serialization.dart';
 import 'form_serialization.dart';
+import 'request_form_values.dart';
 import 'project.dart';
 import 'atomic_file_writer.dart';
 import 'storage.dart';
@@ -146,6 +147,14 @@ class RequestBodyDraft {
        text = null,
        file = null,
        files = const [];
+  const RequestBodyDraft.formValue({
+    required String json,
+    this.mediaType = 'application/x-www-form-urlencoded',
+  }) : kind = RequestBodyKind.form,
+       text = json,
+       file = null,
+       fields = const [],
+       files = const [];
   const RequestBodyDraft.multipart(
     this.fields,
     this.files, {
@@ -153,6 +162,14 @@ class RequestBodyDraft {
   }) : kind = RequestBodyKind.multipart,
        text = null,
        file = null;
+  const RequestBodyDraft.multipartValue({
+    required String json,
+    this.files = const [],
+    this.mediaType = 'multipart/form-data',
+  }) : kind = RequestBodyKind.multipart,
+       text = json,
+       file = null,
+       fields = const [];
   const RequestBodyDraft.binaryFile({
     required this.mediaType,
     required this.file,
@@ -203,11 +220,13 @@ class PreparedRequestBody {
     this.mediaType,
     this.release,
     this.formInstance,
+    this.formParameters,
   });
   final int length;
   final Stream<List<int>> Function() open;
   final String? mediaType;
   final String? formInstance;
+  final List<RuntimeSchemaInstance>? formParameters;
   final Future<void> Function()? release;
   Future<void>? _closing;
   Future<void> close() => _closing ??= _releaseOwned();
@@ -1356,13 +1375,50 @@ class ContractRequestBuilder {
     final nativeForm = (declaration?['swaggerForm'] as List?)
         ?.whereType<Map>()
         .toList();
+    final data =
+        body.text != null &&
+            (body.kind == RequestBodyKind.form ||
+                body.kind == RequestBodyKind.multipart)
+        ? await plan.formData(
+            body.text!,
+            requestId: 'form-${_runIdentity()}',
+            cancellation: cancellation,
+          )
+        : null;
+    checkOwner();
+    cancellation?.throwIfCancelled();
     var fields = nativeForm == null
         ? body.fields
+        : data != null
+        ? swaggerFormDataFields(
+            data,
+            nativeForm,
+            body.files.map((file) => file.name),
+          ).map((field) => RequestFormField(field.$1, field.$2)).toList()
         : swaggerFormFields(
             [for (final field in body.fields) (field.name, field.value)],
             nativeForm,
             body.files.map((file) => file.name),
           ).map((field) => RequestFormField(field.$1, field.$2)).toList();
+    final formParameters = data == null || nativeForm == null
+        ? null
+        : <RuntimeSchemaInstance>[
+            for (final declaration in nativeForm)
+              if (declaration['type'] != 'file' &&
+                  data.fields.containsKey(declaration['name']) &&
+                  !(data.fields[declaration['name']]!.kind ==
+                          RequestDataKind.array &&
+                      data.fields[declaration['name']]!.items.isEmpty))
+                RuntimeSchemaInstance(
+                  subject: 'request-parameter',
+                  location: 'formData:${declaration['name']}',
+                  text: data.fields[declaration['name']]!.raw,
+                  schemaResource:
+                      (declaration['schema'] as Map)['resource'] as String,
+                  schemaPointer:
+                      (declaration['schema'] as Map)['pointer'] as String,
+                ),
+          ];
     PreparedFormValues? form;
     final partTypes = <String, String>{};
     final encodedFields = <RequestFormField>{};
@@ -1377,6 +1433,7 @@ class ContractRequestBuilder {
         declaration!,
         multipart,
         plan.parameterValues,
+        data: data,
       );
       checkOwner();
       cancellation?.throwIfCancelled();
@@ -1392,6 +1449,7 @@ class ContractRequestBuilder {
           );
         }
         validateTextCharset(part.contentType, [part.text]);
+        validateTextCharset(body.mediaType!, [part.name, part.text]);
         partTypes[part.name] = part.contentType;
       }
       for (final group in form.styled) {
@@ -1403,6 +1461,18 @@ class ContractRequestBuilder {
             'Nested RFC6570 form values have no defined serialization. Choose a content encoding.',
           );
         }
+        validateTextCharset(body.mediaType!, [
+          group.name,
+          if (value is List)
+            for (final item in value) item == null ? 'null' : '$item'
+          else if (value is Map)
+            for (final entry in value.entries) ...[
+              '${entry.key}',
+              entry.value == null ? 'null' : '${entry.value}',
+            ]
+          else
+            value == null ? 'null' : '$value',
+        ]);
         final style = group.rule['style'] as String? ?? 'form';
         final pairs = _serializeParameter(
           {
@@ -1457,6 +1527,7 @@ class ContractRequestBuilder {
           () => Stream.value(bytes),
           mediaType: body.mediaType,
           formInstance: form?.instance,
+          formParameters: formParameters,
         );
       case RequestBodyKind.binaryFile:
         return _fileBody(
@@ -1634,6 +1705,7 @@ class ContractRequestBuilder {
             },
             mediaType: '${body.mediaType}; boundary=$boundary',
             formInstance: body.files.isEmpty ? form?.instance : null,
+            formParameters: formParameters,
             release: () async {
               for (final captured in captures) {
                 await captured.close();
@@ -3276,7 +3348,10 @@ class ContractRequestExecutor {
       final schema = media?['schema'];
       final formDeclarations = (media?['swaggerForm'] as List?)
           ?.whereType<Map>();
-      if (formDeclarations != null)
+      if (preparedBody?.formParameters
+          case final List<RuntimeSchemaInstance> parameters) {
+        instances.addAll(parameters);
+      } else if (formDeclarations != null)
         for (final declaration in formDeclarations) {
           final name = declaration['name'] as String,
               values = draft.body.fields

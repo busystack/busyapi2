@@ -1,9 +1,12 @@
 import {escape} from './document';
 import type {GraphReference,ReferenceGraph} from './reference_graph';
 
-export type FormShape={types?:string[];format?:string;contentEncoding?:string;properties?:Record<string,FormShape>;items?:FormShape;defaultContentType?:string};
+export type FormShape={types?:string[];literalType?:string;format?:string;contentEncoding?:string;properties?:Record<string,FormShape>;items?:FormShape;defaultContentType?:string};
 
 export const formLiteralType=(shape:FormShape):string|undefined=>{
+    // Literal input remains a string when a union permits strings; exact JSON
+    // data input retains its own kind instead. Null-only fields use "null".
+    if(shape.types?.length===1&&shape.types[0]==='null')return 'null';
     if(shape.types?.includes('string'))return 'string';
     const types=shape.types?.filter(type=>type!=='null');
     return types?.length===1?types[0]:undefined;
@@ -46,7 +49,7 @@ export class FormSemantics {
             properties,
             items:value.items&&typeof value.items==='object'&&!Array.isArray(value.items)?this.shape(resource,pointer+'/items',seen,depth+1):shapes.find(shape=>shape.items)?.items,
         };
-        return {...shape,defaultContentType:formContentType(shape,scope.family)};
+        return {...shape,literalType:formLiteralType(shape),defaultContentType:formContentType(shape,scope.family)};
     }
 
     media(family:string,resource:string,pointer:string){

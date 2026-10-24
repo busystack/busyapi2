@@ -17,7 +17,7 @@ import { referenceChoices } from './reference_choices';
 import { planReference } from './reference_selection';
 import { WorkerDispatcher } from './worker_dispatcher';
 import {planDiagnosticFix} from './diagnostic_fixes';
-import {planResponseExample,requestOperation,requestParameterValues,executionCaseValues,inspectExecutionJson,planExecutionEnvironment,semanticDiffCoverage} from './execution';
+import {planResponseExample,requestOperation,requestParameterValues,requestFormDataValues,executionCaseValues,inspectExecutionJson,planExecutionEnvironment,semanticDiffCoverage} from './execution';
 import {discoverPolicy} from './governance_configuration';
 import {inspectPolicyCode} from './policy_code';
 import {PolicyProcessWorker} from './policy_process_worker';
@@ -48,6 +48,7 @@ if (!isMainThread) {
             methods.normalizeResourceUris = normalizeResourceUris;
             methods.planMigration = planMigration;
             methods.requestParameterValues = requestParameterValues;
+            methods.requestFormDataValues = requestFormDataValues;
             methods.executionCaseValues = executionCaseValues;
             methods.inspectExecutionJson = inspectExecutionJson;
             methods.planExecutionEnvironment = planExecutionEnvironment;

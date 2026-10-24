@@ -24,6 +24,13 @@ strings when the schema also permits strings. Untyped repeated fields use an
 array; content-based arrays use repeated entries. These are explicit input
 policies, not guarantees about how a particular server decodes ambiguous forms.
 
+**Use an exact JSON value** accepts an object for form or multipart data without
+passing through literal `name=value` rows. Saved contract cases with object
+values use that same headless path, including in the installed CLI. Explicit
+JSON scalar kinds and numeric lexemes are retained. Empty collections that emit
+no fields are omitted from outgoing presence checks. File input remains explicit;
+a string in a saved case is never permission to read a file.
+
 Migration checks effective form encodings as well as media names. It removes
 ignored 3.0 multipart style fields before they could become active in 3.1.
 Swagger multipart arrays with a CSV/space/pipe separator are blocked for a 3.0

@@ -82,6 +82,7 @@ class RequestRunController extends ChangeNotifier {
   int? securityAlternative;
   bool expanded = true, _disposed = false;
   bool bodyEnabled = false;
+  bool bodyStructured = false;
   int _epoch = 0;
   final Map<(BusyProject?, OperationRequestPlan?, String?), int>
   _credentialWrites = {};
@@ -259,15 +260,28 @@ class RequestRunController extends ChangeNotifier {
     final body = !bodyEnabled || bodyMediaType == null
         ? const RequestBodyDraft.none()
         : switch (bodyKind) {
-            RequestBodyKind.form => RequestBodyDraft.form(
-              formRows(bodyText),
-              mediaType: bodyMediaType!,
-            ),
-            RequestBodyKind.multipart => RequestBodyDraft.multipart(
-              formRows(bodyText),
-              List.of(bodyFiles),
-              mediaType: bodyMediaType!,
-            ),
+            RequestBodyKind.form =>
+              bodyStructured
+                  ? RequestBodyDraft.formValue(
+                      json: bodyText,
+                      mediaType: bodyMediaType!,
+                    )
+                  : RequestBodyDraft.form(
+                      formRows(bodyText),
+                      mediaType: bodyMediaType!,
+                    ),
+            RequestBodyKind.multipart =>
+              bodyStructured
+                  ? RequestBodyDraft.multipartValue(
+                      json: bodyText,
+                      files: List.of(bodyFiles),
+                      mediaType: bodyMediaType!,
+                    )
+                  : RequestBodyDraft.multipart(
+                      formRows(bodyText),
+                      List.of(bodyFiles),
+                      mediaType: bodyMediaType!,
+                    ),
             RequestBodyKind.binaryFile =>
               bodyFiles.length == 1
                   ? RequestBodyDraft.binaryFile(
@@ -306,6 +320,10 @@ class RequestRunController extends ChangeNotifier {
     bodyMediaType = media;
     bodyFiles.clear();
     bodyKind = _kindForMedia(media);
+    if (bodyKind != RequestBodyKind.form &&
+        bodyKind != RequestBodyKind.multipart) {
+      bodyStructured = false;
+    }
     refresh();
   }
 
@@ -356,6 +374,7 @@ class RequestRunController extends ChangeNotifier {
     customHeaders.clear();
     timeoutInputs.clear();
     bodyKind = RequestBodyKind.raw;
+    bodyStructured = false;
     connectTimeout = const Duration(seconds: 15);
     overallTimeout = const Duration(seconds: 60);
     inactivityTimeout = const Duration(seconds: 15);
@@ -634,7 +653,13 @@ class RequestRunController extends ChangeNotifier {
     }
     final kind = _kindForMedia(type);
     final mime = ContentType.parse(type).mimeType;
-    if (example['conversionError'] is String ||
+    // Exact data input bypasses the literal-row projection. The shared builder
+    // retains its kinds and owns the applicable serialization checks.
+    final formData =
+        example['representation'] != 'serialized' &&
+        example['dataKind'] == 'object' &&
+        (kind == RequestBodyKind.form || kind == RequestBodyKind.multipart);
+    if (!formData && example['conversionError'] is String ||
         example['representation'] != 'serialized' &&
             kind == RequestBodyKind.raw &&
             !(mime == 'application/json' || mime.endsWith('+json')) &&
@@ -654,7 +679,8 @@ class RequestRunController extends ChangeNotifier {
     }
     var text = example['raw'] as String;
     if (example['representation'] != 'serialized') {
-      if (kind == RequestBodyKind.form || kind == RequestBodyKind.multipart) {
+      if (!formData &&
+          (kind == RequestBodyKind.form || kind == RequestBodyKind.multipart)) {
         final fields = example['fields'];
         if (fields is! Map ||
             fields.entries.any(
@@ -689,6 +715,7 @@ class RequestRunController extends ChangeNotifier {
     }
     bodyMediaType = type;
     bodyText = text;
+    bodyStructured = formData;
     bodyKind = example['representation'] == 'serialized'
         ? RequestBodyKind.raw
         : kind;
@@ -1247,6 +1274,7 @@ class _RequestDraftState {
       representations = Map.of(run.exampleRepresentations),
       headers = List.of(run.customHeaders),
       kind = run.bodyKind,
+      bodyStructured = run.bodyStructured,
       timeoutInputs = Map.of(run.timeoutInputs),
       timeouts = (
         run.connectTimeout,
@@ -1270,6 +1298,7 @@ class _RequestDraftState {
   final Map<String, RequestValueRepresentation> representations;
   final List<RequestHeaderValue> headers;
   final RequestBodyKind kind;
+  final bool bodyStructured;
   final (Duration, Duration, Duration) timeouts;
   final Map<RequestTimeoutKind, String> timeoutInputs;
   final Map<String, String> values, tls;
@@ -1305,6 +1334,7 @@ class _RequestDraftState {
     run.exampleRepresentations.addAll(representations);
     run.customHeaders.addAll(headers);
     run.bodyKind = kind;
+    run.bodyStructured = bodyStructured;
     run.timeoutInputs.addAll(timeoutInputs);
     run.connectTimeout = timeouts.$1;
     run.overallTimeout = timeouts.$2;
@@ -2907,7 +2937,8 @@ class _BodyEditor extends StatelessWidget {
           },
         ),
         if (run.bodyEnabled) ...[
-          if (selectedMedia == 'application/json' ||
+          if (run.bodyStructured ||
+              selectedMedia == 'application/json' ||
               selectedMedia?.endsWith('+json') == true)
             BusyApiActionRow(
               title: l.requestFormatJson,
@@ -2925,14 +2956,26 @@ class _BodyEditor extends StatelessWidget {
             ),
           BusyApiActionRow(
             title: l.requestBodySource,
-            subtitle: switch (run.bodyKind) {
-              RequestBodyKind.none => l.requestBodyMediaChoose,
-              RequestBodyKind.raw => l.requestUseText,
-              RequestBodyKind.form => l.requestLiteralFields,
-              RequestBodyKind.multipart => l.requestPartEncoding,
-              RequestBodyKind.binaryFile => l.requestUseBinary,
-            },
+            subtitle: run.bodyStructured
+                ? l.requestStructuredValue
+                : switch (run.bodyKind) {
+                    RequestBodyKind.none => l.requestBodyMediaChoose,
+                    RequestBodyKind.raw => l.requestUseText,
+                    RequestBodyKind.form => l.requestLiteralFields,
+                    RequestBodyKind.multipart => l.requestPartEncoding,
+                    RequestBodyKind.binaryFile => l.requestUseBinary,
+                  },
           ),
+          if ((form || multipart) && run.bodyKind != RequestBodyKind.raw)
+            BusyApiSwitchRow(
+              title: l.requestStructuredValue,
+              value: run.bodyStructured,
+              enabled: !run.busy && !run.hasComposingInput,
+              onChanged: (value) {
+                run.bodyStructured = value;
+                run.refresh();
+              },
+            ),
           if (run.bodyKind == RequestBodyKind.binaryFile)
             BusyApiActionRow(
               title: l.requestUseText,
@@ -2946,7 +2989,9 @@ class _BodyEditor extends StatelessWidget {
               value: run.bodyText,
               multiline: true,
               enabled: !run.busy,
-              label: (form || multipart) && run.bodyKind != RequestBodyKind.raw
+              label: run.bodyStructured
+                  ? l.requestStructuredValue
+                  : (form || multipart) && run.bodyKind != RequestBodyKind.raw
                   ? l.requestLiteralFields
                   : l.requestExactBody,
               onChanged: (value) => run.bodyText = value,

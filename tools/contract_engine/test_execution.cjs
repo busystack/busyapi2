@@ -3,6 +3,24 @@ const assert=require('node:assert/strict');
 const {analyse}=require('./dist/model.cjs');
 const {requestOperation,requestParameterValues,planResponseExample,semanticDiffCoverage,executionCaseValues,planExecutionEnvironment}=require('./dist/execution.cjs');
 const {deriveBundle}=require('./dist/derived_bundle.cjs');
+const {requestFormDataValues}=require('./dist/execution.cjs');
+
+test('structured form data preserves scalar kinds, exact JSON and literal reference-looking payloads',()=>{
+ const text=' {"number":900719925474099312345678901234567890,"string":"\\u0030","false":false,"null":null,"empty":"","array":[],"nested":[{"$ref":"literal","n":1e-999}],"__proto__":"ordinary"} ';
+ const result=requestFormDataValues({text}),fields=Object.fromEntries(result.fields.map(field=>[field.name,field]));
+ assert.equal(fields.number.kind,'number');assert.equal(fields.number.value,'900719925474099312345678901234567890');
+ assert.equal(fields.string.kind,'string');assert.equal(fields.string.raw,'"\\u0030"');assert.equal(fields.string.value,'0');
+ assert.equal(fields.false.value,false);assert.equal(fields.null.value,null);assert.equal(fields.empty.value,'');
+ assert.deepEqual(fields.array.items,[]);assert.equal(fields.nested.items[0].raw,'{"$ref":"literal","n":1e-999}');
+ assert.equal(fields.nested.value[0].$ref,'literal');assert.equal(fields.nested.value[0].n,'1e-999');assert.equal(fields.__proto__.value,'ordinary');
+ assert.equal(result.raw,text.trim());assert.equal(result.input,require('node:crypto').createHash('sha256').update(text).digest('hex'));
+});
+for(const text of ['null','false','[]','{"duplicate":1,"duplicate":2}','{"n":NaN}'])test(`invalid structured form input cannot produce successful fields: ${text}`,()=>{
+ assert.throws(()=>requestFormDataValues({text}),error=>['request.form.shape','json.duplicate','json.syntax','syntax.json'].includes(error.code)||error.code.includes('duplicate'));
+});
+test('structured form fields retain the production transport bound',()=>{
+ assert.throws(()=>requestFormDataValues({text:JSON.stringify({values:Array(2049).fill(0)})}),error=>error.code==='limit.request.fields');
+});
 
 for(const version of ['3.0.0','3.0.4','3.1.2','3.2.1'])test(`form transport metadata retains ${version} schema owners and multipart rules`,()=>{
  const value={openapi:version,info:{title:'Native form',version:'1'},paths:{'/form':{post:{requestBody:{content:{'multipart/form-data':{schema:{$ref:'#/components/schemas/Form'},encoding:{metadata:{style:'form',explode:false,contentType:'application/json'}}}}},responses:{204:{description:'OK'}}}}},components:{schemas:{Form:{allOf:[{type:'object',properties:{metadata:{$ref:'model.json#/Metadata'},ids:{type:'array',items:{type:'integer'}}}}]}}}};

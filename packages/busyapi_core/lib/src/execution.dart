@@ -351,6 +351,43 @@ class OperationRequestPlan {
     return Map<String, dynamic>.from(result['values'] as Map);
   }
 
+  Future<RequestFormData> formData(
+    String text, {
+    required String requestId,
+    RunCancellation? cancellation,
+  }) async {
+    ensureCurrentOwner();
+    if (outdated)
+      throw CoreFailure(
+        'request.draft.stale',
+        'Reconcile the changed operation before preparing form data.',
+      );
+    cancellation?.throwIfCancelled();
+    final work = _owner.engine.request('requestFormDataValues', {
+      'text': text,
+    }, requestId: requestId);
+    final result = cancellation == null
+        ? await work
+        : await Future.any<Map<String, dynamic>>([
+            work,
+            cancellation.whenCancelled.then((_) async {
+              await _owner.engine.cancel(requestId);
+              throw CoreFailure(
+                'cancelled',
+                'Form preparation cancelled; late results are discarded.',
+              );
+            }),
+          ]);
+    cancellation?.throwIfCancelled();
+    ensureCurrentOwner();
+    if (outdated)
+      throw CoreFailure(
+        'request.draft.stale',
+        'The operation changed during form preparation; no request was sent.',
+      );
+    return RequestFormData.fromJson(result, text);
+  }
+
   Future<RefactoringPlan> planEnvironment(
     String name,
     Map<String, Object?> definition,

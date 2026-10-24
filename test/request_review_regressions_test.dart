@@ -2245,6 +2245,121 @@ paths:
     },
   );
 
+  for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1']) {
+    testWidgets(
+      'F08 native structured form controls retain drafts and send exact values $version',
+      (tester) async {
+        tester.view.physicalSize = const Size(1500, 1000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final f = _Fixture();
+        HttpServer? endpoint;
+        final received = <(String, String, String)>[];
+        late String original;
+        try {
+          await tester.runAsync(() async {
+            endpoint = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+            endpoint!.listen((request) async {
+              received.add((
+                request.method,
+                request.uri.toString(),
+                await utf8.decoder.bind(request).join(),
+              ));
+              request.response.statusCode = 204;
+              await request.response.close();
+            });
+            original = version == '2.0'
+                ? '''swagger: '2.0'
+info: {title: Native form, version: '1'}
+host: 127.0.0.1:${endpoint!.port}
+schemes: [http]
+consumes: [application/x-www-form-urlencoded]
+paths:
+  /form:
+    post:
+      parameters:
+        - {in: formData, name: n, type: integer, required: true}
+        - {in: formData, name: flag, type: boolean, required: true}
+        - {in: formData, name: empty, type: string, required: true}
+      responses: {'204': {description: ok}}
+'''
+                : '''openapi: $version
+info: {title: Native form, version: '1'}
+servers: [{url: 'http://127.0.0.1:${endpoint!.port}'}]
+paths:
+  /form:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: {type: object, required: [n, flag, empty], properties: {n: {type: integer}, flag: {type: boolean}, empty: {type: string}}}
+      responses: {'204': {description: ok}}
+''';
+            await f.open(original);
+          });
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: buildBusyApiTheme(
+                brightness: Brightness.light,
+                accentColor: Colors.blue,
+              ),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(body: RequestRunPanel(run: f.run)),
+            ),
+          );
+          final toggle = find.byWidgetPredicate(
+            (widget) =>
+                widget is BusyApiSwitchRow &&
+                widget.title == 'Use an exact JSON value',
+          );
+          await tester.ensureVisible(toggle);
+          await tester.tap(toggle);
+          await tester.pumpAndSettle();
+          expect(f.run.bodyStructured, isTrue);
+          final entry = find.byWidgetPredicate(
+            (widget) =>
+                widget is RequestDraftEntry &&
+                widget.label == 'Use an exact JSON value',
+          );
+          final input = find.descendant(
+            of: entry,
+            matching: find.byType(TextFormField),
+          );
+          await tester.ensureVisible(input);
+          const data = '{"n":9007199254740993,"flag":false,"empty":""}';
+          await tester.enterText(input, data);
+          expect(f.run.bodyText, data);
+          f.run.selectEnvironment('local');
+          f.run.selectEnvironment(null);
+          await tester.pumpAndSettle();
+          expect(f.run.bodyStructured, isTrue);
+          expect(f.run.bodyText, data);
+          expect(f.run.draft().body.text, data);
+          await tester.runAsync(
+            () => HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp()),
+          );
+          expect(f.run.failure, isNull, reason: f.run.failureMessage);
+          expect(received, [
+            ('POST', '/form', 'n=9007199254740993&flag=false&empty='),
+          ]);
+          expect(f.run.result!.outgoing.complete, isTrue);
+          expect(f.run.result!.outgoing.valid, isTrue);
+          expect(f.file.readAsStringSync(), original);
+          expect(f.c.buffer!.text, original);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(() async {
+            await endpoint?.close(force: true);
+            await f.dispose();
+          });
+        }
+      },
+    );
+  }
+
   testWidgets(
     'H07 real example actions preserve data media and serialization layers on the wire',
     (tester) async {
@@ -2325,15 +2440,13 @@ paths:
           for (final declaration in media) {
             for (final example
                 in (declaration['examples'] as List).cast<Map>()) {
-              if (example['name'] == 'nested') {
-                final before = f.run.bodyText, requests = observed.length;
-                f.run.useBodyExample({...declaration, 'example': example});
-                expect(f.run.failure, 'request.example.conversion');
-                expect(f.run.bodyText, before);
-                expect(observed.length, requests);
-                continue;
-              }
               f.run.useBodyExample({...declaration, 'example': example});
+              if (declaration['mediaType'] ==
+                      'application/x-www-form-urlencoded' ||
+                  declaration['mediaType'] == 'multipart/form-data') {
+                expect(f.run.bodyStructured, isTrue);
+                expect(f.run.bodyText, example['raw']);
+              }
               await HttpOverrides.runWithHttpOverrides(
                 f.run.send,
                 _NativeHttp(),
@@ -2375,6 +2488,11 @@ paths:
                   expect(
                     observed.last.$3,
                     'note=fish%26chips&empty=&tag=one&tag=two',
+                  );
+                case 'nested':
+                  expect(
+                    observed.last.$3,
+                    'note=%7B%22inner%22%3A%22value%22%7D',
                   );
                 case 'parts':
                   expect(

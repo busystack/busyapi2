@@ -28,6 +28,28 @@ export function requestParameterValues(input:any) {
   return {version:1,values};
 }
 
+/** Exact execution data, never a contract projection. Array membership and
+ * scalar kinds survive transport so a JSON string such as "0" is not silently
+ * coerced to a number while preparing a form. Payload $ref keys remain data. */
+export function requestFormDataValues(input:any) {
+  if(typeof input.text!=='string'||Buffer.byteLength(input.text)>16*1024*1024)
+    throw new SourceError('limit.request.form','Form data JSON exceeds 16 MiB');
+  const doc=new SourceDocument(input.text,'file:///busyapi-form-value.json');
+  if(doc.root.kind!=='object')throw new SourceError('request.form.shape','Form data must be a JSON object',doc.root.range);
+  const wire=(node:any):any=>node.kind==='number'?doc.dataJson(node.pointer)
+    :node.kind==='array'?[...node.children.values()].map(wire)
+    :node.kind==='object'?Object.fromEntries([...node.children.entries()].map(([name,child])=>[name,wire(child)])):node.value;
+  const value=(node:any):any=>({kind:node.kind,raw:doc.dataJson(node.pointer),text:node.kind==='string'?node.value:doc.dataJson(node.pointer),value:wire(node),
+    ...(node.kind==='array'?{items:[...node.children.values()].map(value)}:{})});
+  let count=0;
+  const fields=[...doc.root.children.entries()].map(([name,node])=>{
+    count+=node.kind==='array'?Math.max(1,node.children.size):1;
+    if(count>maximumItems)throw new SourceError('limit.request.fields','Form data exceeds 2048 fields',node.range);
+    return {name,...value(node)};
+  });
+  return {version:1,input:createHash('sha256').update(input.text).digest('hex'),raw:doc.dataJson(''),fields};
+}
+
 /** Saved execution inputs use the same canonical CST as manual exact values. */
 export function executionCaseValues(input:any) {
   const source=input.source;

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'model.dart';
+import 'request_form_values.dart';
 
 String swaggerDelimiter(Object? format) => switch (format ?? 'csv') {
   'csv' => ',',
@@ -153,4 +154,45 @@ String swaggerFormInstance(Map declaration, List<String> values) {
     return '[${values.map((v) => primitive(items['type'], v)).join(',')}]';
   }
   return primitive(declaration['type'], values.single);
+}
+
+List<(String, String)> swaggerFormDataFields(
+  RequestFormData data,
+  List<Map> declarations,
+  Iterable<String> files,
+) {
+  final fileNames = files.toSet();
+  for (final declaration in declarations) {
+    final name = declaration['name'] as String;
+    final value = data.fields[name];
+    final absent =
+        value == null ||
+        value.kind == RequestDataKind.array && value.items.isEmpty;
+    if (declaration['required'] == true &&
+        absent &&
+        !fileNames.contains(name)) {
+      throw CoreFailure(
+        'request.form.required',
+        'Enter required Swagger formData parameter $name',
+      );
+    }
+    if (declaration['type'] == 'file' && data.fields.containsKey(name) ||
+        declaration['type'] != 'file' && fileNames.contains(name)) {
+      throw CoreFailure(
+        'request.form.file',
+        'Use the declared file input for Swagger formData parameter $name',
+      );
+    }
+  }
+  return [
+    for (final entry in data.fields.entries)
+      ...serializeSwaggerParameter({
+        'collectionFormat': 'multi',
+        ...?declarations
+            .where((declaration) => declaration['name'] == entry.key)
+            .firstOrNull,
+        'name': entry.key,
+        'in': 'formData',
+      }, entry.value.value),
+  ];
 }

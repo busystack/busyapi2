@@ -444,10 +444,21 @@ class ContractTestRunner {
           : RequestValue.text(value['text'] as String);
     }
     if (rawBody is Map && exact['body'] is Map) {
-      body = RequestBodyDraft.raw(
-        mediaType: rawBody['mediaType'] as String,
-        text: exact['body']['text'] as String,
-      );
+      final media = rawBody['mediaType'] as String,
+          text = exact['body']['text'] as String;
+      body = exact['body']['json'] == true
+          ? switch (media.split(';').first.trim().toLowerCase()) {
+              'application/x-www-form-urlencoded' => RequestBodyDraft.formValue(
+                json: text,
+                mediaType: media,
+              ),
+              'multipart/form-data' => RequestBodyDraft.multipartValue(
+                json: text,
+                mediaType: media,
+              ),
+              _ => RequestBodyDraft.raw(mediaType: media, text: text),
+            }
+          : RequestBodyDraft.raw(mediaType: media, text: text);
     }
     return OperationRequestDraft(
       planIdentity: plan.identity,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'model.dart';
+import 'request_form_values.dart';
 
 class FormContentPart {
   const FormContentPart(this.name, this.text, this.contentType);
@@ -27,8 +28,9 @@ Future<PreparedFormValues> prepareFormValues(
   List<(String, String)> fields,
   Map declaration,
   bool multipart,
-  Future<Map<String, dynamic>> Function(Map<String, String>) parseJson,
-) async {
+  Future<Map<String, dynamic>> Function(Map<String, String>) parseJson, {
+  RequestFormData? data,
+}) async {
   final metadata = declaration['form'];
   if (metadata is! Map || metadata['shape'] is! Map) {
     throw CoreFailure(
@@ -43,18 +45,22 @@ Future<PreparedFormValues> prepareFormValues(
   for (final (name, text) in fields) {
     (groups[name] ??= []).add(text);
   }
+  if (data != null)
+    for (final entry in data.fields.entries) {
+      groups[entry.key] = [
+        for (final value
+            in entry.value.kind == RequestDataKind.array
+                ? entry.value.items
+                : [entry.value])
+          value.text,
+      ];
+    }
   final jsonInputs = <String, String>{};
   final definitions = <String, _FormValue>{};
   var complete = true;
   String? type(Map shape) {
-    final types = shape['types'];
-    if (types is! List) return null;
-    if (types.length == 1 && types.single == 'null') return 'null';
-    // A literal form field remains a string if the schema permits strings.
-    // Non-string unions need explicit unambiguous JSON data.
-    if (types.contains('string')) return 'string';
-    final concrete = types.where((value) => value != 'null').toList();
-    return concrete.length == 1 ? concrete.single as String : null;
+    final type = shape['literalType'];
+    return type is String ? type : null;
   }
 
   String contentType(Map item) {
@@ -69,6 +75,12 @@ Future<PreparedFormValues> prepareFormValues(
   }
 
   for (final entry in groups.entries) {
+    final supplied = data?.fields[entry.key];
+    final suppliedValues = supplied == null
+        ? null
+        : supplied.kind == RequestDataKind.array
+        ? supplied.items
+        : [supplied];
     final property = properties is Map ? properties[entry.key] : null;
     final fieldShape = property is Map ? property : const <String, Object?>{};
     final rawRule = encoding is Map ? encoding[entry.key] : null;
@@ -96,13 +108,18 @@ Future<PreparedFormValues> prepareFormValues(
     }
     if (styled &&
         rule['style'] == 'deepObject' &&
-        (rule['explode'] != true || type(fieldShape) != 'object')) {
+        (rule['explode'] != true ||
+            (supplied == null
+                ? type(fieldShape) != 'object'
+                : supplied.kind != RequestDataKind.object))) {
       throw CoreFailure(
         'request.form.style',
         'deepObject requires an object with explode enabled; other combinations are undefined.',
       );
     }
-    final array = type(fieldShape) == 'array';
+    final array = supplied == null
+        ? type(fieldShape) == 'array'
+        : supplied.kind == RequestDataKind.array;
     if (!array && type(fieldShape) != null && entry.value.length > 1) {
       throw CoreFailure(
         'request.form.scalar',
@@ -121,6 +138,35 @@ Future<PreparedFormValues> prepareFormValues(
     for (var index = 0; index < entry.value.length; index++) {
       final text = entry.value[index], itemType = type(itemShape);
       final literalMedia = media?.split(';').first.trim().toLowerCase();
+      final actual = suppliedValues?[index];
+      if (actual != null) {
+        if (!styled &&
+            !jsonMedia &&
+            ![
+              'text/plain',
+              'application/octet-stream',
+            ].contains(literalMedia) &&
+            [
+              RequestDataKind.array,
+              RequestDataKind.object,
+            ].contains(actual.kind)) {
+          throw CoreFailure(
+            'request.form.media.unsupported',
+            'This form media type has no structured data serializer. Use an explicitly serialized literal field.',
+          );
+        }
+        values.add(
+          _FormScalar(
+            '${definitions.length}:$index',
+            jsonMedia ? actual.raw : actual.text,
+            actual.raw,
+            false,
+            supplied: true,
+            value: actual.value,
+          ),
+        );
+        continue;
+      }
       final undecoded =
           !styled &&
           !jsonMedia &&
@@ -152,7 +198,8 @@ Future<PreparedFormValues> prepareFormValues(
       );
     }
     definitions[entry.key] = _FormValue(
-      array || type(fieldShape) == null && values.length > 1,
+      array ||
+          supplied == null && type(fieldShape) == null && values.length > 1,
       styled,
       rule,
       media,
@@ -166,8 +213,20 @@ Future<PreparedFormValues> prepareFormValues(
     final definition = entry.value;
     final values = [
       for (final value in definition.values)
-        value.parse ? parsed[value.key] : value.text,
+        value.supplied
+            ? value.value
+            : value.parse
+            ? parsed[value.key]
+            : value.text,
     ];
+    // RFC6570 treats an empty collection as undefined. Named multipart arrays
+    // likewise produce no parts. Check the emitted object's actual presence.
+    if (values.isEmpty ||
+        definition.styled &&
+            !definition.array &&
+            values.single is Map &&
+            (values.single as Map).isEmpty)
+      continue;
     final raw = definition.array
         ? '[${definition.values.map((value) => value.json).join(',')}]'
         : definition.values.single.json;
@@ -196,9 +255,17 @@ Future<PreparedFormValues> prepareFormValues(
 }
 
 class _FormScalar {
-  const _FormScalar(this.key, this.text, this.json, this.parse);
+  const _FormScalar(
+    this.key,
+    this.text,
+    this.json,
+    this.parse, {
+    this.supplied = false,
+    this.value,
+  });
   final String key, text, json;
-  final bool parse;
+  final bool parse, supplied;
+  final Object? value;
 }
 
 class _FormValue {
