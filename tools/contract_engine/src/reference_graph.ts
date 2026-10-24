@@ -1,10 +1,11 @@
-import { children, isReferenceObject, referenceKinds } from './contexts';
+import { children, isReferenceObject, referenceKinds, supportsReference } from './contexts';
 import { SourceDocument, SourceError, escape, limits } from './document';
 import {resolveIri} from '@hyperjump/uri';
-import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, isNativeFamily, Specification} from './specification';
+import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, swaggerSchemaDialect, isNativeFamily, Specification} from './specification';
 
 export const knownDialects = new Set([
     restrictedSchemaDialect,
+    swaggerSchemaDialect,
     'https://json-schema.org/draft/2020-12/schema',
     'https://spec.openapis.org/oas/3.1/dialect/base',
     'https://spec.openapis.org/oas/3.1/dialect/2024-11-10',
@@ -19,7 +20,7 @@ export type GraphScope = GraphTarget & {
 /** Restricted OpenAPI evaluation is an owning-family capability, not a
  * general-purpose additional JSON Schema dialect promised in modern roots. */
 export const supportedSchemaDialect = (scope: Pick<GraphScope, 'family' | 'dialect'>): boolean =>
-    scope.family === '3.0' ? scope.dialect === restrictedSchemaDialect : modernFamily(scope.family) && knownDialects.has(scope.dialect) && scope.dialect !== restrictedSchemaDialect;
+    scope.family === '2.0' ? scope.dialect === swaggerSchemaDialect : scope.family === '3.0' ? scope.dialect === restrictedSchemaDialect : modernFamily(scope.family) && knownDialects.has(scope.dialect) && ![restrictedSchemaDialect,swaggerSchemaDialect].includes(scope.dialect);
 export type GraphIssue = GraphTarget & { code: string; message: string; incomplete?: boolean; severity?: 'warning'|'error' };
 export type PathItemView = {source:GraphTarget;chain:readonly GraphTarget[];fields:ReadonlyMap<string,GraphTarget>;complete:boolean;chainComplete:boolean;conflicts:readonly string[];cyclic:boolean};
 export type OperationOccurrence = {source:GraphTarget;pathItem:GraphTarget;path:string;method:string;role:string;occurrence:string;shared:boolean;customMethod?:boolean};
@@ -120,7 +121,7 @@ export class ReferenceGraph {
             const specification = declaration.status === 'supported' ? declaration.specification : undefined;
             if (specification) this.specifications.set(doc.id, specification);
             const declared = specification?.family ?? (Object.hasOwn(data ?? {}, 'openapi')
-                ? typeof data.openapi === 'string' && /^(\d+\.\d+)\.\d+$/.test(data.openapi) ? data.openapi.slice(0, data.openapi.lastIndexOf('.')) : 'unknown'
+                ? declaration.status === 'unsupported' && typeof data.openapi === 'string' && /^(\d+\.\d+)\.\d+$/.test(data.openapi) ? data.openapi.slice(0, data.openapi.lastIndexOf('.')) : 'unknown'
                 : Object.hasOwn(data ?? {}, 'swagger') ? 'unknown' : undefined);
             const documentFamily = declared ?? family;
             if (!specification && (Object.hasOwn(data ?? {}, 'openapi') || Object.hasOwn(data ?? {}, 'swagger')) && declaration.status !== 'supported')
@@ -144,7 +145,7 @@ export class ReferenceGraph {
             for (const alias of aliases.get(doc.id) ?? []) this.register(this.identities, resolveUri(alias, doc.id).href, target);
             const scope = { ...target, base, resourcePointer: '', dialect: specification?.schemaDialect ?? defaultDialect, family: documentFamily };
             this.scopes.set(key(doc.id, ''), scope);
-            if (doc.id === root || typeof data?.openapi === 'string')
+            if (doc.id === root || specification)
                 this.index(doc.id, '', 'root', scope);
             else if (data && typeof data === 'object' && ['$id', '$schema', '$anchor', '$dynamicAnchor'].some(k => Object.hasOwn(data, k)))
                 this.index(doc.id, '', 'schema', scope);
@@ -309,7 +310,7 @@ export class ReferenceGraph {
             this.literalIndex = new Map();
             for (const scope of this.scopes.values()) {
                 const doc = this.docs.get(scope.resource)!;
-                if (scope.kind === 'root' && typeof doc.root.value?.openapi !== 'string') continue;
+                if (scope.kind === 'root' && !this.specifications.has(doc.id)) continue;
                 const node = doc.dataNode(scope.pointer)!;
                 const typed = new Set(isReferenceObject(node.value, scope.kind, scope.family) ? [] : children(node.value, scope.kind, scope.family).map(([name]) => name));
                 for (const [name, authored] of node.children) {
@@ -354,7 +355,7 @@ export class ReferenceGraph {
             // for implicit names in referenced fragments. URI identity remains
             // separate, and a matching component name takes precedence in 3.2.
             const group = ref.connection === 'security' ? 'securitySchemes' : 'schemas';
-            const pointer = '/components/' + group + '/' + escape(ref.value);
+            const pointer = (this.family==='2.0'?ref.connection==='security'?'/securityDefinitions':'/definitions':'/components/'+group) + '/' + escape(ref.value);
             if (this.docs.get(this.root)?.dataNode(pointer)) return {resolution: 'resolved', targetResource: this.root, targetPointer: pointer};
             if (ref.connection === 'security' && ref.family !== '3.2') return {resolution: 'missing', targetResource: this.root, targetPointer: pointer};
         }
@@ -488,7 +489,7 @@ export class ReferenceGraph {
         }
         this.scopes.set(key(resource, pointer), scope);
         if (!value || typeof value !== 'object') return;
-        const refKind = referenceKinds.has(kind) && (kind !== 'media' || scope.family === '3.2');
+        const refKind = supportsReference(kind,scope.family) && (kind !== 'media' || scope.family === '3.2');
         for (const keyword of kind === 'schema' && modernFamily(scope.family) ? ['$ref', '$dynamicRef'] : ['$ref']) {
             if (!refKind || typeof value[keyword] !== 'string') continue;
             const ref: GraphReference = { ...scope, keyword, value: value[keyword], resolution: 'pending' };

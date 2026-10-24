@@ -6,6 +6,10 @@ import {escape} from './document';
  * (3.0.4 §4.7.30, 3.1.2 §4.8.30, 3.2.1 §4.30). */
 export function securityRequirementIssues(graph: ReferenceGraph): GraphIssue[] {
     const issues: GraphIssue[] = [];
+    for(const scope of graph.scopes.values())if(scope.family==='2.0'&&scope.kind==='security') {
+        const node=graph.docs.get(scope.resource)!.dataNode(scope.pointer)!;
+        if(node.value?.type==='oauth2'&&!Object.hasOwn(node.value,'scopes'))issues.push({...scope,pointer:scope.pointer+'/scopes',code:'security.scopes.required',message:'A Swagger OAuth2 Security Scheme must declare its scopes map (2.0 §6.4.24)'});
+    }
     const definitions = new Map<string, GraphTarget | undefined>();
     for (const reference of graph.references) {
         if (reference.connection !== 'security' || reference.resolution !== 'resolved') continue;

@@ -37,7 +37,7 @@ export function planDelete(input: any) {
     // A referenced fragment can have an arbitrary container, not an invented
     // Components map. Its established child context still identifies the
     // physical definition; surviving consumers below will block its removal.
-    const fragmentDefinition = parent.kind === 'object' && owner.graph.scopes.has(resource.id + '#' + target.pointer) && (!scope || scope.kind === 'root' && typeof doc.root.value?.openapi !== 'string');
+    const fragmentDefinition = parent.kind === 'object' && owner.graph.scopes.has(resource.id + '#' + target.pointer) && (!scope || scope.kind === 'root' && !owner.graph.specifications.has(doc.id));
     if (!fragmentDefinition && (!scope || !removableField(scope.kind, scope.family, parent.value, name, parts.at(-1)))) throw new SourceError('refactor.delete.required', 'This is not an optional field or authored collection member');
     const isProperty = scope?.kind === 'schema-map' && parts.at(-1) === 'properties';
     const actions: any[] = [{kind: 'remove', pointer: target.pointer}];
@@ -76,7 +76,7 @@ export function planDelete(input: any) {
         let replacement = ref.value;
         const implicit = ref.connection === 'operationId' ||
             (ref.connection === 'security' || ref.connection === 'discriminator') &&
-            graph.docs.get(graph.root)?.dataNode('/components/' + (ref.connection === 'security' ? 'securitySchemes' : 'schemas') + '/' + escape(ref.value)) !== undefined;
+            graph.docs.get(graph.root)?.dataNode((graph.family==='2.0'?ref.connection==='security'?'/securityDefinitions':'/definitions':'/components/' + (ref.connection === 'security' ? 'securitySchemes' : 'schemas')) + '/' + escape(ref.value)) !== undefined;
         if (!removed && !direct && !dynamic && !implicit) {
             const uri = resolveUri(ref.value, ref.base), fragment = decodeURIComponent(uri.hash.slice(1));
             if (fragment.startsWith('/')) {

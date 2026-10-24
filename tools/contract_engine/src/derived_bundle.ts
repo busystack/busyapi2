@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {analyse,createGraph,Resource} from './engine';
 import {escape,RawJsonValue,SourceDocument,SourceError} from './document';
 import {documentUriBase,GraphScope,resolveUri} from './reference_graph';
-import {documentUriFields} from './authoring';
+import {documentUriFields,componentLocation} from './authoring';
 import {modernFamily} from './specification';
 
 const within=(pointer:string,parent:string)=>pointer===parent||pointer.startsWith(parent+'/');
@@ -66,13 +66,15 @@ type Placement={resource:string;from:string;to:string;kind:string;schema?:boolea
 export function deriveBundle(input:any) {
  const {docs,graph,family}=createGraph(input),root=docs.get(input.root)!;
  const groups={...componentGroups};
+ const collection=(group:string)=>componentLocation(group,family)??'/'+group;
+ const schemaCollection=collection('schemas');
  if(!modernFamily(family)) {
   // 3.0 permits Path Item $ref but has no reusable Path Items fixed field.
   // A derived extension holds the unchanged reference target, reached by an
   // ordinary JSON Pointer. This is output-only storage, never a source edit,
   // version conversion, new route or implicit inline/merge of shared objects.
   let group='x-busyapi-path-items',suffix=0;
-  while(Object.hasOwn(root.root.value?.components??{},group))group='x-busyapi-path-items-'+(++suffix);
+  while(Object.hasOwn((family==='2.0'?root.root.value:root.root.value?.components)??{},group))group='x-busyapi-path-items-'+(++suffix);
   groups['path-item']=group;
  }
  if(typeof input.outputId!=='string'||!input.outputId.endsWith('.json'))throw new SourceError('bundle.destination','Choose an independent JSON output identity');
@@ -84,7 +86,7 @@ export function deriveBundle(input:any) {
  const schemaScopes=[...graph.scopes.values()].filter(scope=>scope.kind==='schema');
  const placements:Placement[]=[],imports=new Map<string,Map<string,string>>(),patches=new Map<string,string>();
  const entryBase=graph.scope(input.root,'').base;
- const defaultServer=!root.root.children.has('servers')||Array.isArray(root.root.value.servers)&&root.root.value.servers.length===0;
+ const defaultServer=family!=='2.0'&&(!root.root.children.has('servers')||Array.isArray(root.root.value.servers)&&root.root.value.servers.length===0);
  const needsEntryIdentity=graph.references.some(ref=>ref.kind==='schema'&&ref.targetResource===input.root&&ref.base!==entryBase&&graph.scope(input.root,ref.targetPointer!).resourcePointer==='');
  const retainEntryResource=family==='3.1'&&needsEntryIdentity;
  const addSelf=family==='3.2'&&typeof root.root.value.$self!=='string'&&needsEntryIdentity;
@@ -95,7 +97,7 @@ export function deriveBundle(input:any) {
  for(const scope of schemaScopes)if(typeof docs.get(scope.resource)!.dataNode(scope.pointer)?.value?.$id==='string')
   patches.set(key(scope.resource,scope.pointer+'/$id'),JSON.stringify(scope.base));
  const reserved=new Map<string,Set<string>>();
- for(const [group,entries]of Object.entries(root.root.value?.components??{}))reserved.set(group,new Set(Object.keys(entries??{})));
+ for(const group of Object.values(groups))reserved.set(group,new Set(root.dataNode(collection(group))?.children.keys()??[]));
  const name=(group:string,identity:string)=>{
   const names=reserved.get(group)??new Set<string>(),hash=createHash('sha256').update(identity).digest('hex');
   let candidate='_busyapi_'+hash.slice(0,24),suffix=0;
@@ -125,19 +127,19 @@ export function deriveBundle(input:any) {
   if(!modernFamily(family)) {
    for(const scope of scopes) {
     if(scope.family!==family)throw new SourceError('bundle.object.version','A schema belongs to a different specification family');
-    const to='/components/schemas/'+name('schemas',key(resource,scope.pointer));
+    const to=schemaCollection+'/'+name('schemas',key(resource,scope.pointer));
     placements.push({resource,from:scope.pointer,to,kind:'schema',schema:true,entryContext:true});
     schemaCopies.push({scope,to,entryContext:true});
    }
    continue;
   }
   if(scopes.length===1&&scopes[0].pointer===''&&doc.root.kind==='object') {
-   const component=name('schemas',key(resource,'')),to='/components/schemas/'+component;
+   const component=name('schemas',key(resource,'')),to=schemaCollection+'/'+component;
    placements.push({resource,from:'',to,kind:'schema',schema:true});schemaCopies.push({scope:scopes[0],to});
    // A root-relative declaration used its retrieval identity before import.
    patches.set(key(resource,'/$id'),JSON.stringify(scopes[0].base));
   }else{
-   const component=name('schemas','resource:'+resource),to='/components/schemas/'+component;
+   const component=name('schemas','resource:'+resource),to=schemaCollection+'/'+component;
    // A containing OAS document may select a dialect at a schema root without
    // an authored $id. Such declarations cannot simply become nested $schema
    // keywords under $defs (2020-12 Core 8.1.1). If these roots agree, retain
@@ -183,7 +185,7 @@ export function deriveBundle(input:any) {
  });
  for(const scope of owners) {
   const group=groups[scope.kind],component=name(group,key(scope.resource,scope.pointer));
-  placements.push({resource:scope.resource,from:scope.pointer,to:'/components/'+group+'/'+component,kind:scope.kind});
+  placements.push({resource:scope.resource,from:scope.pointer,to:collection(group)+'/'+component,kind:scope.kind});
  }
  placements.sort((a,b)=>b.from.length-a.from.length||compare(a.resource,b.resource)||compare(a.to,b.to));
  const placementIndex=new Map(placements.map(p=>[key(p.resource,p.from),p]));
@@ -219,7 +221,7 @@ export function deriveBundle(input:any) {
   let at=scope.pointer,covered=false;
   while(at){at=at.slice(0,at.lastIndexOf('/'));if(entryLiteralPointers.has(at)){covered=true;break;}}
   if(covered)continue;
-  const to='/components/schemas/'+name('schemas','schema-occurrence:'+key(scope.resource,scope.pointer));
+  const to=schemaCollection+'/'+name('schemas','schema-occurrence:'+key(scope.resource,scope.pointer));
   const placement:Placement={resource:scope.resource,from:scope.pointer,to,kind:'schema',schema:true,entryContext:true};
   placements.push(placement);placementIndex.set(key(scope.resource,scope.pointer),placement);
   rootSchemaMoves.set(key(scope.resource,scope.pointer),placement);
@@ -237,7 +239,7 @@ export function deriveBundle(input:any) {
   if(!literalBelow(scope.resource,scope.pointer,previous?.from))continue;
   const parent=graph.scope(scope.resource,scope.pointer.slice(0,scope.pointer.lastIndexOf('/')));
   if(!modernFamily(family)||scope.resource===input.root&&parent.resourcePointer===''&&!retainEntryResource) {
-   const to='/components/schemas/'+name('schemas','schema-occurrence:'+key(scope.resource,scope.pointer));
+   const to=schemaCollection+'/'+name('schemas','schema-occurrence:'+key(scope.resource,scope.pointer));
    const placement:Placement={resource:scope.resource,from:scope.pointer,to,kind:'schema',schema:true,entryContext:true};
    placements.push(placement);placementIndex.set(key(scope.resource,scope.pointer),placement);rootSchemaMoves.set(key(scope.resource,scope.pointer),placement);
    schemaCopies.push({scope,to,entryContext:true});continue;
@@ -267,7 +269,7 @@ export function deriveBundle(input:any) {
   if(!literalBelow(scope.resource,scope.pointer,placementAt(scope.resource,scope.pointer)?.from))continue;
   if(scope.kind==='media'&&family!=='3.2')throw new SourceError('bundle.object.context','This semantic target has no component family in the selected specification');
   if(scope.family!==family)throw new SourceError('bundle.object.version','A referenced OpenAPI object belongs to another authored feature family');
-  const to='/components/'+groups[scope.kind]+'/'+name(groups[scope.kind],'literal-occurrence:'+key(scope.resource,scope.pointer)),placement:Placement={resource:scope.resource,from:scope.pointer,to,kind:scope.kind};
+  const to=collection(groups[scope.kind])+'/'+name(groups[scope.kind],'literal-occurrence:'+key(scope.resource,scope.pointer)),placement:Placement={resource:scope.resource,from:scope.pointer,to,kind:scope.kind};
   placements.push(placement);placementIndex.set(key(scope.resource,scope.pointer),placement);
  }
  // An external Example/annotation can supply a schema target as well as data.
@@ -306,13 +308,13 @@ export function deriveBundle(input:any) {
  const effectiveDialectKeys=new Set(effectiveDialects.map(copy=>key(copy.scope.resource,copy.scope.pointer)));
  const assemble=()=>{
   imports.clear();
-  for(const {scope,to,entryContext}of schemaCopies)if(to.split('/').length===4) {
+  for(const {scope,to,entryContext}of schemaCopies)if(to.slice(schemaCollection.length+1).indexOf('/')===-1) {
    let raw=render(scope.resource,scope.pointer,true);
    if(!entryContext&&!docs.get(scope.resource)!.dataNode(scope.pointer)!.children.has('$id'))raw=new SourceDocument(raw,outputId).set('/$id',scope.base);
    // An imported standalone resource used its original containing document's
    // default, not the destination OpenAPI document's jsonSchemaDialect.
    if(!entryContext&&!docs.get(scope.resource)!.dataNode(scope.pointer)!.children.has('$schema'))raw=new SourceDocument(raw,outputId).set('/$schema',scope.dialect);
-   put('schemas',to.split('/')[3],raw);
+   put('schemas',to.slice(schemaCollection.length+1),raw);
   }
   for(const envelope of envelopes) {
    const scope=graph.scope(envelope.resource,'');
@@ -328,7 +330,7 @@ export function deriveBundle(input:any) {
    put('schemas',envelope.name,'{"$id":'+JSON.stringify(scope.base)+',"$schema":'+JSON.stringify(envelope.dialect)+',"$defs":{'+definitions.join(',')+'}}');
   }
   for(const placement of placements)if(!placement.schema) {
-   const parts=placement.to.split('/');put(parts[2],parts[3],render(placement.resource,placement.from));
+   const group=groups[placement.kind];put(group,placement.to.slice(collection(group).length+1),render(placement.resource,placement.from));
   }
   let text=render(input.root,'');
   let doc=new SourceDocument(text,outputId);
@@ -340,7 +342,14 @@ export function deriveBundle(input:any) {
    doc=new SourceDocument(text,outputId);
   }
   if(addSelf){text=doc.set('/$self',entryBase);doc=new SourceDocument(text,outputId);}
-  if(imports.size) {
+  if(imports.size&&family==='2.0') {
+   for(const [group,entries]of imports) {
+    const pointer=collection(group),existing=doc.dataNode(pointer);
+    if(existing&&existing.kind!=='object')throw new SourceError('bundle.components','A native reusable collection is not an object');
+    const values=[...[...existing?.children??[]].map(([name,child])=>JSON.stringify(name)+':'+doc.dataJson(child.pointer)),...[...entries].map(([name,raw])=>JSON.stringify(name)+':'+raw)];
+    text=doc.set(pointer,new RawJsonValue('{'+values.join(',')+'}'));doc=new SourceDocument(text,outputId);
+   }
+  } else if(imports.size) {
    const components=doc.nodes.get('/components'),groups:string[]=[],remaining=new Map(imports);
    const imported=(entries:Map<string,string>)=>[...entries].sort(([a],[b])=>compare(a,b)).map(([name,raw])=>JSON.stringify(name)+':'+raw);
    for(const [group,node]of components?.children??[]) {
@@ -398,7 +407,7 @@ export function deriveBundle(input:any) {
    if(ref.targetResource!==input.root||ref.value.includes('/')||ref.value.includes('#'))keyRepairs.set(key(ref.resource,ref.pointer+'/'+escape(ref.keyword)),targetAddress(ref.targetResource!,ref.targetPointer!,false));
    continue;
   }
-  if(ref.connection==='discriminator'&&!ref.value.includes('/')&&!ref.value.includes('#')&&root.nodes.has('/components/schemas/'+escape(ref.value)))continue;
+  if(ref.connection==='discriminator'&&!ref.value.includes('/')&&!ref.value.includes('#')&&root.nodes.has(schemaCollection+'/'+escape(ref.value)))continue;
   const schema=ref.kind==='schema'&&!ref.connection||ref.connection==='discriminator';
   let next=targetAddress(ref.targetResource!,ref.targetPointer!,!!schema);
   // A dynamic anchor remains a dynamic anchor, not a statically substituted
@@ -434,7 +443,7 @@ export function deriveBundle(input:any) {
  if(input.consumer==='oasdiff') {
   const entryBase=after.scope(outputId,'').base,source=new SourceDocument(text,outputId),edits:{range:[number,number];text:string}[]=[];
   for(const ref of after.references) {
-   if(ref.keyword!=='$ref'||ref.kind!=='schema'||ref.dynamic||ref.resolution!=='resolved'||ref.targetResource!==outputId||!ref.targetPointer?.startsWith('/components/schemas/'))continue;
+   if(ref.keyword!=='$ref'||ref.kind!=='schema'||ref.dynamic||ref.resolution!=='resolved'||ref.targetResource!==outputId||!ref.targetPointer?.startsWith(schemaCollection+'/'))continue;
    if(after.scope(outputId,ref.pointer).base!==entryBase)continue;
    const node=source.nodes.get(ref.pointer+'/'+escape(ref.keyword));
    if(!node||typeof node.value!=='string')throw new SourceError('bundle.oasdiff.reference','A proved semantic reference lost its exact source location');

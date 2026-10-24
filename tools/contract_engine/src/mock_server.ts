@@ -2,6 +2,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { isDeepStrictEqual } from 'node:util';
 // The pinned component exports a CommonJS default; use that exact public component.
 const { default: mock, createInvalidInputResponse }:typeof import('@stoplight/prism-http/dist/mocker') = require('@stoplight/prism-http/dist/mocker');
+import {transformOas2Operations} from '@stoplight/http-spec/oas2/operation';
 import { transformOas3Operations } from '@stoplight/http-spec/oas3/operation';
 import { createLogger } from '@stoplight/prism-core';
 import { ContentExample, createInstance, ProblemJsonError } from '@stoplight/prism-http';
@@ -90,6 +91,10 @@ function exactExamples(text: string, tree: Node): ExactExample[] {
       for (const responseProperty of children(responses)) {
         const status = propertyName(responseProperty), response = responseProperty.children?.[1];
         if (!status || !response) continue;
+        if(findNodeAtLocation(tree,['swagger'])?.value==='2.0')for(const property of children(findNodeAtLocation(response,['examples']))) {
+          const mediaType=propertyName(property),value=property.children?.[1];
+          if(mediaType&&value)output.push({path,method,status,mediaType,raw:text.slice(value.offset,value.offset+value.length),serialized:false});
+        }
         const content = findNodeAtLocation(response, ['content']);
         for (const mediaProperty of children(content)) {
           const mediaType = propertyName(mediaProperty), media = mediaProperty.children?.[1];
@@ -253,11 +258,11 @@ async function main(): Promise<void> {
   const examples = exactExamples(input.document, tree);
   const document = JSON.parse(input.document) as Record<string, unknown>;
   const version = document.openapi;
-  if (typeof version !== 'string' || !/^3\.(?:0|1|2)\./.test(version))
+  if (document.swagger!=='2.0'&&(typeof version !== 'string' || !/^3\.(?:0|1|2)\./.test(version)))
     throw new Error('mock input must be a supported OpenAPI document');
   // This qualified in-memory path never asks Prism's path loader to reinterpret
   // a literal Example Object `$ref` property as a filesystem dependency.
-  const operations = transformOas3Operations(document);
+  const operations = document.swagger==='2.0'?transformOas2Operations(document):transformOas3Operations(document);
   if (operations.length === 0) throw new Error('mock input has no operations');
   const logger = createLogger('BusyAPIMock', { level: 'warn', base: undefined },
     pino.destination({ dest: 2, sync: false }));

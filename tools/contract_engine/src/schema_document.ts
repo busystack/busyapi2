@@ -4,6 +4,7 @@
 import {buildSchemaDocument} from '@hyperjump/json-schema/experimental';
 import {knownDialects,supportedSchemaDialect,resolveUri,schemaAddress} from './reference_graph';
 import {isReferenceObject} from './contexts';
+import {schemaEvaluationScopes} from './swagger_schema';
 
 const escape = key => key.replaceAll('~','~0').replaceAll('/','~1');
 const tokens = pointer => pointer === '' ? [] : pointer.slice(1).split('/').map(s=>s.replaceAll('~1','/').replaceAll('~0','~'));
@@ -22,8 +23,9 @@ export function embeddedSchemaDocument(document:any,uri:string) {
 }
 
 export function typedSchemaDocument(value: any, id: string, graph: any, dialect: string): any {
-  const scopes=[...graph.scopes.values()].filter((s:any)=>s.resource===id&&s.kind==='schema') as any[];
+  const scopes=schemaEvaluationScopes(graph).filter(scope=>scope.resource===id);
   const schemaPointers = new Set(scopes.filter(s=>supportedSchemaDialect(s)).map(s=>s.pointer));
+  const flatParameters=new Set(scopes.filter(scope=>scope.family==='2.0'&&scope.objectKind==='parameter').map(scope=>scope.pointer));
   const applicators=new Map<string,string>();
   for(const reference of graph.references)if(reference.resource===id&&reference.kind==='schema'&&!reference.connection&&reference.resolution==='resolved'){
     const target=graph.scopes.get(reference.targetResource+'#'+reference.targetPointer);
@@ -47,6 +49,7 @@ export function typedSchemaDocument(value: any, id: string, graph: any, dialect:
     const output:any=Array.isArray(value)?[]:{};
     for(const [name,child]of Object.entries(value)) {
       const at=pointer+'/'+escape(name);
+      if(name==='required'&&flatParameters.has(pointer))continue;
       if(schemaPointers.has(pointer) && isReferenceObject(value,'schema',graph.scope(id,pointer).family) && name !== '$ref') continue;
       if(schemaPointers.has(pointer)&&applicators.has(at)){
         Object.defineProperty(output,name,{value:applicators.get(at),enumerable:true,writable:true,configurable:true});continue;

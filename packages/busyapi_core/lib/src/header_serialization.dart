@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'swagger_serialization.dart';
+
 /// Reconstruct the declared representation for canonical JSON/schema checks.
 /// Numbers remain JSON lexemes; ambiguous representations stay unchecked.
 (Map?, String)? decodeDeclaredHeader(Map declaration, List<String> values) {
@@ -24,7 +26,8 @@ import 'dart:convert';
   final schema = declaration['schema'];
   if (schema is! Map || schema['unconstrained'] == true) return null;
   final shape = declaration['shape'];
-  if (shape is! Map || declaration['style'] != 'simple') {
+  if (shape is! Map ||
+      declaration['family'] != '2.0' && declaration['style'] != 'simple') {
     throw UnsupportedError('Header representation cannot be established');
   }
   final cookie = '${declaration['name']}'.toLowerCase() == 'set-cookie';
@@ -60,7 +63,14 @@ import 'dart:convert';
     if (values.length != 1) throw UnsupportedError('Repeated scalar header');
     return (schema, scalar(values.single, shape));
   }
-  final parts = cookie ? values : _listParts(values.join(','));
+  final parts =
+      declaration['family'] == '2.0' && declaration['collectionFormat'] != 'csv'
+      ? values
+            .join(',')
+            .split(swaggerDelimiter(declaration['collectionFormat']))
+      : cookie
+      ? values
+      : _listParts(values.join(','));
   if (type == 'array') {
     if (parts.length == 1 && parts.single.isEmpty)
       throw UnsupportedError('Ambiguous empty array representation');

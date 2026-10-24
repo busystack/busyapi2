@@ -9,6 +9,7 @@ import {addKeyword,getKeyword,getKeywordName,canonicalUri} from '@hyperjump/json
 import {SourceDocument, SourceError} from './document';
 import {schemaMetaView} from './schema_boundaries';
 import {isReferenceObject} from './contexts';
+import {swaggerDiscriminator} from './swagger_discriminator';
 
 export function decimal(raw: string) {
  const match=/^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/.exec(raw);
@@ -43,6 +44,7 @@ export function nativeNumberIsExact(raw:string,value:number):boolean {
 let standardType:any;
 let standardOas30Type:any;
 let standardRequired:any;
+let standardReadOnly:any;
 export function compare(a:Decimal,b:Decimal) {
  const sign=n=>n.coefficient<0n?-1:n.coefficient>0n?1:0;
  const as=sign(a),bs=sign(b);if(as!==bs)return as<bs?-1:1;if(!as)return 0;
@@ -152,6 +154,15 @@ const instanceFingerprint=instance=>fingerprint(Instance.value(instance),undefin
 function installExactNumericKeywords() {
  current();
  const id=name=>'https://json-schema.org/keyword/'+name;
+ addKeyword(swaggerDiscriminator(schema=>{
+  const source=sourceAt(canonicalUri(schema));
+  return source&&referenceGraph?{graph:referenceGraph,resource:source.doc.id,pointer:source.node.pointer}:undefined;
+ }));
+ const readOnly=standardReadOnly??(standardReadOnly=getKeyword(id('readOnly')));
+ addKeyword({...readOnly,compile:(schema,_ast,parent)=>{
+  const source=sourceAt(canonicalUri(parent)),scope=source&&referenceGraph?.scope(source.doc.id,source.node.pointer);
+  return {value:Browser.value(schema),requestAssertion:scope?.family==='2.0'&&/\/properties\/[^/]+$/.test(scope.pointer)};
+ },interpret:(annotation,instance,context)=>!(annotation.requestAssertion&&annotation.value===true&&direction==='request')} as any);
  for(const name of ['minimum','maximum','exclusiveMinimum','exclusiveMaximum','multipleOf']) {
   const original=getKeyword(id(name)) as any;
   addKeyword({...original,compile:schemaNumber,interpret:(bound:Decimal,instance)=>{

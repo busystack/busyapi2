@@ -19,7 +19,8 @@ export function suggestSchema(input: any) {
     if (!doc) throw new SourceError('suggest.resource', 'Choose an approved example resource');
     const parts = segments(input.pointer), name = parts.pop(), parentPointer = parts.length ? '/' + parts.map(escape).join('/') : '';
     const parent = graph.scopes.get(doc.id + '#' + parentPointer);
-    if (!(parent?.kind === 'example' && name === 'value' || ['media','parameter','header'].includes(parent?.kind ?? '') && name === 'example'))
+    const swaggerExample=graph.scope(doc.id,input.pointer).family==='2.0'&&parentPointer.endsWith('/examples')&&graph.scopes.get(doc.id+'#'+parentPointer.slice(0,-9))?.kind==='response';
+    if (!(swaggerExample || parent?.kind === 'example' && name === 'value' || ['media','parameter','header'].includes(parent?.kind ?? '') && name === 'example'))
         throw new SourceError('suggest.context', 'Choose an authored example value, not serialized text or an external URL');
     if (typeof doc.node(parentPointer).value?.$ref === 'string') throw new SourceError('suggest.context', 'A Reference Object sibling is not an authored Example Object');
     doc.assertSafe(input.pointer);
@@ -28,13 +29,13 @@ export function suggestSchema(input: any) {
     const sample = new SourceDocument(raw, 'file:///busyapi-derived-example.json');
     let count = 0;
     const assumptions = new Set(['sample-only','optional-properties','no-enums','no-string-formats','no-numeric-bounds']);
-    const modern = modernFamily(graph.scope(doc.id, input.pointer).family);
+    const family=graph.scope(doc.id,input.pointer).family,modern=modernFamily(family);
     const infer = (pointer: string, depth: number): any => {
         if (++count > 10000 || depth > 32) throw new SourceError('limit.suggest', 'The example exceeds the bounded suggestion complexity');
         const n = sample.node(pointer);
         switch (n.kind) {
             case 'null':
-                if (modern) return {type:'null'};
+                if (modern||family==='2.0') return {type:'null'};
                 assumptions.delete('no-enums'); assumptions.add('null-only-enum');
                 return {type:'string',nullable:true,enum:[null]};
             case 'boolean': return {type:'boolean'};
@@ -50,6 +51,7 @@ export function suggestSchema(input: any) {
                 }
                 if (variants.size > 32) {assumptions.add('heterogeneous-array'); return {type:'array',items:{}};}
                 const schemas=[...variants.values()];
+                if(family==='2.0'&&schemas.length>1){assumptions.add('heterogeneous-array');return {type:'array',items:{}};}
                 return {type:'array',items:schemas.length===1?schemas[0]:{anyOf:schemas}};
             }
             default: throw new SourceError('suggest.data', 'The example is not a strict JSON-compatible value');
@@ -66,12 +68,12 @@ export function planSchemaSuggestion(input: any) {
     const target=input.target, doc=docs.get(target?.resource);
     const destination=doc?.nodes.get(target?.pointer), scope=doc && graph.scopes.get(doc.id+'#'+target.pointer);
     const resource=(input.resources as Resource[]).find(r=>r.id===target?.resource);
-    if (!doc || !destination || resource?.generation!==target.generation || !['media','parameter','header'].includes(scope?.kind ?? ''))
+    if (!doc || !destination || resource?.generation!==target.generation || !(['media','parameter','header'].includes(scope?.kind ?? '')||scope?.family==='2.0'&&scope.kind==='response'))
         throw new SourceError('suggest.destination','Choose a current schema-bearing object in this root');
     if (destination.children.has('schema') || destination.children.has('content') || destination.value?.$ref)
         throw new SourceError('suggest.collision','The destination already authors a schema, content, or reference; no content was replaced');
     const nullSchema=modernFamily(scope.family)?{type:'null'}:{type:'string',nullable:true,enum:[null]};
-    const schema=input.nullable===true?{anyOf:[suggestion.schema,nullSchema]}:suggestion.schema;
+    const schema=input.nullable===true?(scope.family==='2.0'?{...suggestion.schema,type:[...new Set([...[suggestion.schema.type].flat(),'null'])]}:{anyOf:[suggestion.schema,nullSchema]}):suggestion.schema;
     const result=propose({...input,target,actions:[{kind:'create',pointer:target.pointer+'/schema',value:schema}]});
     let after=resource.text;
     for(const edit of [...result.edits].reverse())after=after.slice(0,edit.start)+edit.replacement+after.slice(edit.end);

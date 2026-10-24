@@ -4,7 +4,7 @@ import { escape, segments, SourceDocument, SourceError } from './document';
 import { GraphReference, supportedSchemaDialect } from './reference_graph';
 import { referenceValue } from './reference_choices';
 import {isNativeFamily} from './specification';
-const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
+const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '2.0' ? '2.0' : family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
 function located(input: any, doc: SourceDocument, pointer: string, extra: any = {}) {
     const resource = (input.resources as Resource[]).find(r => r.id === doc.id)!;
     return { root: input.root, resource: doc.id, pointer, generation: resource.generation, identity: resource.identity, ...doc.dataLocation(pointer), ...extra };
@@ -105,7 +105,7 @@ export function assistSource(input: any) {
             const compatible = (kind: string) => expectedKind === 'schema' ? kind === 'schema' : kind === expectedKind;
             const suggestions: any[] = [];
             for (const target of graph.scopes.values()) {
-                if (!compatible(target.kind) || name==='$ref'&&!/^\/components\/[^/]+\/[^/]+$/.test(target.pointer))
+                if (!compatible(target.kind) || name==='$ref'&&!/^(?:\/components\/[^/]+|\/(?:definitions|parameters|responses|securityDefinitions))\/[^/]+$/.test(target.pointer))
                     continue;
                 const value=referenceValue(graph,parentScope,target,name);
                 if(value===undefined)continue;
@@ -251,7 +251,7 @@ export function semanticSearch(input: any) {
     }
     const targets = new Set(graph.references.filter(r => r.resolution === 'resolved').map(r => r.targetResource + '#' + r.targetPointer));
     for (const scope of graph.scopes.values()) {
-        const component = /^\/components\/([^/]+)\/([^/]+)$/.exec(scope.pointer);
+        const component = /^(?:\/components\/([^/]+)|\/(definitions|parameters|responses|securityDefinitions))\/([^/]+)$/.exec(scope.pointer);
         const definition = targets.has(scope.resource + '#' + scope.pointer);
         if ((!component || !['all','components'].includes(category)) && (!definition || !['all','definitions'].includes(category)))
             continue;

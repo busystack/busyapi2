@@ -7,7 +7,7 @@ import 'package:busyapi_core/busyapi_core.dart';
 
 const usage = '''BusyAPI 0.1.0
 Usage:
-  busyapi init DESTINATION --title TITLE --api-version VERSION [--openapi 3.0.4|3.1.2|3.2.1] [--format yaml|json]
+  busyapi init DESTINATION --title TITLE --api-version VERSION [--openapi 2.0|3.0.4|3.1.2|3.2.1] [--format yaml|json]
   busyapi check FILE_OR_PROJECT [--root NAME_OR_PATH] [--allow-directory PATH] [--map-resource URI FILE] [--json]
   busyapi lint FILE_OR_PROJECT [--root NAME_OR_PATH] [--ruleset URI_OR_PATH] [--fail-severity error|warning|information|hint] [--review-code | --approve-code TRUST_SHA256] [--map-resource URI FILE] [--json]
   busyapi bundle FILE_OR_PROJECT --output DIRECTORY [--format single-file|resource-package] [--root NAME_OR_PATH] [--map-resource URI FILE] [--replace-output RECEIPT_SHA256] [--json]

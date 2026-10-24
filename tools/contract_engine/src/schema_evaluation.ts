@@ -17,14 +17,16 @@ import {typedSchemaDocument,embeddedSchemaDocument} from './schema_document';
 import {safeFinding} from './security_design';
 import {schemaRoots,nestedSchemaBoundaries} from './schema_boundaries';
 import {discriminatorRelationships} from './authoring_relationships';
-import {restrictedSchemaDialect} from './specification';
+import {restrictedSchemaDialect,swaggerSchemaDialect} from './specification';
+import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,swaggerMetaIdentity,SchemaEvaluationScope} from './swagger_schema';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+3',configuration:'oas30-restricted:structural30-2024-10-18:draft2020-12:oas31-2024-11-10:oas32-2025-09-17:format-annotation:exact-cst-v3:canonical-graph-addresses'};
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+4',configuration:'oas20-draft4-restricted:structural20-2017-08-27:oas30-restricted:structural30-2024-10-18:draft2020-12:oas31-2024-11-10:oas32-2025-09-17:format-annotation:exact-cst-v4:canonical-graph-addresses'};
 let configured=false,running=false;
 const standardIds=new Set<string>(),reservedIds=new Set<string>(),standardMetas=new Map<string,any>();
 const standardSources=new Map<string,any>();
 function standards() {
  if(configured)return;
+ installSwaggerSchemaDialect();
  for(const [family,dialect,vocabulary]of [['3.1',dialect31,vocabulary31],['3.2',dialect32,vocabulary32]] as any[]) {
   registerSchema(vocabulary);
   const alias=`https://spec.openapis.org/oas/${family}/dialect/base`;
@@ -37,7 +39,7 @@ function standards() {
  setShouldValidateSchema(false);setShouldValidateFormat(false);
  for(const uri of getAllRegisteredSchemaUris()) {
   reservedIds.add(uri);
-  if(uri.startsWith('https://json-schema.org/draft/2020-12/')||uri.startsWith('http://json-schema.org/draft-04/')||knownDialects.has(uri)||[vocabulary31.$id,vocabulary32.$id].includes(uri))standardIds.add(uri);
+  if(uri.startsWith('https://json-schema.org/draft/2020-12/')||uri.startsWith('http://json-schema.org/draft-04/')||knownDialects.has(uri)||uri===swaggerMetaIdentity||[vocabulary31.$id,vocabulary32.$id].includes(uri))standardIds.add(uri);
  }
  configured=true;
 }
@@ -100,7 +102,8 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    add(docs.get(issue.resource)!,issue.pointer,issue.code,issue.message,issue.incomplete?'warning':'error');
    if(!issue.incomplete&&issue.kind==='schema')invalid.push(graph.scope(issue.resource,issue.pointer));
   }
-  const all=[...graph.scopes.values()].filter(scope=>scope.kind==='schema'&&!bundled.has(scope.resource));
+  const all=schemaEvaluationScopes(graph).filter(scope=>!bundled.has(scope.resource));
+  const evaluationScopes=new Map(all.map(scope=>[scope.resource+'#'+scope.pointer,scope]));
   for(const issue of discriminatorRelationships(graph))
    add(docs.get(issue.resource)!,issue.pointer,issue.code,issue.message);
   if(all.length>20000)throw new SourceError('limit.schema.count','Schema evaluation exceeds 20000 authored schema locations');
@@ -153,11 +156,12 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    if(!supportedSchemaDialect(scope)){complete=false;invalid.push(scope);add(doc,scope.pointer,'schema.dialect.incomplete','This schema dialect is not configured; its content is preserved and no instance result is claimed.','warning');continue;}
    if(!doc.dataSyntaxSafe(scope.pointer)){complete=false;invalid.push(scope);continue;}
    try {
-    let meta=metas.get(scope.dialect)??standardMetas.get(scope.dialect);
-    if(!meta){meta=await compile(await getSchema(scope.dialect));standardMetas.set(scope.dialect,meta);}
-    metas.set(scope.dialect,meta);
+    const metaId=scope.family==='2.0'?swaggerMetaAddress(evaluationScopes.get(scope.resource+'#'+scope.pointer)!):scope.dialect;
+    let meta=metas.get(metaId)??standardMetas.get(metaId);
+    if(!meta){meta=await compile(await getSchema(metaId));standardMetas.set(metaId,meta);}
+    metas.set(metaId,meta);
     const nested=nestedBoundaries(scope);
-    const result:any=interpret(meta,exact.exactInstance(doc,scope.pointer,nested,scope.dialect===restrictedSchemaDialect),BASIC);
+    const result:any=interpret(meta,exact.exactInstance(doc,scope.pointer,nested,[restrictedSchemaDialect,swaggerSchemaDialect].includes(scope.dialect)),BASIC);
     schemas++;
     if(!result.valid) {
      invalid.push(scope);
@@ -204,7 +208,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   }
   for(let i=0;i<queue.length;i++)for(const parent of dependents.get(queue[i])??[])mark(parent,states.get(queue[i])!);
   const getCompiled=async(scope:GraphScope)=>{
-   if(states.get(scopeId(scope)))return;
+   if(states.get(scopeId(scope))||evaluationScopes.get(scopeId(scope))?.file)return;
    const uri=schemaAddress(scope);if(!compiled.has(uri))compiled.set(uri,await compile(await getSchema(uri)));
    return compiled.get(uri);
   };
@@ -230,6 +234,11 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
     if(doc.dataNode(scope.pointer+'/'+keyword))append(scope,doc,scope.pointer+'/'+keyword,'policy-annotation');
   }
   for(const scope of graph.scopes.values()) {
+   if(scope.family==='2.0'&&scope.kind==='response') {
+    const schema=graph.scopes.get(scope.resource+'#'+scope.pointer+'/schema'),doc=docs.get(scope.resource)!;
+    if(schema?.kind==='schema')for(const name of doc.dataNode(scope.pointer+'/examples')?.children.keys()??[])append(schema,doc,scope.pointer+'/examples/'+escape(name),'authored-data');
+    continue;
+   }
    if(!['media','parameter','header'].includes(scope.kind))continue;
    const schema=graph.scopes.get(scope.resource+'#'+scope.pointer+'/schema');if(schema?.kind!=='schema')continue;
    const doc=docs.get(scope.resource)!,node=doc.dataNode(scope.pointer)!;
@@ -340,7 +349,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    if(supplied.schema===undefined){
     runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:true,valid:true,syntax:'json'});instances++;continue;
    }
-   const scope=graph.scopes.get(supplied.schema.resource+'#'+supplied.schema.pointer);
+   const scope=evaluationScopes.get(supplied.schema.resource+'#'+supplied.schema.pointer);
    if(scope?.kind!=='schema'){
     complete=false;runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:false,valid:false,reason:'schema-unavailable'});continue;
    }

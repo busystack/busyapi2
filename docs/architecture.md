@@ -357,6 +357,16 @@ Policy precedence is ordered selected entries, ordered extends, then each declar
 
 Native CommonMark block/list/text pages and explicit link-inspection expansion use a bounded private `referenceText` state map keyed by root/resource/occurrence. It shares the controller's semantic relocation/deletion mapping with object reading state. The presentation child is additionally keyed to the project owner, so reopening another project cannot reuse a previous owner's transient state. Reparse does not discard valid pages; stale semantic/project callbacks cannot write a removed route's state. Only page/expansion preferences are stored, not link values, copied content or another document buffer. Regression tests exercise the final list page, reparse/remount, rename, undo/redo, saved/reopened state and an intermediate stale route.
 
-## Native candidate popup ownership and limitation
+## Input-method limitation
 
-**Pure-scroll candidate repositioning remains unresolved.** During active preedit, scrolling moves the Source caret and composing underline, and updated rectangles reach both `gtk_im_context_set_cursor_location` and `ibus_input_context_set_cursor_location`. The visible popup can remain at its previous location until a subsequent real preedit update. The ordinary system GTK TextView in [`tools/repro_gtk_input.py --scroll`](../tools/repro_gtk_input.py) reproduces this behavior, with updated `org.freedesktop.IBus.Panel.SetCursorLocation` calls reaching `/org/freedesktop/IBus/Panel` before the stale popup is observed. This separates correct application cursor delivery from the remaining system panel positioning behavior; it does not establish a faulty upstream source line or attribute the issue to IBus's asynchronous key processing.
+During active composition, scrolling can leave the input-method candidate popup
+at its previous position until the next preedit update. Candidate repositioning
+on scroll remains unresolved. BusyAPI uses the system input-method infrastructure.
+
+Native Swagger 2.0 uses the same canonical graph, CST edits, headless core and
+transport as the OpenAPI families. Its own root collections and restricted
+Draft 4 Schema/Parameter/Items/Header models remain authoritative. Captured
+execution projections retain source locations for native URL/media settings,
+body/form parameters, response examples and security definitions; they are not
+a converted editable OpenAPI 3.x document. See the native support record for
+qualification status and explicit representation limitations.

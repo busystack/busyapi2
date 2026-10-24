@@ -72,7 +72,7 @@ export function busyApiSwaggerPlugin(system) {
       const key=context?.selectedKey&&Object.hasOwn(examples.value,context.selectedKey)?context.selectedKey:Object.keys(examples.value)[0];
       if(key!==undefined) {
         const name=examples.pointer+'/'+String(key).replaceAll('~','~0').replaceAll('/','~1');
-        for(const field of presentation.spec.openapi.startsWith('3.2.')?['dataValue','serializedValue','value']:['value']) {
+        for(const field of presentation.spec.openapi?.startsWith('3.2.')?['dataValue','serializedValue','value']:['value']) {
           const value=presentationValue(presentation,name+'/'+field);
           if(value)return value;
         }
@@ -142,7 +142,7 @@ export function busyApiSwaggerPlugin(system) {
         let result;
         try {result=await resolvedDocument;}catch {return fail('busyapi.documentation.resolver-failed');}
         if(input!==system.specSelectors.specJson()||baseDoc!==system.getConfigs().busyApiPresentation().displayUri||strategies!==system.getConfigs().busyApiResolveStrategies)return fail('busyapi.documentation.stale');
-        if(!result?.spec||result.spec.openapi!==input.get('openapi')||result.errors!==undefined&&!Array.isArray(result.errors)||result.errors?.length)
+        if(!result?.spec||(result.spec.openapi!==input.get('openapi')||result.spec.swagger!==input.get('swagger'))||result.errors!==undefined&&!Array.isArray(result.errors)||result.errors?.length)
           return fail('busyapi.documentation.resolver-failed');
         let value=result.spec;
         for(const part of path) {
@@ -269,14 +269,14 @@ export function busyApiSwaggerPlugin(system) {
 export function readOnlySwaggerConfiguration(presentation, {onError,labels,sourceActions,onSource,resolveStrategies} = {}) {
   if(presentation?.representation!=='graph-addressed-display-only'||presentation.addresses!=='absolute-document'||!presentationNode(presentation,''))throw Error('busyapi.documentation.projection');
   const spec=presentation.spec;
-  if (!spec || typeof spec !== 'object' || !/^3\.[012]\./.test(spec.openapi)) throw Error('busyapi.documentation.version');
+  if (!spec || typeof spec !== 'object' || !(spec.swagger==='2.0'||/^3\.[012]\./.test(spec.openapi))) throw Error('busyapi.documentation.version');
   if (typeof onError !== 'function') throw Error('busyapi.documentation.error-owner');
   if(typeof labels?.previousPage!=='string'||typeof labels.nextPage!=='string'||typeof labels.page!=='function')throw Error('busyapi.documentation.labels');
   // Validate the table even before plugin installation. No source field from
   // the page becomes a path; callbacks carry only a captured native index.
   const Source=documentationSourceFactory(presentation,{sourceActions,onSource,labels});
-  if(resolveStrategies!==undefined&&(!Array.isArray(resolveStrategies)||resolveStrategies.length<2||resolveStrategies.length>3||
-      resolveStrategies.some((strategy,index)=>strategy?.name!==['openapi-3-2-apidom','openapi-3-1-apidom','openapi-3-0'][index]||['match','normalize','resolve'].some(name=>typeof strategy[name]!=='function'))))throw Error('busyapi.documentation.plugin-api');
+  if(resolveStrategies!==undefined&&(!Array.isArray(resolveStrategies)||resolveStrategies.length<2||resolveStrategies.length>4||
+      resolveStrategies.some((strategy,index)=>strategy?.name!==['openapi-3-2-apidom','openapi-3-1-apidom','openapi-3-0','openapi-2'][index]||['match','normalize','resolve'].some(name=>typeof strategy[name]!=='function'))))throw Error('busyapi.documentation.plugin-api');
   return {
     spec, url: '', urls: [], configUrl: null,busyApiPresentation:()=>presentation,busyApiLabels:labels,busyApiSourceFactory:Source,busyApiResolveStrategies:resolveStrategies===undefined?undefined:Object.freeze([...resolveStrategies]),
     plugins: [busyApiSwaggerPlugin],

@@ -155,6 +155,16 @@ export class ParameterSemantics {
         }
         for(const operation of operations) {
             const parameters=this.operation(operation.resource,operation.pointer,operation.pathContext?{...operation.pathContext,kind:'path-item'}:undefined);
+            if(this.graph.scope(operation.resource,operation.pointer).family==='2.0') {
+                const bodies=parameters.visible.filter(entry=>entry.location==='body'),forms=parameters.visible.filter(entry=>entry.location==='formData');
+                if(bodies.length>1)for(const entry of bodies)add(entry.source,'parameter.body.multiple','Swagger permits at most one effective body parameter');
+                if(bodies.length&&forms.length)for(const entry of [...bodies,...forms])add(entry.source,'parameter.body.form-data','Swagger body and formData parameters cannot apply to the same operation');
+                const operationValue=this.graph.docs.get(operation.resource)!.dataNode(operation.pointer)?.value;
+                const media=Object.hasOwn(operationValue??{},'consumes')?operationValue.consumes:this.graph.docs.get(this.graph.root)!.root.value?.consumes;
+                if(forms.some(entry=>this.graph.docs.get(entry.definition!.resource)!.dataNode(entry.definition!.pointer)?.value?.type==='file')&&
+                    Array.isArray(media)&&!media.includes('multipart/form-data'))
+                    add(forms[0].source,'parameter.file.media','A file formData parameter requires multipart/form-data in the effective consumes declaration');
+            }
             if(this.graph.scope(operation.resource,operation.pointer).family==='3.2') {
                 const querystrings=parameters.visible.filter(entry=>entry.location==='querystring');
                 if(querystrings.length>1)for(const entry of querystrings.slice(1))add(entry.source,'parameter.querystring.duplicate','Only one effective querystring parameter may apply to an operation');

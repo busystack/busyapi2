@@ -193,3 +193,9 @@ incomplete loading is not compatibility proof.
 Dart **3.13.4** normalizes HTTP method capitalization internally. BusyAPI preserves OAS 3.2 additional-operation identities but refuses lowercase/mixed-case sends before connecting, with an unsupported/incomplete result. Uppercase custom methods and fixed GET/POST/QUERY remain available. This is an explicit native transport limitation, not canonical equivalence between differently cased tokens.
 
 Desktop persistence uses libsecret **0.21.4** through a BusyAPI-owned native channel and schema. The strict Snap exposes `password-manager-service` but does not assume it is connected; locked, missing, declined, and disconnected paths remain visible session-only operation with no file fallback. `network` and `network-bind` are limited to deliberate request/mock/OAuth/Git execution. Document navigation and messages retain the independent WebKit resource/network denials described above.
+
+Swagger 2.0 native-family implementation and qualification are tracked with
+OpenAPI 3.0 in [the support matrix](implementation/native-openapi-support.md).
+Creation accepts `--openapi 2.0` and writes `swagger: "2.0"`; ordinary open,
+edit, check, bundle and native documentation do not convert the document.
+External renderer/generator/comparator qualification remains separate.

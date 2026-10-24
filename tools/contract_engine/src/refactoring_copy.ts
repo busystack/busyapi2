@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {createGraph,Resource} from './engine';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {referenceValue} from './reference_choices';
-import {fieldsFor,componentFamily,documentUriOccurrences} from './authoring';
+import {fieldsFor,componentFamily,componentLocation,documentUriOccurrences} from './authoring';
 import {documentUriBase,ReferenceGraph,resolveUri} from './reference_graph';
 import {coldGraph} from './reference_selection';
 import {ParameterSemantics} from './parameter_semantics';
@@ -143,7 +143,7 @@ function capture(input:any) {
  const owning=graphs.filter(g=>g.graph.scopes.has(resource.id+'#'+target.pointer)),selected=owning.find(g=>g.context.root===target.root)??owning[0];
  if(!selected)throw new SourceError('refactor.copy.context','Choose a specification object, not arbitrary example or extension data');
  const doc=selected.docs.get(resource.id)!,node=doc.node(target.pointer),scope=selected.graph.scopes.get(resource.id+'#'+target.pointer)!;
- if(target.pointer===''&&typeof doc.root.value?.openapi==='string')
+ if(target.pointer===''&&selected.graph.specifications.has(doc.id))
   throw new SourceError('refactor.copy.context','An OpenAPI document root cannot become its own extracted or inlined object occurrence');
  if(node.shared||!doc.syntaxSafe(target.pointer)||target.range&&JSON.stringify(target.range)!==JSON.stringify(node.range)||target.expected!==undefined&&target.expected!==resource.text.slice(...node.range))
   throw new SourceError('edit.stale','The captured physical occurrence changed or is shared');
@@ -205,18 +205,18 @@ function planCopy(input:any,moving=false) {
  const fragment=input.destinationFragment===true;
  if(fragment&&(!moving||!destinationResource||destinationResource.text!=='null'||graphs.some(g=>g.docs.has(destinationId))))
   throw new SourceError('refactor.extract.destination','A new fragment destination must be a separately captured empty planning slot');
- if(fragment&&typeof node.value?.openapi==='string')
+ if(fragment&&(typeof node.value?.openapi==='string'||typeof node.value?.swagger==='string'))
   throw new SourceError('refactor.copy.resource-context','An authored OpenAPI-looking keyword needs an unambiguous resource interpretation before copying this object to a document root');
  const destinationDoc=fragment?new SourceDocument(destinationResource!.text,destinationId):destinationResource&&graphs.map(g=>g.docs.get(destinationId)).find(Boolean);
- if(!destinationDoc||!fragment&&!String(destinationDoc.root.value?.openapi).startsWith(scope.family+'.'))
+ if(!destinationDoc||!fragment&&!graphs.some(g=>g.graph.specifications.get(destinationId)?.family===scope.family))
   throw new SourceError('refactor.extract.destination','Choose an OpenAPI document as the component destination');
- const definition=/^\/components\/[^/]+\/[^/]+$/.test(target.pointer);
+ const definition=(scope.family==='2.0'?/^\/(definitions|parameters|responses|securityDefinitions)\/[^/]+$/:/^\/components\/[^/]+\/[^/]+$/).test(target.pointer);
  if(moving?!definition:definition)
   throw new SourceError('refactor.extract.definition',moving?'Choose an authored component definition to move':'Choose an inline object, not an existing component definition');
  if(typeof node.value?.$ref==='string'||typeof node.value?.$dynamicRef==='string')
   throw new SourceError('refactor.extract.definition','Choose an inline object, not an existing definition or reference occurrence');
  const cross=destinationId!==resource.id;
- const destination=fragment?'':'/components/'+family+'/'+escape(input.name),move=(id:string,pointer:string)=>id===resource.id&&inside(pointer,target.pointer)?destination+pointer.slice(target.pointer.length):pointer;
+ const destination=fragment?'':componentLocation(family,scope.family)!+'/'+escape(input.name),move=(id:string,pointer:string)=>id===resource.id&&inside(pointer,target.pointer)?destination+pointer.slice(target.pointer.length):pointer;
  const movedResource=(id:string,pointer:string)=>id===resource.id&&inside(pointer,target.pointer)?destinationId:id;
  if(moving&&!cross&&destination===target.pointer)return {version:1,kind:'component-move',snapshot:input.snapshot,edits:[],changes:[],usages:[],transitions:[],from:target,to:target,checkedRoots:input.contexts.map((c:any)=>c.root)};
  semanticOwner(owning,resource.id,target.pointer,node.range);
@@ -422,7 +422,7 @@ export function planOperationMove(input:any) {
  if(!sourcePath||sourcePath.kind!=='path-item')throw new SourceError('refactor.operation.owner','This Operation has no established Path Item owner');
  let destinationParent=input.destinationPointer;
  if(input.path!==undefined){
-  if(typeof input.path!=='string'||!input.path.startsWith('/')||input.path.length>16384||!target.pointer.startsWith('/paths/')||typeof doc.root.value?.openapi!=='string')
+  if(typeof input.path!=='string'||!input.path.startsWith('/')||input.path.length>16384||!target.pointer.startsWith('/paths/')||!selected.graph.specifications.has(doc.id))
    throw new SourceError('edit.path','Choose a real Paths destination in the authored document');
   destinationParent='/paths/'+escape(input.path);
  }
@@ -628,8 +628,8 @@ export function planInline(input:any) {
    throw new SourceError('refactor.inline.schema-resource','This definition declares a schema resource, dialect, anchor or dynamic scope that cannot be duplicated by inlining');
  }
  const siblings=[...node.children.keys()].filter(key=>key!=='$ref');
- if(scope.family==='3.0'&&scope.kind!=='path-item'&&siblings.length)
-  throw new SourceError('refactor.inline.ignored','OpenAPI 3.0 ignores all Reference Object siblings; remove or relocate those authored values explicitly before inlining');
+ if(!['3.1','3.2'].includes(scope.family)&&scope.kind!=='path-item'&&siblings.length)
+  throw new SourceError('refactor.inline.ignored','This specification ignores all Reference Object siblings; remove or relocate those authored values explicitly before inlining');
  if(scope.kind==='path-item'&&siblings.some(key=>definitionNode.children.has(key)))
   throw new SourceError('refactor.inline.pathItem','The Path Item reference has overlapping fields with undefined combined behavior');
  if(scope.kind!=='schema'&&scope.kind!=='path-item'&&siblings.some(key=>!['summary','description'].includes(key)))

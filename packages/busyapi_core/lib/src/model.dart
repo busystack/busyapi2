@@ -30,7 +30,7 @@ class CoreFailure implements Exception {
   String toString() => '$code: $message';
 }
 
-enum SpecificationFamily { openapi30, openapi31, openapi32 }
+enum SpecificationFamily { swagger20, openapi30, openapi31, openapi32 }
 
 /// Captured engine semantics. The API's info.version is deliberately absent.
 /// Presentation consumes capabilities instead of interpreting version strings.
@@ -60,6 +60,7 @@ class SpecificationContext {
       },
     }) {
       final selected = switch (family) {
+        '2.0' => SpecificationFamily.swagger20,
         '3.0' => SpecificationFamily.openapi30,
         '3.1' => SpecificationFamily.openapi31,
         '3.2' => SpecificationFamily.openapi32,

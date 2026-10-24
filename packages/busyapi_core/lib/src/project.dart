@@ -298,7 +298,7 @@ Map<String, dynamic> _mergeSchemaEvaluation(
         'schema': {
           'complete': evaluated?['complete'] == true,
           'producer': evaluated?['producer'] ?? 'hyperjump+busyapi-exact',
-          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+3',
+          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+4',
           if (evaluated != null) ...{
             'configuration': evaluated['configuration'],
             'coverage': evaluated['coverage'],
@@ -1654,7 +1654,7 @@ class BusyProject {
         result['snapshot'] == snapshot.identity &&
         result['root'] == snapshot.root &&
         result['producer'] == 'hyperjump+busyapi-exact' &&
-        result['producerVersion'] == '1.18.0+3' &&
+        result['producerVersion'] == '1.18.0+4' &&
         result['complete'] is bool &&
         result['configuration'] is String &&
         result['coverage'] is Map &&
@@ -3396,8 +3396,11 @@ class Initializer {
     if (title.trim().isEmpty || apiVersion.trim().isEmpty) {
       throw CoreFailure('init.input', 'API title and API version are required');
     }
-    if (!RegExp(r'^3\.(0|1|2)\.\d+$').hasMatch(openapi)) {
-      throw CoreFailure('init.version', 'Select OpenAPI 3.0.x, 3.1.x or 3.2.x');
+    if (openapi != '2.0' && !RegExp(r'^3\.(0|1|2)\.\d+$').hasMatch(openapi)) {
+      throw CoreFailure(
+        'init.version',
+        'Select Swagger 2.0 or OpenAPI 3.0.x, 3.1.x or 3.2.x',
+      );
     }
     if (!['yaml', 'json'].contains(format)) {
       throw CoreFailure('init.format', 'Format must be yaml or json');
@@ -3410,13 +3413,13 @@ class Initializer {
     final path = p.join(directory.path, name),
         manifest = p.join(directory.path, 'busyapi.yaml');
     final data = {
-      'openapi': openapi,
+      (openapi == '2.0' ? 'swagger' : 'openapi'): openapi,
       'info': {'title': title, 'version': apiVersion},
       'paths': <String, Object?>{},
     };
     final text = format == 'json'
         ? '${const JsonEncoder.withIndent('  ').convert(data)}\n'
-        : 'openapi: ${jsonEncode(openapi)}\ninfo:\n  title: ${jsonEncode(title)}\n  version: ${jsonEncode(apiVersion)}\npaths: {}\n';
+        : '${openapi == '2.0' ? 'swagger' : 'openapi'}: ${jsonEncode(openapi)}\ninfo:\n  title: ${jsonEncode(title)}\n  version: ${jsonEncode(apiVersion)}\npaths: {}\n';
     bool published = false;
     try {
       for (final f in [path, manifest]) {

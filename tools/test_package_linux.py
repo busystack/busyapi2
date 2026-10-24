@@ -95,7 +95,7 @@ class StandaloneAssets(unittest.TestCase):
             with self.subTest(absolute=absolute), tempfile.TemporaryDirectory() as directory:
                 root = pathlib.Path(directory)
                 bundle = root / 'bundle'
-                prerequisite_files(bundle,['share/busyapi/schemas/oas31.json','share/busyapi/schemas/oas32.json','share/busyapi/schemas/oas30.json'])
+                prerequisite_files(bundle,['share/busyapi/schemas/oas31.json','share/busyapi/schemas/oas32.json','share/busyapi/schemas/oas30.json','share/busyapi/schemas/oas20.json','share/busyapi/schemas/draft04.json'])
                 outside = root / 'build-stage'
                 outside.mkdir()
                 link = bundle / 'share/busyapi/flutter-engine'

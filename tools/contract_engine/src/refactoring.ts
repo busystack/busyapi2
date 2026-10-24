@@ -17,7 +17,7 @@ export function planRename(input: any) {
     const parts = segments(input.target.pointer);
     const property = input.property === true;
     const response = input.response === true;
-    if (typeof input.name !== 'string' || input.name.length > 4096 || (property ? parts.length < 2 || parts.at(-2) !== 'properties' : response ? parts.at(-2)!=='responses'||! /^(default|[1-5](\d\d|XX))$/.test(input.name) : parts.length !== 3 || parts[0] !== 'components' || !['schemas', 'parameters', 'responses', 'headers', 'requestBodies', 'examples', 'links', 'callbacks', 'pathItems', 'securitySchemes', 'mediaTypes'].includes(parts[1]) || !/^[a-zA-Z0-9._-]+$/.test(input.name)))
+    if (typeof input.name !== 'string' || input.name.length > 4096 || (property ? parts.length < 2 || parts.at(-2) !== 'properties' : response ? parts.at(-2)!=='responses'||! /^(default|[1-5](\d\d|XX))$/.test(input.name) : !(parts.length===2&&['definitions','parameters','responses','securityDefinitions'].includes(parts[0]) || parts.length===3&&parts[0]==='components'&&['schemas','parameters','responses','headers','requestBodies','examples','links','callbacks','pathItems','securitySchemes','mediaTypes'].includes(parts[1])) || !/^[a-zA-Z0-9._-]+$/.test(input.name)))
         throw new SourceError('refactor.name', 'Choose a component definition and a legal component name');
     const oldName = parts.at(-1)!, oldPointer = input.target.pointer;
     const nextPointer = '/' + parts.slice(0,-1).map(escape).join('/') + '/' + escape(input.name);
@@ -32,6 +32,7 @@ export function planRename(input: any) {
             throw new SourceError('refactor.context', 'A root context contains an unavailable resource');
         return {context, ...createGraph({root: context.root, resources: resources.filter(r => context.resources.includes(r.id))})};
     });
+    if(!property&&!response&&parts.length===2&&!graphs.some((g:any)=>g.graph.specifications.get(source.id)?.family==='2.0'))throw new SourceError('refactor.definition','Choose a native Swagger reusable definition');
     const definition = graphs.map((g: any) => g.docs.get(source.id)?.nodes.get(oldPointer)).find(Boolean);
     if (!definition || !definition.keyRange || definition.shared || definition.keyShared)
         throw new SourceError('refactor.definition', 'The definition needs an unambiguous physical key, not an alias or reference projection');
@@ -102,7 +103,7 @@ export function planRename(input: any) {
                 renameList(list);
             }
             constraint(pointer+'/discriminator');
-            const discriminator=constraint(pointer+'/discriminator/propertyName');
+            const discriminator=constraint(pointer+(graphs.some((g:any)=>g.graph.scope(source.id,pointer).family==='2.0')?'/discriminator':'/discriminator/propertyName'));
             if(discriminator?.value===oldName)add(source.id,discriminator.pointer,{kind:'set',pointer:discriminator.pointer,value:input.name});
             for(const keyword of ['propertyNames','patternProperties'])if(n.children.has(keyword))warnings.add(pointer+'/'+keyword);
             for(const keyword of ['allOf','anyOf','oneOf']){
@@ -158,6 +159,16 @@ export function planRename(input: any) {
             doc.assertSafe(pointer);
             if (ref.connection === 'security') add(ref.resource, pointer, {kind: 'rename', pointer, name: next}, ref, context.root);
             else add(ref.resource, pointer, {kind: 'set', pointer, value: next}, ref, context.root);
+        }
+        if(!property&&parts[0]==='definitions')for(const scope of graph.scopes.values()) {
+            if(scope.family!=='2.0'||scope.kind!=='schema'||typeof docs.get(scope.resource)!.dataNode(scope.pointer)?.value?.discriminator!=='string')continue;
+            const inherits=(at:string,seen=new Set<string>()):boolean=>{
+                if(at===scope.pointer&&source.id===scope.resource)return true;
+                if(seen.has(at)||seen.size>=128)return false;seen.add(at);
+                const node=docs.get(source.id)?.dataNode(at);
+                return (node?.value?.allOf??[]).some((_:unknown,index:number)=>{const ref=graph.references.find((r:GraphReference)=>r.resource===source.id&&r.pointer===at+'/allOf/'+index&&r.keyword==='$ref');return ref?.targetResource===scope.resource&&ref.targetPointer===scope.pointer||ref?.targetResource===source.id&&inherits(ref.targetPointer!,seen);});
+            };
+            if(inherits(oldPointer))throw new SourceError('refactor.discriminator.wire-name','Renaming this Swagger model changes its implicit discriminator wire value; the family has no faithful explicit mapping',definition.keyRange);
         }
         // A renamed component must not silently change an implicit discriminator
         // wire value. Preserve it with an explicit, graph-proven mapping.

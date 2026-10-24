@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:busyapi_core/busyapi_core.dart' show httpOperationMethod;
+import 'package:busyapi_core/busyapi_core.dart'
+    show httpOperationMethod, SpecificationFamily;
 import 'package:flutter/services.dart';
 
 import '../app/busyapi_design.dart';
@@ -249,7 +250,9 @@ class ApiNavigatorState extends State<ApiNavigator> {
       }
     }
     _Node componentGroup(String group, String title) {
-      final pointer = '/components/$group';
+      final pointer =
+          (projection?['componentLocations'] as Map?)?[group] as String? ??
+          '/components/$group';
       final item = target(pointer);
       return _Node.lazy(
         id('component-group', [item['resource'], pointer, null]),
@@ -291,15 +294,34 @@ class ApiNavigatorState extends State<ApiNavigator> {
             ? null
             : Map<String, dynamic>.from(projection!['info']),
       ),
-      node('servers', l.servers, target('/servers')),
+      node(
+        'servers',
+        l.servers,
+        target(
+          c.specification?.family == SpecificationFamily.swagger20
+              ? ''
+              : '/servers',
+        ),
+      ),
       node('security', l.security, target('/security')),
       node('tags', l.tags, target('/tags')),
       node('paths', l.paths, target('/paths'), pathNodes),
       componentGroup('schemas', l.schemas),
-      node('components', l.components, target('/components'), [
-        for (final group in groups.entries)
-          componentGroup(group.key, group.value),
-      ]),
+      node(
+        'components',
+        l.components,
+        c.specification?.family == SpecificationFamily.swagger20
+            ? null
+            : target('/components'),
+        [
+          for (final group in groups.entries)
+            if ((projection?['componentLocations'] as Map?)?.containsKey(
+                  group.key,
+                ) ==
+                true)
+              componentGroup(group.key, group.value),
+        ],
+      ),
       if (c.specification?.webhooks == true)
         node('webhooks', l.webhooks, target('/webhooks'), [
           for (final path in paths.where((p) => p['role'] == 'webhooks'))

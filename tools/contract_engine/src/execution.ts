@@ -6,6 +6,8 @@ import {GraphTarget, ReferenceGraph, supportedSchemaDialect} from './reference_g
 import {decimal} from './exact_numbers';
 import {headerShapes} from './header_serialization';
 import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
+import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './swagger_operation';
+import {componentLocation} from './authoring';
 
 const maximumItems = 2048;
 
@@ -234,7 +236,8 @@ export function requestOperation(input:any) {
     return {name:entry.name,in:entry.location,family,type:typeof v.schema?.type==='string'?v.schema.type:undefined,description:v.description,required:v.required===true||entry.location==='path',deprecated:v.deprecated===true,
       style:typeof v.style==='string'?v.style:defaultStyle,explode:typeof v.explode==='boolean'?v.explode:defaultExplode,
       allowReserved:v.allowReserved===true,source:location(entry.source.resource,entry.source.pointer),definition:selected.source,
-      schema:schema(selected.resource,selected.pointer,v),content,example:example(selected.resource,selected.pointer,v),examples:examples(selected.resource,selected.pointer,v)};
+      schema:schema(selected.resource,selected.pointer,v),content,example:example(selected.resource,selected.pointer,v),examples:examples(selected.resource,selected.pointer,v),
+      ...(family==='2.0'&&entry.location!=='body'?swaggerFlat(v,selected.source):{})};
   };
   const pathView=graph.pathItem(context.pathItem);
   if(!pathView.complete||!pathView.chainComplete)throw new SourceError('request.path-item','The selected Path Item inheritance is incomplete');
@@ -257,7 +260,8 @@ export function requestOperation(input:any) {
         base:graph.retrievals.get(serverField.resource),source:location(serverField.resource,pointer),origin:serverField.origin});
     }
   }
-  if(!serverField || serverField.origin==='root' && docs.get(serverField.resource)!.dataNode(serverField.pointer)?.children.size===0)
+  if(family==='2.0')servers.push(...swaggerServers(graph,input.resource,input.pointer,location));
+  else if(!serverField || serverField.origin==='root' && docs.get(serverField.resource)!.dataNode(serverField.pointer)?.children.size===0)
     servers.push({url:'/',variables:{},base:graph.retrievals.get(graph.root),origin:'default'});
   const securityField=effectiveField('security',false)??(docs.get(graph.root)!.root.children.has('security')?{resource:graph.root,pointer:'/security',origin:'root'}:undefined);
   const schemes:any={};
@@ -269,12 +273,13 @@ export function requestOperation(input:any) {
       if(requirement.kind!=='object')throw new SourceError('request.security','A security requirement must be an object');
       const names=[...requirement.children.keys()];requirements.push({schemes:names,scopes:Object.fromEntries(names.map(name=>[name,requirement.value[name]])),source:location(securityField.resource,securityField.pointer+'/'+index)});
       for(const name of names)if(!Object.hasOwn(schemes,name)){
-        const at='/components/securitySchemes/'+escape(name),declared=docs.get(graph.root)!.dataNode(at);
+        const at=componentLocation('securitySchemes',family)!+'/'+escape(name),declared=docs.get(graph.root)!.dataNode(at);
         if(!declared)throw new SourceError('request.security.scheme','A selected security requirement names an unavailable scheme');
         const selected=follow({resource:graph.root,pointer:at,kind:'security-scheme'},'security-scheme'),v=selected.node.value;
-        schemes[name]={name,type:v?.type,description:v?.description,source:location(graph.root,at),definition:selected.source,
+        schemes[name]={name,type:family==='2.0'&&v?.type==='basic'?'http':v?.type,description:v?.description,source:location(graph.root,at),definition:selected.source,
           ...(v?.type==='apiKey'?{in:v.in,parameterName:v.name}:{}),...(v?.type==='http'?{scheme:v.scheme,bearerFormat:v.bearerFormat}:{}),
-          ...(v?.type==='oauth2'?{flows:oauthFlows(selected.resource,selected.pointer,v.flows,location)}:{}),
+          ...(family==='2.0'&&v?.type==='basic'?{scheme:'basic'}:{}),
+          ...(v?.type==='oauth2'?{flows:family==='2.0'?{[({implicit:'implicit',password:'password',application:'clientCredentials',accessCode:'authorizationCode'} as Record<string,string>)[v.flow]]:{authorizationUrl:v.authorizationUrl,tokenUrl:v.tokenUrl,scopes:v.scopes,source:selected.source}}:oauthFlows(selected.resource,selected.pointer,v.flows,location)}:{}),
           ...(v?.type==='mutualTLS'?{mutualTLS:true}:{})};
       }
     }
@@ -282,6 +287,12 @@ export function requestOperation(input:any) {
   const bodyField=node.children.has('requestBody')?{resource:input.resource,pointer:input.pointer+'/requestBody'}:undefined;
   let requestBody:any;
   if(bodyField){const selected=follow({...bodyField,kind:'request-body'},'request-body'),v=selected.node.value;requestBody={required:v?.required===true,source:location(bodyField.resource,bodyField.pointer),definition:selected.source,content:media(selected.resource,selected.pointer+'/content',v?.content)};}
+  if(family==='2.0'){
+    const projected=parameters.visible.map(parameter),body=projected.find(p=>p.in==='body'),form=projected.filter(p=>p.in==='formData');
+    const consumes=swaggerMedia(graph,input.resource,input.pointer,'consumes');
+    if(body)requestBody={required:body.required,source:body.source,definition:body.definition,content:consumes.map(mediaType=>({mediaType,source:body.source,definition:body.definition,schema:body.schema,examples:[]}))};
+    else if(form.length)requestBody={required:form.some(p=>p.required),source:location(input.resource,input.pointer),definition:location(input.resource,input.pointer),content:consumes.map(mediaType=>({mediaType,source:location(input.resource,input.pointer),swaggerForm:form,examples:[]}))};
+  }
   const headerShape=headerShapes(graph);
   const responses:any[]=[];
   const responseNode=node.children.get('responses');
@@ -293,15 +304,15 @@ export function requestOperation(input:any) {
     if(v?.headers&&typeof v.headers==='object')for(const name of Object.keys(v.headers)){
       if(name.toLowerCase()==='content-type')continue;
       const hp=selected.pointer+'/headers/'+escape(name),header=follow({resource:selected.resource,pointer:hp,kind:'header'},'header'),hv=header.node.value;
-      headers.push({name,family,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv),shape:headerShape({resource:header.resource,pointer:header.pointer+'/schema',kind:'schema'})});
+      headers.push({name,family,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv),shape:headerShape({resource:header.resource,pointer:family==='2.0'?header.pointer:header.pointer+'/schema',kind:'schema'}),...(family==='2.0'?swaggerFlat(hv,header.source):{})});
     }
-    responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,content:media(selected.resource,selected.pointer+'/content',v?.content)});
+    responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location):media(selected.resource,selected.pointer+'/content',v?.content)});
   }
   const identity=createHash('sha256').update(JSON.stringify([input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
   return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method:context.customMethod?context.method:context.method.toUpperCase(),customMethod:context.customMethod===true,path:context.path,
     operationId:typeof node.value.operationId==='string'?node.value.operationId:undefined,summary:typeof node.value.summary==='string'?node.value.summary:undefined,
     source:location(input.resource,input.pointer),occurrence:context.occurrence,pathItem:location(context.pathItem.resource,context.pathItem.pointer)},
-    servers,parameters:parameters.visible.map(parameter),security:{requirements,schemes,anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,responses,
+    servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes,anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,responses,
     producer:'busyapi-contract-engine',producerVersion:'0.1.0',complete:true};
 }
 
@@ -323,13 +334,14 @@ export function planResponseExample(input:any) {
   const {docs,graph}=createGraph(input),target=input.target,doc=docs.get(target?.resource);
   const resource=(input.resources as Resource[]).find(resource=>resource.id===target?.resource);
   const node=doc?.nodes.get(target?.pointer),scope=doc&&graph.scopes.get(doc.id+'#'+target.pointer);
-  if(!doc||!node||!resource||resource.generation!==target.generation||scope?.kind!=='media')
+  if(!doc||!node||!resource||resource.generation!==target.generation||!(scope?.kind==='media'||scope?.family==='2.0'&&scope.kind==='response'))
     throw new SourceError('example.destination','The selected response media declaration is no longer current');
   if(typeof input.raw!=='string'||Buffer.byteLength(input.raw)>1024*1024)
     throw new SourceError('limit.example','A saved response example must be at most 1 MiB');
   const sample=new SourceDocument(input.raw,'file:///busyapi-reviewed-response-example.json');
   const exact=sample.dataJson('');
-  const pointer=target.pointer+'/example';
+  if(scope.family==='2.0'&&(typeof input.mediaType!=='string'||!input.mediaType.includes('/')))throw new SourceError('example.media','Select the response example media type');
+  const pointer=target.pointer+(scope.family==='2.0'?'/examples/'+escape(input.mediaType):'/example');
   const result=propose({...input,target,actions:[{kind:'setExample',pointer,raw:exact}]});
   let after=resource.text;
   for(const edit of [...result.edits].reverse())after=after.slice(0,edit.start)+edit.replacement+after.slice(edit.end);

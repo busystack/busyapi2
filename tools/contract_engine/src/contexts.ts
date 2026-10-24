@@ -7,7 +7,8 @@ export type Child = [
 ];
 const methods31 = Object.freeze(['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']);
 const methods32 = Object.freeze([...methods31, 'query']);
-export const standardOperationMethods = (family: string): readonly string[] => family === '3.2' ? methods32 : methods31;
+const methods20 = Object.freeze(methods31.filter(method => method !== 'trace'));
+export const standardOperationMethods = (family: string): readonly string[] => family === '2.0' ? methods20 : family === '3.2' ? methods32 : methods31;
 // Only specification positions carry references; payloads and metadata do not.
 export function children(value: any, kind: string, family = '3.2'): Child[] {
     if (!value || typeof value !== 'object')
@@ -21,13 +22,17 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
     switch (kind) {
         case 'root':
             one('info', 'info');
-            one('servers', 'server-array');
+            if(family!=='2.0')one('servers', 'server-array');
             one('security', 'security-array');
             one('tags', 'tag-array');
             one('externalDocs', 'external-documentation');
             one('paths', 'path-map');
             if (modernFamily(family)) one('webhooks', 'webhook-map');
-            one('components', 'components');
+            if(family==='2.0') {
+                one('definitions','schema-map');one('parameters','parameter-map');
+                one('responses','response-component-map');one('securityDefinitions','security-map');
+                for(const name of ['schemes','consumes','produces'])one(name,'string-array');
+            }else one('components', 'components');
             break;
         case 'info':
             one('contact', 'contact');
@@ -55,7 +60,7 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
             entries('path-item');
             break;
         case 'path-item':
-            one('servers', 'server-array');
+            if(family!=='2.0')one('servers', 'server-array');
             for (const key of standardOperationMethods(family))
                 one(key, 'operation');
             if (family === '3.2')
@@ -67,13 +72,14 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
             break;
         case 'operation':
             one('tags', 'string-array');
-            one('servers', 'server-array');
+            if(family!=='2.0')one('servers', 'server-array');
             one('security', 'security-array');
             one('externalDocs', 'external-documentation');
             one('parameters', 'parameter-array');
-            one('requestBody', 'request-body');
+            if(family!=='2.0')one('requestBody', 'request-body');
             one('responses', 'response-map');
-            one('callbacks', 'callback-map');
+            if(family!=='2.0')one('callbacks', 'callback-map');
+            else for(const name of ['schemes','consumes','produces'])one(name,'string-array');
             break;
         case 'parameter-array':
         case 'parameter-map':
@@ -93,14 +99,18 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
             break;
         case 'response':
             one('headers', 'header-map');
-            one('content', 'content-map');
-            one('links', 'link-map');
+            if(family==='2.0')one('schema','schema');
+            else {one('content', 'content-map');one('links', 'link-map');}
             break;
         case 'parameter':
         case 'header':
-            one('schema', 'schema');
-            one('content', 'content-map');
-            one('examples', 'example-map');
+            if(family==='2.0') {
+                if(kind==='parameter'&&value.in==='body')one('schema','schema');
+                else one('items','items');
+            }else {one('schema', 'schema');one('content', 'content-map');one('examples', 'example-map');}
+            break;
+        case 'items':
+            one('items','items');
             break;
         case 'request-body':
             one('content', 'content-map');
@@ -146,7 +156,7 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
         case 'security-map':
             entries('security');
             break;
-        case 'security': one('flows', 'oauth-flows'); break;
+        case 'security': if(family==='2.0')one('scopes','string-map');else one('flows', 'oauth-flows'); break;
         case 'oauth-flows':
             for (const flow of ['implicit', 'password', 'clientCredentials', 'authorizationCode', ...(family === '3.2' ? ['deviceAuthorization'] : [])]) one(flow, 'oauth-flow');
             break;
@@ -157,24 +167,26 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
             entries('schema');
             break;
         case 'schema':
-            one('discriminator', 'discriminator');
+            if(family!=='2.0')one('discriminator', 'discriminator');
             one('xml', 'xml');
             one('externalDocs', 'external-documentation');
             for (const k of ['properties', ...(modernFamily(family) ? ['patternProperties', '$defs', 'dependentSchemas'] : [])])
                 one(k, 'schema-map');
-            for (const k of ['items', ...(typeof value.additionalProperties === 'boolean' && !modernFamily(family) ? [] : ['additionalProperties']), 'not', ...(modernFamily(family) ? ['unevaluatedProperties', 'unevaluatedItems', 'contains', 'propertyNames', 'if', 'then', 'else', 'contentSchema'] : [])])
+            if(family==='2.0'&&Array.isArray(value.items))one('items','schema-array');
+            for (const k of [...(family==='2.0'&&Array.isArray(value.items)?[]:['items']), ...(typeof value.additionalProperties === 'boolean' && !modernFamily(family) ? [] : ['additionalProperties']), ...(family==='2.0'?[]:['not']), ...(modernFamily(family) ? ['unevaluatedProperties', 'unevaluatedItems', 'contains', 'propertyNames', 'if', 'then', 'else', 'contentSchema'] : [])])
                 one(k, 'schema');
-            for (const k of ['allOf', 'anyOf', 'oneOf', ...(modernFamily(family) ? ['prefixItems'] : [])])
+            for (const k of ['allOf', ...(family==='2.0'?[]:['anyOf', 'oneOf']), ...(modernFamily(family) ? ['prefixItems'] : [])])
                 one(k, 'schema-array');
             break;
     }
     return out;
 }
 export const referenceKinds = new Set(['path-item', 'response', 'parameter', 'header', 'request-body', 'example', 'link', 'callback', 'security', 'media', 'schema']);
+export const supportsReference = (kind:string,family:string):boolean => referenceKinds.has(kind) && (family!=='2.0'||['schema','path-item','parameter','response'].includes(kind));
 // Shared traversal/projection boundary. Schema applicators and Path Item
 // references keep their own sibling rules; other Reference Object siblings
 // cannot become object definitions merely because their keys look familiar.
 export function isReferenceObject(value:any,kind:string,family:string):boolean {
-    return referenceKinds.has(kind) && (kind !== 'schema' || !modernFamily(family)) && kind !== 'path-item' &&
+    return supportsReference(kind,family) && (kind !== 'schema' || !modernFamily(family)) && kind !== 'path-item' &&
         (kind !== 'media' || family === '3.2') && typeof value?.$ref === 'string';
 }

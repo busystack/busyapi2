@@ -63,7 +63,7 @@ export async function mountRedocReference(presentation,element,{api,onError,sign
   }catch{return fail('busyapi.documentation.renderer-failed');}
   if(closed||signal?.aborted){close();throw Error('busyapi.documentation.cancelled');}
   if(prepared?.specType!=='openapi'||!Array.isArray(prepared.items)||prepared.items.length>40000||
-      !prepared.store||!prepared.options||prepared.document?.openapi!==presentation.spec.openapi)
+      !prepared.store||!prepared.options||(prepared.document?.openapi!==presentation.spec.openapi||prepared.document?.swagger!==presentation.spec.swagger))
     return fail('busyapi.documentation.renderer-failed');
   let content;
   try {content=redocAuthoredContent(api.React,presentation,prepared.items,labels,source);}catch{return fail('busyapi.documentation.renderer-failed');}

@@ -78,7 +78,7 @@ export function referenceChoices(input:any) {
   if(value===undefined)continue;
   if(all.length>=20000)throw new SourceError('limit.reference.choices','Refine the reference query');
   const resource=resources.get(target.resource)!;
-  const role=/^\/components\/[^/]+\/[^/]+$/.test(target.pointer)?'component':target.kind==='schema'&&target.resourcePointer===target.pointer?'schema-resource':'inline';
+  const role=/^(?:\/components\/[^/]+|\/(?:definitions|parameters|responses|securityDefinitions))\/[^/]+$/.test(target.pointer)?'component':target.kind==='schema'&&target.resourcePointer===target.pointer?'schema-resource':'inline';
   all.push({semanticId:JSON.stringify([input.root,target.resource,target.pointer,target.kind]),label:bounded(label),value,kind:target.kind,role,
    reference:typeof node.value?.$ref==='string'||target.kind==='schema'&&typeof node.value?.$dynamicRef==='string',
    sharedSource:node.shared,

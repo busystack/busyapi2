@@ -173,7 +173,9 @@ class _DesignerState extends State<Designer> {
         .cast<Map<String, dynamic>>()
         .where(c.isSelected)
         .firstOrNull;
-    if (operation == null && c.selectedPointer != '/info') {
+    if ((operation == null ||
+            c.specification?.family == SpecificationFamily.swagger20) &&
+        c.selectedPointer != '/info') {
       return _NativeObjectPage(
         key: ValueKey((c.root, c.selectedResource, c.selectedPointer)),
         designer: this,
@@ -1178,7 +1180,7 @@ Future<void> addOperation(BuildContext context, WorkspaceController c) async {
           'delete',
           'head',
           'options',
-          'trace',
+          if (c.specification?.family != SpecificationFamily.swagger20) 'trace',
           if (c.projection?['openapi'].startsWith('3.2')) 'query',
         ],
       ),

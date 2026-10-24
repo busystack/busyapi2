@@ -1,5 +1,6 @@
 import {createGraph, Resource} from './engine';
-import {children, isReferenceObject, referenceKinds} from './contexts';
+import {children, isReferenceObject, supportsReference} from './contexts';
+import {swaggerServers} from './swagger_operation';
 import {fieldsFor,richTextField} from './authoring';
 import {escape, segments, SourceError} from './document';
 import {ParameterSemantics} from './parameter_semantics';
@@ -20,6 +21,10 @@ function operationEffective(graph:ReferenceGraph,resource:string,pointer:string,
     }
     const view=path?graph.pathItem(path):undefined;
     for(const name of ['servers','security']) {
+        if(name==='servers'&&graph.scope(resource,pointer).family==='2.0') {
+            effective.push({name,origin:'root',inherited:true,complete:true,source:located(root.id,''),default:swaggerServers(graph,resource,pointer,located).map(server=>({url:server.url}))});
+            continue;
+        }
         const local=node.children.has(name)?{resource,pointer:pointer+'/'+name,origin:'operation'}:undefined;
         const inherited=name==='servers'?view?.fields.get(name):undefined;
         const unknown=!local&&name==='servers'&&view&&!inherited&&(!view.chainComplete||view.conflicts.includes(name));
@@ -106,7 +111,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
     }));
     const defaults = fieldDefinitions.filter(field => !node.children.has(field.name) && Object.hasOwn(field, 'effectiveDefault')).map(field => ({name: field.name, value: field.effectiveDefault}));
     const interpretation = kind === 'schema' ? 'schema-applicators' : kind === 'path-item' ? 'path-item' :
-        referenceKinds.has(kind) && typeof node.value?.$ref === 'string' && (kind !== 'media' || family === '3.2') ? 'reference-object' : kind === 'data' ? 'data' : 'inline';
+        supportsReference(kind,family) && typeof node.value?.$ref === 'string' ? 'reference-object' : kind === 'data' ? 'data' : 'inline';
     const issues = kind === 'data' ? [] : graph.issues.filter(issue => issue.resource === doc.id && (issue.pointer === node.pointer || issue.pointer.startsWith(node.pointer + '/')));
     const previews: any[] = [];
     let previewsLimited = false;
@@ -131,7 +136,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
             if(visited.has(key))return;
             visited.add(key);chain.push({resource,pointer});
             const n=read(resource,pointer)!;
-            if(typeof n.value?.$ref!=='string' || !referenceKinds.has(kind) || kind==='media'&&graph.scope(resource,pointer).family!=='3.2')return {resource,pointer,chain};
+            if(typeof n.value?.$ref!=='string' || !supportsReference(kind,graph.scope(resource,pointer).family))return {resource,pointer,chain};
             const edge=referenceIndex.get(JSON.stringify([resource,pointer,'$ref']));
             if(!edge || edge.resolution!=='resolved')return;
             resource=edge.targetResource!;pointer=edge.targetPointer!;
@@ -263,7 +268,7 @@ export function referenceDocument(input:any) {
             // not an invented OAS root field or a literal payload. This mirrors
             // the graph's literal-container boundary; extension/example fields
             // in real specification objects remain data even when referenced.
-            const kind=contexts.get(name)??(scope.kind==='root'&&typeof doc.root.value?.openapi!=='string'?
+            const kind=contexts.get(name)??(scope.kind==='root'&&!graph.specifications.has(doc.id)?
                 graph.scopes.get(scope.resource+'#'+pointer)?.kind:undefined);
             const target=kind!==undefined&&graph.scopes.has(scope.resource+'#'+pointer);
             return {name,source:location(scope.resource,pointer),kind:kind??'data',

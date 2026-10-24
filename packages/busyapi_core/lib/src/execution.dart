@@ -542,6 +542,7 @@ class OperationRequestPlan {
       ...snapshot.toJson(),
       'target': Map<String, dynamic>.from(target),
       'raw': reviewedJson,
+      'mediaType': contentType.split(';').first.trim(),
       'redacted': redacted,
     });
     if (_closed ||

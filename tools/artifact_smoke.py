@@ -50,7 +50,7 @@ def exports(project,source,temporary):
         assert source.read_bytes()==before,'An output command changed canonical source'
 with tempfile.TemporaryDirectory(prefix='busyapi-artifact-smoke-') as tmp:
     root=pathlib.Path(tmp)
-    for version in ['3.0.0','3.0.4','3.1.0','3.1.2','3.2.0','3.2.1']:
+    for version in ['2.0','3.0.0','3.0.4','3.1.0','3.1.2','3.2.0','3.2.1']:
         for format in ['yaml','json']:
             project=root/(version+'-'+format);created=run('init',project,'--title','Smoke','--api-version','1.0.0','--openapi',version,'--format',format);assert created.returncode==0,created.stderr
             checked=run('check',project,'--json');d=json.loads(checked.stdout);assert checked.returncode==0 and d['status']=='complete',checked.stdout

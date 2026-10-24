@@ -1,9 +1,9 @@
 import Ajv2020 from 'ajv/dist/2020';
-import {structuralSchema, structuralDefinition} from './structural_schema';
+import {structuralSchema, structuralDefinition, structuralReference} from './structural_schema';
 import {modernFamily} from './specification';
 import type {ReferenceGraph,GraphScope} from './reference_graph';
 import {escape} from './document';
-import {isReferenceObject,referenceKinds} from './contexts';
+import {isReferenceObject,referenceKinds,supportsReference} from './contexts';
 
 // This shared description supplies native fields, Source assistance and help.
 // Structural artifacts describe field shapes, not complete OAS semantics.
@@ -11,10 +11,14 @@ const evaluator = new Ajv2020({strict: false, validateFormats: false});
 const conditions = new Map<any, any>();
 const names: Record<string, string> = {security: 'security-scheme', media: 'media-type', callback: 'callbacks', 'path-item': 'path-item', 'request-body': 'request-body'};
 export function componentFamily(kind:string,family:string):string|undefined {
+    if(family==='2.0'&&!['schema','parameter','response','security'].includes(kind))return;
     if(kind==='media'&&family!=='3.2')return;
     if(kind==='path-item'&&!modernFamily(family))return;
     return ({schema:'schemas',parameter:'parameters',header:'headers',response:'responses','request-body':'requestBodies',example:'examples',link:'links',callback:'callbacks','path-item':'pathItems',media:'mediaTypes',security:'securitySchemes'} as Record<string,string>)[kind];
 }
+export const componentLocation=(group:string,family:string):string|undefined=>family==='2.0'
+    ?({schemas:'/definitions',parameters:'/parameters',responses:'/responses',securitySchemes:'/securityDefinitions'} as Record<string,string>)[group]
+    :'/components/'+group;
 /** Resource-relative authored URIs and the Server retrieval-relative URL.
  * Security discovery and OAuth endpoints are API URLs: OAS resolves those
  * against the applicable Server URL, not the document/schema identity. */
@@ -79,6 +83,15 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
     const target = structuralDefinition(kind, family, value, contextName);
     if (isReferenceObject(value,kind,family)) return (modernFamily(family) ? ['$ref', 'summary', 'description'] : ['$ref']).map(name => ({name, type: 'string'}));
     if (kind === 'schema' && modernFamily(family)) return schemaFields();
+    if(family==='2.0'&&kind==='parameter'&&!value?.in)return [
+        {name:'name',type:'string',required:true},{name:'in',type:'string',required:true,options:['path','query','header','body','formData']},
+        {name:'description',type:'string'},{name:'required',type:'boolean',effectiveDefault:false},
+    ];
+    if(family==='2.0'&&kind==='security'&&value?.type==='oauth2'&&!value?.flow)return [
+        {name:'type',type:'string',required:true,options:['basic','apiKey','oauth2']},
+        {name:'flow',type:'string',required:true,options:['implicit','password','application','accessCode']},
+        {name:'scopes',type:'object',required:true},{name:'description',type:'string'},
+    ];
     // These annotations are defined by the OAS vocabulary, outside the
     // structural artifact's schema meta slot (OAS 3.1/3.2 XML/Discriminator).
     if (kind === 'discriminator') return [
@@ -104,7 +117,7 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
     const collect = (schema: any, causes: string[] = []) => {
         if (!schema || seen.has(schema)) return;
         seen.add(schema);
-        if (schema.$ref?.startsWith('#/')) collect(schema.$ref.slice(2).split('/').reduce((v: any, k: string) => v[k], standard), causes);
+        if (typeof schema.$ref==='string') collect(structuralReference(schema.$ref,standard), causes);
         for (const [name, property] of Object.entries(schema.properties ?? {})) {
             if (property === false) {
                 const blocked = prohibited.get(name) ?? new Set<string>();
@@ -124,7 +137,7 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
         // The 3.0 artifact expresses location/type refinements with oneOf.
         // Select by the authored discriminator without validating an unfinished
         // form as a complete object. With no choice yet, expose the choice.
-        if (family === '3.0' && schema.oneOf) {
+        if (!modernFamily(family) && schema.oneOf) {
             const alternatives = schema.oneOf.map((branch: any) => branch.$ref?.startsWith('#/')
                 ? branch.$ref.slice(2).split('/').reduce((v: any, k: string) => v?.[k], standard) : branch);
             const selector = kind === 'parameter' ? 'in' : kind === 'security' ? 'type' : undefined;
@@ -146,24 +159,26 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
     };
     collect(target);
     const fields = [...properties.values()];
+    if(family==='2.0'&&['parameter','header','items'].includes(kind)&&value?.type==='array')required.add('items');
+    if(family==='2.0'&&kind==='security'&&value?.type==='oauth2')required.add('scopes');
     if (kind === 'schema' && !modernFamily(family)) {
         fields.unshift({name: '$ref', type: 'string'});
         for (const field of fields) {
             if (['items', 'additionalProperties', 'not'].includes(field.name)) field.type = 'schema';
             if (['allOf', 'oneOf', 'anyOf'].includes(field.name)) field.type = 'array';
         }
-        if (value?.type === 'array') required.add('items');
+        if (family==='3.0'&&value?.type === 'array') required.add('items');
     }
-    if (kind === 'parameter' && family === '3.0') {
+    if (kind === 'parameter' && !modernFamily(family)) {
         const location = fields.find(field => field.name === 'in');
-        if (location) location.options = ['path', 'query', 'header', 'cookie'];
+        if (location) location.options = family==='2.0'?['path','query','header','body','formData']:['path', 'query', 'header', 'cookie'];
     }
     // A newly created specification object can deliberately choose the
     // Reference Object alternative before authoring incompatible inline
     // fields. Reuse the graph's position/version boundary; payload/metadata
     // keys never acquire reference semantics. Existing inline content still
     // requires extraction/removal rather than an implicit destructive switch.
-    if (referenceKinds.has(kind) && kind !== 'schema' && kind !== 'path-item' &&
+    if (supportsReference(kind,family) && kind !== 'schema' && kind !== 'path-item' &&
         (kind !== 'media' || family === '3.2') && value && typeof value === 'object' && !Array.isArray(value) &&
         Object.keys(value).every(name => ['summary','description'].includes(name)) && !fields.some(field => field.name === '$ref'))
         fields.unshift({name:'$ref',type:'string'});
@@ -201,9 +216,9 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
 function describe(name: string, field: any, standard: any) {
     if (field === true) return {name, type: 'any'};
     const seen = new Set<any>();
-    while (field.$ref?.startsWith('#/') && !seen.has(field)) {
+    while (typeof field.$ref==='string' && !seen.has(field)) {
         seen.add(field);
-        const referenced = field.$ref.slice(2).split('/').reduce((v: any, k: string) => v[k], standard);
+        const referenced = structuralReference(field.$ref,standard);
         if (!referenced) break;
         field = {...referenced, ...Object.fromEntries(Object.entries(field).filter(([key]) => key !== '$ref'))};
     }

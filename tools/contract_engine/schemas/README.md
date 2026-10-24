@@ -1,6 +1,18 @@
 # Published OpenAPI schema artifacts
 
-Unmodified JSON from the OpenAPI Initiative specification registry:
+Unmodified OpenAPI JSON from the OpenAPI Initiative specification registry:
+
+- [2.0 schema, 2017-08-27](https://spec.openapis.org/oas/2.0/schema/2017-08-27),
+  SHA-256 `b36871c8016292c5e66dd3b203e69aeff98bfef97e0b3c67c1909036095586a5`.
+  Its restricted Draft 4 subset and native Parameter/Items/Header schemas are
+  evaluated independently of the 3.x dialects. `draft04.json` is a deterministic
+  serialization of the Draft 4 meta-schema distributed by pinned Hyperjump
+  1.18.0 (`draft-04`, `experimental.getSchema`/`toSchema`, includeDialect: always,
+  JSON indentation 2 plus final newline). SHA-256
+  `3b017031ec8988e3059d8345c0d304d4f88e60c84953d6e6721b88c8e2bbf566`.
+  Original identity: <http://json-schema.org/draft-04/schema>. Retain the MIT
+  validator notices and JSON-SCHEMA-LICENSE dataset attribution.
+
 
 - [3.0 schema, 2024-10-18](https://spec.openapis.org/oas/3.0/schema/2024-10-18),
   SHA-256 `2385f5bbb8c37878daae73baeabe7f34b2f022a4a8c049329ee61f71796f039c`.

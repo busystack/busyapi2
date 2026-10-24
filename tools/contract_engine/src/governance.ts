@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {Spectral,Ruleset} from '@stoplight/spectral-core';
 import * as functions from '@stoplight/spectral-functions';
-import {oas3,oas3_1,oas3_2} from '@stoplight/spectral-formats';
+import {oas2,oas3,oas3_1,oas3_2} from '@stoplight/spectral-formats';
 import * as trustedFormats from '@stoplight/spectral-formats';
 import oasModule from '@stoplight/spectral-rulesets/dist/oas';
 import {createGraph,analyse} from './engine';
@@ -17,12 +17,12 @@ import {policyFunctionContext} from './policy_function_context';
 import {policyExpressionNeedsIsolation as needsIsolation} from './policy_expression';
 
 export const policyProducer={name:'spectral+busyapi-graph',version:'1.24.0+7'};
-const formats={oas3,oas3_1,oas3_2};
+const formats={oas2,oas3,oas3_1,oas3_2};
 const levels=['error','warning','information','hint'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 const recommended={
     aliases:{OperationObject:['$.paths[*][get,put,post,delete,options,head,patch,trace]']},
-    formats:[oas3],
+    formats:[oas2,oas3],
     rules:{'operation-summary':{description:'Give each operation an informative summary.',given:'#OperationObject',then:{field:'summary',function:functions.truthy},severity:'warn',recommended:true},
         'server-variable-declarations':{description:'Review unmapped or unused Server URL variables. This is authoring advice, not a security verdict.',given:'#ServerObject',then:{function:function busyapiServerVariables(value:any,_options:any,context:any){return serverVariableAdvice(value).map(item=>({...item,path:[...context.path,...item.path]}));}},severity:'warn',recommended:true}},
 };
@@ -314,7 +314,7 @@ export async function govern(input:any,observeFailure?:(error:unknown)=>void,exe
             };
             ruleset=new Ruleset(bind(definition),{source:input.policy?.source??input.root});
         }catch(error) {observeFailure?.(error);complete=false;add({resource:input.root,pointer:''},'policy.configuration','error');continue;}
-        const detectedFormats=new Set<any>([oas3,...(family==='3.0'?[]:[family==='3.1'?oas3_1:oas3_2])]);
+        const detectedFormats=new Set<any>(family==='2.0'?[oas2]:[oas3,...(family==='3.0'?[]:[family==='3.1'?oas3_1:oas3_2])]);
         const registered=new Set<any>(ruleset.formats);
         for(const rule of Object.values(ruleset.rules))for(const alias of Object.values(rule.owner.aliases??{}) as any[])
             for(const target of alias?.targets??[])for(const format of target.formats??[])registered.add(format);
@@ -575,7 +575,7 @@ export async function govern(input:any,observeFailure?:(error:unknown)=>void,exe
         if(!Object.keys(rules).length)continue;
         const spectral=new Spectral({resolver:suppliedOnlyResolver() as any});
         try {
-            spectral.setRuleset({rules,formats:[oas3,oas3_1,oas3_2]});
+            spectral.setRuleset({rules,formats:[oas2,oas3,oas3_1,oas3_2]});
             const results=await spectral.run({source:input.root,parsed:{data:projection.value,diagnostics:[]},
                 getLocationForJsonPath:()=>({range:{start:{line:0,character:0},end:{line:0,character:0}}})});
             for(const result of results) {

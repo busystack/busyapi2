@@ -143,7 +143,8 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
     'oauth-flow' => context.l10n.oauthFlow,
     'schema' => context.l10n.schema,
     'schema-map' =>
-      widget.pointer == '/components/schemas'
+      (widget.pointer == '/components/schemas' ||
+              widget.pointer == '/definitions')
           ? context.l10n.schemas
           : context.l10n.properties,
     'parameter' => context.l10n.parameter,
@@ -307,7 +308,7 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
             : null,
       );
     }
-    if (key == 'openapi') {
+    if (key == 'openapi' || key == 'swagger') {
       return BusyApiActionRow(
         title: context.l10n.openapiVersion,
         subtitle: '${field['value']}',
@@ -533,6 +534,19 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                     title: l.retryObjectPage,
                     onTap: () => setState(reload),
                   ),
+                if (kind == 'operation' &&
+                    (c.projection?['operations'] as List? ?? const [])
+                        .whereType<Map<String, dynamic>>()
+                        .any(c.isSelected))
+                  BusyApiActionRow(
+                    title: l.tryOperation,
+                    leading: const Icon(BusyApiGlyphs.play),
+                    onTap: () => widget.designer.widget.tryOperation?.call(
+                      (c.projection!['operations'] as List)
+                          .whereType<Map<String, dynamic>>()
+                          .firstWhere(c.isSelected),
+                    ),
+                  ),
                 if (kind == 'operation' && item['operationContext'] is Map)
                   BusyApiActionRow(
                     title: l.relocateOperation,
@@ -571,8 +585,9 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                     item['sharedTarget'] == true ||
                     c.selectedOccurrence?.startsWith('definition:') == true)
                   Text(l.sharedDefinition),
-                if (RegExp(r'^/components/[^/]+/[^/]+$')
-                    .hasMatch(widget.pointer))
+                if (RegExp(
+                  r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))/[^/]+$',
+                ).hasMatch(widget.pointer))
                   BusyApiActionRow(
                     title: l.renameComponent,
                     onTap: c.scopeSafe(item)
@@ -582,8 +597,9 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                         : null,
                   ),
                 if (item['componentFamily'] is String &&
-                    RegExp(r'^/components/[^/]+/[^/]+$')
-                        .hasMatch(widget.pointer) &&
+                    RegExp(
+                      r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))/[^/]+$',
+                    ).hasMatch(widget.pointer) &&
                     !(item['references'] as List).any(
                       (ref) =>
                           ref['keyword'] == r'$ref' ||
@@ -603,8 +619,9 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                         : null,
                   ),
                 if (item['componentFamily'] is String &&
-                    !RegExp(r'^/components/[^/]+/[^/]+$')
-                        .hasMatch(widget.pointer) &&
+                    !RegExp(
+                      r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))/[^/]+$',
+                    ).hasMatch(widget.pointer) &&
                     !(item['references'] as List).any(
                       (ref) =>
                           ref['keyword'] == r'$ref' ||
@@ -1295,7 +1312,9 @@ Future<void> _addObjectEntry(
   final textValue = kind == 'string-array';
   final emptyNameAllowed =
       kind == 'schema-map' &&
-      !RegExp(r'^/components/[^/]+$').hasMatch(item['pointer']);
+      !RegExp(
+        r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))$',
+      ).hasMatch(item['pointer']);
   final l = context.l10n;
   final owner = c.project, root = c.root;
   String? createdPointer;
@@ -1320,7 +1339,9 @@ Future<void> _addObjectEntry(
           kind == 'server-array' && (v['url'] as String).isEmpty) {
         return l.objectNameRequired;
       }
-      if (RegExp(r'^/components/[^/]+$').hasMatch(item['pointer']) &&
+      if (RegExp(
+            r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))$',
+          ).hasMatch(item['pointer']) &&
           !RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(v['name'])) {
         return l.componentNameInvalid;
       }

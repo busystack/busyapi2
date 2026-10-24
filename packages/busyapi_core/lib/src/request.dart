@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import 'model.dart';
 import 'content_selection.dart';
 import 'header_serialization.dart';
+import 'swagger_serialization.dart';
 import 'project.dart';
 import 'atomic_file_writer.dart';
 import 'storage.dart';
@@ -473,7 +474,13 @@ class ContractRequestBuilder {
           query.add(('', serialized.single.$2, true, true));
           break;
         case 'header':
-          _addHeader(headers, name, serialized.single.$2);
+          _addHeader(
+            headers,
+            name,
+            serialized.single.$2,
+            allowHorizontalTab:
+                raw['family'] == '2.0' && raw['collectionFormat'] == 'tsv',
+          );
           break;
         case 'cookie':
           for (final item in serialized) {
@@ -829,6 +836,8 @@ class ContractRequestBuilder {
         ),
       ];
     }
+    if (parameter['family'] == '2.0')
+      return serializeSwaggerParameter(parameter, value);
     final location = parameter['in'] as String,
         style =
             parameter['style'] as String? ??
@@ -1084,10 +1093,14 @@ class ContractRequestBuilder {
   static void _addHeader(
     List<(String, String)> headers,
     String name,
-    String value,
-  ) {
+    String value, {
+    bool allowHorizontalTab = false,
+  }) {
     if (!RegExp(r"^[!#\$%&'*+.^_`|~0-9A-Za-z-]+$").hasMatch(name) ||
-        RegExp(r'[\x00-\x1f\x7f]').hasMatch(value)) {
+        (allowHorizontalTab
+                ? RegExp(r'[\x00-\x08\x0a-\x1f\x7f]')
+                : RegExp(r'[\x00-\x1f\x7f]'))
+            .hasMatch(value)) {
       throw CoreFailure(
         'request.header.injection',
         'Header names and values must not contain control characters',
@@ -1313,6 +1326,16 @@ class ContractRequestBuilder {
         'Positional multipart encodings are unsupported; no request was sent.',
       );
     }
+    final nativeForm = (declaration?['swaggerForm'] as List?)
+        ?.whereType<Map>()
+        .toList();
+    final fields = nativeForm == null
+        ? body.fields
+        : swaggerFormFields(
+            [for (final field in body.fields) (field.name, field.value)],
+            nativeForm,
+            body.files.map((file) => file.name),
+          ).map((field) => RequestFormField(field.$1, field.$2)).toList();
     switch (body.kind) {
       case RequestBodyKind.none:
         return null;
@@ -1327,7 +1350,7 @@ class ContractRequestBuilder {
       case RequestBodyKind.form:
         final formEncoding = declaration?['encoding'];
         if (formEncoding is Map)
-          for (final field in body.fields) {
+          for (final field in fields) {
             final rule = formEncoding[field.name];
             if (rule is Map &&
                 (rule.containsKey('style') ||
@@ -1343,7 +1366,7 @@ class ContractRequestBuilder {
             }
           }
         final text = [
-          for (final field in body.fields)
+          for (final field in fields)
             '${Uri.encodeQueryComponent(field.name)}=${Uri.encodeQueryComponent(field.value)}',
         ].join('&');
         final bytes = Uint8List.fromList(utf8.encode(text));
@@ -1482,7 +1505,7 @@ class ContractRequestBuilder {
             return output;
           }
 
-          for (final field in body.fields) {
+          for (final field in fields) {
             _partName(field.name);
             bytes(
               '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(field.name)}"\r\n${partHeaders(field.name, text: field.value)}\r\n${field.value}\r\n',
@@ -3162,6 +3185,49 @@ class ContractRequestExecutor {
         draft.body.mediaType,
       );
       final schema = media?['schema'];
+      final formDeclarations = (media?['swaggerForm'] as List?)
+          ?.whereType<Map>();
+      if (formDeclarations != null)
+        for (final declaration in formDeclarations) {
+          final name = declaration['name'] as String,
+              values = draft.body.fields
+                  .where((field) => field.name == name)
+                  .map((field) => field.value)
+                  .toList();
+          if (declaration['type'] == 'file') continue;
+          if (values.isEmpty) continue;
+          try {
+            final schema = declaration['schema'] as Map;
+            instances.add(
+              RuntimeSchemaInstance(
+                subject: 'request-parameter',
+                location: 'formData:$name',
+                text: swaggerFormInstance(declaration, values),
+                schemaResource: schema['resource'] as String,
+                schemaPointer: schema['pointer'] as String,
+              ),
+            );
+          } on FormatException {
+            findings.add(
+              _finding(
+                'runtime.request.form.type',
+                'error',
+                'The formData value does not match its primitive type.',
+                location: 'formData:$name',
+              ),
+            );
+          } on UnsupportedError {
+            checksComplete = false;
+            findings.add(
+              _finding(
+                'runtime.request.form.unchecked',
+                'information',
+                'This formData representation needs a structured value before its nested constraints can be evaluated.',
+                location: 'formData:$name',
+              ),
+            );
+          }
+        }
       if (draft.body.kind == RequestBodyKind.raw &&
           (media?['encoding'] != null ||
               media?['prefixEncoding'] != null ||
@@ -3479,6 +3545,7 @@ class ContractRequestExecutor {
     if (bodyPermitted &&
         response.decodingComplete &&
         !invalidTextEncoding &&
+        schema?['file'] != true &&
         supportedCharset &&
         (_jsonMedia(contentType ?? '') ||
             schema is Map && schema['unconstrained'] != true)) {

@@ -2,7 +2,7 @@
 
 BusyAPI is a workspace for authoring, inspecting, validating, and working with OpenAPI contracts. YAML and JSON files remain the canonical source. **Design**, **Source**, and **Reference** work from the same current document buffers; edits are published to disk only when saved.
 
-BusyAPI provides native editing for **OpenAPI 3.0.x, 3.1.x and 3.2.x**. Documents retain their declared family and are not silently upgraded or converted. See [Tool support](docs/tool-support.md) and the [current verification matrix](docs/implementation/native-openapi-support.md) for workflow qualification and remaining work.
+BusyAPI provides native editing for **Swagger 2.0 and OpenAPI 3.0.x, 3.1.x and 3.2.x**. Documents retain their declared family and are not silently upgraded or converted. See [Tool support](docs/tool-support.md) and the [current verification matrix](docs/implementation/native-openapi-support.md) for workflow qualification and remaining work.
 
 ## Features
 
