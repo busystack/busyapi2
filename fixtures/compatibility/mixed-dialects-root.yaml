@@ -1,0 +1,24 @@
+openapi: 3.1.2
+info:
+  title: Mixed dialect renderer
+  version: '1'
+paths:
+  /value:
+    get:
+      summary: Mixed dialect operation sentinel
+      responses:
+        '200':
+          description: Shared dialect response
+          content:
+            application/json:
+              schema:
+                $ref: models.yaml#/components/schemas/A
+              example:
+                $ref: literal example sentinel
+                exact: 9007199254740993.00
+components:
+  schemas:
+    B:
+      $ref: models.yaml#/components/schemas/B
+x-busyapi-display-resources:
+  must: remain authored

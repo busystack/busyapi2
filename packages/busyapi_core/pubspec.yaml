@@ -1,0 +1,14 @@
+name: busyapi_core
+description: Display-independent BusyAPI buffer, project and engine core.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.13.4 <4.0.0'
+dependencies:
+  crypto: 3.0.7
+  ffi: 2.2.0
+  markdown: 7.3.1
+  path: 1.9.1
+  yaml: 3.1.3
+dev_dependencies:
+  test: 1.31.1

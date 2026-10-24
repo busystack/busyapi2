@@ -1,0 +1,938 @@
+{
+  "version": 1,
+  "package": "redoc",
+  "packageVersion": "3.0.1",
+  "publishedBundleSha256": "09470eddd0727b75e52d8a393bc742f44a2704364f79b557890a42c0bfd36449",
+  "sourceRelease": "https://github.com/Redocly/redoc/tree/fc5257dc968cc214c01bddec62ee87dd3fc88566",
+  "sourceLockSha256": "9d23df085d2bbc1bd779dc60812f49553e99f1493b85c7779ac0aa437c048b17",
+  "supplierInventorySha256": "31aa1a6b1f38ac285fc5113ef7e4d332ae82b603dd5d4b190eaf74e604205304",
+  "supplierInventoryMethod": "Unmodified release LICENSE_CHECK=1 vite build and scripts/minify.js bundles; published bundle reproduced byte-for-byte",
+  "scope": "Published Redoc embedded dependencies only. External React/router/styling compilation inputs are independently reviewed. Does not clear the whole application or exported artifact.",
+  "packages": [
+    {
+      "name": "@markdoc/markdoc",
+      "version": "0.5.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@markdoc/markdoc/-/markdoc-0.5.2.tgz",
+      "integrity": "sha512-clrqWpJ3+S8PXigRE+zBIs6LVZYXaJ7JTDFq1CcCWc4xpoB2kz+9qRUQQ4vXtLUjQ8ige1BGdMruV6gM/2gloA==",
+      "packageJsonSha256": "2114ac4f237f5ef2f1772a64a436d674811a6df53ad718899fc5f90d9a1445d1",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/markdoc-markdoc-0.5.2-LICENSE.txt",
+          "sha256": "22d695fb4d9a771b4883f2fc5e90dab07dbc32024869d7463339a88faba6d648",
+          "originalFile": "LICENSE",
+          "originalSha256": "22d695fb4d9a771b4883f2fc5e90dab07dbc32024869d7463339a88faba6d648",
+          "source": "https://registry.npmjs.org/@markdoc/markdoc/-/markdoc-0.5.2.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "@opentelemetry/api",
+      "version": "1.9.1",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.1.tgz",
+      "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==",
+      "packageJsonSha256": "c0d7c72331bc8cd456dd791f2f429ddafa1d0b5b8abeb4104e6deb12f18b4a86",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "source": "https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.1.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "@opentelemetry/core",
+      "version": "2.8.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@opentelemetry/core/-/core-2.8.0.tgz",
+      "integrity": "sha512-hd1Lfh8p545nNz+jq1Ejfz+Mn1hyLuxYn1YzTfFNrxr8urEWMNQLPf1Th8kjOH+HxwawCrtgBp8JpBUR4ZSgww==",
+      "packageJsonSha256": "cb7c7d51dd8b709162fb25d39b08caf53be185ce80b58c7081f70914693fb6b9",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "source": "https://registry.npmjs.org/@opentelemetry/core/-/core-2.8.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "@opentelemetry/exporter-trace-otlp-http",
+      "version": "0.219.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@opentelemetry/exporter-trace-otlp-http/-/exporter-trace-otlp-http-0.219.0.tgz",
+      "integrity": "sha512-9t6SvBXXBEjOBcIzgozvBbd3jWrv3Gt3ngGhl1fhdZ/zRc7oZDVOFEqbi2zlBpW9BXhgDMKv422J0DL/3iQWfw==",
+      "packageJsonSha256": "dbc99b92571ac3a6f3c82d74976b17f767b7e46a1bf5edd75b869a4c32676f34",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "source": "https://registry.npmjs.org/@opentelemetry/exporter-trace-otlp-http/-/exporter-trace-otlp-http-0.219.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "@opentelemetry/otlp-exporter-base",
+      "version": "0.219.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@opentelemetry/otlp-exporter-base/-/otlp-exporter-base-0.219.0.tgz",
+      "integrity": "sha512-zvIxQX/AZUVKDU+hCuYx+7UkiP7GRdnk1ZbFQRYzHvYp47cAWR4j3IhoPhV9KaeXEv2xdGq3IA6PnpzDmLcmSA==",
+      "packageJsonSha256": "9f8997ead360aaeafa0a295a386a48ad1dc55f77a5aa8f6daeac5c697dedc1a9",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "source": "https://registry.npmjs.org/@opentelemetry/otlp-exporter-base/-/otlp-exporter-base-0.219.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "@opentelemetry/otlp-transformer",
+      "version": "0.219.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@opentelemetry/otlp-transformer/-/otlp-transformer-0.219.0.tgz",
+      "integrity": "sha512-aaYKAyXhw9VchKZVGOopD3Gw/kPsyrX2c6IQ0AW32mTjqmZOh5Y6Gf5OYqTNqVktAeBjmFinhyFaCwW6GYK9YQ==",
+      "packageJsonSha256": "c30c211a05b454722ec1167836e53c24c7a6a704441b7941dca4b7334bff5de5",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "source": "https://registry.npmjs.org/@opentelemetry/otlp-transformer/-/otlp-transformer-0.219.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "@opentelemetry/resources",
+      "version": "2.8.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@opentelemetry/resources/-/resources-2.8.0.tgz",
+      "integrity": "sha512-qmXQ27ilDbUK/vGMqwL8D4/rhn76C+sherM4wTbjlfknR8Nvfc/hCxjRJPhkzZzUsPiNg16SA31NxMabwttRjg==",
+      "packageJsonSha256": "6651e46c4f8945c1cab06b753e045a01eefe2451b5c2a339c3fd63e0fc0c9a63",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "source": "https://registry.npmjs.org/@opentelemetry/resources/-/resources-2.8.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "@opentelemetry/sdk-trace-base",
+      "version": "2.8.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@opentelemetry/sdk-trace-base/-/sdk-trace-base-2.8.0.tgz",
+      "integrity": "sha512-mhU4jp+vW0mGbFRd+GeXHvmfA4aDqWjBjLC3pE5XMpLs0IE2ryYb019Ts2AQrOq67gaTF25D91+fgvEHDZEnuQ==",
+      "packageJsonSha256": "fc1ce153def3b46a8e83a2c90323690030e1370f5d29e92ac0863f0ef15027f8",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "source": "https://registry.npmjs.org/@opentelemetry/sdk-trace-base/-/sdk-trace-base-2.8.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "@opentelemetry/sdk-trace-web",
+      "version": "2.8.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@opentelemetry/sdk-trace-web/-/sdk-trace-web-2.8.0.tgz",
+      "integrity": "sha512-P3ZM8BGJ5mwjtyfAxRyxsCyWHvaj+xahdhLoS3YiPsEyTHcWTVzx2691C8SrGkpvro3tNFCsWuNNrvM+spKODg==",
+      "packageJsonSha256": "51dbca27cb6fc30aaf49c85517d7556295aa2e1a9815d6834b3c964f989806ce",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "source": "https://registry.npmjs.org/@opentelemetry/sdk-trace-web/-/sdk-trace-web-2.8.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "@redocly/allof-merge",
+      "version": "0.6.9",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@redocly/allof-merge/-/allof-merge-0.6.9.tgz",
+      "integrity": "sha512-r/89c3IqaRk6lFHfif2/WEndX8NCmYUztEhQMk6g7xdxeKJ63y9ZxnDvkJ+i6womKtfiA/tbYYi6NjQ56z02ow==",
+      "packageJsonSha256": "19a802cd186d2d5935dce330deee7c8c65854fdc72a9f8d77a23cd8699a72992",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/redocly-allof-merge-0.6.9-LICENSE.txt",
+          "sha256": "d67ee8327b510abf9436810373e28f8816cdab443114e94bd9770acc669ae3ca",
+          "originalFile": "LICENSE",
+          "originalSha256": "6c7467194d33d6ac52e94f7aa3a7810856daa64d153f4199fbfdb58d1c2ca6ec",
+          "source": "https://registry.npmjs.org/@redocly/allof-merge/-/allof-merge-0.6.9.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "@redocly/openapi-core",
+      "version": "2.63.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@redocly/openapi-core/-/openapi-core-2.63.0.tgz",
+      "integrity": "sha512-nG/dAf0OTr5pkhDe1Ty0CtdmK1aM84597UvjgzN2B8TQFygL2S3DOpY3uAnjEIa2S0p6v0i7DPBtEGoe+3T8Yw==",
+      "packageJsonSha256": "fd84b88aa8374f45bda94e9b9c220eebdd5befb2940668dc40acd5ec7e310d1e",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/redocly-openapi-core-2.63.0-LICENSE.txt",
+          "sha256": "f6bf9ce4d84b47c1cdda9d8988ac977efc314f00ad65e498fc514ddf118440b5",
+          "originalFile": "LICENSE",
+          "originalSha256": "f6bf9ce4d84b47c1cdda9d8988ac977efc314f00ad65e498fc514ddf118440b5",
+          "source": "https://github.com/Redocly/redocly-cli/blob/35bf0e6d877bf6e41ee30db8ddae7749a3545278/LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "@redocly/redoc-opentelemetry",
+      "version": "0.5.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@redocly/redoc-opentelemetry/-/redoc-opentelemetry-0.5.1.tgz",
+      "integrity": "sha512-mZkFsR/51RYi5YTAZCogyg3S3Z/7AwfXFpOON3+mt/1sadc0+r0FcPWVTrgSZmXFpYl4gaaqQ0JtHbjwORX+8g==",
+      "packageJsonSha256": "3b5fb600541f844ce3cf8535c9d1f32ab2e183950a42343a4bee11dd3c3bcc77",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/redocly-redoc-opentelemetry-0.5.1-LICENSE.txt",
+          "sha256": "6e7003d948dfe282e12aadd419e6b57cfb6f2b716bc19d420c803b1d2fd57a9c",
+          "originalFile": "LICENSE",
+          "originalSha256": "6e7003d948dfe282e12aadd419e6b57cfb6f2b716bc19d420c803b1d2fd57a9c",
+          "source": "https://registry.npmjs.org/@redocly/redoc-opentelemetry/-/redoc-opentelemetry-0.5.1.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        },
+        {
+          "declaration": "license_declarations.json",
+          "key": "@redocly/redoc-opentelemetry@0.5.1"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "@redocly/theme",
+      "version": "0.71.0-next.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@redocly/theme/-/theme-0.71.0-next.0.tgz",
+      "integrity": "sha512-IxWIcrguA/l5H3tu0lTaBsFuNZXLTy4ud3ZSmsPCj83GtWOMLonGdvHmXp0wqIqeiZ2nW296vfGGiWojHK46Gw==",
+      "packageJsonSha256": "a26e8b4b81f2ccbfd35d615b6486adf5c21b3e839c3fe7d321d584a62f00ed7e",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/redocly-theme-0.71.0-next.0-LICENSE.txt",
+          "sha256": "d1d197c1e6c279d4d65cb92bd0fe14ca175861b4ea0beba6ff9d8b64054c1973",
+          "originalFile": "LICENSE",
+          "originalSha256": "d1d197c1e6c279d4d65cb92bd0fe14ca175861b4ea0beba6ff9d8b64054c1973",
+          "source": "https://registry.npmjs.org/@redocly/theme/-/theme-0.71.0-next.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "@tanstack/highlight",
+      "version": "0.0.10",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@tanstack/highlight/-/highlight-0.0.10.tgz",
+      "integrity": "sha512-RNWn4BYgroDnHSdWduHVUN3hXM5OZUVwynuY2Fwh4el2hVy0woe9XZBZ5IIxC50h1y8SEYkBipS+cPgdzRc7Zg==",
+      "packageJsonSha256": "458a25941398e5041858ce7d03a426b559d382f071a9226f2038d5dad14aa41f",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/tanstack-highlight-0.0.10-LICENSE.txt",
+          "sha256": "a09cf172b475f76e0cb456e3cd346b1aa3fe5169ae5454f9f7fbe98b3e93c85f",
+          "originalFile": "LICENSE",
+          "originalSha256": "a09cf172b475f76e0cb456e3cd346b1aa3fe5169ae5454f9f7fbe98b3e93c85f",
+          "source": "https://registry.npmjs.org/@tanstack/highlight/-/highlight-0.0.10.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "copy-to-clipboard",
+      "version": "3.3.3",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/copy-to-clipboard/-/copy-to-clipboard-3.3.3.tgz",
+      "integrity": "sha512-2KV8NhB5JqC3ky0r9PMCAZKbUHSwtEo4CwCs0KXgruG43gX5PMqDEBbVU4OUzw2MuAWUfsuFmWvEKG5QRfSnJA==",
+      "packageJsonSha256": "9e8dc89bbc0d36fd6f8ff441d267f742844ad549a12ffdfbc83cc5e38d01c358",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/copy-to-clipboard-3.3.3-LICENSE.txt",
+          "sha256": "771e50e27b24269923639e8e0cc650e7187ffeab5726f6a6f47d9ea83865089d",
+          "originalFile": "LICENSE",
+          "originalSha256": "771e50e27b24269923639e8e0cc650e7187ffeab5726f6a6f47d9ea83865089d",
+          "source": "https://registry.npmjs.org/copy-to-clipboard/-/copy-to-clipboard-3.3.3.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "dompurify",
+      "version": "3.4.16",
+      "license": "Apache-2.0",
+      "declaredLicense": "(MPL-2.0 OR Apache-2.0)",
+      "source": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.16.tgz",
+      "integrity": "sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ==",
+      "packageJsonSha256": "a4a555e42e07bab175db53902b6c3caa6510b3319b0af56d2d3c46c1cbefae06",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/dompurify-3.4.16-LICENSE.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "originalFile": "LICENSE",
+          "originalSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "source": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.16.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "regenerator-runtime",
+          "version": "embedded-in-dompurify-3.4.16",
+          "source": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.16.tgz#dist/purify.es.mjs",
+          "sourceSha256": "c44274a7959cfdd4da871fa78a5d5fbbef55db68d118c5c0833bc4b5cf9633ad",
+          "license": "MIT",
+          "declaration": "/*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */",
+          "purpose": "Preserve the compiler-helper source declaration retained in the exact published DOMPurify and Redoc inputs",
+          "distribution": "Source embedded in DOMPurify; no independent npm runtime version is asserted",
+          "obligations": "Retain the original source copyright/declaration and MIT permission/disclaimer alongside the selected DOMPurify Apache-2.0 terms",
+          "requiredNotices": [
+            {
+              "file": "licenses/regenerator-runtime-MIT.txt",
+              "sha256": "f2736860380e47cf3d42eb0206f131da19f19a794f0fa277505b26146052aa9b"
+            }
+          ]
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices, including the embedded MIT helper declaration; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "entities",
+      "version": "4.5.0",
+      "license": "BSD-2-Clause",
+      "declaredLicense": "BSD-2-Clause",
+      "source": "https://registry.npmjs.org/entities/-/entities-4.5.0.tgz",
+      "integrity": "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==",
+      "packageJsonSha256": "c92f657f679669a91bc32cd98f0b4812b3f4a9c6f3b3af3022a70cb25b7efc7c",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/entities-4.5.0-LICENSE.txt",
+          "sha256": "cb992345949ccd6e8394b2cd6c465f7b897c864f845937dbf64e8997f389e164",
+          "originalFile": "LICENSE",
+          "originalSha256": "cb992345949ccd6e8394b2cd6c465f7b897c864f845937dbf64e8997f389e164",
+          "source": "https://registry.npmjs.org/entities/-/entities-4.5.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain copyright, conditions and disclaimer in binary/source redistribution materials."
+    },
+    {
+      "name": "fast-xml-builder",
+      "version": "1.3.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/fast-xml-builder/-/fast-xml-builder-1.3.1.tgz",
+      "integrity": "sha512-pIM/1n3ntFXKYrUZwW7QCK0gAW7XY+wzj1YMIV3tLDvPj/V+zTGJK5e3/4WJfwj0qWw2ElNXiTixda/R+3YSug==",
+      "packageJsonSha256": "304416f412412cd967ee1139f0eadfebaa263e92bfbfa264bedbb37055d5c27e",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/fast-xml-builder-1.3.1-LICENSE.txt",
+          "sha256": "8e75fc0e776c62ccadb8178ece8d3daa9ba7601fb0a49b2dfb0ea9a7a5c0aa07",
+          "originalFile": "LICENSE",
+          "originalSha256": "8e75fc0e776c62ccadb8178ece8d3daa9ba7601fb0a49b2dfb0ea9a7a5c0aa07",
+          "source": "https://registry.npmjs.org/fast-xml-builder/-/fast-xml-builder-1.3.1.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "fast-xml-parser",
+      "version": "5.11.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/fast-xml-parser/-/fast-xml-parser-5.11.0.tgz",
+      "integrity": "sha512-9IGxMqvqLOnqP+Egi1nqDHKv5k8aZ7r9n558enxcucmyVGEBNPAU+MOg/8jPIS7rO7sSq4gFm1/nHtiaubMruw==",
+      "packageJsonSha256": "c61593381ea333fce34ff4e5bf2e3062f83cf31c7474920fe73a5771aac69b75",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/fast-xml-parser-5.11.0-LICENSE.txt",
+          "sha256": "7883225d5e84a6bbb9b170c3d891b4bf6d6259cee869c86bd86381a927071745",
+          "originalFile": "LICENSE",
+          "originalSha256": "7883225d5e84a6bbb9b170c3d891b4bf6d6259cee869c86bd86381a927071745",
+          "source": "https://registry.npmjs.org/fast-xml-parser/-/fast-xml-parser-5.11.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "file-saver",
+      "version": "2.0.5",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/file-saver/-/file-saver-2.0.5.tgz",
+      "integrity": "sha512-P9bmyZ3h/PRG+Nzga+rbdI4OEpNDzAVyy74uVO9ATgzLK6VtAsYybF/+TOCvrc0MO793d6+42lLyZTw7/ArVzA==",
+      "packageJsonSha256": "e204a7a0ad0f9b16f0fa4df2f29fd37b2d8937a7c5a8fbee273cf2ae85fbaeb0",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/file-saver-2.0.5-LICENSE-md.txt",
+          "sha256": "2d1d7a93b46e4274355ac2904428707c4ee47ee8c6029fa394ebf405648d3f63",
+          "originalFile": "LICENSE.md",
+          "originalSha256": "2d1d7a93b46e4274355ac2904428707c4ee47ee8c6029fa394ebf405648d3f63",
+          "source": "https://registry.npmjs.org/file-saver/-/file-saver-2.0.5.tgz#LICENSE.md",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "flexsearch",
+      "version": "0.8.212",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/flexsearch/-/flexsearch-0.8.212.tgz",
+      "integrity": "sha512-wSyJr1GUWoOOIISRu+X2IXiOcVfg9qqBRyCPRUdLMIGJqPzMo+jMRlvE83t14v1j0dRMEaBbER/adQjp6Du2pw==",
+      "packageJsonSha256": "2694fd93988e7483e1a4d22757520993243a2d84bc1fa42109cd4fe320926113",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/opentelemetry-api-1.9.1-LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "originalFile": "LICENSE",
+          "originalSha256": "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6",
+          "source": "https://registry.npmjs.org/flexsearch/-/flexsearch-0.8.212.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "foreach",
+      "version": "2.0.6",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/foreach/-/foreach-2.0.6.tgz",
+      "integrity": "sha512-k6GAGDyqLe9JaebCsFCoudPPWfihKu8pylYXRlqP1J7ms39iPoTtk2fviNglIeQEwdh0bQeKJ01ZPyuyQvKzwg==",
+      "packageJsonSha256": "6090d19a313fe391f7a58ea3c42830f407d20dfd25fcd56f5370e149ddf90d7f",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/foreach-2.0.6-LICENSE.txt",
+          "sha256": "fe099e449609c9615aa0ac1f55e47f7cd638f6fcb1efcfd5e6e2bc1b3919083d",
+          "originalFile": "LICENSE",
+          "originalSha256": "fe099e449609c9615aa0ac1f55e47f7cd638f6fcb1efcfd5e6e2bc1b3919083d",
+          "source": "https://registry.npmjs.org/foreach/-/foreach-2.0.6.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "graphql",
+      "version": "16.14.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/graphql/-/graphql-16.14.2.tgz",
+      "integrity": "sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA==",
+      "packageJsonSha256": "d936a7b80542de54dd1323cd20c5e3481a753e7cc00dac6191d3ff8a3ed187d3",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/graphql-16.14.2-LICENSE.txt",
+          "sha256": "35a11da7e877009ddc57405844209908cfc567adda0ec1daf410368c9f5b0d01",
+          "originalFile": "LICENSE",
+          "originalSha256": "35a11da7e877009ddc57405844209908cfc567adda0ec1daf410368c9f5b0d01",
+          "source": "https://registry.npmjs.org/graphql/-/graphql-16.14.2.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "hotkeys-js",
+      "version": "3.10.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/hotkeys-js/-/hotkeys-js-3.10.1.tgz",
+      "integrity": "sha512-mshqjgTqx8ee0qryHvRgZaZDxTwxam/2yTQmQlqAWS3+twnq1jsY9Yng9zB7lWq6WRrjTbTOc7knNwccXQiAjQ==",
+      "packageJsonSha256": "0c70d2a70854aed05c1322f8116ea6ecc8bb1c0184bc0992c3f35a7f38afe180",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/hotkeys-js-3.10.1-LICENSE.txt",
+          "sha256": "efc6759044c0b3c95f5ccc9b09a6aa325cded29355eb65b45243e881f0c9d36b",
+          "originalFile": "LICENSE",
+          "originalSha256": "efc6759044c0b3c95f5ccc9b09a6aa325cded29355eb65b45243e881f0c9d36b",
+          "source": "https://registry.npmjs.org/hotkeys-js/-/hotkeys-js-3.10.1.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "htmlparser2",
+      "version": "8.0.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/htmlparser2/-/htmlparser2-8.0.2.tgz",
+      "integrity": "sha512-GYdjWKDkbRLkZ5geuHs5NY1puJ+PXwP7+fHPRz06Eirsb9ugf6d8kkXav6ADhcODhFFPMIXyxkxSuMf3D6NCFA==",
+      "packageJsonSha256": "59a1ccf2ff631d6c789aab23076f531299100f7d63d3e0b2102c179ff79b8d6b",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/htmlparser2-8.0.2-LICENSE.txt",
+          "sha256": "e7ef69b1061a214641f062449491ea54e5ade7a382b52618892b6106eb1eee08",
+          "originalFile": "LICENSE",
+          "originalSha256": "204cfa747341660e4da64cd23e8c876c6b20279d247f48564993d3fc4a2eab47",
+          "source": "https://registry.npmjs.org/htmlparser2/-/htmlparser2-8.0.2.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "jotai",
+      "version": "2.20.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/jotai/-/jotai-2.20.2.tgz",
+      "integrity": "sha512-aHB4CNb9qRcyf0mwSB6EO5bCGAjx8cTwFgOFCE2leOnTzqACbnSWG8XoWB3LxCT1Qoj03I1OWAHszDmN4uHb/w==",
+      "packageJsonSha256": "2fc5124a49bab34a926e9bd286b146d9797d163016b658cb0035a37319b298e2",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/jotai-2.20.2-LICENSE.txt",
+          "sha256": "0530d5d58026f4bb73367d195946f6a516a648ea62dd8b84763318f64d3cb3e2",
+          "originalFile": "LICENSE",
+          "originalSha256": "0530d5d58026f4bb73367d195946f6a516a648ea62dd8b84763318f64d3cb3e2",
+          "source": "https://registry.npmjs.org/jotai/-/jotai-2.20.2.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "jotai-family",
+      "version": "1.1.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/jotai-family/-/jotai-family-1.1.0.tgz",
+      "integrity": "sha512-T1ACRsLnN5Mu0B8/DIWUW1hW7x1RmpBprm/+CWmUTf4ZZUmIFEQpBJ9PNQtXPjdUD2uu8RvwBxr7nJPdCw5BXg==",
+      "packageJsonSha256": "8043599ea8daf97a4a8894261e159d21a8b49e5b236a4cf87955bdd83ce066c3",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/jotai-family-1.1.0-LICENSE.txt",
+          "sha256": "98febddd13a675a3aeb35a7607b0531bdc20ef7883ebe7ed8c68f15679b97074",
+          "originalFile": "LICENSE",
+          "originalSha256": "98febddd13a675a3aeb35a7607b0531bdc20ef7883ebe7ed8c68f15679b97074",
+          "source": "https://registry.npmjs.org/jotai-family/-/jotai-family-1.1.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "js-yaml",
+      "version": "5.4.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.4.1.tgz",
+      "integrity": "sha512-28R/k+NAjeuf7+CKlTxWZVExJGwVVLwY06DgEnOMz2gEpfNkDcD7QvyiVPT0xy0XXhU8vHsd4Ot42OOPdJG7dQ==",
+      "packageJsonSha256": "c2cc78a2ef55f2c00fe43c474d0047d2187af815b5a410febeafdd2f022d1560",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/js-yaml-5.4.1-LICENSE.txt",
+          "sha256": "a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550",
+          "originalFile": "LICENSE",
+          "originalSha256": "a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550",
+          "source": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.4.1.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "json-crawl",
+      "version": "0.5.3",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/json-crawl/-/json-crawl-0.5.3.tgz",
+      "integrity": "sha512-BEjjCw8c7SxzNK4orhlWD5cXQh8vCk2LqDr4WgQq4CV+5dvopeYwt1Tskg67SuSLKvoFH5g0yuYtg7rcfKV6YA==",
+      "packageJsonSha256": "3254e1459b2bf6ca77627be6beff1f901b2181236894b8b54a32d55811563b7f",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/redocly-allof-merge-0.6.9-LICENSE.txt",
+          "sha256": "d67ee8327b510abf9436810373e28f8816cdab443114e94bd9770acc669ae3ca",
+          "originalFile": "LICENSE",
+          "originalSha256": "6c7467194d33d6ac52e94f7aa3a7810856daa64d153f4199fbfdb58d1c2ca6ec",
+          "source": "https://registry.npmjs.org/json-crawl/-/json-crawl-0.5.3.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "json-pointer",
+      "version": "0.6.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/json-pointer/-/json-pointer-0.6.2.tgz",
+      "integrity": "sha512-vLWcKbOaXlO+jvRy4qNd+TI1QUPZzfJj1tpJ3vAXDych5XJf93ftpUKe5pKCrzyIIwgBJcOcCVRUfqQP25afBw==",
+      "packageJsonSha256": "84823623b9abfe35d30375d5aa0c4a43896c97b83fcca049ca8b7323b4dbe386",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/json-pointer-0.6.2-LICENSE.txt",
+          "sha256": "fafaa82d92febb4f5b12bcf39b78d51a9d0665855067b9fda394094b12d95875",
+          "originalFile": "LICENSE",
+          "originalSha256": "fafaa82d92febb4f5b12bcf39b78d51a9d0665855067b9fda394094b12d95875",
+          "source": "https://registry.npmjs.org/json-pointer/-/json-pointer-0.6.2.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "jsonpath-rfc9535",
+      "version": "1.3.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/jsonpath-rfc9535/-/jsonpath-rfc9535-1.3.0.tgz",
+      "integrity": "sha512-3jFHya7oZ45aDxIIdx+/zQARahHXxFSMWBkcBUldfXpLS9VCXDJyTKt35kQfEXLqh0K3Ixw/9xFnvcDStaxh7Q==",
+      "packageJsonSha256": "e4b4ce456bfd509bf97368c2a5039311880951ea78905cf66c9b00d7a41d68b9",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/jsonpath-rfc9535-1.3.0-LICENSE.txt",
+          "sha256": "9ca9049f749e74a545d31ad82a1bd49a470d4d910697517a97ac89cb0a0372d4",
+          "originalFile": "LICENSE",
+          "originalSha256": "9ca9049f749e74a545d31ad82a1bd49a470d4d910697517a97ac89cb0a0372d4",
+          "source": "https://registry.npmjs.org/jsonpath-rfc9535/-/jsonpath-rfc9535-1.3.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "lodash.debounce",
+      "version": "4.0.8",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/lodash.debounce/-/lodash.debounce-4.0.8.tgz",
+      "integrity": "sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==",
+      "packageJsonSha256": "3b74ac4711eaeb57cc7d6c5fcfdaff114d20fb23cc4a7e39c25f8f7a9afc1151",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/lodash.debounce-4.0.8-LICENSE.txt",
+          "sha256": "ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272",
+          "originalFile": "LICENSE",
+          "originalSha256": "ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272",
+          "source": "https://registry.npmjs.org/lodash.debounce/-/lodash.debounce-4.0.8.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "lodash.throttle",
+      "version": "4.1.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/lodash.throttle/-/lodash.throttle-4.1.1.tgz",
+      "integrity": "sha512-wIkUCfVKpVsWo3JSZlc+8MB5it+2AN5W8J7YVMST30UrvcQNZ1Okbj+rbVniijTWE6FGYy4XJq/rHkas8qJMLQ==",
+      "packageJsonSha256": "743d4b6995e0f1976d39bc634a9513cfe32bcff6405f04ce001fddea0a4119a0",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/lodash.debounce-4.0.8-LICENSE.txt",
+          "sha256": "ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272",
+          "originalFile": "LICENSE",
+          "originalSha256": "ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272",
+          "source": "https://registry.npmjs.org/lodash.throttle/-/lodash.throttle-4.1.1.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "openapi-sampler",
+      "version": "1.7.6",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/openapi-sampler/-/openapi-sampler-1.7.6.tgz",
+      "integrity": "sha512-MvWOm3vdgX7CZ6CNfu2wOFMGhC/pq03BxYTL/DKCkyPWfR6XIwUJnOV32mQGgCcUm1tY/y1jj7F2yqx1DieIWw==",
+      "packageJsonSha256": "b4fa5f5858a9bf3bc5245088a271e3d08a0cb391ca5ea95a09c6b1188728b03e",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/openapi-sampler-1.7.6-LICENSE.txt",
+          "sha256": "71dec8f995b875852014c7c645d796eb1bfdb32e496ff2f4d4dca5f609a5c48f",
+          "originalFile": "LICENSE",
+          "originalSha256": "71dec8f995b875852014c7c645d796eb1bfdb32e496ff2f4d4dca5f609a5c48f",
+          "source": "https://registry.npmjs.org/openapi-sampler/-/openapi-sampler-1.7.6.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "path-browserify",
+      "version": "1.0.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/path-browserify/-/path-browserify-1.0.1.tgz",
+      "integrity": "sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==",
+      "packageJsonSha256": "8adb61e752398b45fbcf7bc35f254b74302622b100e49915a4905e74c97acb42",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/path-browserify-1.0.1-LICENSE.txt",
+          "sha256": "a22b9d5763f574e5db347c30acc0b33eaf4846767c03d2e27d012e864e79a824",
+          "originalFile": "LICENSE",
+          "originalSha256": "a22b9d5763f574e5db347c30acc0b33eaf4846767c03d2e27d012e864e79a824",
+          "source": "https://registry.npmjs.org/path-browserify/-/path-browserify-1.0.1.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "path-expression-matcher",
+      "version": "1.6.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/path-expression-matcher/-/path-expression-matcher-1.6.2.tgz",
+      "integrity": "sha512-enSlaiat05iasnzmgNxRj8reFdj3puY2QpNgP1aPIaVfT6nn9ICuPoFlKHk8EN22HcwewshO+mN2DGbkCEOtqQ==",
+      "packageJsonSha256": "625ca3a27a289160508a79773ddfd7bf678a6401bd96321cac0bc43ebebe01f8",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/path-expression-matcher-1.6.2-LICENSE.txt",
+          "sha256": "75486ea0af9309140ca6e2c401d7e67bea8f4892344e5707f6394dc5e83dfc44",
+          "originalFile": "LICENSE",
+          "originalSha256": "75486ea0af9309140ca6e2c401d7e67bea8f4892344e5707f6394dc5e83dfc44",
+          "source": "https://registry.npmjs.org/path-expression-matcher/-/path-expression-matcher-1.6.2.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "slugify",
+      "version": "1.6.9",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/slugify/-/slugify-1.6.9.tgz",
+      "integrity": "sha512-vZ7rfeehZui7wQs438JXBckYLkIIdfHOXsaVEUMyS5fHo1483l1bMdo0EDSWYclY0yZKFOipDy4KHuKs6ssvdg==",
+      "packageJsonSha256": "ea1d30276b106dd597389cb61ed3d482a1e0ef13635c8c37275e3af5bcb773e8",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/slugify-1.6.9-LICENSE.txt",
+          "sha256": "8df3c23e3dfffa0d3d41c59fae5741ea3e2c50eb19c52a5d8912a68fdba554c2",
+          "originalFile": "LICENSE",
+          "originalSha256": "8df3c23e3dfffa0d3d41c59fae5741ea3e2c50eb19c52a5d8912a68fdba554c2",
+          "source": "https://registry.npmjs.org/slugify/-/slugify-1.6.9.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "toggle-selection",
+      "version": "1.0.6",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/toggle-selection/-/toggle-selection-1.0.6.tgz",
+      "integrity": "sha512-BiZS+C1OS8g/q2RRbJmy59xpyghNBqrr6k5L/uKBGRsTfxmu3ffiRnd8mlGPUVayg8pvfi5urfnu8TU7DVOkLQ==",
+      "packageJsonSha256": "fbde858ede9465c03e5270332090684350327e360760d185b2ed4fc3aff73f15",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/copy-to-clipboard-3.3.3-LICENSE.txt",
+          "sha256": "771e50e27b24269923639e8e0cc650e7187ffeab5726f6a6f47d9ea83865089d",
+          "originalFile": "LICENSE",
+          "originalSha256": "771e50e27b24269923639e8e0cc650e7187ffeab5726f6a6f47d9ea83865089d",
+          "source": "https://github.com/sudodoki/toggle-selection/blob/538dc4e9de40b8aee41f1e9066a4c5de3f4adc0a/LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "ulid",
+      "version": "3.0.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/ulid/-/ulid-3.0.2.tgz",
+      "integrity": "sha512-yu26mwteFYzBAot7KVMqFGCVpsF6g8wXfJzQUHvu1no3+rRRSFcSV2nKeYvNPLD2J4b08jYBDhHUjeH0ygIl9w==",
+      "packageJsonSha256": "9b500bfe63ffec5c30b816e7e62805c3add1f1c90e46691897b299dbb9fbe566",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/ulid-3.0.2-LICENSE.txt",
+          "sha256": "e7e94f2db9f81458817ca8eb7420d63ec607272eb4259b39c420339c76414dfe",
+          "originalFile": "LICENSE",
+          "originalSha256": "e7e94f2db9f81458817ca8eb7420d63ec607272eb4259b39c420339c76414dfe",
+          "source": "https://registry.npmjs.org/ulid/-/ulid-3.0.2.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    },
+    {
+      "name": "web-vitals",
+      "version": "6.2.1",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/web-vitals/-/web-vitals-6.2.1.tgz",
+      "integrity": "sha512-rLcLXA2sx6+9dE88NHFubwTtGxpK4yYBLj6qHPdFoCaLr0cXGb4efOqtKLlm4loGA4OEKHIQKMKzZkKyOh5ctw==",
+      "packageJsonSha256": "84521adbc7855d4e90d17dbcc4df7ed981f5fd912da73bdc96bfa936adbf8552",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/web-vitals-6.2.1-LICENSE.txt",
+          "sha256": "bfdeded4040e05da31ca9b6239dc83bd23fa26ac8db87342a7ca4363f68916ff",
+          "originalFile": "LICENSE",
+          "originalSha256": "bfdeded4040e05da31ca9b6239dc83bd23fa26ac8db87342a7ca4363f68916ff",
+          "source": "https://registry.npmjs.org/web-vitals/-/web-vitals-6.2.1.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain Apache 2.0 license and applicable original notices; preserve attribution and modification notices; no trademark grant."
+    },
+    {
+      "name": "xml-naming",
+      "version": "0.3.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/xml-naming/-/xml-naming-0.3.0.tgz",
+      "integrity": "sha512-ghig2TBE/H11aOVgmahA3MhimvkBr6JIYknH/Dhdk10nXwdbIqBJsbfMxpvFPG8bAw77gN29aQWvKpmVoPlvPQ==",
+      "packageJsonSha256": "e6ff1758837bca3ca6877308c0d51f9e3e47efd07497fa62c8291fd88ab8216f",
+      "purpose": "Upstream Redoc CE read-only documentation support",
+      "distribution": "constituent of the reviewed published Redoc bundle; downstream tree shaking may remove unused code",
+      "requiredNotices": [
+        {
+          "file": "licenses/redoc-embedded/fast-xml-builder-1.3.1-LICENSE.txt",
+          "sha256": "8e75fc0e776c62ccadb8178ece8d3daa9ba7601fb0a49b2dfb0ea9a7a5c0aa07",
+          "originalFile": "LICENSE",
+          "originalSha256": "8e75fc0e776c62ccadb8178ece8d3daa9ba7601fb0a49b2dfb0ea9a7a5c0aa07",
+          "source": "https://registry.npmjs.org/xml-naming/-/xml-naming-0.3.0.tgz#LICENSE",
+          "lineEndings": "LF notice copy, final newline; original wording retained"
+        }
+      ],
+      "obligations": "Retain original copyright, MIT permission and disclaimer."
+    }
+  ]
+}

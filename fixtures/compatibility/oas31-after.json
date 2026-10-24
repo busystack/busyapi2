@@ -1,0 +1,36 @@
+{
+  "openapi": "3.1.2",
+  "info": {
+    "title": "Compatibility fixture",
+    "version": "1.0.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "Boolean": true,
+      "Composed": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "Escaped": {
+        "$ref": "schema.json#/a~1b"
+      }
+    }
+  }
+}

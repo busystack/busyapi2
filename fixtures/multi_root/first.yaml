@@ -1,0 +1,4 @@
+openapi: 3.2.1
+info: {title: first, version: "1"}
+paths: {}
+components: {schemas: {Shared: {$ref: "shared.yaml#/Shared"}}}

@@ -1,0 +1,54 @@
+name: busyapi
+title: BusyAPI
+version: '0.1.0'
+summary: Native OpenAPI contract workspace
+description: Source-preserving native authoring for OpenAPI 3.1 and 3.2.
+license: Apache-2.0
+icon: assets/branding/busyapi_logo.svg
+base: core24
+grade: devel
+confinement: strict
+platforms:
+  amd64:
+    build-on: [amd64]
+    build-for: [amd64]
+apps:
+  busyapi:
+    command: busyapi
+    plugs: [home, removable-media, network, network-bind]
+  busyapi-desktop:
+    command: busyapi-desktop
+    desktop: share/applications/io.busystack.busyapi.desktop
+    common-id: io.busystack.busyapi
+    extensions: [gnome]
+    plugs: [desktop, desktop-legacy, gsettings, opengl, wayland, x11, home, removable-media, network, network-bind, password-manager-service]
+parts:
+  busyapi:
+    plugin: nil
+    source: .
+    after: [gnome/sdk, gnome/gpu/wrapper]
+    # The GNOME extension supplies the complete WebKitGTK 4.1 runtime and its
+    # compiled-path helper-process layouts; do not stage a partial private copy.
+    build-packages: [clang, cmake, ninja-build, pkg-config, python3, libgtk-3-dev, libhandy-1-dev, libwebkit2gtk-4.1-dev, libsecret-1-dev, libseccomp-dev, curl, xz-utils]
+    stage-packages: [git, openssh-client, libsecret-1-0]
+    override-build: |
+      # Supply verified Flutter 3.47.5 and Node 24.15.0 build inputs.
+      test -n "$BUSYAPI_FLUTTER"
+      test -n "$BUSYAPI_NODE"
+      if test "${BUSYAPI_BUILD_OFFLINE:-0}" = 1; then
+        python3 tools/prepare_m3_tools.py --output build/m3-tools
+        python3 tools/prepare_generator.py --output build/generator
+      else
+        python3 tools/prepare_m3_tools.py --output build/m3-tools --provision
+        python3 tools/prepare_generator.py --output build/generator --provision
+      fi
+      # GNOME/core24 supply native system libraries, including libhandy and
+      # libseccomp. Keep common asset checks, not standalone DSO collection.
+      BUSYAPI_DISTRIBUTION=snap tools/build_linux.sh
+      cp -a build/linux/x64/release/bundle/. "$CRAFT_PART_INSTALL/"
+      install -D -m755 snap/hooks/configure "$CRAFT_PART_INSTALL/snap/hooks/configure"
+    override-prime: |
+      craftctl default
+      python3 "$CRAFT_PART_SRC/tools/snap_extension_notices.py" \
+        --extensions "${BUSYAPI_SNAP_EXTENSIONS:-/usr/share/snapcraft/extensions}" --prime "$CRAFT_PRIME"
+      PYTHONPATH="$CRAFT_PART_SRC" python3 -m tools.check_snap_package --prime "$CRAFT_PRIME" --application-assets

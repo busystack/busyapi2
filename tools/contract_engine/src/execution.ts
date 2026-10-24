@@ -1,0 +1,351 @@
+import {createHash} from 'node:crypto';
+
+import {createGraph, propose, Resource} from './engine';
+import {escape, SourceDocument, SourceError} from './document';
+import {GraphTarget, ReferenceGraph, knownDialects} from './reference_graph';
+import {decimal} from './exact_numbers';
+import {headerShapes} from './header_serialization';
+import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
+
+const maximumItems = 2048;
+
+/** Transport scalars from the existing strict JSON CST. Numeric leaves are
+ * wire lexemes, never rounded JS (or Dart) machine-number projections. */
+export function requestParameterValues(input:any) {
+  if(!input.values||typeof input.values!=='object'||Array.isArray(input.values)||Object.keys(input.values).length>maximumItems)
+    throw new SourceError('request.value.json','Expected bounded structured parameter values');
+  const values=Object.fromEntries(Object.entries(input.values).map(([key,text])=>{
+    if(typeof text!=='string')throw new SourceError('request.value.json','A structured parameter must be JSON text');
+    const doc=new SourceDocument(text,'file:///busyapi-request-parameter.json');
+    const visit=(node:any):any=>node.kind==='number'?doc.dataJson(node.pointer)
+      :node.kind==='array'?[...node.children.values()].map(visit)
+      :node.kind==='object'?Object.fromEntries([...node.children.entries()].map(([name,child])=>[name,visit(child)])):node.value;
+    return [key,visit(doc.root)];
+  }));
+  return {version:1,values};
+}
+
+/** Saved execution inputs use the same canonical CST as manual exact values. */
+export function executionCaseValues(input:any) {
+  const source=input.source;
+  if(!source || typeof source.text!=='string' || Buffer.byteLength(source.text)>65536) throw new SourceError('test.configuration','Expected bounded captured configuration');
+  const doc=new SourceDocument(source.text,source.id),tests=doc.dataNode('/tests');
+  const matches=[...(tests?.children.values()??[])].map(node=>doc.dataNode(node.pointer)!).filter(node=>node.value?.name===input.name);
+  if(matches.length!==1) throw new SourceError('test.configuration','Selected case is not uniquely available');
+  const selected=matches[0],parameters:any={};
+  const exact=(physical:any)=>{
+    const node=doc.dataNode(physical.pointer)!;
+    if(typeof node.value==='string')return {text:node.value,json:false};
+    const text=doc.dataJson(node.pointer),instance=new SourceDocument(text,'file:///busyapi-saved-value.json');
+    for(const leaf of instance.nodes.values())if(leaf.kind==='number'){
+      try {decimal(instance.dataJson(leaf.pointer));}
+      catch(error){
+        if(error instanceof SourceError){
+          const pointer=node.pointer+leaf.pointer,original=doc.dataNode(pointer);
+          throw new SourceError(error.code,source.id+' '+pointer+': '+error.message,original?.range??node.range);
+        }
+        throw error;
+      }
+    }
+    return {text,json:true};
+  };
+  const groups=doc.dataNode(selected.pointer+'/parameters');
+  if(groups&&groups.kind!=='object')throw new SourceError('test.configuration','Selected parameters must be an object',groups.range);
+  for(const [location,physical] of groups?.children??[]) {
+    const group=doc.dataNode(physical.pointer)!;
+    if(group.kind!=='object')throw new SourceError('test.configuration','Selected parameter location '+location+' must be an object',group.range);
+    for(const [name,node] of group.children) parameters[location+'\u0000'+name]=exact(node);
+  }
+  const body=doc.dataNode(selected.pointer+'/body/value');
+  return {version:1,parameters,body:body?exact(body):undefined};
+}
+
+export function inspectExecutionJson(input:any) {
+  if(typeof input.text!=='string'||Buffer.byteLength(input.text)>1024*1024) throw new SourceError('limit.inspection','JSON inspection is limited to 1 MiB');
+  const doc=new SourceDocument(input.text,'file:///busyapi-inspection.json');
+  let rendered=0;
+  const bounded=(text:string)=>{rendered+=text.length;if(rendered>4*1024*1024)throw new SourceError('limit.inspection.output','Formatted inspection exceeds 4 MiB; use the raw preview');return text;};
+  const pretty=(node:any,depth=0):string=>{
+    if(depth>128) throw new SourceError('limit.inspection.depth','JSON inspection nesting exceeds 128');
+    if(node.kind!=='object'&&node.kind!=='array') return bounded(doc.dataJson(node.pointer));
+    const object=node.kind==='object',children=[...node.children.entries()];
+    if(!children.length)return object?'{}':'[]';
+    return (object?'{':'[')+'\n'+children.map(([name,child])=>bounded('  '.repeat(depth+1)+(object?JSON.stringify(name)+': ':''))+pretty(child,depth+1)).join(',\n')+'\n'+'  '.repeat(depth)+(object?'}':']');
+  };
+  return {version:1,pretty:pretty(doc.root),entries:[...doc.root.children.entries()].slice(0,2048).map(([name,node])=>({name,text:doc.dataJson(node.pointer)})),entriesComplete:doc.root.children.size<=2048};
+}
+
+export function planExecutionEnvironment(input:any) {
+  const source=input.source;
+  if(!source || typeof source.text!=='string' || Buffer.byteLength(source.text)>65536) throw new SourceError('environment.configuration','Expected captured configuration');
+  const doc=new SourceDocument(source.text,source.id);
+  if(typeof input.name!=='string'||!input.name.length||input.name.length>128) throw new SourceError('environment.name','Choose a bounded environment name');
+  const target={resource:source.id,pointer:'',generation:source.generation,range:doc.root.range};
+  const base='/environments/'+escape(input.name),actions:any[]=[];
+  const set=(pointer:string,value:any)=>actions.push({kind:'set',pointer,value});
+  const remove=(pointer:string)=>{if(doc.dataNode(pointer))actions.push({kind:'remove',pointer});};
+  const definition=input.definition;
+  if(!definition||typeof definition!=='object'||Array.isArray(definition))throw new SourceError('environment.definition','Expected environment settings');
+  if(!doc.dataNode(base))set(base,definition);
+  else {
+    // Native setup owns its supported fields, not unrelated configuration or
+    // rounded projections of existing source values. Patch canonical leaves.
+    for(const [key,value] of Object.entries(definition)) {
+      const pointer=base+'/'+escape(key);
+      if(key==='authentication'&&value&&typeof value==='object'&&!Array.isArray(value)) {
+        for(const [field,item] of Object.entries(value)) {
+          if(field==='schemes'&&item&&typeof item==='object'&&!Array.isArray(item)) {
+            for(const [name,settings] of Object.entries(item)) {
+              const at=pointer+'/schemes/'+escape(name);
+              if(settings&&typeof settings==='object'&&!Array.isArray(settings))for(const [setting,v] of Object.entries(settings))set(at+'/'+escape(setting),v);
+              else set(at,settings);
+            }
+          } else set(pointer+'/'+escape(field),item);
+        }
+      } else if(key==='tls'&&value&&typeof value==='object'&&!Array.isArray(value)) {
+        for(const field of ['caFile','clientCertificateFile','clientKeyFile','clientKeyPasswordRef']) {
+          if(Object.hasOwn(value,field))set(pointer+'/'+escape(field),value[field]);
+          else remove(pointer+'/'+escape(field));
+        }
+      } else set(pointer,value);
+    }
+    if(!Object.hasOwn(definition,'baseUrl'))remove(base+'/baseUrl');
+  }
+  const result=propose({...input,resources:[source],target,actions});
+  let after=source.text;
+  for(const edit of [...result.edits].reverse()) after=after.slice(0,edit.start)+edit.replacement+after.slice(edit.end);
+  if(Buffer.byteLength(after)>65536)throw new SourceError('limit.manifest','Configuration exceeds 64 KiB');
+  return {version:1,snapshot:input.snapshot,kind:'execution-environment',edits:result.edits,
+    changes:[{resource:source.id,before:source.text,after}],usages:[],checkedRoots:[input.root],from:target,to:{resource:source.id,pointer:'/environments/'+escape(input.name)}};
+}
+
+type Located = {resource:string;pointer:string;generation:number;range:number[]};
+
+/**
+ * A request plan is a located, immutable projection of one physical operation
+ * occurrence.  It deliberately contains no credential or environment value.
+ * Dart owns transport; this module owns OpenAPI interpretation and exact source
+ * data.  In particular, examples are emitted as canonical CST JSON text rather
+ * than as JavaScript values.
+ */
+export function requestOperation(input:any) {
+  const {docs,graph,family}=createGraph(input);
+  const generation=new Map((input.resources as Resource[]).map(resource=>[resource.id,resource.generation]));
+  const operation=graph.scopes.get(input.resource+'#'+input.pointer);
+  if(operation?.kind!=='operation')throw new SourceError('request.operation','Select an authored Operation Object');
+  const contexts=graph.operationContexts(input.resource,input.pointer);
+  const context=input.occurrence===undefined
+    ?contexts.length===1?contexts[0]:undefined
+    :contexts.find(candidate=>candidate.occurrence===input.occurrence);
+  if(!context)throw new SourceError('request.occurrence',contexts.length?'Select the operation occurrence to execute':'The selected operation has no executable Paths occurrence');
+  if(context.role!=='operation')throw new SourceError('request.role','Only a Paths operation can be sent as an HTTP request');
+  const doc=docs.get(input.resource)!,node=doc.dataNode(input.pointer);
+  if(!node||node.kind!=='object'||!doc.dataSyntaxSafe(input.pointer))throw new SourceError('request.operation','The selected operation is not a complete object');
+  const location=(resource:string,pointer:string):Located=>{
+    const owner=docs.get(resource),source=owner?.dataNode(pointer);
+    if(!owner||!source)throw new SourceError('request.source','A required request declaration is unavailable');
+    return {resource,pointer,generation:generation.get(resource)!,range:source.range};
+  };
+  const edgeIndex=new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]));
+  const follow=(target:GraphTarget,kind:string)=>{
+    const seen=new Set<string>();let resource=target.resource,pointer=target.pointer;
+    for(let depth=0;depth<128;depth++){
+      const key=resource+'#'+pointer;if(seen.has(key))throw new SourceError('request.reference.cycle','A request declaration contains a reference cycle');seen.add(key);
+      const current=docs.get(resource)?.dataNode(pointer);
+      if(!current)throw new SourceError('request.source','A referenced request declaration is unavailable');
+      if(typeof current.value?.$ref!=='string')return {resource,pointer,node:current,source:location(resource,pointer)};
+      const edge=edgeIndex.get(JSON.stringify([resource,pointer,'$ref']));
+      if(!edge||edge.kind!==kind||edge.resolution!=='resolved')throw new SourceError('request.reference','A referenced request declaration is unresolved');
+      resource=edge.targetResource!;pointer=edge.targetPointer!;
+    }
+    throw new SourceError('limit.request.references','Request reference depth exceeds 128');
+  };
+  const raw=(resource:string,pointer:string)=>docs.get(resource)!.dataJson(pointer);
+  const fieldRaw=(resource:string,pointer:string)=>docs.get(resource)!.dataJson(pointer,()=>undefined);
+  const example=(resource:string,pointer:string,value:any,level='parameter',selectedName?:string)=>{
+    const projected=(r:string,p:string,representation:string,name?:string)=>{
+      const node=docs.get(r)!.dataNode(p)!;
+      let conversionError:string|undefined;
+      const canonical=(node:any)=>docs.get(r)!.dataNode(node.pointer)!;
+      const fieldValue=(name:string,physical:any)=>{
+        const child=canonical(physical);
+        const rule=level==='media'?value?.encoding?.[name]:undefined;
+        const styled=rule&&['style','explode','allowReserved'].some(k=>Object.hasOwn(rule,k));
+        const type=styled?undefined:rule?.contentType?.split(';')[0].toLowerCase();
+        if(rule&&(styled||rule.encoding||rule.prefixEncoding||rule.itemEncoding)||type&&type!=='text/plain'&&type!=='application/json'&&!type.endsWith('+json'))
+          conversionError='This data example requires an unsupported field encoding. Choose a serialized example or edit the literal representation.';
+        if(type==='application/json'||type?.endsWith('+json'))return fieldRaw(r,child.pointer);
+        if(child.kind==='object'||child.kind==='array')conversionError='This structured field requires a supported explicit encoding; automatic nested field conversion is unavailable. Choose a serialized example or edit the literal representation.';
+        if(type==='text/plain'&&(child.kind==='object'||child.kind==='array'))conversionError='A structured field cannot be converted to this declared text part automatically.';
+        return typeof child.value==='string'?child.value:fieldRaw(r,child.pointer);
+      };
+      const fields=node.kind==='object'?Object.fromEntries([...node.children.entries()].map(([name,physical])=>{const child=canonical(physical);return [name,child.kind==='array'?[...child.children.values()].map(item=>fieldValue(name,item)):[fieldValue(name,child)]];})):undefined;
+      const compositeFields=node.kind==='object'&&[...node.children.values()].some(physical=>{const child=canonical(physical);return child.kind==='object'||child.kind==='array'&&[...child.children.values()].some(physical=>{const item=canonical(physical);return item.kind==='object'||item.kind==='array';});});
+      return {name,level,source:location(r,p),raw:representation==='serialized'?node.value:raw(r,p),representation,compositeFields,
+        text:typeof node.value==='string'?node.value:raw(r,p),dataKind:typeof node.value==='string'?'string':node.kind,fields,conversionError:level==='media'?conversionError:undefined};
+    };
+    const owner=docs.get(resource)!;
+    if(!selectedName&&Object.hasOwn(value??{},'example'))return projected(resource,pointer+'/example','json');
+    const examples=owner.dataNode(pointer+'/examples');
+    if(examples?.kind==='object')for(const [name,entry] of examples.children){
+      if(selectedName!==undefined&&selectedName!==name)continue;
+      let r=resource,p=pointer+'/examples/'+escape(name),v=entry.value;
+      if(v&&typeof v==='object'&&typeof v.$ref==='string'){
+        try{const selected=follow({resource:r,pointer:p,kind:'example'},'example');r=selected.resource;p=selected.pointer;v=selected.node.value;}catch{return;}
+      }
+      const field=family==='3.2'&&Object.hasOwn(v??{},'dataValue')?'dataValue':Object.hasOwn(v??{},'value')?'value':family==='3.2'&&Object.hasOwn(v??{},'serializedValue')?'serializedValue':undefined;
+      if(field)return projected(r,p+'/'+escape(field),field==='serializedValue'?'serialized':'json',name);
+    }
+  };
+  const examples=(resource:string,pointer:string,value:any,level='parameter')=>[
+    ...(Object.hasOwn(value??{},'example')?[example(resource,pointer,value,level)]:[]),
+    ...[...(docs.get(resource)!.dataNode(pointer+'/examples')?.children.keys()??[])].map(name=>example(resource,pointer,value,level,name)),
+  ].filter(value=>value!==undefined);
+  const annotationOnly=(value:any)=>value===true || value && typeof value==='object' && !Array.isArray(value) && Object.entries(value).every(([key,item])=>
+    key==='default' || key==='examples' && Array.isArray(item) ||
+    ['title','description','$comment','format'].includes(key) && typeof item==='string' ||
+    ['deprecated','readOnly','writeOnly'].includes(key) && typeof item==='boolean');
+  const schema=(resource:string,pointer:string,value:any)=>Object.hasOwn(value??{},'schema')
+    ?{...location(resource,pointer+'/schema'),kind:'schema',unconstrained:knownDialects.has(graph.scope(resource,pointer+'/schema').dialect)&&annotationOnly(value.schema)}
+    :undefined;
+  const media=(resource:string,pointer:string,value:any)=>{
+    if(!value||typeof value!=='object'||Array.isArray(value))return [];
+    const entries:any[]=[];
+    for(const [name,item] of Object.entries(value)){
+      if(name.startsWith('x-'))continue;
+      if(entries.length>=maximumItems)throw new SourceError('limit.request.media','Request media choices exceed 2048');
+      const at=pointer+'/'+escape(name),selected=follow({resource,pointer:at,kind:'media'},'media'),v=selected.node.value;
+      const projectedExamples=examples(selected.resource,selected.pointer,v,'media').map(e=>({...e,mediaType:name,
+        conversionError:['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())
+          ?e.conversionError??(name.split(';')[0].trim().toLowerCase()==='application/x-www-form-urlencoded'&&e.compositeFields?'Automatic nested form data conversion is unsupported. Choose a serialized form example or edit the literal fields.':undefined):undefined}));
+      entries.push({mediaType:name,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:family==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
+        prefixEncoding:v?.prefixEncoding,itemEncoding:v?.itemEncoding,encoding:v?.encoding&&typeof v.encoding==='object'?Object.fromEntries(Object.entries(v.encoding).slice(0,maximumItems)):undefined});
+    }
+    return entries;
+  };
+  const parameters=new ParameterSemantics(graph).operation(input.resource,input.pointer,context.pathItem);
+  if(!parameters.complete||!parameters.valid)throw new SourceError('request.parameters','Effective parameters are incomplete or invalid');
+  const parameter=(entry:ParameterOccurrence)=>{
+    if(entry.state!=='resolved'||!entry.definition||!entry.name||!entry.location)throw new SourceError('request.parameter','An effective parameter is incomplete');
+    const selected=follow(entry.definition,'parameter'),v=selected.node.value;
+    const defaultStyle=entry.location==='query'||entry.location==='cookie'?'form':'simple';
+    const defaultExplode=(entry.location==='query'||entry.location==='cookie')&&(v.style===undefined||v.style==='form'||family==='3.2'&&v.style==='cookie');
+    const content=v.content&&typeof v.content==='object'?media(selected.resource,selected.pointer+'/content',v.content):[];
+    return {name:entry.name,in:entry.location,family,type:typeof v.schema?.type==='string'?v.schema.type:undefined,description:v.description,required:v.required===true||entry.location==='path',deprecated:v.deprecated===true,
+      style:typeof v.style==='string'?v.style:defaultStyle,explode:typeof v.explode==='boolean'?v.explode:defaultExplode,
+      allowReserved:v.allowReserved===true,source:location(entry.source.resource,entry.source.pointer),definition:selected.source,
+      schema:schema(selected.resource,selected.pointer,v),content,example:example(selected.resource,selected.pointer,v),examples:examples(selected.resource,selected.pointer,v)};
+  };
+  const pathView=graph.pathItem(context.pathItem);
+  if(!pathView.complete||!pathView.chainComplete)throw new SourceError('request.path-item','The selected Path Item inheritance is incomplete');
+  const effectiveField=(name:string,root=true)=>{
+    if(node.children.has(name))return {resource:input.resource,pointer:input.pointer+'/'+name,origin:'operation'};
+    const inherited=pathView.fields.get(name);if(inherited)return {...inherited,origin:'path-item'};
+    const rootDoc=docs.get(graph.root)!;if(root&&rootDoc.root.children.has(name))return {resource:graph.root,pointer:'/'+name,origin:'root'};
+  };
+  const serverField=effectiveField('servers');
+  const servers:any[]=[];
+  if(serverField){
+    const list=docs.get(serverField.resource)!.dataNode(serverField.pointer);
+    if(list?.kind!=='array')throw new SourceError('request.servers','Effective servers must be an array');
+    for(const [index,server] of list.children){
+      if(servers.length>=maximumItems)throw new SourceError('limit.request.servers','Server choices exceed 2048');
+      if(server.kind!=='object'||typeof server.value?.url!=='string')continue;
+      const pointer=serverField.pointer+'/'+index;
+      servers.push({url:server.value.url,description:typeof server.value.description==='string'?server.value.description:undefined,
+        variables:server.value.variables&&typeof server.value.variables==='object'?Object.fromEntries(Object.entries(server.value.variables).map(([name,value]:any)=>[name,{default:value?.default,enum:Array.isArray(value?.enum)?value.enum:undefined,description:value?.description}])):{},
+        base:graph.retrievals.get(serverField.resource),source:location(serverField.resource,pointer),origin:serverField.origin});
+    }
+  }
+  if(!serverField || serverField.origin==='root' && docs.get(serverField.resource)!.dataNode(serverField.pointer)?.children.size===0)
+    servers.push({url:'/',variables:{},base:graph.retrievals.get(graph.root),origin:'default'});
+  const securityField=effectiveField('security',false)??(docs.get(graph.root)!.root.children.has('security')?{resource:graph.root,pointer:'/security',origin:'root'}:undefined);
+  const schemes:any={};
+  const requirements:any[]=[];
+  if(securityField){
+    const list=docs.get(securityField.resource)!.dataNode(securityField.pointer);
+    if(list?.kind!=='array')throw new SourceError('request.security','Effective security requirements must be an array');
+    for(const [index,requirement] of list.children){
+      if(requirement.kind!=='object')throw new SourceError('request.security','A security requirement must be an object');
+      const names=[...requirement.children.keys()];requirements.push({schemes:names,scopes:Object.fromEntries(names.map(name=>[name,requirement.value[name]])),source:location(securityField.resource,securityField.pointer+'/'+index)});
+      for(const name of names)if(!Object.hasOwn(schemes,name)){
+        const at='/components/securitySchemes/'+escape(name),declared=docs.get(graph.root)!.dataNode(at);
+        if(!declared)throw new SourceError('request.security.scheme','A selected security requirement names an unavailable scheme');
+        const selected=follow({resource:graph.root,pointer:at,kind:'security-scheme'},'security-scheme'),v=selected.node.value;
+        schemes[name]={name,type:v?.type,description:v?.description,source:location(graph.root,at),definition:selected.source,
+          ...(v?.type==='apiKey'?{in:v.in,parameterName:v.name}:{}),...(v?.type==='http'?{scheme:v.scheme,bearerFormat:v.bearerFormat}:{}),
+          ...(v?.type==='oauth2'?{flows:oauthFlows(selected.resource,selected.pointer,v.flows,location)}:{}),
+          ...(v?.type==='mutualTLS'?{mutualTLS:true}:{})};
+      }
+    }
+  }
+  const bodyField=node.children.has('requestBody')?{resource:input.resource,pointer:input.pointer+'/requestBody'}:undefined;
+  let requestBody:any;
+  if(bodyField){const selected=follow({...bodyField,kind:'request-body'},'request-body'),v=selected.node.value;requestBody={required:v?.required===true,source:location(bodyField.resource,bodyField.pointer),definition:selected.source,content:media(selected.resource,selected.pointer+'/content',v?.content)};}
+  const headerShape=headerShapes(graph);
+  const responses:any[]=[];
+  const responseNode=node.children.get('responses');
+  if(responseNode?.kind!=='object')throw new SourceError('request.responses','The operation has no usable Responses Object');
+  for(const [status,response] of responseNode.children){
+    if(status.startsWith('x-'))continue;
+    const at=input.pointer+'/responses/'+escape(status),selected=follow({resource:input.resource,pointer:at,kind:'response'},'response'),v=selected.node.value;
+    const headers:any[]=[];
+    if(v?.headers&&typeof v.headers==='object')for(const name of Object.keys(v.headers)){
+      if(name.toLowerCase()==='content-type')continue;
+      const hp=selected.pointer+'/headers/'+escape(name),header=follow({resource:selected.resource,pointer:hp,kind:'header'},'header'),hv=header.node.value;
+      headers.push({name,family,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv),shape:headerShape({resource:header.resource,pointer:header.pointer+'/schema',kind:'schema'})});
+    }
+    responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,content:media(selected.resource,selected.pointer+'/content',v?.content)});
+  }
+  const identity=createHash('sha256').update(JSON.stringify([input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
+  return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method:context.customMethod?context.method:context.method.toUpperCase(),customMethod:context.customMethod===true,path:context.path,
+    operationId:typeof node.value.operationId==='string'?node.value.operationId:undefined,summary:typeof node.value.summary==='string'?node.value.summary:undefined,
+    source:location(input.resource,input.pointer),occurrence:context.occurrence,pathItem:location(context.pathItem.resource,context.pathItem.pointer)},
+    servers,parameters:parameters.visible.map(parameter),security:{requirements,schemes,anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,responses,
+    producer:'busyapi-contract-engine',producerVersion:'0.1.0',complete:true};
+}
+
+/** Feature inventory for an external semantic comparator.  This is not a
+ * validity result: it prevents a quiet empty oasdiff result from being called
+ * complete where the pinned adapter documents incomplete coverage. */
+export function semanticDiffCoverage(input:any) {
+  const {graph}=createGraph(input);
+  const dynamicReferences=graph.references.filter(reference=>reference.keyword==='$dynamicRef').map(reference=>({resource:reference.resource,pointer:reference.pointer}));
+  const reusablePathItems=[...graph.scopes.values()].filter(scope=>scope.kind==='path-item'&&scope.pointer.startsWith('/components/pathItems/')).map(scope=>({resource:scope.resource,pointer:scope.pointer}));
+  return {version:1,snapshot:input.snapshot,complete:true,dynamicReferences,reusablePathItems,
+    coverage:{ordinaryOperations:'oasdiff-1.33.0',dynamicReferences:dynamicReferences.length?'unclassified':'not-present',reusablePathItems:reusablePathItems.length?'unclassified':'not-present'}};
+}
+
+/** Create a reviewable source edit for one explicitly selected, user-redacted
+ * JSON response body. The response remains ordinary data: references inside it
+ * are never resolved and exact numeric lexemes flow through setExample. */
+export function planResponseExample(input:any) {
+  const {docs,graph}=createGraph(input),target=input.target,doc=docs.get(target?.resource);
+  const resource=(input.resources as Resource[]).find(resource=>resource.id===target?.resource);
+  const node=doc?.nodes.get(target?.pointer),scope=doc&&graph.scopes.get(doc.id+'#'+target.pointer);
+  if(!doc||!node||!resource||resource.generation!==target.generation||scope?.kind!=='media')
+    throw new SourceError('example.destination','The selected response media declaration is no longer current');
+  if(typeof input.raw!=='string'||Buffer.byteLength(input.raw)>1024*1024)
+    throw new SourceError('limit.example','A saved response example must be at most 1 MiB');
+  const sample=new SourceDocument(input.raw,'file:///busyapi-reviewed-response-example.json');
+  const exact=sample.dataJson('');
+  const pointer=target.pointer+'/example';
+  const result=propose({...input,target,actions:[{kind:'setExample',pointer,raw:exact}]});
+  let after=resource.text;
+  for(const edit of [...result.edits].reverse())after=after.slice(0,edit.start)+edit.replacement+after.slice(edit.end);
+  return {version:1,snapshot:input.snapshot,edits:result.edits,
+    changes:result.edits.length?[{resource:resource.id,before:resource.text,after}]:[],usages:[],
+    from:target,to:{resource:target.resource,pointer},checkedRoots:[input.root],kind:'response-example',
+    redacted:input.redacted===true,bodyIdentity:createHash('sha256').update(input.raw).digest('hex')};
+}
+
+function oauthFlows(resource:string,pointer:string,flows:any,location:(resource:string,pointer:string)=>Located){
+  if(!flows||typeof flows!=='object')return {};
+  const result:any={};
+  for(const name of ['authorizationCode','clientCredentials'])if(flows[name]&&typeof flows[name]==='object'){
+    const value=flows[name],at=pointer+'/flows/'+name;
+    result[name]={authorizationUrl:value.authorizationUrl,tokenUrl:value.tokenUrl,refreshUrl:value.refreshUrl,
+      scopes:value.scopes&&typeof value.scopes==='object'?value.scopes:{},source:location(resource,at)};
+  }
+  return result;
+}

@@ -1,0 +1,11 @@
+extends: [spectral:oas]
+rules:
+  operation-summary:
+    description: Operations must have a summary in the trusted diagnostic probe.
+    severity: error
+    given:
+      - '$.paths[*][get,put,post,delete,options,head,patch,trace,query]'
+      - '$.paths[*].additionalOperations[*]'
+    then:
+      field: summary
+      function: truthy

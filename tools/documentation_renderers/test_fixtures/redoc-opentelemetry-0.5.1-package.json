@@ -1,0 +1,51 @@
+{
+  "name": "@redocly/redoc-opentelemetry",
+  "version": "0.5.1",
+  "main": "./lib/index.js",
+  "module": "./lib/index.mjs",
+  "types": "./lib/index.d.ts",
+  "author": "team@redocly.com",
+  "license": "MIT",
+  "description": "Unified Redoc analytics library for portal and CE Redoc",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.mjs",
+      "require": "./lib/index.js",
+      "default": "./lib/index.js"
+    }
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "0.219.0",
+    "@opentelemetry/resources": "2.8.0",
+    "@opentelemetry/sdk-trace-web": "2.8.0",
+    "@opentelemetry/semantic-conventions": "1.40.0",
+    "ulid": "^3.0.2"
+  },
+  "devDependencies": {
+    "@redocly/asyncapi-sdk-generator": "0.1.0",
+    "@redocly/cli": "2.58.1",
+    "cross-env": "7.0.3",
+    "esbuild": "0.28.1",
+    "typescript": "6.0.3"
+  },
+  "nx": {
+    "namedInputs": {
+      "prod": [
+        "{workspaceRoot}/docs/intranet/apis/redoc-asyncapi/**/*",
+        "{projectRoot}/package.json",
+        "!{projectRoot}/**/.cache"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "pnpm run clean && pnpm run lint && pnpm run bundle && pnpm run generate && tsgo && pnpm run generate:hash && pnpm run build:esm",
+    "build:esm": "node build.mjs",
+    "clean": "rm -rf .cache && rm -rf src/generated && rm -rf lib/",
+    "bundle": "cross-env REDOCLY_TELEMETRY=off redocly bundle ../../docs/intranet/apis/redoc-asyncapi/asyncapi.yaml --output .cache/redoc-asyncapi.yaml",
+    "generate": "asyncapi-sdk-generator --input .cache/redoc-asyncapi.yaml --output src/generated --configPath asyncapi-sdk-config.json --generate-telemetry-client --generate-otel-client --provider web",
+    "generate:hash": "asyncapi-sdk-generator --input ./.cache --output . --generate-document-hash",
+    "lint": "cross-env REDOCLY_TELEMETRY=off redocly lint --config=../../docs/intranet/asyncapi-styleguide-strict.yaml --format=stylish ../../docs/intranet/apis/redoc-asyncapi/asyncapi.yaml"
+  }
+}

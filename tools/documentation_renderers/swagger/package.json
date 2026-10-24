@@ -1,0 +1,15 @@
+{
+  "name": "busyapi-swagger-assets",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.15.0"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "swagger-client": "3.38.2",
+    "swagger-ui": "5.33.2"
+  }
+}

@@ -1,0 +1,42 @@
+Development candidates only; no candidate vendor code is shipped in BusyAPI by
+these probes. Exact package identities and transitive license metadata are in
+package-lock.json. Installed distributions retain their original notices.
+
+Redocly CLI 2.64.0 — Copyright 2019 Redocly Inc., MIT (text below).
+Redocly openapi-core 2.64.0 — Copyright 2019 Redocly Inc., MIT.
+Hyperjump json-schema 1.18.0 — Copyright (c) 2022 Hyperjump Software, LLC, MIT.
+Hyperjump browser 1.6.0 — Copyright (c) 2023 Hyperjump Software, LLC, MIT.
+JSON Schema Ref Parser 16.0.5 — Copyright (c) 2015 James Messinger, MIT.
+Spectral CLI 6.17.0 — Stoplight contributors, Apache-2.0.
+Swagger UI 5.33.2 — SmartBear Software and contributors, Apache-2.0.
+Playwright 1.58.2 — Microsoft Corporation, Apache-2.0.
+Apache-2.0 license text: ../../../LICENSE.
+
+MIT notice for the Redocly and Hyperjump candidates:
+
+The MIT License (MIT)
+
+Copyright (c) 2015-present, Rebilly, Inc.
+Copyright (c) 2021-present, Redocly Inc.
+Copyright 2019 Redocly Inc.
+Copyright (c) 2022 Hyperjump Software, LLC
+Copyright (c) 2023 Hyperjump Software, LLC
+Copyright (c) 2015 James Messinger
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

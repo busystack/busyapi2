@@ -1,0 +1,6 @@
+version: 1
+roots:
+  - name: first
+    path: first.yaml
+  - name: second
+    path: second.yaml

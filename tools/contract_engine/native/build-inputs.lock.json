@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "platform": "linux-x64",
+  "profile": 2,
+  "minimumLandlockAbi": 3,
+  "node": {
+    "version": "24.15.0",
+    "source": "https://github.com/nodejs/node/tree/v24.15.0/src",
+    "distribution": "build-only Node-API declarations; Node runtime notices are installed separately",
+    "headers": {
+      "node_api.h": "2d4560831e525b47b060ec8a0864ab73993df9e20215ce9f0fe7b24cd31af32a",
+      "node_api_types.h": "a25356630d3058f0a0c8937d9f297e9471e037fda58c2696d8a505c2bd99cb00",
+      "js_native_api.h": "eb03b6c850a1cfb593fd03e9e4251db8c82e9a6d9705bca91ac8d1a01fd7037c",
+      "js_native_api_types.h": "7dd3663630849ada3a30d39abf42a192c9b6e7de63017cd32c41f5371a475b34"
+    }
+  },
+  "libseccomp": {
+    "version": "2.5.5",
+    "minimumRuntimeVersion": "2.5.5",
+    "soname": "libseccomp.so.2",
+    "source": "https://github.com/seccomp/libseccomp/tree/v2.5.5",
+    "license": "LGPL-2.1-only",
+    "distribution": "system shared-library dependency; no library code is statically linked or copied by this preparation",
+    "headerPackage": "https://archive.ubuntu.com/ubuntu/pool/main/libs/libseccomp/libseccomp-dev_2.5.5-1ubuntu3.1_amd64.deb",
+    "headerPackageSha256": "26421f22f2150986735b79ece61d811400debab7fa505b08b731ec5a7917e45f",
+    "headers": {
+      "seccomp.h": "c539e434609f20d2d4210f02ecb9cd4ebc9218505604ddbf1898d1ac2761dc9a",
+      "seccomp-syscalls.h": "3e6457cc8b198decf364c8b23c0d62579a41cc83d92c6b1aa4d31882aae9aa93"
+    }
+  }
+}

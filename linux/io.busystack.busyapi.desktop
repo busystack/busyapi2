@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=BusyAPI
+Comment=Native OpenAPI contract workspace
+Exec=busyapi-desktop %F
+Icon=io.busystack.busyapi
+Terminal=false
+Type=Application
+Categories=Development;
+StartupWMClass=io.busystack.busyapi
+MimeType=application/json;application/yaml;text/yaml;

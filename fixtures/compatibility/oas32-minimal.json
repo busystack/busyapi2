@@ -1,0 +1,67 @@
+{
+  "openapi": "3.2.1",
+  "info": {
+    "title": "Minimal compatibility fixture",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/things": {
+      "get": {
+        "operationId": "listThings",
+        "summary": "Compatibility operation sentinel",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Composed"
+                },
+                "example": {
+                  "name": "fixture",
+                  "id": "1"
+                }
+              }
+            }
+          }
+        }
+      },
+      "query": {
+        "operationId": "queryThings",
+        "summary": "QUERY sentinel",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      },
+      "additionalOperations": {
+        "COPY": {
+          "operationId": "copyThings",
+          "summary": "COPY sentinel",
+          "responses": {
+            "200": {
+              "description": "Success"
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Composed": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "Schema property sentinel"
+          }
+        }
+      }
+    }
+  }
+}

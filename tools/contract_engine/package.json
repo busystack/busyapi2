@@ -1,0 +1,38 @@
+{
+  "name": "busyapi-contract-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.15.0"
+  },
+  "scripts": {
+    "build": "esbuild src/server.ts --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/engine.cjs && esbuild src/execution.ts --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/execution.cjs && esbuild src/mock_server.ts --bundle --platform=node --format=cjs --main-fields=module,main --alias:@jsdevtools/ono=./node_modules/@jsdevtools/ono/cjs/index.js --outfile=dist/mock-server.cjs",
+    "test": "node test_engine.cjs && node test_graph.cjs && node test_execution.cjs"
+  },
+  "dependencies": {
+    "@hyperjump/browser": "1.6.0",
+    "@hyperjump/json-schema": "1.18.0",
+    "@hyperjump/uri": "1.3.9",
+    "@stoplight/http-spec": "7.1.0",
+    "@stoplight/prism-core": "5.15.11",
+    "@stoplight/prism-http": "5.15.11",
+    "@stoplight/spectral-core": "1.24.0",
+    "@stoplight/spectral-formats": "1.9.0",
+    "@stoplight/spectral-functions": "1.11.0",
+    "@stoplight/spectral-rulesets": "1.23.0",
+    "@stoplight/types": "14.1.1",
+    "acorn": "8.19.0",
+    "ajv": "8.20.0",
+    "commonmark": "0.31.2",
+    "enhanced-resolve": "5.26.0",
+    "jsonc-parser": "3.3.1",
+    "pino": "6.14.0",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "esbuild": "0.28.2",
+    "typescript": "5.7.3"
+  }
+}

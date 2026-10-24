@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "component": "Snapcraft GNOME/GPU command-chain sources",
+  "componentVersion": "9.1.4",
+  "license": "GPL-3.0",
+  "source": "https://github.com/canonical/snapcraft/tree/9.1.4",
+  "licenseSha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+  "files": [
+    {"file":"desktop/command-chain/desktop-launch","sha256":"bdf7e2223ca5b994d6c099382e76c64e3fd1d0eabb5d2e42fe2b6e771d550f9f","runtime":"snap/command-chain/desktop-launch"},
+    {"file":"desktop/command-chain/hooks-configure-fonts","sha256":"6007f208fbce6b551cce19bde67fe2d35a460a4c6bbdddaa6f7ca2154eb7eb07","runtime":"snap/command-chain/hooks-configure-fonts"},
+    {"file":"desktop/command-chain/run","sha256":"e4bb65f4d68446cefba0b06c08f32b0ee1189d629fde4f3747dc40971360d5e9","runtime":"snap/command-chain/run"},
+    {"file":"desktop/command-chain/Makefile","sha256":"c1699460a1aa3db9c69bc4773b928d970c24262764de2e334c363c7934d5a476"},
+    {"file":"gpu/command-chain/gpu-wrapper","sha256":"e2e764bad584e0905f08dfd17399f808dffa4264ae42eda3ba1d18d7711aa97f","runtime":"snap/command-chain/gpu-2404-wrapper","substituteGpu":true},
+    {"file":"gpu/command-chain/Makefile","sha256":"0ed7af01f97a4b6ca2ef399e4080a7f0f28fddb773c156eea9fcc92d5b60401b"}
+  ]
+}

@@ -1,0 +1,3 @@
+extends: []
+resolve:
+  doNotResolveExamples: true

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "capability": "read-only-documentation-window",
+  "module": "lib/libbusyapi_documentation.so",
+  "moduleAbi": 1,
+  "systemRuntime": "webkit2gtk-4.1",
+  "gtkAbi": "GTK3",
+  "buildVersion": "@WEBKIT_VERSION@",
+  "requiredLibraries": ["libwebkit2gtk-4.1.so.0", "libjavascriptcoregtk-4.1.so.0"],
+  "requiredRuntime": "The full native WebKitGTK 4.1 installation, including its helper processes, injected bundle and runtime data. WebKit sandboxing stays requested; inside strict Snap, upstream uses Snap confinement without nested Bubblewrap. Shared libraries alone are insufficient.",
+  "loading": "Explicit documentation-window opening only; no runtime download, private WebKit fork or disabled subprocess sandbox."
+}

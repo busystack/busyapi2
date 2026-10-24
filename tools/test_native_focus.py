@@ -1,0 +1,103 @@
+import unittest
+import os
+from pathlib import Path
+import socket
+import subprocess
+import tempfile
+
+from tools.native_focus import (belongs_to_window, private_session_command, private_session_environment,
+                                restore_native_environment, validate_private_accessibility_address)
+
+
+class NativeFocusTests(unittest.TestCase):
+    def test_fixture_bus_cannot_activate_desktop_portal_or_secret_service(self):
+        with tempfile.TemporaryDirectory(prefix='busyapi-native-runtime-test-') as runtime:
+            service = Path(runtime) / 'original.service'
+            original = b'[D-BUS Service]\nName=org.a11y.Bus\nExec=/bin/false\n'
+            service.write_bytes(original)
+            command = private_session_command(runtime, accessibility_service=service)
+            self.assertEqual((Path(runtime)/'services/org.a11y.Bus.service').read_bytes(), original)
+            self.assertEqual(service.read_bytes(), original)
+            result = subprocess.run([*command, 'gdbus', 'call', '--session',
+                '--dest', 'org.freedesktop.DBus', '--object-path', '/org/freedesktop/DBus',
+                '--method', 'org.freedesktop.DBus.ListActivatableNames'],
+                env=private_session_environment(os.environ, runtime), capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('org.a11y.Bus', result.stdout)
+            self.assertNotIn('org.freedesktop.portal', result.stdout)
+            self.assertNotIn('org.freedesktop.secrets', result.stdout)
+            self.assertEqual(result.stdout.count("'org."), 2, result.stdout)
+
+    def test_private_bus_activation_cannot_inherit_desktop_display_or_socket(self):
+        with tempfile.TemporaryDirectory(prefix='busyapi-native-runtime-test-') as runtime:
+            original = {'DISPLAY': ':42', 'WAYLAND_DISPLAY': 'wayland-fixture',
+                        'XDG_RUNTIME_DIR': '/run/user/fixture',
+                        'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/session/fixture',
+                        'AT_SPI_BUS_ADDRESS': 'unix:path=/desktop/fixture'}
+            environment = private_session_environment(original, runtime)
+            self.assertNotIn('DISPLAY', environment)
+            self.assertNotIn('WAYLAND_DISPLAY', environment)
+            self.assertNotIn('AT_SPI_BUS_ADDRESS', environment)
+            self.assertEqual(environment['XDG_RUNTIME_DIR'], runtime)
+            # dbus-run-session replaces only this address; never restore the
+            # desktop bus when restoring the fixture's native display.
+            environment['DBUS_SESSION_BUS_ADDRESS'] = 'unix:path=/private/session'
+            restore_native_environment(environment)
+            for key in ('DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR'):
+                self.assertEqual(environment[key], original[key])
+            self.assertEqual(environment['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/private/session')
+            self.assertEqual(original['AT_SPI_BUS_ADDRESS'], 'unix:path=/desktop/fixture')
+
+    def test_missing_native_variables_are_restored_as_absent(self):
+        with tempfile.TemporaryDirectory(prefix='busyapi-native-runtime-test-') as runtime:
+            environment = private_session_environment({}, runtime)
+            restore_native_environment(environment)
+            self.assertEqual(environment, {})
+
+    def test_foreign_missing_and_non_socket_accessibility_addresses_fail(self):
+        with tempfile.TemporaryDirectory(prefix='busyapi-native-runtime-test-') as runtime:
+            directory = Path(runtime) / 'at-spi'
+            directory.mkdir()
+            path = directory / 'bus'
+            environment = {'XDG_RUNTIME_DIR': runtime}
+            with socket.socket(socket.AF_UNIX) as connection:
+                connection.bind(str(path))
+                validate_private_accessibility_address('unix:path=' + str(path) + ',guid=fixture', environment)
+                for address in ('tcp:host=fixture', 'unix:path=/run/user/fixture/bus',
+                                'unix:path=' + str(directory / 'missing'),
+                                'unix:path=' + str(path) + ';unix:path=/foreign'):
+                    with self.subTest(address=address), self.assertRaises((ValueError, FileNotFoundError)):
+                        validate_private_accessibility_address(address, environment)
+            path.unlink()
+            path.write_text('not a socket')
+            with self.assertRaises(ValueError):
+                validate_private_accessibility_address('unix:path=' + str(path), environment)
+            os.chmod(runtime, 0o755)
+            with self.assertRaises(ValueError):
+                private_session_environment({}, runtime)
+
+    def test_frame_and_gtk_focus_child_are_owned(self):
+        parents = {102: 101, 101: 100, 100: 50}
+        self.assertTrue(belongs_to_window(100, 100, parents.get))
+        self.assertTrue(belongs_to_window(102, 100, parents.get))
+
+    def test_unrelated_frame_root_and_missing_ancestry_fail_closed(self):
+        parents = {102: 100, 100: 50, 200: 50, 50: 0}
+        for focus in [None, 0, 1, 200, 50, 999]:
+            with self.subTest(focus=focus):
+                self.assertFalse(belongs_to_window(focus, 100, parents.get))
+
+    def test_cycles_and_excessive_depth_are_bounded(self):
+        self.assertFalse(belongs_to_window(102, 100, {102: 103, 103: 102}.get))
+        calls = []
+
+        def unbounded_parent(window):
+            calls.append(window)
+            return window + 1
+
+        self.assertFalse(belongs_to_window(2, 999, unbounded_parent))
+        self.assertEqual(len(calls), 32)
+
+
+if __name__ == '__main__':
+    unittest.main()

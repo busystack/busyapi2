@@ -1,0 +1,22 @@
+openapi: 3.1.2
+info:
+  title: Original model resource
+  version: '1'
+paths: {}
+components:
+  schemas:
+    A:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      type: object
+      description: 2020 dialect schema sentinel
+      properties:
+        sibling:
+          $ref: '#/components/schemas/B'
+      examples:
+        - sibling: okay
+    B:
+      type: string
+      description: OAS dialect schema sentinel
+      minLength: 2
+      examples:
+        - okay

@@ -1,0 +1,20 @@
+# Supply a previously prepared Linux BusyAPI artifact and a controlled local
+# test target on your runner. No provider account is required by the CLI.
+api-contract:
+  tags: [busyapi-linux]
+  variables:
+    BUSYAPI_BIN: /opt/busyapi/busyapi
+    GIT_DEPTH: "0"
+  script:
+    - test -n "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+    - '"$BUSYAPI_BIN" check contracts --root public --sarif check.sarif --json'
+    - '"$BUSYAPI_BIN" lint contracts --root public --sarif lint.sarif --json'
+    - '"$BUSYAPI_BIN" diff contracts --root public --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA" --json'
+    - '"$BUSYAPI_BIN" test contracts --root public --case controlled-health --environment local --junit contract-tests.xml --json'
+  artifacts:
+    when: always
+    paths: [check.sarif, lint.sarif, contract-tests.xml]
+    reports:
+      junit: contract-tests.xml
+# A failed check/test/diff retains its failing job status. Do not append
+# "|| true" or turn report publication into the job's sole success criterion.
