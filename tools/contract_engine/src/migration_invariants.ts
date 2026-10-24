@@ -3,6 +3,31 @@ import type {ReferenceGraph} from './reference_graph';
 import type {Resource} from './engine';
 import {serverTemplate} from './derived_bundle';
 
+function formSignatures(media:any):unknown {
+    const type=media.mediaType.split(';')[0].trim().toLowerCase(),multipart=type==='multipart/form-data';
+    if(!multipart&&type!=='application/x-www-form-urlencoded')return;
+    const content=(shape:any)=>shape?.defaultContentType??'text/plain';
+    const signature=(name:string,shape:any,rule:any,styled:boolean)=>{
+        const types=shape?.types??[],array=types.includes('array'),object=types.includes('object');
+        const style=rule?.style??'form',explode=rule?.explode??(style==='form');
+        if(styled&&(array||object))return {name,mode:'style',style,explode,allowReserved:multipart?false:rule?.allowReserved===true};
+        return {name,mode:'content',array,contentType:styled?'text/plain':rule?.contentType??content(array?shape.items:shape)};
+    };
+    if(media.swaggerForm)return media.swaggerForm.map((parameter:any)=>{
+        const array=parameter.type==='array',format=parameter.collectionFormat??'csv';
+        const shape={types:[parameter.type],defaultContentType:parameter.type==='file'?'application/octet-stream':'text/plain',items:{defaultContentType:'text/plain'}};
+        if(array&&!(multipart&&format==='multi'))return signature(parameter.name,shape,{style:format==='ssv'?'spaceDelimited':format==='pipes'?'pipeDelimited':'form',explode:format==='multi'},true);
+        return signature(parameter.name,shape,undefined,false);
+    }).sort((a:any,b:any)=>a.name.localeCompare(b.name));
+    return Object.entries(media.form?.shape?.properties??{}).map(([name,shape])=>{
+        const rule=media.encoding?.[name],styled=(!multipart||media.form.multipartStyle)&&['style','explode','allowReserved'].some(field=>Object.hasOwn(rule??{},field));
+        // Repeated primitive form fields have the same decoded values as
+        // content-based parts; the remaining style cases retain separators.
+        if(multipart&&styled&&(rule.style??'form')==='form'&&(rule.explode??true)===true)return signature(name,shape,{contentType:'text/plain'},false);
+        return signature(name,shape,rule,styled);
+    }).sort((a:any,b:any)=>a.name.localeCompare(b.name));
+}
+
 /** Representation-sensitive checks supplement native target validation. The
  * signature contains API declarations, never environments or credentials. */
 export function migrationRequestSignatures(graph:ReferenceGraph,resources:Resource[]):string[] {
@@ -14,7 +39,7 @@ export function migrationRequestSignatures(graph:ReferenceGraph,resources:Resour
         const media=(values:any[])=>values.map(value=>value.mediaType).sort();
         return JSON.stringify(normalize({method:plan.operation.method,path:plan.operation.path,
             servers:plan.servers.map((server:any)=>({url:serverTemplate(server.url,server.base,server.variables),variables:server.variables})),
-            parameters,security:plan.security,body:plan.requestBody?{required:plan.requestBody.required,media:media(plan.requestBody.content)}:undefined,
+            parameters,security:plan.security,body:plan.requestBody?{required:plan.requestBody.required,media:media(plan.requestBody.content),forms:plan.requestBody.content.map((value:any)=>({mediaType:value.mediaType,fields:formSignatures(value)})).sort((a:any,b:any)=>a.mediaType.localeCompare(b.mediaType))}:undefined,
             responses:plan.responses.map((response:any)=>({status:response.status,headers:response.headers.map((header:any)=>({name:header.name,required:header.required})),media:media(response.content)}))}));
     }).sort();
 }

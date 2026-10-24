@@ -4,6 +4,23 @@ const {analyse}=require('./dist/model.cjs');
 const {requestOperation,requestParameterValues,planResponseExample,semanticDiffCoverage,executionCaseValues,planExecutionEnvironment}=require('./dist/execution.cjs');
 const {deriveBundle}=require('./dist/derived_bundle.cjs');
 
+for(const version of ['3.0.0','3.0.4','3.1.2','3.2.1'])test(`form transport metadata retains ${version} schema owners and multipart rules`,()=>{
+ const value={openapi:version,info:{title:'Native form',version:'1'},paths:{'/form':{post:{requestBody:{content:{'multipart/form-data':{schema:{$ref:'#/components/schemas/Form'},encoding:{metadata:{style:'form',explode:false,contentType:'application/json'}}}}},responses:{204:{description:'OK'}}}}},components:{schemas:{Form:{allOf:[{type:'object',properties:{metadata:{$ref:'model.json#/Metadata'},ids:{type:'array',items:{type:'integer'}}}}]}}}};
+ const text=JSON.stringify(value),packet={root:id,snapshot:version,resources:[{id,text,generation:1},{id:'file:///execution/model.json',text:'{"Metadata":{"type":"object","properties":{"id":{"type":"integer"}}}}',generation:2}]};
+ const op=analyse(packet).operations[0],plan=requestOperation({...packet,resource:id,pointer:op.pointer,occurrence:op.occurrence});
+ const media=plan.requestBody.content[0];assert.equal(media.family,version.slice(0,3));
+ assert.equal(media.form.multipartStyle,!version.startsWith('3.0.'));
+ assert.equal(media.form.legacyBinary,version.startsWith('3.0.'));
+ assert.equal(media.form.defaultContentType,version.startsWith('3.0.')?'text/plain':'application/octet-stream');
+ assert.equal(media.form.shape.defaultContentType,'application/json');
+ assert.deepEqual(media.form.shape.types,['object']);
+ assert.deepEqual(media.form.shape.properties.metadata.types,['object']);
+ assert.deepEqual(media.form.shape.properties.metadata.properties.id.types,['integer']);
+ assert.deepEqual(media.form.shape.properties.ids.items.types,['integer']);
+ assert.deepEqual({...media.encoding.metadata},{style:'form',explode:false,contentType:'application/json'});
+ assert.equal(packet.resources[0].text,text);
+});
+
 const id='file:///execution/openapi.json';
 const document={
  openapi:'3.2.1',info:{title:'Execution',version:'1'},

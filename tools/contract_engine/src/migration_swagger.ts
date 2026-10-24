@@ -19,9 +19,12 @@ export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migration
         while(root.nodes.has('/components/'+group+'/'+name)||group==='schemas'&&root.nodes.has('/definitions/'+name))name=stem+'_'+(++index);
         return '/components/'+group+'/'+name;
     };
-    const style=(scope:GraphScope,value:any)=>{
+    const style=(scope:Pick<GraphScope,'resource'|'pointer'>,value:any)=>{
         const format=value.collectionFormat??'csv';
         if(value.type!=='array')return;
+        if(value.items?.type==='array'){
+            issue({...scope,pointer:scope.pointer+'/items'},'migration.parameter.nested-collection','RFC6570 parameter styles do not define nested Swagger collection serialization','target-representation');return;
+        }
         if(format==='tsv'||['path','header'].includes(value.in)&&format!=='csv'){
             issue({...scope,pointer:scope.pointer+'/collectionFormat'},'migration.parameter.collection','This Swagger collection encoding has no equivalent OpenAPI 3.0 parameter style','target-representation');return;
         }
@@ -83,8 +86,12 @@ export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migration
                     if(value.required===true)required.push(parameter.name!);
                     if(value.allowEmptyValue===true)issue({...definition,pointer:definition.pointer+'/allowEmptyValue'},'migration.form.empty','This form empty-value rule needs an explicit equivalent encoding policy','implementation');
                     if(value.type==='array'){
-                        if(!['csv','multi'].includes(value.collectionFormat??'csv'))issue({...definition,pointer:definition.pointer+'/collectionFormat'},'migration.form.collection','This formData collection encoding needs a faithful target Encoding Object mapping','implementation');
-                        else source.set(at+'/encoding/'+escape(parameter.name!),{style:'form',explode:value.collectionFormat==='multi'});
+                        if(value.items?.type==='array')issue({...definition,pointer:definition.pointer+'/items'},'migration.form.nested-collection','This nested Swagger form collection cannot retain its delimiter hierarchy in OpenAPI 3.0','target-representation');
+                        const format=value.collectionFormat??'csv';
+                        if(media==='multipart/form-data'){
+                            if(format!=='multi')issue({...definition,pointer:definition.pointer+'/collectionFormat'},'migration.form.collection','OpenAPI 3.0 multipart arrays use repeated parts and cannot preserve this Swagger collection separator','target-representation');
+                        }else if(format==='tsv')issue({...definition,pointer:definition.pointer+'/collectionFormat'},'migration.form.collection','OpenAPI 3.0 has no tabDelimited form encoding','target-representation');
+                        else source.set(at+'/encoding/'+escape(parameter.name!),style(definition,value));
                     }
                 }
                 if(required.length)source.set(at+'/schema/required',required);

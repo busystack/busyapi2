@@ -48,7 +48,7 @@ test('Swagger body inheritance, media, primitive parameters, security and respon
 test('Swagger formData becomes a media-specific request schema and encoding, including file properties',async()=>{
  const input={...capture('swagger: "2.0"\ninfo: {title: Form, version: "1"}\nhost: api.invalid\nschemes: [https]\nconsumes: [multipart/form-data]\nproduces: [application/json]\npaths:\n  /upload:\n    post:\n      parameters:\n        - {name: file, in: formData, required: true, type: file}\n        - {name: tags, in: formData, type: array, items: {type: string}, collectionFormat: multi}\n      responses: {204: {description: Empty}}\n'),targetVersion:'3.0.4'};
  const result=await planMigration(input);assert.equal(result.complete,true,JSON.stringify(result.problems));const doc=new SourceDocument(result.outputs[0].text,result.outputRoot),base='/paths/~1upload/post/requestBody/content/multipart~1form-data';
- assert.equal(doc.dataNode(base+'/schema/properties/file/format').value,'binary');assert.equal(doc.dataNode(base+'/encoding/tags/explode').value,true);assert.deepEqual(doc.dataNode(base+'/schema/required').value,['file']);
+ assert.equal(doc.dataNode(base+'/schema/properties/file/format').value,'binary');assert.equal(doc.dataNode(base+'/encoding/tags'),undefined);assert.deepEqual(doc.dataNode(base+'/schema/required').value,['file']);assert.equal(result.invariants.requests,'effective-url-serialization-security-and-media');
 });
 test('a changed source graph cannot reuse a previous decision identity',async()=>{
  const input=capture('openapi: 3.0.4\ninfo: {title: Bound, version: "1"}\npaths: {}\ncomponents: {schemas: {A: {type: string}, B: {$ref: "#/components/schemas/A", type: integer}}}\n');
@@ -72,4 +72,53 @@ test('Swagger downgrade represents a closed positional tuple by exact maxItems a
  const before=await evaluateSchemas({...input,runtimeInstances:samples.map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:input.root,pointer:'/components/schemas/Tuple'}}))});
  const after=await evaluateSchemas({root:result.outputRoot,snapshot:'target',resources:result.outputs.map(output=>({id:output.id,text:output.text,generation:0})),runtimeInstances:samples.map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:result.outputRoot,pointer:'/definitions/Tuple'}}))});
  assert.equal(after.complete,true,JSON.stringify(after.findings));assert.deepEqual(after.runtimeEvaluations.map(e=>e.valid),[true,true,true,false,false]);assert.deepEqual(before.runtimeEvaluations.map(e=>e.valid),after.runtimeEvaluations.map(e=>e.valid));
+});
+
+for(const media of ['application/x-www-form-urlencoded','multipart/form-data'])for(const format of ['csv','ssv','pipes','multi'])test(`Swagger ${media} ${format} migration checks actual target encoding rules`,async()=>{
+ const text=`swagger: '2.0'
+info: {title: Encoding, version: '1'}
+host: api.invalid
+schemes: [https]
+consumes: [${media}]
+paths:
+  /form:
+    post:
+      parameters: [{in: formData, name: tags, type: array, items: {type: string}, collectionFormat: ${format}}]
+      responses: {'204': {description: ok}}
+`;
+ const input={...capture(text),targetVersion:'3.0.4'},result=await planMigration(input);
+ if(media==='multipart/form-data'&&format!=='multi'){
+  assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);
+  assert(result.problems.some(problem=>problem.code==='migration.form.collection'&&problem.reason==='target-representation'&&problem.pointer.endsWith('/collectionFormat')));
+ }else{
+  assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.invariants.requests,'effective-url-serialization-security-and-media');
+  const doc=new SourceDocument(result.outputs[0].text,result.outputRoot),pointer='/paths/~1form/post/requestBody/content/'+media.replaceAll('~','~0').replaceAll('/','~1')+'/encoding/tags';
+  if(media==='multipart/form-data')assert.equal(doc.dataNode(pointer),undefined);
+  else {assert.equal(doc.dataNode(pointer+'/style').value,format==='ssv'?'spaceDelimited':format==='pipes'?'pipeDelimited':'form');assert.equal(doc.dataNode(pointer+'/explode').value,format==='multi');}
+ }
+ assert.equal(input.resources[0].text,text);
+});
+
+for(const source of ['3.0.4','3.1.2'])for(const explode of [false,true])test(`multipart migration ${source} explode=${explode} preserves the active serialization`,async()=>{
+ const target=source==='3.0.4'?'3.1.2':'3.0.4',text=`openapi: ${source}
+info: {title: Encoding, version: '1'}
+servers: [{url: 'https://api.invalid'}]
+paths:
+  /form:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {tags: {type: array, items: {type: string}}}}
+            encoding: {tags: {contentType: application/json, style: form, explode: ${explode}}}
+      responses: {'204': {description: ok}}
+`;
+ const result=await planMigration({...capture(text),targetVersion:target});
+ if(source==='3.1.2'&&!explode){assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);assert(result.problems.some(problem=>problem.code==='migration.encoding.multipart'&&problem.reason==='target-representation'));}
+ else {
+  assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.invariants.requests,'effective-url-serialization-security-and-media');
+  const doc=new SourceDocument(result.outputs[0].text,result.outputRoot),at='/paths/~1form/post/requestBody/content/multipart~1form-data/encoding/tags';
+  assert.equal(doc.dataNode(at+'/style'),undefined);assert.equal(doc.dataNode(at+'/explode'),undefined);
+  assert.equal(doc.dataNode(at+'/contentType').value,source==='3.0.4'?'application/json':'text/plain');
+ }
 });

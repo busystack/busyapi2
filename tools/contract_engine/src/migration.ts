@@ -15,6 +15,7 @@ import {documentUriOccurrences} from './authoring';
 import {serverTemplate} from './derived_bundle';
 import {hasRelativeMarkdownLinks} from './markdown_links';
 import {migrationRequestSignatures} from './migration_invariants';
+import {migrateEncodings} from './migration_encoding';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
@@ -93,6 +94,7 @@ export async function planMigration(input:MigrationInput) {
             }
             if(problems.length)break;
             migrateSchemas(graph,sources,before,after,issue);
+            migrateEncodings(graph,sources,before,after,issue);
             if(before==='2.0')upgradeSwagger(graph,sources,issue);
             if(after==='2.0')downgradeSwagger(graph,sources,issue);
             if(problems.length)break;

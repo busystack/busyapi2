@@ -1293,9 +1293,12 @@ environments: {local: {baseUrl: http://127.0.0.1:${server.port}}}
     final multipartType = received[1]['contentType'] as String;
     expect(multipartType, startsWith('multipart/form-data; boundary=busyapi-'));
     final multipart = received[1]['body'] as List<int>;
+    // OAS 3.2 §4.15.1.1 defaults an untyped part to octet-stream.
     expect(
       utf8.decode(multipart, allowMalformed: true),
-      contains('name="note"\r\n\r\nliteral'),
+      contains(
+        'name="note"\r\nContent-Type: application/octet-stream\r\n\r\nliteral',
+      ),
     );
     expect(
       utf8.decode(multipart, allowMalformed: true),
@@ -2479,19 +2482,33 @@ ${generic ? '          application/x-www-form-urlencoded: {schema: {}}' : ''}
         result.request.body!.mediaType,
         'application/x-www-form-urlencoded; charset=utf-8',
       );
-      // The selected constrained declaration is acknowledged as unchecked;
-      // a generic unconstrained alternative must not conceal it.
-      expect(result.outgoing.complete, isFalse);
+      expect(result.outgoing.complete, isTrue);
+      expect(result.outgoing.valid, isTrue);
       expect(
         result.outgoing.findings.any(
           (f) => f['code'] == 'runtime.request.body.unchecked',
         ),
-        isTrue,
+        isFalse,
       );
       await result.close();
+      final missing = await const ContractRequestExecutor().execute(
+        plan,
+        OperationRequestDraft(
+          planIdentity: plan.identity,
+          body: const RequestBodyDraft.form(
+            [],
+            mediaType: 'application/x-www-form-urlencoded; charset=utf-8',
+          ),
+        ),
+        resolveSecret: (_) async => null,
+      );
+      expect(missing.outgoing.complete, isTrue);
+      expect(missing.outgoing.valid, isFalse);
+      expect(seen.last.$2, isEmpty);
+      await missing.close();
       plan.close();
     }
-    expect(seen.length, 2);
+    expect(seen.length, 4);
   });
   test(
     'H14 storage failures are owned and slow writes apply backpressure',

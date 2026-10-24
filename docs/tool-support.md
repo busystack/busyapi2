@@ -14,6 +14,21 @@ for 2.0; choose native Reference, native HTML or Swagger UI. Renderer
 compatibility remains separate from native authoring support and current
 acceptance status in the [support matrix](implementation/native-openapi-support.md).
 
+Form execution uses the captured schema to interpret numeric and boolean fields,
+repeated array items and JSON object values. Explicit URL-encoded styles share
+the parameter serializer. Multipart style fields are ignored in 3.0 and applied
+in 3.1/3.2; content defaults come from the engine's owning-family projection.
+Literal custom-media parts retain their bytes and report incomplete schema
+evaluation when their typed content cannot be decoded. Literal fields remain
+strings when the schema also permits strings. Untyped repeated fields use an
+array; content-based arrays use repeated entries. These are explicit input
+policies, not guarantees about how a particular server decodes ambiguous forms.
+
+Migration checks effective form encodings as well as media names. It removes
+ignored 3.0 multipart style fields before they could become active in 3.1.
+Swagger multipart arrays with a CSV/space/pipe separator are blocked for a 3.0
+target, whose repeated-part encoding cannot preserve those delimiters.
+
 ## External tools
 
 OpenAPI Generator **7.26.0** runs as the official local JAR with the packaged

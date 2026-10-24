@@ -28,6 +28,142 @@ void main() {
     return (project, file);
   }
 
+  for (final conversion in [
+    ('2.0', '3.0.4'),
+    ('3.0.4', '3.1.2'),
+    ('3.1.2', '3.0.4'),
+  ]) {
+    test(
+      'multipart migration ${conversion.$1} to ${conversion.$2} preserves actual HTTP values',
+      () async {
+        final seen = <List<Object?>>[];
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        server.listen((request) async {
+          final boundary = request.headers.contentType!.parameters['boundary']!;
+          final text = await utf8.decoder.bind(request).join();
+          final parts = <List<String>>[];
+          for (final part in text.split('--$boundary').skip(1)) {
+            if (part.startsWith('--')) continue;
+            final at = part.indexOf('\r\n\r\n');
+            final headers = part.substring(0, at);
+            final name = RegExp('name="([^"]+)"')
+                .firstMatch(headers)!
+                .group(1)!;
+            final type =
+                RegExp(r'Content-Type: ([^\r\n]+)')
+                    .firstMatch(headers)
+                    ?.group(1) ??
+                'text/plain';
+            parts.add([name, type, part.substring(at + 4, part.length - 2)]);
+          }
+          seen.add([request.method, request.uri.toString(), parts]);
+          request.response.statusCode = 204;
+          await request.response.close();
+        });
+        final (project, file) = await open(
+          conversion.$1 == '2.0'
+              ? '''swagger: '2.0'
+info: {title: Wire, version: '1'}
+host: 127.0.0.1:${server.port}
+schemes: [http]
+basePath: /v1
+consumes: [multipart/form-data]
+paths:
+  /form:
+    post:
+      parameters:
+        - {name: tags, in: formData, type: array, collectionFormat: multi, items: {type: integer}}
+      responses: {'204': {description: ok}}
+'''
+              : '''openapi: ${conversion.$1}
+info: {title: Wire, version: '1'}
+servers: [{url: 'http://127.0.0.1:${server.port}/v1'}]
+paths:
+  /form:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {tags: {type: array, items: {type: integer}}}}
+            encoding: {tags: {contentType: application/json, style: form, explode: ${conversion.$1 == '3.1.2'}}}
+      responses: {'204': {description: ok}}
+''',
+        );
+        final original = await file.readAsBytes(), root = file.uri.toString();
+        final buffer = await project.buffer(root);
+        project.store.replace(
+          root,
+          buffer.text.replaceFirst('Wire', 'Unsaved wire'),
+        );
+        Future<void> send(BusyProject owner, String root) async {
+          final analysis = await owner.check(root);
+          expect(analysis['complete'], isTrue, reason: '$analysis');
+          final operation =
+              (analysis['projection']['operations'] as List).single as Map;
+          final plan = await owner.prepareRequest(
+            root,
+            resource: operation['resource'] as String,
+            pointer: operation['pointer'] as String,
+            occurrence: operation['occurrence'] as String,
+          );
+          addTearDown(plan.close);
+          final result = await const ContractRequestExecutor().execute(
+            plan,
+            OperationRequestDraft(
+              planIdentity: plan.identity,
+              body: const RequestBodyDraft.multipart([
+                RequestFormField('tags', '9007199254740993'),
+                RequestFormField('tags', '0'),
+              ], []),
+            ),
+            resolveSecret: (_) async => null,
+          );
+          expect(
+            result.outgoing.complete,
+            isTrue,
+            reason: '${result.outgoing.findings}',
+          );
+          expect(
+            result.outgoing.valid,
+            isTrue,
+            reason: '${result.outgoing.findings}',
+          );
+          expect(result.received.complete, isTrue);
+          await result.close();
+        }
+
+        await send(project, root);
+        final review = await project.prepareMigration(
+          root,
+          '${temp.path}/migrated',
+          targetVersion: conversion.$2,
+        );
+        addTearDown(review.close);
+        expect(
+          review.status,
+          MigrationStatus.faithfullyConvertible,
+          reason: '${review.result}',
+        );
+        expect(review.unsaved, isTrue);
+        await review.publish();
+        final copy = await BusyProject.open(review.destination, engine);
+        addTearDown(copy.close);
+        await send(copy, copy.roots.single.id);
+        expect(seen, hasLength(2));
+        expect(seen[0], seen[1]);
+        expect(seen[0][0], 'POST');
+        expect(seen[0][1], '/v1/form');
+        expect((seen[0][2] as List).map((part) => (part as List).last), [
+          '9007199254740993',
+          '0',
+        ]);
+        expect(await file.readAsBytes(), original);
+        expect(buffer.dirty, isTrue);
+      },
+    );
+  }
+
   for (final family in ['2.0', '3.0', '3.1', '3.2'])
     for (final format in ['yaml', 'json'])
       test(

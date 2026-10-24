@@ -8,6 +8,7 @@ import {headerShapes} from './header_serialization';
 import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
 import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './swagger_operation';
 import {componentLocation} from './authoring';
+import {FormSemantics} from './form_semantics';
 
 const maximumItems = 2048;
 
@@ -149,6 +150,7 @@ export function requestOperation(input:any) {
     return {resource,pointer,generation:generation.get(resource)!,range:source.range};
   };
   const edgeIndex=new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]));
+  const forms=new FormSemantics(graph,edgeIndex);
   const follow=(target:GraphTarget,kind:string)=>{
     const seen=new Set<string>();let resource=target.resource,pointer=target.pointer;
     for(let depth=0;depth<128;depth++){
@@ -174,10 +176,16 @@ export function requestOperation(input:any) {
         const rule=level==='media'?value?.encoding?.[name]:undefined;
         const styled=rule&&['style','explode','allowReserved'].some(k=>Object.hasOwn(rule,k));
         const type=styled?undefined:rule?.contentType?.split(';')[0].toLowerCase();
-        if(rule&&(styled||rule.encoding||rule.prefixEncoding||rule.itemEncoding)||type&&type!=='text/plain'&&type!=='application/json'&&!type.endsWith('+json'))
+        if(rule&&(rule.encoding||rule.prefixEncoding||rule.itemEncoding)||type&&type!=='text/plain'&&type!=='application/json'&&!type.endsWith('+json'))
           conversionError='This data example requires an unsupported field encoding. Choose a serialized example or edit the literal representation.';
         if(type==='application/json'||type?.endsWith('+json'))return fieldRaw(r,child.pointer);
-        if(child.kind==='object'||child.kind==='array')conversionError='This structured field requires a supported explicit encoding; automatic nested field conversion is unavailable. Choose a serialized example or edit the literal representation.';
+        if(child.kind==='object'||child.kind==='array'){
+          const property=level==='media'?forms.shape(resource,pointer+'/schema').properties?.[name]:undefined;
+          const field=docs.get(r)!.dataNode(p+'/'+escape(name));
+          const shape=field?.kind==='array'?property?.items:property;
+          const types=shape?.types?.filter((type:string)=>type!=='null');
+          if(types?.length!==1||types[0]!==child.kind)conversionError='This structured field needs an unambiguous schema or explicit JSON encoding. Choose a serialized example or edit the literal representation.';
+        }
         if(type==='text/plain'&&(child.kind==='object'||child.kind==='array'))conversionError='A structured field cannot be converted to this declared text part automatically.';
         return typeof child.value==='string'?child.value:fieldRaw(r,child.pointer);
       };
@@ -218,9 +226,10 @@ export function requestOperation(input:any) {
       if(entries.length>=maximumItems)throw new SourceError('limit.request.media','Request media choices exceed 2048');
       const at=pointer+'/'+escape(name),selected=follow({resource,pointer:at,kind:'media'},'media'),v=selected.node.value;
       const projectedExamples=examples(selected.resource,selected.pointer,v,'media').map(e=>({...e,mediaType:name,
-        conversionError:['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())
-          ?e.conversionError??(name.split(';')[0].trim().toLowerCase()==='application/x-www-form-urlencoded'&&e.compositeFields?'Automatic nested form data conversion is unsupported. Choose a serialized form example or edit the literal fields.':undefined):undefined}));
-      entries.push({mediaType:name,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:family==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
+        conversionError:['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?e.conversionError:undefined}));
+      const mediaFamily=graph.scope(selected.resource,selected.pointer).family;
+      entries.push({mediaType:name,family:mediaFamily,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:mediaFamily==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
+        form: ['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?forms.media(mediaFamily,selected.resource,selected.pointer):undefined,
         prefixEncoding:v?.prefixEncoding,itemEncoding:v?.itemEncoding,encoding:v?.encoding&&typeof v.encoding==='object'?Object.fromEntries(Object.entries(v.encoding).slice(0,maximumItems)):undefined});
     }
     return entries;

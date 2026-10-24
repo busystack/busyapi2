@@ -12,6 +12,7 @@ import 'model.dart';
 import 'content_selection.dart';
 import 'header_serialization.dart';
 import 'swagger_serialization.dart';
+import 'form_serialization.dart';
 import 'project.dart';
 import 'atomic_file_writer.dart';
 import 'storage.dart';
@@ -196,10 +197,17 @@ class OperationRequestDraft {
 }
 
 class PreparedRequestBody {
-  PreparedRequestBody(this.length, this.open, {this.mediaType, this.release});
+  PreparedRequestBody(
+    this.length,
+    this.open, {
+    this.mediaType,
+    this.release,
+    this.formInstance,
+  });
   final int length;
   final Stream<List<int>> Function() open;
   final String? mediaType;
+  final String? formInstance;
   final Future<void> Function()? release;
   Future<void>? _closing;
   Future<void> close() => _closing ??= _releaseOwned();
@@ -613,6 +621,7 @@ class ContractRequestBuilder {
                   mediaType: draft.body.mediaType,
                 ))
         : await _body(
+            plan,
             draft.body,
             selectedBodyMedia,
             cancellation,
@@ -762,6 +771,7 @@ class ContractRequestBuilder {
     Object? value,
     String original, {
     bool structured = false,
+    String Function(String)? encodeValue,
   }) {
     final name = parameter['name'] as String;
     if (parameter['content'] is List &&
@@ -964,7 +974,9 @@ class ContractRequestBuilder {
             );
           }
         }
-        String encode(String text) => location == 'query'
+        String encode(String text) => encodeValue != null
+            ? encodeValue(text)
+            : location == 'query'
             ? _encode(text, parameter['allowReserved'] == true)
             : style == 'form'
             ? _encode(text, false)
@@ -1004,7 +1016,8 @@ class ContractRequestBuilder {
                 .map(encode)
                 .join(
                   location == 'query' && separator != ','
-                      ? _encode(separator, false)
+                      ? encodeValue?.call(separator) ??
+                            _encode(separator, false)
                       : separator,
                 ),
           ),
@@ -1089,6 +1102,13 @@ class ContractRequestBuilder {
     }
     return encoded;
   }
+
+  // OAS Encoding Objects use query expansion with additional form delimiters
+  // escaped. A literal plus must survive form decoding as plus, not space.
+  static String _formStyleEncode(String value, bool allowReserved) => _encode(
+    value,
+    allowReserved,
+  ).replaceAll('+', '%2B').replaceAll('[', '%5B').replaceAll(']', '%5D');
 
   static void _addHeader(
     List<(String, String)> headers,
@@ -1312,12 +1332,19 @@ class ContractRequestBuilder {
   }
 
   Future<PreparedRequestBody?> _body(
+    OperationRequestPlan plan,
     RequestBodyDraft body,
     Map? declaration,
     RunCancellation? cancellation,
     void Function() checkOwner,
   ) async {
     checkOwner();
+    if (body.fields.length > 2048) {
+      throw CoreFailure(
+        'limit.request.fields',
+        'Form input exceeds 2048 fields.',
+      );
+    }
     if (body.kind == RequestBodyKind.multipart &&
         (declaration?['prefixEncoding'] != null ||
             declaration?['itemEncoding'] != null)) {
@@ -1329,13 +1356,82 @@ class ContractRequestBuilder {
     final nativeForm = (declaration?['swaggerForm'] as List?)
         ?.whereType<Map>()
         .toList();
-    final fields = nativeForm == null
+    var fields = nativeForm == null
         ? body.fields
         : swaggerFormFields(
             [for (final field in body.fields) (field.name, field.value)],
             nativeForm,
             body.files.map((file) => file.name),
           ).map((field) => RequestFormField(field.$1, field.$2)).toList();
+    PreparedFormValues? form;
+    final partTypes = <String, String>{};
+    final encodedFields = <RequestFormField>{};
+    final fieldOwners = <RequestFormField, String>{};
+    final multipart = body.kind == RequestBodyKind.multipart;
+    if (nativeForm == null &&
+        declaration?['form'] is Map &&
+        (multipart || body.kind == RequestBodyKind.form)) {
+      cancellation?.throwIfCancelled();
+      form = await prepareFormValues(
+        [for (final field in fields) (field.name, field.value)],
+        declaration!,
+        multipart,
+        plan.parameterValues,
+      );
+      checkOwner();
+      cancellation?.throwIfCancelled();
+      final serialized = <RequestFormField>[
+        for (final part in form.content) RequestFormField(part.name, part.text),
+      ];
+      for (final part in form.content) {
+        if (part.contentType.contains(',') ||
+            part.contentType.split(';').first.contains('*')) {
+          throw CoreFailure(
+            'request.form.content-type',
+            'Choose a concrete declared Content-Type for form property ${part.name}.',
+          );
+        }
+        validateTextCharset(part.contentType, [part.text]);
+        partTypes[part.name] = part.contentType;
+      }
+      for (final group in form.styled) {
+        final value = group.value;
+        if (value is List && value.any((v) => v is List || v is Map) ||
+            value is Map && value.values.any((v) => v is List || v is Map)) {
+          throw CoreFailure(
+            'request.form.style',
+            'Nested RFC6570 form values have no defined serialization. Choose a content encoding.',
+          );
+        }
+        final style = group.rule['style'] as String? ?? 'form';
+        final pairs = _serializeParameter(
+          {
+            'name': group.name,
+            'in': 'query',
+            'style': style,
+            'explode': group.rule['explode'] ?? (style == 'form'),
+            'allowReserved': group.rule['allowReserved'] == true,
+          },
+          value,
+          '',
+          structured: true,
+          encodeValue: multipart
+              ? (value) => value
+              : (value) => _formStyleEncode(
+                  value,
+                  group.rule['allowReserved'] == true,
+                ),
+        );
+        for (final pair in pairs) {
+          final field = RequestFormField(pair.$1, pair.$2);
+          serialized.add(field);
+          encodedFields.add(field);
+          fieldOwners[field] = group.name;
+          partTypes[pair.$1] = 'text/plain';
+        }
+      }
+      fields = serialized;
+    }
     switch (body.kind) {
       case RequestBodyKind.none:
         return null;
@@ -1348,26 +1444,11 @@ class ContractRequestBuilder {
           mediaType: body.mediaType,
         );
       case RequestBodyKind.form:
-        final formEncoding = declaration?['encoding'];
-        if (formEncoding is Map)
-          for (final field in fields) {
-            final rule = formEncoding[field.name];
-            if (rule is Map &&
-                (rule.containsKey('style') ||
-                    rule.containsKey('explode') ||
-                    rule.containsKey('allowReserved') ||
-                    rule['encoding'] != null ||
-                    rule['prefixEncoding'] != null ||
-                    rule['itemEncoding'] != null)) {
-              throw CoreFailure(
-                'request.form.encoding',
-                'This field uses a complex form encoding. Use an explicitly serialized form example; no request was sent.',
-              );
-            }
-          }
+        // Style values already contain the RFC6570 separators and escapes.
+        // Content values use RFC1866 form encoding after media serialization.
         final text = [
           for (final field in fields)
-            '${Uri.encodeQueryComponent(field.name)}=${Uri.encodeQueryComponent(field.value)}',
+            '${encodedFields.contains(field) ? _formStyleEncode(field.name, false) : Uri.encodeQueryComponent(field.name)}=${encodedFields.contains(field) ? field.value : Uri.encodeQueryComponent(field.value)}',
         ].join('&');
         final bytes = Uint8List.fromList(utf8.encode(text));
         _uploadLimit(bytes.length);
@@ -1375,6 +1456,7 @@ class ContractRequestBuilder {
           bytes.length,
           () => Stream.value(bytes),
           mediaType: body.mediaType,
+          formInstance: form?.instance,
         );
       case RequestBodyKind.binaryFile:
         return _fileBody(
@@ -1406,12 +1488,14 @@ class ContractRequestBuilder {
           }
 
           final encoding = declaration?['encoding'];
+          final formMetadata = declaration?['form'];
           String partHeaders(String name, {String? text}) {
             final rule = encoding is Map ? encoding[name] : null;
-            if (rule == null) return '';
+            if (rule == null) {
+              final type = partTypes[name];
+              return type == null ? '' : 'Content-Type: $type\r\n';
+            }
             if (rule is! Map ||
-                rule['style'] != null && rule['style'] != 'form' ||
-                rule['explode'] == false ||
                 rule['encoding'] != null ||
                 rule['prefixEncoding'] != null ||
                 rule['itemEncoding'] != null ||
@@ -1424,10 +1508,12 @@ class ContractRequestBuilder {
               );
             }
             final rfcStyle =
-                rule.containsKey('style') ||
-                rule.containsKey('explode') ||
-                rule.containsKey('allowReserved');
-            final type = rfcStyle ? null : rule['contentType'];
+                formMetadata is Map &&
+                formMetadata['multipartStyle'] == true &&
+                ['style', 'explode', 'allowReserved'].any(rule.containsKey);
+            final type = rfcStyle
+                ? 'text/plain'
+                : rule['contentType'] ?? partTypes[name];
             var output = '';
             if (type != null) {
               if (type is! String || type.contains(',')) {
@@ -1508,7 +1594,7 @@ class ContractRequestBuilder {
           for (final field in fields) {
             _partName(field.name);
             bytes(
-              '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(field.name)}"\r\n${partHeaders(field.name, text: field.value)}\r\n${field.value}\r\n',
+              '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(field.name)}"\r\n${partHeaders(fieldOwners[field] ?? field.name, text: field.value)}\r\n${field.value}\r\n',
             );
           }
           for (final item in body.files) {
@@ -1547,6 +1633,7 @@ class ContractRequestBuilder {
               }
             },
             mediaType: '${body.mediaType}; boundary=$boundary',
+            formInstance: body.files.isEmpty ? form?.instance : null,
             release: () async {
               for (final captured in captures) {
                 await captured.close();
@@ -2981,6 +3068,7 @@ class ContractRequestExecutor {
         plan,
         draft,
         request.runId,
+        preparedBody: request.body,
         cancellation: cancellation,
       );
       cancellation?.throwIfCancelled();
@@ -3080,6 +3168,7 @@ class ContractRequestExecutor {
     OperationRequestPlan plan,
     OperationRequestDraft draft,
     String runId, {
+    PreparedRequestBody? preparedBody,
     RunCancellation? cancellation,
   }) async {
     final instances = <RuntimeSchemaInstance>[];
@@ -3254,7 +3343,19 @@ class ContractRequestExecutor {
         );
       }
       if (schema is Map || _jsonMedia(draft.body.mediaType ?? '')) {
-        if (draft.body.kind == RequestBodyKind.raw &&
+        if (preparedBody?.formInstance != null &&
+            utf8.encode(preparedBody!.formInstance!).length <=
+                _evaluationLimit) {
+          instances.add(
+            RuntimeSchemaInstance(
+              subject: 'request-body',
+              location: draft.body.mediaType ?? '',
+              text: preparedBody.formInstance!,
+              schemaResource: schema?['resource'] as String?,
+              schemaPointer: schema?['pointer'] as String?,
+            ),
+          );
+        } else if (draft.body.kind == RequestBodyKind.raw &&
             _jsonMedia(draft.body.mediaType ?? '') &&
             utf8.encode(draft.body.text ?? '').length <= _evaluationLimit) {
           instances.add(
