@@ -21,6 +21,7 @@ export type Resource = {
     generation: number;
     identity: string;
     aliases?: string[];
+    hasBom?: boolean;
 };
 const parsed = new Map<string, {
     doc: SourceDocument;

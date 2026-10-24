@@ -118,7 +118,7 @@ The bundled `busyapi:recommended` rule `server-variable-declarations` separately
 
 `ParameterSemantics` consumes the canonical graph for checks and Reference, retaining both declaration occurrences and resolved definitions. Name/location override identity is case-sensitive; HTTP wire header semantics do not universally fold contract identifiers. Local declarations replace inherited identities before effective path/querystring checks. Unavailable/ambiguous/cyclic parameter references do not become guessed missing definitions. Shared Path Item occurrences do not duplicate their physical Operation Object for operation-ID uniqueness. The version-specific rules follow the [3.1 Parameter definition](https://spec.openapis.org/oas/v3.1.2.html#parameter-object) and [3.2 Parameter definition](https://spec.openapis.org/oas/v3.2.1.html#parameter-object), independently of renderer behavior.
 
-Canonical Paths checks reject equivalent templated hierarchies in both supported families. Only 3.2 adds its explicit template grammar and repeated-expression rules. Diagnostics identify authored path keys; webhook names and callback expressions keep their separate meaning. Deletion repairs URI-valued connections only: implicit Link operationId and component-name bindings retain their authored identifier spelling.
+Canonical Paths checks reject equivalent templated hierarchies in all supported families. Only 3.2 adds its explicit template grammar and repeated-expression rules. Diagnostics identify authored path keys; webhook names and callback expressions keep their separate meaning. Deletion repairs URI-valued connections only: implicit Link operationId and component-name bindings retain their authored identifier spelling.
 
 `dataNode`/`dataSyntaxSafe` provide read-only CST provenance through YAML aliases. Graph traversal and exact schema evaluation retain the occurrence's base/dialect while reading original values/lexemes; diagnostics retain actual source ranges. This creates no editable virtual nodes. Physical `node`/`syntaxSafe`/writer shared-ownership guards remain distinct. Semantic scope expansion is bounded to 400000 occurrences, independently of physical CST size.
 
@@ -370,3 +370,11 @@ execution projections retain source locations for native URL/media settings,
 body/form parameters, response examples and security definitions; they are not
 a converted editable OpenAPI 3.x document. See the native support record for
 qualification status and explicit representation limitations.
+
+Explicit migration is owned by the headless contract engine and core output
+publication layer. It captures the same current buffers as other desktop
+operations, retains source provenance during transformations, and validates
+the target family. A migration review is independent of a declaration edit.
+The core rechecks its captured buffers and disk inputs before atomic output
+publication; live source is never a migration destination. Implementation
+coverage and remaining blockers are recorded in the support matrix.

@@ -23,6 +23,7 @@ import {inspectPolicyCode} from './policy_code';
 import {PolicyProcessWorker} from './policy_process_worker';
 import {join} from 'node:path';
 import {policyRuntime} from './policy_runtime';
+import {planMigration} from './migration';
 const MAX = 64 * 1024 * 1024;
 const encode = (message: any) => {
     // TextEncoder owns this ArrayBuffer; pooled Buffer allocations cannot safely
@@ -45,6 +46,7 @@ if (!isMainThread) {
                 reviewPolicyCode:async(params:any)=>(await import('./policy_code_review')).reviewPolicyCode(params),
                 govern:async(params:any)=>(await import('./governance')).govern(params) };
             methods.normalizeResourceUris = normalizeResourceUris;
+            methods.planMigration = planMigration;
             methods.requestParameterValues = requestParameterValues;
             methods.executionCaseValues = executionCaseValues;
             methods.inspectExecutionJson = inspectExecutionJson;

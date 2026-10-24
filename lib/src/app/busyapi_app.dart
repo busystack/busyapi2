@@ -33,6 +33,7 @@ import '../workspace/test_run.dart';
 import '../workspace/governance_dialog.dart';
 import '../workspace/output_destination.dart';
 import '../workspace/bundle_actions.dart';
+import '../workspace/migration_review.dart';
 import '../workspace/project_import.dart';
 import '../workspace/client_generation.dart';
 import '../workspace/documentation_actions.dart';
@@ -1493,6 +1494,9 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
     await c.navigateHistory(-1);
   }
 
+  Future<void> migrateContract() =>
+      showMigrationReview(context, c, reveal: reveal);
+
   Future<void> createBundle() async {
     final owner = c.project, root = c.root;
     if (owner == null || root == null || bundleRun.busy) return;
@@ -2056,6 +2060,7 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
           'settings',
           'root',
           'bundle',
+          'migrate',
           'generate',
           'documentation',
           'redoc-reference',
@@ -2843,6 +2848,12 @@ BusyApiCommandRegistry _workspaceCommands(
       'bundle',
       (l) => l.bundleContract,
       (s) => s.createBundle(),
+      enabled: () => root() && current()?.bundleRun.busy == false,
+    ),
+    command(
+      'migrate',
+      (l) => l.migrateContract,
+      (s) => s.migrateContract(),
       enabled: () => root() && current()?.bundleRun.busy == false,
     ),
     command(

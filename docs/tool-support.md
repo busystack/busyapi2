@@ -199,3 +199,11 @@ OpenAPI 3.0 in [the support matrix](implementation/native-openapi-support.md).
 Creation accepts `--openapi 2.0` and writes `swagger: "2.0"`; ordinary open,
 edit, check, bundle and native documentation do not convert the document.
 External renderer/generator/comparator qualification remains separate.
+
+`busyapi migrate INPUT --target VERSION --output NEW_DIRECTORY --review --json`
+returns the captured review and its identity without publishing. After review,
+repeat with `--apply REVIEW_SHA256`; the source, target and destination must
+still match. Listed decisions use `--decision ID=CHOICE`. A stale review or
+any unresolved blocker prevents publication. The desktop exposes the same
+operation as **Migrate specification…**. Conversion coverage is deliberately
+reported separately from native editing support in the implementation matrix.

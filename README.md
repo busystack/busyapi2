@@ -11,6 +11,7 @@ BusyAPI provides native editing for **Swagger 2.0 and OpenAPI 3.0.x, 3.1.x and 3
 - **Design:** Native editors for operations, parameters, request and response bodies, security, servers, schemas, examples, components, callbacks, and webhooks. Large values open in focused editors; edits preserve unaffected source formatting and data.
 - **Source:** YAML/JSON editing with syntax highlighting, completion, field help, folding, search, definition and usage navigation, diagnostics, and reviewed quick fixes. Available fixes are specific and limited; they do not invent missing contract content.
 - **Reference:** Read-only, source-linked API and schema reference, including effective operation inheritance, definitions, uses, and physical source ownership. Reference does not send requests.
+- **Migration:** Review a specification conversion and create a separate copy through the desktop or `busyapi migrate`. Unsupported mappings are reported before publication; see the verification matrix for current coverage.
 - **Search:** Document and project text search with reviewed replacement, plus semantic search across configured roots. Searches include unsaved buffers and report incomplete indexes.
 
 ### Projects and document integrity

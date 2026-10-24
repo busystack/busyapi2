@@ -12,6 +12,7 @@ Usage:
   busyapi lint FILE_OR_PROJECT [--root NAME_OR_PATH] [--ruleset URI_OR_PATH] [--fail-severity error|warning|information|hint] [--review-code | --approve-code TRUST_SHA256] [--map-resource URI FILE] [--json]
   busyapi bundle FILE_OR_PROJECT --output DIRECTORY [--format single-file|resource-package] [--root NAME_OR_PATH] [--map-resource URI FILE] [--replace-output RECEIPT_SHA256] [--json]
   busyapi build-docs FILE_OR_PROJECT --output DIRECTORY [--preset native-reference|redoc|swagger] [--root NAME_OR_PATH] [--map-resource URI FILE] [--replace-output RECEIPT_SHA256] [--json]
+  busyapi migrate FILE_OR_PROJECT --target VERSION --output NEW_DIRECTORY [--review | --apply REVIEW_SHA256] [--decision ID=CHOICE ...] [--root NAME_OR_PATH] [--json]
   busyapi diff FILE_OR_PROJECT (--base REVISION | --merge-base REVISION) [--root NAME_OR_PATH] [--fail-on breaking|potentially-breaking|any] [--json]
   busyapi mock FILE_OR_PROJECT [--root NAME_OR_PATH] [--port PORT] [--proxy HTTP_BASE_URL] [--json]
   busyapi test FILE_OR_PROJECT --case NAME [--case NAME...] [--root NAME_OR_PATH] [--environment NAME] [--allow-tls-file PATH...] [--secrets-stdin] [--json]
@@ -45,8 +46,13 @@ Future<void> runBusyApi(
   final executionFiles = <String>[];
   final importUrls = <String>{};
   final generationOptions = <String>[];
+  final migrationDecisions = <String>[];
   for (var i = 1; i < args.length; i++) {
-    if (args[i] == '--option' &&
+    if (args[i] == '--decision' &&
+        i + 1 < args.length &&
+        !args[i + 1].startsWith('--')) {
+      migrationDecisions.add(args[++i]);
+    } else if (args[i] == '--option' &&
         i + 1 < args.length &&
         !args[i + 1].startsWith('--')) {
       generationOptions.add(args[++i]);
@@ -75,6 +81,7 @@ Future<void> runBusyApi(
     } else if ([
       '--json',
       '--review-code',
+      '--review',
       '--secrets-stdin',
       '--list-generators',
       '--generator-options',
@@ -118,6 +125,7 @@ Future<void> runBusyApi(
           'bundle',
           'build-docs',
           'generate',
+          'migrate',
         ].contains(args.first)) {
       throw CoreFailure(
         'cli.option',
@@ -148,6 +156,12 @@ Future<void> runBusyApi(
               'list-generators',
               'generator-options',
             ],
+            if (args.first == 'migrate') ...[
+              'target',
+              'output',
+              'review',
+              'apply',
+            ],
             if (args.first == 'diff') ...['base', 'merge-base', 'fail-on'],
             if (args.first == 'mock') ...['port', 'proxy'],
             if (args.first == 'test') ...['environment', 'secrets-stdin'],
@@ -160,6 +174,8 @@ Future<void> runBusyApi(
     if (options.keys.any((key) => !allowed.contains(key))) {
       throw CoreFailure('cli.option', 'Unknown option for this command');
     }
+    if (migrationDecisions.isNotEmpty && args.first != 'migrate')
+      throw CoreFailure('cli.option', 'Migration decisions apply to migrate');
     if (rulesets.isNotEmpty && args.first != 'lint') {
       throw CoreFailure('cli.option', 'Ruleset selection applies to lint');
     }
@@ -364,6 +380,7 @@ Future<void> runBusyApi(
       'mock',
       'test',
       'generate',
+      'migrate',
     ].contains(args.first)) {
       throw CoreFailure('cli.command', 'Unknown command');
     }
@@ -418,6 +435,7 @@ Future<void> runBusyApi(
         roots.length > 1 &&
         ([
               'bundle',
+              'migrate',
               'build-docs',
               'diff',
               'mock',
@@ -430,6 +448,101 @@ Future<void> runBusyApi(
         'cli.ambiguous',
         'Multiple unconfigured roots; select one with --root',
       );
+    }
+    if (args.first == 'migrate') {
+      selectedRoots = List.unmodifiable(roots);
+      final target = options['target'], destination = options['output'];
+      if (target == null ||
+          destination == null ||
+          roots.length != 1 ||
+          options.containsKey('review') && options.containsKey('apply'))
+        throw CoreFailure(
+          'cli.migrate',
+          'Migration requires one root, --target VERSION and --output NEW_DIRECTORY; review and apply are separate actions',
+        );
+      final decisions = <String, String>{};
+      for (final argument in migrationDecisions) {
+        final at = argument.indexOf('=');
+        if (at <= 0 || decisions.containsKey(argument.substring(0, at)))
+          throw CoreFailure(
+            'cli.decision',
+            'Use distinct --decision ID=CHOICE values',
+          );
+        decisions[argument.substring(0, at)] = argument.substring(at + 1);
+      }
+      final cancellation = RunCancellation();
+      final request = 'cli-migration:';
+      final signals = [ProcessSignal.sigint, ProcessSignal.sigterm]
+          .map(
+            (signal) => signal.watch().listen((_) {
+              cancellation.cancel();
+              unawaited(engine!.cancelPrefix(request));
+            }),
+          )
+          .toList();
+      MigrationOutput? output;
+      try {
+        output = await project.prepareMigration(
+          roots.single.id,
+          destination,
+          targetVersion: target,
+          decisions: decisions,
+          requestId: request,
+          cancelled: () => cancellation.cancelled,
+        );
+        if (options['apply'] != null) {
+          if (!output.publishable)
+            throw CoreFailure(
+              'migration.blocked',
+              'Resolve the reported migration blockers and decisions before publication',
+            );
+          if (options['apply'] != output.identity)
+            throw CoreFailure(
+              'migration.stale',
+              'The supplied review identity does not match these source inputs, decisions and destination',
+            );
+          await output.publish(
+            cancelled: () => cancellation.cancelled,
+            beforePublish: beforePublish == null
+                ? null
+                : () => beforePublish(output!.destination),
+          );
+        }
+        if (options['json'] == 'true')
+          stdout.writeln(
+            jsonEncode({
+              ...output.result,
+              'reviewIdentity': output.identity,
+              'published': options['apply'] != null,
+              'destination': output.destination,
+            }),
+          );
+        else {
+          stdout.writeln(
+            'Migration to ${output.target.declaredVersion}: ${output.result['status']}',
+          );
+          stdout.writeln('Review identity: ${output.identity}');
+          for (final problem in output.problems)
+            stdout.writeln(
+              '${problem.resource} ${problem.pointer}: ${problem.code}: ${problem.message}${problem.choices.isEmpty ? '' : ' [${problem.id}: ${problem.choices.join(', ')}]'}',
+            );
+          for (final change in (output.result['changes'] as List).cast<Map>()) {
+            stdout.writeln('${change['resource']} → ${change['destination']}');
+            stdout.writeln('Before:');
+            stdout.writeln(change['before']);
+            stdout.writeln('After:');
+            stdout.writeln(change['after']);
+          }
+          stdout.writeln(
+            options['apply'] != null ? 'Published ${output.destination}' : 'Review only; original documents and destination remain unchanged.',
+          );
+        }
+        exitCode = output.publishable ? 0 : 2;
+        return;
+      } finally {
+        output?.close();
+        for (final signal in signals) await signal.cancel();
+      }
     }
     if (args.first == 'generate') {
       selectedRoots = List.unmodifiable(roots);

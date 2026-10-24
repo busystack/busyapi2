@@ -30,6 +30,7 @@ part 'resource_configuration.dart';
 part 'root_configuration.dart';
 part 'resource_package.dart';
 part 'generation.dart';
+part 'migration.dart';
 
 // Keep native-isolate IO wakeups bounded without serializing every resource.
 // Each batch finishes (including failures) before access can be released.

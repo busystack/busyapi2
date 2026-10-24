@@ -354,7 +354,7 @@ export function planResponseExample(input:any) {
 function oauthFlows(resource:string,pointer:string,flows:any,location:(resource:string,pointer:string)=>Located){
   if(!flows||typeof flows!=='object')return {};
   const result:any={};
-  for(const name of ['authorizationCode','clientCredentials'])if(flows[name]&&typeof flows[name]==='object'){
+  for(const name of ['implicit','password','authorizationCode','clientCredentials','deviceAuthorization'])if(flows[name]&&typeof flows[name]==='object'){
     const value=flows[name],at=pointer+'/flows/'+name;
     result[name]={authorizationUrl:value.authorizationUrl,tokenUrl:value.tokenUrl,refreshUrl:value.refreshUrl,
       scopes:value.scopes&&typeof value.scopes==='object'?value.scopes:{},source:location(resource,at)};

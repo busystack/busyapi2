@@ -38,5 +38,5 @@ export function schemaEvaluationScopes(graph:ReferenceGraph):SchemaEvaluationSco
     return scopes;
 }
 export function swaggerMetaAddress(scope:SchemaEvaluationScope):string {
-    return swaggerMetaIdentity+'#/definitions/'+(scope.file?'fileSchema':scope.objectKind==='parameter'?'nonBodyParameter':scope.objectKind==='items'?'primitivesItems':scope.objectKind==='header'?'header':'schema');
+    return swaggerMetaIdentity+'#/definitions/'+(scope.objectKind==='parameter'?'nonBodyParameter':scope.objectKind==='items'?'primitivesItems':scope.objectKind==='header'?'header':scope.file?'fileSchema':'schema');
 }

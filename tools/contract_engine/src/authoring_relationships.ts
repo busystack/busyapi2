@@ -37,7 +37,7 @@ export function discriminatorRelationships(graph:ReferenceGraph):AuthoringIssue[
  }
  const issues:AuthoringIssue[]=[];
  for(const scope of graph.scopes.values()) {
-  if(scope.kind!=='schema')continue;
+  if(scope.kind!=='schema'||scope.family==='2.0')continue;
   const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value;
   if(!value?.discriminator||!doc.dataSyntaxSafe(scope.pointer))continue;
   if(['oneOf','anyOf','allOf'].some(name=>Array.isArray(value[name])&&value[name].length>0)||parents.has(key(scope)))continue;

@@ -1077,5 +1077,19 @@
   "responseExportExists": "A file already exists at this destination. Choose a new name; response export never overwrites an existing file.",
   "responseExportFailed": "Response export failed. Check available disk space and destination permissions, then choose a new output file.",
   "requestGrantedScopesUnknown": "Granted scopes are unknown for this credential.",
-  "requestSetupRetained": "Your setup input was retained. Review it against the current configuration before applying."
+  "requestSetupRetained": "Your setup input was retained. Review it against the current configuration before applying.",
+  "migrateContract": "Migrate specification…",
+  "migrationTarget": "Target specification",
+  "migrationReview": "Review migration",
+  "migrationPublish": "Create migrated copy",
+  "migrationFaithful": "Convertible with the reviewed mappings",
+  "migrationDecisions": "A decision is required",
+  "migrationBlocked": "Migration is blocked",
+  "migrationHelp": "Review the target, affected resources and changes before creating a separate copy. Original documents are preserved.",
+  "migrationPresentation": "Restructuring changes the presentation of some moved values. Review every affected resource.",
+  "migrationDiscardIgnored": "Discard ignored reference siblings in the copy",
+  "migrationDiscardAnnotation": "Discard the inactive schema annotation in the copy",
+  "migrationKeepUnresolved": "Leave this decision unresolved",
+  "migrationOutputExists": "Choose a new migration directory. Existing output is preserved.",
+  "migrationPublished": "The migrated copy was created. Original documents are preserved."
 }

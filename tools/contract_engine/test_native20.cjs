@@ -82,3 +82,11 @@ test('Swagger extraction and inlining keep the original reusable namespace and n
  const inline=planInline({...after,contexts:[{root:source.root,resources:[source.root]}],target:target(after,pointer)});
  assert.equal(analyse({...source,resources:[{...source.resources[0],text:inline.changes[0].after}]}).status,'complete');
 });
+test('Swagger named discriminator models do not require a 3.x adjacent composition keyword',async()=>{
+ const value=api();value.definitions={Pet:{type:'object',required:['kind'],properties:{kind:{type:'string'}},discriminator:'kind'}};
+ const input=capture(value),structural=analyse(input);assert.equal(structural.status,'complete',JSON.stringify(structural.findings));const result=await evaluateSchemas({...input,runtimeInstances:[{subject:'response-body',location:'application/json',text:'{"kind":"Pet"}',schema:{resource:input.root,pointer:'/definitions/Pet'}}]});assert.equal(result.complete,true,JSON.stringify(result.findings));assert.equal(result.runtimeEvaluations[0].valid,true);
+});
+test('Swagger file parameters use Parameter metadata while response files use native file Schema metadata',async()=>{
+ const value=api();value.consumes=['multipart/form-data'];value.paths['/pets/{id}'].post.parameters=[{name:'upload',in:'formData',type:'file',required:true}];value.responses.Pet.schema={type:'file'};delete value.responses.Pet.examples;
+ const input=capture(value),result=await evaluateSchemas(input);assert.equal(result.complete,true,JSON.stringify(result.findings));assert(!result.findings.some(f=>f.severity==='error'),JSON.stringify(result.findings));
+});
