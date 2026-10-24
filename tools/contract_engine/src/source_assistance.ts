@@ -1,9 +1,10 @@
 import { analyse, createGraph, Resource } from './engine';
 import { fieldsFor } from './authoring';
 import { escape, segments, SourceDocument, SourceError } from './document';
-import { GraphReference, knownDialects } from './reference_graph';
+import { GraphReference, supportedSchemaDialect } from './reference_graph';
 import { referenceValue } from './reference_choices';
-const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
+import {isNativeFamily} from './specification';
+const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
 function located(input: any, doc: SourceDocument, pointer: string, extra: any = {}) {
     const resource = (input.resources as Resource[]).find(r => r.id === doc.id)!;
     return { root: input.root, resource: doc.id, pointer, generation: resource.generation, identity: resource.identity, ...doc.dataLocation(pointer), ...extra };
@@ -21,7 +22,7 @@ export function assistSource(input: any) {
     if (!doc || !Number.isInteger(input.caret) || input.caret < 0 || input.caret > doc.text.length)
         throw new SourceError('assist.location', 'The source position is outside this snapshot');
     const family = graph.scope(doc.id, '').family;
-    if (!['3.1', '3.2'].includes(family))
+    if (!isNativeFamily(family))
         throw new SourceError('version.unsupported', 'Source assistance requires a supported containing OpenAPI feature family');
     const caret = input.caret, resource = (input.resources as Resource[]).find(r => r.id === doc.id)!;
     const all = [...doc.nodes.values()];
@@ -69,7 +70,7 @@ export function assistSource(input: any) {
     const exact = graph.scopes.get(doc.id + '#' + pointer), parent = doc.nodes.get(parentPointer);
     const parentContext = graph.scopes.get(doc.id + '#' + parentPointer);
     const field = parent && parentContext && fieldsFor(parentScope.kind, family, parent.value, segments(parentPointer).at(-1)).find(f => f.name === name);
-    const schemaDialectKnown = scope.kind !== 'schema' || knownDialects.has(scope.dialect);
+    const schemaDialectKnown = scope.kind !== 'schema' || supportedSchemaDialect(scope);
     const customKeyword = !field && parentContext?.kind === 'schema';
     const reference = graph.references.find(r => r.resource === doc.id && inRange(caret, refLocation(doc, r)));
     const definition = reference?.resolution === 'resolved' ? located(input, docs.get(reference.targetResource!)!, reference.targetPointer!, { dynamic: reference.dynamic }) : undefined;
@@ -98,7 +99,7 @@ export function assistSource(input: any) {
     if (!keyNode && field && node.kind !== 'object' && node.kind !== 'array') {
         let values = field.options ?? (field.type === 'boolean' ? [true, false] : []);
         if (parentScope.kind === 'schema' && name === 'type')
-            values = ['object', 'array', 'string', 'number', 'integer', 'boolean', 'null'];
+            values = ['object', 'array', 'string', 'number', 'integer', 'boolean', ...(family === '3.0' ? [] : ['null'])];
         if (['$ref','$dynamicRef'].includes(name) && graph.references.some(r => r.resource === doc.id && r.pointer === parentPointer && r.keyword === name)) {
             const expectedKind = parentScope.kind;
             const compatible = (kind: string) => expectedKind === 'schema' ? kind === 'schema' : kind === expectedKind;
@@ -191,7 +192,7 @@ function incompleteKeyCompletions(doc:SourceDocument, graph:any, family:string, 
     const context=graph.scopes.get(doc.id+'#'+container.pointer);
     if(!context||context.kind.endsWith('-map')||context.kind.endsWith('-array'))return [];
     if(doc.format==='yaml'&&(container.flow||doc.indent(container.children.values().next().value?.keyRange?.[0]??container.range[0])!==line.length-prefix.length))return [];
-    if(context.kind==='schema'&&!knownDialects.has(context.dialect))return [];
+    if(context.kind==='schema'&&!supportedSchemaDialect(context))return [];
     const completions:any[]=[];
     for(const field of fieldsFor(context.kind,family,container.value,segments(container.pointer).at(-1))) {
         if(!field.name.startsWith(prefix)||Object.hasOwn(container.value,field.name)||field.prohibited||field.blockedBy?.length)continue;

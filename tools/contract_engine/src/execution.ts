@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 
 import {createGraph, propose, Resource} from './engine';
 import {escape, SourceDocument, SourceError} from './document';
-import {GraphTarget, ReferenceGraph, knownDialects} from './reference_graph';
+import {GraphTarget, ReferenceGraph, supportedSchemaDialect} from './reference_graph';
 import {decimal} from './exact_numbers';
 import {headerShapes} from './header_serialization';
 import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
@@ -206,7 +206,7 @@ export function requestOperation(input:any) {
     ['title','description','$comment','format'].includes(key) && typeof item==='string' ||
     ['deprecated','readOnly','writeOnly'].includes(key) && typeof item==='boolean');
   const schema=(resource:string,pointer:string,value:any)=>Object.hasOwn(value??{},'schema')
-    ?{...location(resource,pointer+'/schema'),kind:'schema',unconstrained:knownDialects.has(graph.scope(resource,pointer+'/schema').dialect)&&annotationOnly(value.schema)}
+    ?{...location(resource,pointer+'/schema'),kind:'schema',unconstrained:supportedSchemaDialect(graph.scope(resource,pointer+'/schema'))&&annotationOnly(value.schema)}
     :undefined;
   const media=(resource:string,pointer:string,value:any)=>{
     if(!value||typeof value!=='object'||Array.isArray(value))return [];

@@ -113,10 +113,16 @@ export function authoringRelationships(graph:ReferenceGraph):AuthoringIssue[] {
   const doc=graph.docs.get(at.resource)!,node=doc.dataNode(at.pointer);
   const family=at.family;
   if(!node||!doc.dataSyntaxSafe(at.pointer))continue;
+  if(at.kind==='example'&&typeof node.value?.$ref!=='string') {
+   const pairs=[['value','externalValue'],...(family==='3.2'?[['value','dataValue'],['value','serializedValue'],['serializedValue','externalValue']]:[])];
+   for(const pair of pairs)if(pair.every(name=>node.children.has(name)))
+    for(const name of pair)add(at,at.pointer+'/'+name,'example.representations.exclusive','These Example Object representations are mutually exclusive');
+  }
   if(at.kind==='server-variable'&&node.kind==='object') {
    const value=node.value;
    if(typeof value.default==='string'&&Array.isArray(value.enum)&&value.enum.every((v:any)=>typeof v==='string')&&!value.enum.includes(value.default))
-    add(at,at.pointer+'/default','server.variable.default-enum','A Server variable default must be one of its authored enum values');
+    if(family==='3.0')issues.set(key(at)+':server.variable.default-enum',{...at,pointer:at.pointer+'/default',code:'server.variable.default-enum',message:'A Server variable default should be one of its authored enum values',severity:'warning'});
+    else add(at,at.pointer+'/default','server.variable.default-enum','A Server variable default must be one of its authored enum values');
   }
   if(at.kind==='server'&&family==='3.2'&&typeof node.value?.url==='string') {
    let template:ReturnType<typeof serverTemplateParts>;

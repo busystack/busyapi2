@@ -628,6 +628,8 @@ export function planInline(input:any) {
    throw new SourceError('refactor.inline.schema-resource','This definition declares a schema resource, dialect, anchor or dynamic scope that cannot be duplicated by inlining');
  }
  const siblings=[...node.children.keys()].filter(key=>key!=='$ref');
+ if(scope.family==='3.0'&&scope.kind!=='path-item'&&siblings.length)
+  throw new SourceError('refactor.inline.ignored','OpenAPI 3.0 ignores all Reference Object siblings; remove or relocate those authored values explicitly before inlining');
  if(scope.kind==='path-item'&&siblings.some(key=>definitionNode.children.has(key)))
   throw new SourceError('refactor.inline.pathItem','The Path Item reference has overlapping fields with undefined combined behavior');
  if(scope.kind!=='schema'&&scope.kind!=='path-item'&&siblings.some(key=>!['summary','description'].includes(key)))

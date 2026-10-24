@@ -1,5 +1,5 @@
 import {escape} from './document';
-import {GraphTarget, ReferenceGraph, knownDialects} from './reference_graph';
+import {GraphTarget, ReferenceGraph, supportedSchemaDialect} from './reference_graph';
 
 export interface HeaderShape {
   type:string;
@@ -21,7 +21,7 @@ export function headerShapes(graph:ReferenceGraph) {
     if(cache.has(key))return cache.get(key);
     if(active.has(key)||depth>=128||++visited>2048)return;
     const scope=graph.scopes.get(target.resource+'#'+target.pointer);
-    if(!scope||!knownDialects.has(scope.dialect))return;
+    if(!scope||!supportedSchemaDialect(scope))return;
     const value=graph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
     if(!value||typeof value!=='object'||Array.isArray(value)||value.$dynamicRef!==undefined)return;
     active.add(key);

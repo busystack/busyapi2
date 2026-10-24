@@ -207,7 +207,7 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
   Widget objectField(Map<String, dynamic> item, Map<String, dynamic> field) {
     final key = field['name'] as String, present = field['present'] == true;
     final title = label(key), type = field['type'];
-    if (key == 'type' && item['kind'] == 'schema') {
+    if (key == 'type' && item['kind'] == 'schema' && type == 'any') {
       if (present && !field.containsKey('raw')) {
         return BusyApiActionRow(
           title: title,
@@ -925,7 +925,9 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                         ? () => run(() => _addObjectExtension(context, c, item))
                         : null,
                   ),
-                if (schema && !item.containsKey('boolean'))
+                if (schema &&
+                    item['customSchemaKeywords'] == true &&
+                    !item.containsKey('boolean'))
                   BusyApiActionRow(
                     title: l.addCustomSchemaKeyword,
                     subtitle: l.customSchemaKeywordExplanation,

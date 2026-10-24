@@ -19,7 +19,7 @@ export function referenceDisplayPacket(input:any) {
 export function referenceDisplay(input:any) {
  const outputId=input.outputId;
  const {docs,graph}=createGraph(input),original=referenceDocument(input),root=docs.get(input.root);
- if(root.root.kind!=='object'||!/^3\.[12]\./.test(root.root.value?.openapi)||typeof outputId!=='string'||!outputId.endsWith('.json'))throw new SourceError('documentation.display-input','Choose an OpenAPI 3.1/3.2 root and independent JSON display identity');
+ if(root.root.kind!=='object'||!graph.specifications.has(input.root)||typeof outputId!=='string'||!outputId.endsWith('.json'))throw new SourceError('documentation.display-input','Choose a supported OpenAPI root and independent JSON display identity');
  let uri:URL;try{uri=new URL(outputId);}catch{throw new SourceError('documentation.display-input','Choose an absolute HTTPS display identity');}
  if(uri.protocol!=='https:'||uri.href!==outputId||uri.hash||uri.search||uri.username||uri.password||graph.identities.has(outputId))
   throw new SourceError('documentation.display-input','Display coordinates must be independent of original resources');

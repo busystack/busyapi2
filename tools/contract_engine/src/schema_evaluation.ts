@@ -3,21 +3,23 @@ import {addMediaTypePlugin,addUriSchemePlugin} from '@hyperjump/browser';
 import {registerSchema,unregisterSchema,getAllRegisteredSchemaUris,setShouldValidateSchema,setShouldValidateFormat} from '@hyperjump/json-schema/draft-2020-12';
 import '@hyperjump/json-schema/openapi-3-1';
 import '@hyperjump/json-schema/openapi-3-2';
+import '@hyperjump/json-schema/openapi-3-0';
 import {compile,interpret,getSchema,toSchema,loadDialect,unloadDialect,BASIC} from '@hyperjump/json-schema/experimental';
 import dialect31 from '../schemas/oas31-dialect.json';
 import vocabulary31 from '../schemas/oas31-vocabulary.json';
 import dialect32 from '../schemas/oas32-dialect.json';
 import vocabulary32 from '../schemas/oas32-vocabulary.json';
 import {createGraph} from './engine';
-import {knownDialects,GraphScope,schemaAddress} from './reference_graph';
+import {knownDialects,supportedSchemaDialect,GraphScope,schemaAddress} from './reference_graph';
 import {SourceDocument,SourceError,escape} from './document';
 import {createExactNumericAdapter} from './exact_numbers';
 import {typedSchemaDocument,embeddedSchemaDocument} from './schema_document';
 import {safeFinding} from './security_design';
 import {schemaRoots,nestedSchemaBoundaries} from './schema_boundaries';
 import {discriminatorRelationships} from './authoring_relationships';
+import {restrictedSchemaDialect} from './specification';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+2',configuration:'draft2020-12:oas31-2024-11-10:oas32-2025-09-17:format-annotation:exact-cst-v2:canonical-graph-addresses'};
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+3',configuration:'oas30-restricted:structural30-2024-10-18:draft2020-12:oas31-2024-11-10:oas32-2025-09-17:format-annotation:exact-cst-v3:canonical-graph-addresses'};
 let configured=false,running=false;
 const standardIds=new Set<string>(),reservedIds=new Set<string>(),standardMetas=new Map<string,any>();
 const standardSources=new Map<string,any>();
@@ -35,7 +37,7 @@ function standards() {
  setShouldValidateSchema(false);setShouldValidateFormat(false);
  for(const uri of getAllRegisteredSchemaUris()) {
   reservedIds.add(uri);
-  if(uri.startsWith('https://json-schema.org/draft/2020-12/')||knownDialects.has(uri)||[vocabulary31.$id,vocabulary32.$id].includes(uri))standardIds.add(uri);
+  if(uri.startsWith('https://json-schema.org/draft/2020-12/')||uri.startsWith('http://json-schema.org/draft-04/')||knownDialects.has(uri)||[vocabulary31.$id,vocabulary32.$id].includes(uri))standardIds.add(uri);
  }
  configured=true;
 }
@@ -148,14 +150,14 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   const roots=schemaRoots(all),nestedBoundaries=nestedSchemaBoundaries(roots);
   for(const scope of roots) {
    const doc=docs.get(scope.resource)!;
-   if(!knownDialects.has(scope.dialect)){complete=false;invalid.push(scope);add(doc,scope.pointer,'schema.dialect.incomplete','This schema dialect is not configured; its content is preserved and no instance result is claimed.','warning');continue;}
+   if(!supportedSchemaDialect(scope)){complete=false;invalid.push(scope);add(doc,scope.pointer,'schema.dialect.incomplete','This schema dialect is not configured; its content is preserved and no instance result is claimed.','warning');continue;}
    if(!doc.dataSyntaxSafe(scope.pointer)){complete=false;invalid.push(scope);continue;}
    try {
     let meta=metas.get(scope.dialect)??standardMetas.get(scope.dialect);
     if(!meta){meta=await compile(await getSchema(scope.dialect));standardMetas.set(scope.dialect,meta);}
     metas.set(scope.dialect,meta);
     const nested=nestedBoundaries(scope);
-    const result:any=interpret(meta,exact.exactInstance(doc,scope.pointer,nested),BASIC);
+    const result:any=interpret(meta,exact.exactInstance(doc,scope.pointer,nested,scope.dialect===restrictedSchemaDialect),BASIC);
     schemas++;
     if(!result.valid) {
      invalid.push(scope);
@@ -190,7 +192,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
     break;
    }}
    if(invalid.some(ancestor=>ancestor.resource===scope.resource&&within(scope.pointer,ancestor.pointer)))mark(id,1);
-   if(!knownDialects.has(scope.dialect)||!docs.get(scope.resource)!.dataSyntaxSafe(scope.pointer))mark(id,2);
+   if(!supportedSchemaDialect(scope)||!docs.get(scope.resource)!.dataSyntaxSafe(scope.pointer))mark(id,2);
   }
   for(const ref of graph.references)if(ref.kind==='schema'&&!ref.connection) {
    const id=scopeId(ref);
@@ -345,7 +347,9 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    try{
     const ast=await getCompiled(scope);
     if(!ast){complete=false;runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:false,valid:false,reason:'schema-incomplete'});continue;}
+    exact.setDirection(supplied.subject.startsWith('request-') ? 'request' : supplied.subject.startsWith('response-') ? 'response' : undefined);
     const result:any=interpret(ast,exact.exactInstance(instance),BASIC);instances++;
+    exact.setDirection(undefined);
     runtimeEvaluations.push({subject:supplied.subject,location:supplied.location,complete:true,valid:result.valid,schema:{resource:scope.resource,pointer:scope.pointer}});
     if(!result.valid)for(const error of result.errors.slice(0,32)){
      const pointer=decodeURIComponent(new URL(error.instanceLocation).hash.slice(1));

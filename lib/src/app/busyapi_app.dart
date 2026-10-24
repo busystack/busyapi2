@@ -852,7 +852,7 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
           FormFieldSpec(
             'openapi',
             l.openapiVersion,
-            options: ['3.1.2', '3.2.1'],
+            options: ['3.0.4', '3.1.2', '3.2.1'],
           ),
           FormFieldSpec('format', l.format, options: ['yaml', 'json']),
         ],

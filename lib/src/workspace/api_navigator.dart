@@ -278,7 +278,7 @@ class ApiNavigatorState extends State<ApiNavigator> {
       'examples': l.examples,
       'links': l.links,
       'callbacks': l.callbacks,
-      'pathItems': l.pathItems,
+      if (c.specification?.reusablePathItems == true) 'pathItems': l.pathItems,
       'securitySchemes': l.securitySchemes,
       if ((projection?['openapi'] as String? ?? '').startsWith('3.2.'))
         'mediaTypes': l.mediaTypes,
@@ -300,19 +300,20 @@ class ApiNavigatorState extends State<ApiNavigator> {
         for (final group in groups.entries)
           componentGroup(group.key, group.value),
       ]),
-      node('webhooks', l.webhooks, target('/webhooks'), [
-        for (final path in paths.where((p) => p['role'] == 'webhooks'))
-          node(
-            'webhook',
-            path['name'] as String,
-            Map<String, dynamic>.from(path),
-            [
-              for (final op
-                  in byRole['webhook']?[path['name']] ?? const <Map>[])
-                operation(op, 'webhook:${path['name']}'),
-            ],
-          ),
-      ]),
+      if (c.specification?.webhooks == true)
+        node('webhooks', l.webhooks, target('/webhooks'), [
+          for (final path in paths.where((p) => p['role'] == 'webhooks'))
+            node(
+              'webhook',
+              path['name'] as String,
+              Map<String, dynamic>.from(path),
+              [
+                for (final op
+                    in byRole['webhook']?[path['name']] ?? const <Map>[])
+                  operation(op, 'webhook:${path['name']}'),
+              ],
+            ),
+        ]),
       node('callbacks', l.callbacks, null, [
         for (final op in ops.where((o) => o['role'] == 'callback'))
           operation(op, 'callback'),

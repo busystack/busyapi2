@@ -1,6 +1,6 @@
 import Ajv2020 from 'ajv/dist/2020';
-import schema31 from '../schemas/oas31.json';
-import schema32 from '../schemas/oas32.json';
+import {structuralSchema, structuralDefinition} from './structural_schema';
+import {modernFamily} from './specification';
 import type {ReferenceGraph,GraphScope} from './reference_graph';
 import {escape} from './document';
 import {isReferenceObject,referenceKinds} from './contexts';
@@ -12,6 +12,7 @@ const conditions = new Map<any, any>();
 const names: Record<string, string> = {security: 'security-scheme', media: 'media-type', callback: 'callbacks', 'path-item': 'path-item', 'request-body': 'request-body'};
 export function componentFamily(kind:string,family:string):string|undefined {
     if(kind==='media'&&family!=='3.2')return;
+    if(kind==='path-item'&&!modernFamily(family))return;
     return ({schema:'schemas',parameter:'parameters',header:'headers',response:'responses','request-body':'requestBodies',example:'examples',link:'links',callback:'callbacks','path-item':'pathItems',media:'mediaTypes',security:'securitySchemes'} as Record<string,string>)[kind];
 }
 /** Resource-relative authored URIs and the Server retrieval-relative URL.
@@ -48,9 +49,11 @@ export function allowsExtensions(kind: string, family: string, value: any, conte
     if (kind === 'schema') return true;
     if (typeof value.$ref === 'string' && kind !== 'path-item') return false;
     if (['xml', 'discriminator', 'callback', 'path-map', 'response-map'].includes(kind)) return true;
-    const standard: any = family === '3.1' ? schema31 : schema32;
-    let target = kind === 'root' ? standard : standard.$defs[names[kind] ?? kind];
+    const standard = structuralSchema(family);
+    if (!standard) return false;
+    let target = structuralDefinition(kind, family, value, contextName);
     if (kind === 'oauth-flow') {
+        if (family === '3.0') return !!target?.patternProperties?.['^x-'];
         const key = ({clientCredentials: 'client-credentials', authorizationCode: 'authorization-code', deviceAuthorization: 'device-authorization'} as any)[contextName] ?? contextName;
         target = standard.$defs['oauth-flows'].$defs[key];
     }
@@ -58,6 +61,7 @@ export function allowsExtensions(kind: string, family: string, value: any, conte
     const visit = (node: any): boolean => {
         if (!node || seen.has(node)) return false;
         seen.add(node);
+        if (node.patternProperties?.['^x-']) return true;
         if (node.$ref === '#/$defs/specification-extensions') return true;
         if (node.$ref?.startsWith('#/') && visit(node.$ref.slice(2).split('/').reduce((v: any, k: string) => v?.[k], standard))) return true;
         return (node.allOf ?? []).some(visit);
@@ -70,9 +74,11 @@ export function removableField(kind: string, family: string, value: any, name: s
     return !!field && !field.required;
 }
 export function fieldsFor(kind: string, family: string, value: any = {}, contextName = ''): any[] {
-    const standard: any = family === '3.1' ? schema31 : schema32;
-    const target = kind === 'root' ? standard : standard.$defs[names[kind] ?? kind];
-    if (kind === 'schema') return schemaFields();
+    const standard = structuralSchema(family);
+    if (!standard) return [];
+    const target = structuralDefinition(kind, family, value, contextName);
+    if (isReferenceObject(value,kind,family)) return (modernFamily(family) ? ['$ref', 'summary', 'description'] : ['$ref']).map(name => ({name, type: 'string'}));
+    if (kind === 'schema' && modernFamily(family)) return schemaFields();
     // These annotations are defined by the OAS vocabulary, outside the
     // structural artifact's schema meta slot (OAS 3.1/3.2 XML/Discriminator).
     if (kind === 'discriminator') return [
@@ -86,11 +92,10 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
     ];
     if (kind === 'oauth-flow') {
         const key = ({clientCredentials: 'client-credentials', authorizationCode: 'authorization-code', deviceAuthorization: 'device-authorization'} as any)[contextName] ?? contextName;
-        const definition = standard.$defs['oauth-flows'].$defs[key];
+        const definition = family === '3.0' ? target : standard.$defs['oauth-flows'].$defs[key];
         return Object.entries(definition?.properties ?? {}).map(([name, field]) => ({...describe(name, field, standard), required: definition.required?.includes(name) === true}));
     }
     if (!target) return [];
-    if (isReferenceObject(value,kind,family)) return ['$ref', 'summary', 'description'].map(name => ({name, type: 'string'}));
     const properties = new Map<string, any>();
     const prohibited = new Map<string, Set<string>>();
     const exclusions: string[][] = [];
@@ -116,6 +121,22 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
         for (const name of schema.required ?? []) required.add(name);
         if (Array.isArray(schema.not?.required)) exclusions.push(schema.not.required);
         for (const child of schema.allOf ?? []) collect(child, causes);
+        // The 3.0 artifact expresses location/type refinements with oneOf.
+        // Select by the authored discriminator without validating an unfinished
+        // form as a complete object. With no choice yet, expose the choice.
+        if (family === '3.0' && schema.oneOf) {
+            const alternatives = schema.oneOf.map((branch: any) => branch.$ref?.startsWith('#/')
+                ? branch.$ref.slice(2).split('/').reduce((v: any, k: string) => v?.[k], standard) : branch);
+            const selector = kind === 'parameter' ? 'in' : kind === 'security' ? 'type' : undefined;
+            if (selector && value?.[selector] !== undefined) {
+                const selected = alternatives.filter((branch: any) => branch.properties?.[selector]?.enum?.includes(value[selector]));
+                for (const branch of selected) collect(branch, causes);
+            } else if (selector) {
+                const options = alternatives.flatMap((branch: any) => branch.properties?.[selector]?.enum ?? []);
+                properties.set(selector, {...properties.get(selector), name: selector, type: 'string', options: [...new Set(options)]});
+                required.add(selector);
+            }
+        }
         for (const [name, child] of Object.entries(schema.dependentSchemas ?? {})) if (Object.hasOwn(value, name)) collect(child, [...causes, name]);
         if (schema.if) {
             let validate = conditions.get(schema.if);
@@ -125,6 +146,18 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
     };
     collect(target);
     const fields = [...properties.values()];
+    if (kind === 'schema' && !modernFamily(family)) {
+        fields.unshift({name: '$ref', type: 'string'});
+        for (const field of fields) {
+            if (['items', 'additionalProperties', 'not'].includes(field.name)) field.type = 'schema';
+            if (['allOf', 'oneOf', 'anyOf'].includes(field.name)) field.type = 'array';
+        }
+        if (value?.type === 'array') required.add('items');
+    }
+    if (kind === 'parameter' && family === '3.0') {
+        const location = fields.find(field => field.name === 'in');
+        if (location) location.options = ['path', 'query', 'header', 'cookie'];
+    }
     // A newly created specification object can deliberately choose the
     // Reference Object alternative before authoring incompatible inline
     // fields. Reuse the graph's position/version boundary; payload/metadata

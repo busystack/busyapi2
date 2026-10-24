@@ -1,23 +1,20 @@
 import { createHash } from 'node:crypto';
 import { children, referenceKinds, standardOperationMethods } from './contexts';
-import { ReferenceGraph, knownDialects } from './reference_graph';
+import { ReferenceGraph, supportedSchemaDialect } from './reference_graph';
 import { fieldsFor, removableField, allowsExtensions, componentFamily } from './authoring';
 import { SourceDocument, SourceError, RawJsonValue, escape, segments, limits } from './document';
-import Ajv2020 from 'ajv/dist/2020';
-import schema31 from '../schemas/oas31.json';
-import schema32 from '../schemas/oas32.json';
+import {structuralEvaluator as ajv, structuralValidators as validators, structuralRevisions, structuralSchema} from './structural_schema';
+import {specificationDeclaration, isNativeFamily, modernFamily} from './specification';
 import {securityDesign, safeFinding} from './security_design';
 import {schemaRoots,nestedSchemaBoundaries,schemaMetaView} from './schema_boundaries';
 import {setDataSource} from './data_edit';
 import {ParameterSemantics} from './parameter_semantics';
 import {authoringRelationships} from './authoring_relationships';
+import {restrictedSchemaIssues} from './restricted_schema';
+import {securityRequirementIssues} from './security_requirements';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
-const ajv = new Ajv2020({ strict: false, allErrors: true, validateFormats: false });
-const validators: any = {};
-for (const [family, schema] of [['3.1', schema31], ['3.2', schema32]] as any[])
-    validators[family] = ajv.compile(JSON.parse(JSON.stringify(schema).replaceAll('\"$dynamicRef\":\"#meta\"', '\"$ref\":\"#/$defs/schema\"')));
-const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: { '3.1': '2025-09-15', '3.2': '2025-09-17' } };
+const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions };
 const fixed = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
 export type Resource = {
     id: string;
@@ -57,8 +54,9 @@ export function createGraph(input: any) {
     const docs = new Map<string, SourceDocument>((input.resources as Resource[]).map(r => [r.id, parseResource(r)]));
     const root = docs.get(input.root);
     if (!root) throw new SourceError('inspect.root', 'The selected root is absent');
-    const family = String(root.root.value?.openapi).slice(0, 3);
-    if (!['3.1', '3.2'].includes(family)) throw new SourceError('version.unsupported', 'Unsupported OpenAPI family');
+    const declaration = specificationDeclaration(root.root.value);
+    if (declaration.status !== 'supported') throw new SourceError(declaration.code, declaration.message, root.dataNode(declaration.pointer)?.range);
+    const family = declaration.specification.family;
     return {docs, family, graph: new ReferenceGraph(docs, input.root, family, new Map(input.resources.map((r: Resource) => [r.id, r.aliases ?? []])), input.occurrences)};
 }
 export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
@@ -100,13 +98,15 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
     if (!root || !rootResource)
         return { version: 1, snapshot: input.snapshot, status: findings.some(d => d.code.startsWith('limit.')) ? 'incomplete' : 'invalid', complete: false, findings, operations, components, references, versions, categories:categoryStates(), coverage: { syntax: 'strict-json-and-yaml12-core', openapi: 'not-run' } };
     const data = root.root.value;
-    const family = typeof data?.openapi === 'string' ? data.openapi.slice(0, 3) : '';
-    if (!/^3\.(1|2)\.\d+$/.test(data?.openapi ?? '')) {
+    const declaration = specificationDeclaration(data);
+    const specification = declaration.status === 'supported' ? declaration.specification : undefined;
+    const family = specification?.family ?? '';
+    if (declaration.status !== 'supported') {
         supported = false;
         complete = false;
-        diagnostic(rootResource, 'openapi', 'version.unsupported', data?.openapi ? `OpenAPI ${data.openapi} is unsupported. Native authoring accepts 3.1.x and 3.2.x.` : 'This document is a fragment or has no OpenAPI version');
+        diagnostic(rootResource, 'openapi', declaration.code, declaration.message, declaration.pointer);
     }
-    if (data?.jsonSchemaDialect && !knownDialects.has(data.jsonSchemaDialect)) {
+    if (modernFamily(family) && data?.jsonSchemaDialect && !supportedSchemaDialect({family,dialect:data.jsonSchemaDialect})) {
         complete = false;
         diagnostic(rootResource, 'openapi', 'dialect.unsupported', 'The root JSON Schema dialect is not supported', '/jsonSchemaDialect', undefined, 'warning');
     }
@@ -142,7 +142,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
     const metaRoots=schemaRoots(graph.scopes.values()),nestedBoundaries=nestedSchemaBoundaries(metaRoots);
     const exactNumericKeywords=new Set(['minimum','maximum','exclusiveMinimum','exclusiveMaximum','multipleOf','minLength','maxLength','minItems','maxItems','minProperties','maxProperties','minContains','maxContains']);
     for (const scope of metaRoots) {
-        if (!knownDialects.has(scope.dialect)) continue;
+        if (!supportedSchemaDialect(scope) || !modernFamily(scope.family)) continue;
         const doc = docs.get(scope.resource)!;
         const value = schemaMetaView(doc.dataNode(scope.pointer)!.value,scope.pointer,nestedBoundaries(scope));
         if (typeof value !== 'boolean' && (value === null || typeof value !== 'object' || Array.isArray(value))) {
@@ -180,7 +180,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
         if (ref.resolution !== 'resolved' || ref.kind === 'schema') continue;
         const targetFamily = graph.scope(ref.targetResource!, ref.targetPointer!).family;
         const context = targetKinds[ref.kind];
-        const validator = context && validators[targetFamily] && ajv.getSchema(validators[targetFamily].schema.$id + '#/$defs/' + context);
+        const validator = context && validators[targetFamily] && ajv.getSchema(structuralSchema(targetFamily).$id + '#/$defs/' + context);
         const target = docs.get(ref.targetResource!)!;
         const targetValue = target.dataNode(ref.targetPointer!)!.value;
         if (validator && !(targetValue && typeof targetValue.$ref === 'string') && !validator(targetValue))
@@ -191,7 +191,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
         if (depth > 32 || !value || typeof value !== 'object')
             return value;
         const owner = graph.scope(doc.id, pointer);
-        if (!knownDialects.has(owner.dialect) || value.$dynamicRef)
+        if (!supportedSchemaDialect(owner) || value.$dynamicRef)
             return value;
         if (typeof value.$ref === 'string' && referenceKinds.has(kind) && (kind !== 'media' || owner.family === '3.2')) {
             try {
@@ -204,9 +204,9 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
                     next.add(key);
                     const definition = resolved(target, target.dataNode(part)!.value, part, next, depth + 1, kind);
                     const siblings = Object.fromEntries(Object.entries(value).filter(([k]) => k !== '$ref'));
-                    if (kind === 'schema')
+                    if (kind === 'schema' && modernFamily(owner.family))
                         return Object.keys(siblings).length ? { allOf: [definition, siblings] } : definition;
-                    return definition && typeof definition === 'object' ? { ...definition, ...Object.fromEntries(Object.entries(siblings).filter(([k]) => ['summary', 'description'].includes(k))) } : value;
+                    return definition && typeof definition === 'object' ? { ...definition, ...Object.fromEntries(Object.entries(siblings).filter(([k]) => modernFamily(owner.family) && ['summary', 'description'].includes(k))) } : definition;
                 }
             }
             catch { }
@@ -258,7 +258,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
         if(issue.incomplete)complete=false;
         diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,issue.range,issue.severity??'error');
     }
-    for (const issue of authoringRelationships(graph)) {
+    for (const issue of [...authoringRelationships(graph), ...restrictedSchemaIssues(graph), ...securityRequirementIssues(graph)]) {
         if(issue.incomplete)complete=false;
         diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,undefined,issue.severity??'error');
     }
@@ -266,14 +266,14 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
     findings.push(...security.findings);
     if(!security.complete)complete=false;
     const categories={...categoryStates(),security:Object.fromEntries(Object.entries(security).filter(([name])=>name!=='findings'))};
-    return { ...(input.measure ? { timings: { parseMs: parsedAt - started, structuralMs: validatedAt - parsedAt, projectionMs: performance.now() - validatedAt } } : {}), version: 1, snapshot: input.snapshot, status: findings.some(d => d.category === 'syntax') ? 'invalid' : !supported ? 'unsupported' : !complete ? 'incomplete' : findings.some(d => d.severity === 'error') ? 'invalid' : 'complete', complete: complete && supported, findings, categories, info: index(root, '/info', data?.info ?? {}), openapi: data?.openapi, pathItems: ['paths','webhooks'].flatMap(role => data?.[role] && typeof data[role]==='object' && !Array.isArray(data[role]) ? Object.keys(data[role]).filter(name=>role==='webhooks'||name.startsWith('/')).map(name=>index(root,'/'+role+'/'+escape(name),undefined,{name,role})) : []), operations, components, references, coverage: { syntax: 'strict-json-and-yaml12-core', openapi: 'official-structural-shapes-and-initial-authoring-semantics', schemas: '2020-12-keyword-shapes', references: 'uri-resource-identities-pointers-anchors-and-contextual-dynamic-navigation', formats: 'not-validated', security:security.coverage }, versions, resources: input.resources.map((r: Resource) => ({ id: r.id, generation: r.generation, identity: r.identity })), otherRootFields: Object.keys(data ?? {}).filter(k => !['openapi', 'info', 'paths', 'components'].includes(k)), otherRootObjects: Object.keys(data ?? {}).filter(k => !['openapi', 'info', 'paths', 'components'].includes(k)).map(name => index(root, '/' + escape(name), data[name], { name })) };
+    return { ...(input.measure ? { timings: { parseMs: parsedAt - started, structuralMs: validatedAt - parsedAt, projectionMs: performance.now() - validatedAt } } : {}), version: 1, snapshot: input.snapshot, status: findings.some(d => d.category === 'syntax') ? 'invalid' : !supported ? 'unsupported' : !complete ? 'incomplete' : findings.some(d => d.severity === 'error') ? 'invalid' : 'complete', complete: complete && supported, findings, categories, info: index(root, '/info', data?.info ?? {}), specification, openapi: specification?.declaredVersion, pathItems: ['paths','webhooks'].flatMap(role => data?.[role] && typeof data[role]==='object' && !Array.isArray(data[role]) ? Object.keys(data[role]).filter(name=>role==='webhooks'||name.startsWith('/')).map(name=>index(root,'/'+role+'/'+escape(name),undefined,{name,role})) : []), operations, components, references, coverage: { syntax: 'strict-json-and-yaml12-core', openapi: 'official-structural-shapes-and-initial-authoring-semantics', schemas: '2020-12-keyword-shapes', references: 'uri-resource-identities-pointers-anchors-and-contextual-dynamic-navigation', formats: 'not-validated', security:security.coverage }, versions, resources: input.resources.map((r: Resource) => ({ id: r.id, generation: r.generation, identity: r.identity })), otherRootFields: Object.keys(data ?? {}).filter(k => !['openapi', 'info', 'paths', 'components'].includes(k)), otherRootObjects: Object.keys(data ?? {}).filter(k => !['openapi', 'info', 'paths', 'components'].includes(k)).map(name => index(root, '/' + escape(name), data[name], { name })) };
 }
 export function inspect(input: any) {
     const {docs, graph} = createGraph(input);
     const doc = docs.get(input.resource), node = doc?.nodes.get(input.pointer);
     const scope = graph.scopes.get(input.resource + '#' + input.pointer);
     const family = doc ? graph.scope(doc.id, input.pointer).family : graph.family;
-    if (!['3.1', '3.2'].includes(family))
+    if (!isNativeFamily(family))
         throw new SourceError('version.unsupported', 'Native authoring requires a supported containing OpenAPI feature family');
     if (doc && !node) {
       {
@@ -365,7 +365,7 @@ export function inspect(input: any) {
         }
     }
     const sharedTarget=!!componentFamily(scope.kind,family)&&graph.references.some(ref=>ref.resolution==='resolved'&&ref.targetResource===doc.id&&ref.targetPointer===node.pointer);
-    return {version: 1, snapshot: input.snapshot, family, ...located(node, scope.kind), sharedTarget, componentDestination: String(doc.root.value?.openapi).startsWith(family+'.'), componentDestinations, ...(componentFamily(scope.kind,family)?{componentFamily:componentFamily(scope.kind,family)}:{}), ...(schemaTreeRoot!==undefined?{schemaTreeRoot}:{}), removable, allowsExtensions: allowsExtensions(scope.kind, family, node.value, segments(node.pointer).at(-1)), fields, entries, offset, count: node.children.size, references,
+    return {version: 1, snapshot: input.snapshot, family, customSchemaKeywords: modernFamily(family), ...located(node, scope.kind), sharedTarget, componentDestination: String(doc.root.value?.openapi).startsWith(family+'.'), componentDestinations, ...(componentFamily(scope.kind,family)?{componentFamily:componentFamily(scope.kind,family)}:{}), ...(schemaTreeRoot!==undefined?{schemaTreeRoot}:{}), removable, allowsExtensions: allowsExtensions(scope.kind, family, node.value, segments(node.pointer).at(-1)), fields, entries, offset, count: node.children.size, references,
         ...(ownerSchema ? {ownerSchema: located(ownerSchema, 'schema')} : {}),
         value: Object.fromEntries(fields.filter(f => f.present && Object.hasOwn(f, 'value')).map(f => [f.name, f.value])),
         boolean: scope.kind==='schema'&&typeof node.value === 'boolean' ? node.value : undefined,
@@ -523,7 +523,10 @@ export function propose(input: any) {
             else if (action.required) {
                 if (list === undefined) text = doc.set(action.pointer + '/required', [action.name]);
                 else text = doc.set(action.pointer + '/required/' + list.length, action.name);
-            } else text = doc.remove(action.pointer + '/required/' + index);
+            } else {
+                const owner = createGraph(input).graph.scope(resource.id, action.pointer);
+                text = doc.remove(action.pointer + '/required' + (!modernFamily(owner.family) && list.length === 1 ? '' : '/' + index));
+            }
         }
         else if (action.kind === 'rename') {
             const n = doc.node(action.pointer);

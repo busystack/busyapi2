@@ -298,7 +298,7 @@ Map<String, dynamic> _mergeSchemaEvaluation(
         'schema': {
           'complete': evaluated?['complete'] == true,
           'producer': evaluated?['producer'] ?? 'hyperjump+busyapi-exact',
-          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+2',
+          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+3',
           if (evaluated != null) ...{
             'configuration': evaluated['configuration'],
             'coverage': evaluated['coverage'],
@@ -1548,9 +1548,7 @@ class BusyProject {
           'snapshot': snapshot.sourceIdentity,
           'coverage': structural['coverage']?['openapi'],
         };
-        if (structural['openapi'] is! String ||
-            !RegExp(r'^3\.(1|2)\.\d+$')
-                .hasMatch(structural['openapi'] as String)) {
+        if (structural['specification'] is! Map) {
           return {
             ...structural,
             'categories': {
@@ -1656,7 +1654,7 @@ class BusyProject {
         result['snapshot'] == snapshot.identity &&
         result['root'] == snapshot.root &&
         result['producer'] == 'hyperjump+busyapi-exact' &&
-        result['producerVersion'] == '1.18.0+2' &&
+        result['producerVersion'] == '1.18.0+3' &&
         result['complete'] is bool &&
         result['configuration'] is String &&
         result['coverage'] is Map &&
@@ -3398,8 +3396,8 @@ class Initializer {
     if (title.trim().isEmpty || apiVersion.trim().isEmpty) {
       throw CoreFailure('init.input', 'API title and API version are required');
     }
-    if (!RegExp(r'^3\.(1|2)\.\d+$').hasMatch(openapi)) {
-      throw CoreFailure('init.version', 'Select OpenAPI 3.1.x or 3.2.x');
+    if (!RegExp(r'^3\.(0|1|2)\.\d+$').hasMatch(openapi)) {
+      throw CoreFailure('init.version', 'Select OpenAPI 3.0.x, 3.1.x or 3.2.x');
     }
     if (!['yaml', 'json'].contains(format)) {
       throw CoreFailure('init.format', 'Format must be yaml or json');

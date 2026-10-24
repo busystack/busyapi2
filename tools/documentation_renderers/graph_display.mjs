@@ -100,7 +100,7 @@ export function graphAddressedDisplay(text, projection, displayUri, {addresses='
   if(!['http:','https:','file:','busyapi-doc:'].includes(page.protocol)||page.hash||page.href!==displayUri||displayUri.length>16384)
     throw Error('busyapi.documentation.display-uri');
   const spec=JSON.parse(text);
-  if(!/^3\.[12]\./.test(spec?.openapi))throw Error('busyapi.documentation.version');
+  if(!/^3\.[012]\./.test(spec?.openapi))throw Error('busyapi.documentation.version');
   const edits=new Map(), origins=[],fields=new Map(),nodes=new Map(),sections=new Map(),aliases=new Map(),literals=new Set(),contexts=new Map();
   const coordinates=new Map(['node','field','reference'].map(role=>[role,new Set()]));
   const contextOccurrences=new Set(),navigationIds=new Set();

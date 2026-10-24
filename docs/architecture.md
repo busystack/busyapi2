@@ -1,5 +1,15 @@
 # Ownership and source preservation
 
+`specification.ts` owns declared specification family/version, the applicable
+schema dialect and document capabilities. Core presentation reads the captured
+typed `SpecificationContext`; `info.version` is unrelated. OpenAPI 3.0 uses the
+restricted OAS evaluator and exact Draft 4 boolean-bound handlers, alongside its
+dated structural artifact and normative relationship checks. Its Schema Object
+references ignore siblings; modern schema references retain applicator semantics.
+Ordinary declaration edits invalidate captured semantics and never migrate files.
+The [implementation record](implementation/native-openapi-support.md) tracks
+family-specific coverage and qualification, including work still incomplete.
+
 ## Explicit acquisition and CI reports
 
 `ProjectImporter` owns a bounded immutable acquisition and a held output-parent capability. Local reads and directory enumeration use `ProjectAccess`; URL dependencies are requested only from the existing canonical graph and require exact-URL approval. Credential-free GET acquisition uses the native HTTP transport's overall deadline/cancellation owner and verifies every redirect before connecting. Original bytes and retrieval mappings remain separate from derived bundles. Clone uses the trusted Git runner with isolated configuration, no hooks/filters/submodules or dependency installation. `ProjectImportPlan` reviews a captured file set and publishes only to a new directory through `AtomicDirectoryWriter`; source, foreign destinations and cancelled stages remain intact. Before a URL-import plan becomes publishable, its generated manifest passes the same bounded key/mapping reader used on reopen, including the root mapping, URI/path normalization and manifest byte limit. A complete acquired graph alone does not certify a readable project. Opening is separate from publication. The small native controller binds completion to its original workspace/navigation owner and disposes/cancels independently of the workspace's canonical buffers.

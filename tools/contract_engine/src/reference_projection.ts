@@ -5,6 +5,7 @@ import {escape, segments, SourceError} from './document';
 import {ParameterSemantics} from './parameter_semantics';
 import {GraphTarget,ReferenceGraph} from './reference_graph';
 import {createHash} from 'node:crypto';
+import {isNativeFamily} from './specification';
 
 // Hash exact UTF-16 units so even a preserved lone surrogate cannot collapse
 // into the UTF-8 replacement character. This is a view ID, not a resource URI.
@@ -49,7 +50,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
     if (!doc || !node) throw new SourceError('reference.target', 'The documentation occurrence is absent');
     const scope = graph.scopes.get(doc.id + '#' + node.pointer);
     const family = graph.scope(doc.id, node.pointer).family;
-    const kind = input.data === true || !['3.1','3.2'].includes(family) ? 'data' : scope?.kind ?? 'data';
+    const kind = input.data === true || !isNativeFamily(family) ? 'data' : scope?.kind ?? 'data';
     const generations = new Map(input.resources.map((r: Resource) => [r.id, r.generation]));
     const located = (resource: string, pointer: string) => {
         const source=docs.get(resource),target=source?.dataNode(pointer);

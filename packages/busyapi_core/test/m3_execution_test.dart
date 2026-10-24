@@ -38,7 +38,7 @@ void main() {
     );
   }
 
-  for (final version in ['3.1.2', '3.2.1']) {
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
     test(
       '$version label values and server templates retain wire semantics',
       () async {

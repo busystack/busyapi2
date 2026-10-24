@@ -26,7 +26,7 @@ RUNTIME_PURPOSES = {
     'json-schema-traverse': 'Ajv schema traversal',
     'require-from-string': 'Ajv transitive module support; project code is not loaded',
     '@hyperjump/browser': 'Schema evaluation over supplied canonical resource snapshots',
-    '@hyperjump/json-schema': 'Draft 2020-12 and selected OAS dialect evaluation',
+    '@hyperjump/json-schema': 'Restricted OAS 3.0 and Draft 2020-12/modern OAS dialect evaluation',
     '@hyperjump/json-pointer': 'Evaluator JSON Pointer access',
     '@hyperjump/json-schema-formats': 'Evaluator format vocabulary; assertion disabled',
     '@hyperjump/pact': 'Evaluator bounded iterator utilities',

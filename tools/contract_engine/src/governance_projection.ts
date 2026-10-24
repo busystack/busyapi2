@@ -1,6 +1,7 @@
 import {children,isReferenceObject} from './contexts';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {ReferenceGraph} from './reference_graph';
+import {modernFamily} from './specification';
 
 export type PolicyOrigin={resource:string;pointer:string;kind:string};
 
@@ -53,7 +54,7 @@ export function governanceProjection(graph:ReferenceGraph,resolved:boolean) {
                 if(referenceObject && result && typeof result==='object'&&!Array.isArray(result)) {
                     // Only defined Reference Object annotations override the
                     // definition, with their own original-source provenance.
-                    for(const name of ['summary','description'])if(Object.hasOwn(value,name))
+                    for(const name of ['summary','description'])if(modernFamily(family)&&Object.hasOwn(value,name))
                         Object.defineProperty(result,name,{value:walk({...origin,pointer:origin.pointer+'/'+name,kind:'data'},output+'/'+name,seen,depth+1),enumerable:true,writable:true,configurable:true});
                 }
                 return result;

@@ -2,7 +2,7 @@ import {posix} from 'node:path';
 import {createGraph,Resource} from './engine';
 import {fieldsFor} from './authoring';
 import {segments,SourceError} from './document';
-import {GraphScope,ReferenceGraph,resolveUri,knownDialects} from './reference_graph';
+import {GraphScope,ReferenceGraph,resolveUri,supportedSchemaDialect} from './reference_graph';
 
 const fragment=(pointer:string)=>'#'+encodeURI(pointer).replaceAll('#','%23').replaceAll('?','%3F');
 const bounded=(value:string)=>Array.from(value).slice(0,240).join('');
@@ -12,7 +12,7 @@ const same=(a:{resource:string;pointer:string},b:{resource:string;pointer:string
  * proved by the canonical graph, including embedded ids and retrieval aliases.
  * Completion and native choices use this same operation. */
 export function referenceValue(graph:ReferenceGraph,from:GraphScope,to:GraphScope,keyword='$ref'):string|undefined {
- if(to.kind==='schema'&&!knownDialects.has(to.dialect))return;
+ if(to.kind==='schema'&&!supportedSchemaDialect(to))return;
  let target:URL,suffix:string;
  try {
   target=resolveUri(to.kind==='schema'?to.base:graph.scope(to.resource,'').base,to.resource);

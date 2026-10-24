@@ -1,8 +1,10 @@
 import { children, isReferenceObject, referenceKinds } from './contexts';
 import { SourceDocument, SourceError, escape, limits } from './document';
 import {resolveIri} from '@hyperjump/uri';
+import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, isNativeFamily, Specification} from './specification';
 
 export const knownDialects = new Set([
+    restrictedSchemaDialect,
     'https://json-schema.org/draft/2020-12/schema',
     'https://spec.openapis.org/oas/3.1/dialect/base',
     'https://spec.openapis.org/oas/3.1/dialect/2024-11-10',
@@ -14,6 +16,10 @@ export type GraphTarget = { resource: string; pointer: string; kind: string };
 export type GraphScope = GraphTarget & {
     base: string; resourcePointer: string; dialect: string; family: string;
 };
+/** Restricted OpenAPI evaluation is an owning-family capability, not a
+ * general-purpose additional JSON Schema dialect promised in modern roots. */
+export const supportedSchemaDialect = (scope: Pick<GraphScope, 'family' | 'dialect'>): boolean =>
+    scope.family === '3.0' ? scope.dialect === restrictedSchemaDialect : modernFamily(scope.family) && knownDialects.has(scope.dialect) && scope.dialect !== restrictedSchemaDialect;
 export type GraphIssue = GraphTarget & { code: string; message: string; incomplete?: boolean; severity?: 'warning'|'error' };
 export type PathItemView = {source:GraphTarget;chain:readonly GraphTarget[];fields:ReadonlyMap<string,GraphTarget>;complete:boolean;chainComplete:boolean;conflicts:readonly string[];cyclic:boolean};
 export type OperationOccurrence = {source:GraphTarget;pathItem:GraphTarget;path:string;method:string;role:string;occurrence:string;shared:boolean;customMethod?:boolean};
@@ -79,6 +85,7 @@ const same = (a: GraphTarget, b: GraphTarget) => a.resource === b.resource && a.
  * Evaluation must supply its dynamic call stack; navigation cannot choose it.
  */
 export class ReferenceGraph {
+    readonly specifications = new Map<string, Specification>();
     readonly scopes = new Map<string, GraphScope>();
     readonly references: GraphReference[] = [];
     readonly issues: GraphIssue[] = [];
@@ -109,11 +116,16 @@ export class ReferenceGraph {
             // dialect. Entry-description namespaces for implicit names are a
             // separate decision; they do not change a referenced document's
             // authored version. Unversioned fragments use the entry context.
-            const declared = typeof data?.openapi === 'string' ? data.openapi.slice(0, 3) : undefined;
+            const declaration = specificationDeclaration(data);
+            const specification = declaration.status === 'supported' ? declaration.specification : undefined;
+            if (specification) this.specifications.set(doc.id, specification);
+            const declared = specification?.family ?? (Object.hasOwn(data ?? {}, 'openapi')
+                ? typeof data.openapi === 'string' && /^(\d+\.\d+)\.\d+$/.test(data.openapi) ? data.openapi.slice(0, data.openapi.lastIndexOf('.')) : 'unknown'
+                : Object.hasOwn(data ?? {}, 'swagger') ? 'unknown' : undefined);
             const documentFamily = declared ?? family;
-            if (declared && !['3.1', '3.2'].includes(declared))
-                this.issue({resource: doc.id, pointer: '/openapi', kind: 'root'}, 'version.unsupported', 'The containing OpenAPI document uses an unsupported specification family', true);
-            const defaultDialect = `https://spec.openapis.org/oas/${documentFamily}/dialect/base`;
+            if (!specification && (Object.hasOwn(data ?? {}, 'openapi') || Object.hasOwn(data ?? {}, 'swagger')) && declaration.status !== 'supported')
+                this.issue({resource: doc.id, pointer: declaration.pointer, kind: 'root'}, declaration.code, declaration.message, true);
+            const defaultDialect = defaultSchemaDialect(documentFamily);
             const approvedIdentity = aliases.get(doc.id)?.[0];
             let base = resolveUri(approvedIdentity??doc.id, doc.id).href;
             this.retrievals.set(doc.id, base);
@@ -130,7 +142,7 @@ export class ReferenceGraph {
             this.register(this.identities, doc.id, target);
             this.register(this.identities, base, target);
             for (const alias of aliases.get(doc.id) ?? []) this.register(this.identities, resolveUri(alias, doc.id).href, target);
-            const scope = { ...target, base, resourcePointer: '', dialect: declared ? data?.jsonSchemaDialect ?? defaultDialect : defaultDialect, family: documentFamily };
+            const scope = { ...target, base, resourcePointer: '', dialect: specification?.schemaDialect ?? defaultDialect, family: documentFamily };
             this.scopes.set(key(doc.id, ''), scope);
             if (doc.id === root || typeof data?.openapi === 'string')
                 this.index(doc.id, '', 'root', scope);
@@ -344,13 +356,13 @@ export class ReferenceGraph {
             const group = ref.connection === 'security' ? 'securitySchemes' : 'schemas';
             const pointer = '/components/' + group + '/' + escape(ref.value);
             if (this.docs.get(this.root)?.dataNode(pointer)) return {resolution: 'resolved', targetResource: this.root, targetPointer: pointer};
-            if (ref.connection === 'security' && ref.family === '3.1') return {resolution: 'missing', targetResource: this.root, targetPointer: pointer};
+            if (ref.connection === 'security' && ref.family !== '3.2') return {resolution: 'missing', targetResource: this.root, targetPointer: pointer};
         }
         return this.resolve(ref.value, ref, ref.keyword === '$dynamicRef');
     }
 
     resolve(value: string, scope: GraphScope, dynamic = false): Partial<GraphReference> {
-        if (scope.kind === 'schema' && !knownDialects.has(scope.dialect))
+        if (scope.kind === 'schema' && !supportedSchemaDialect(scope))
             return { resolution: 'unsupported' };
         let uri: URL, fragment: string;
         try {
@@ -405,7 +417,7 @@ export class ReferenceGraph {
     private index(resource: string, pointer: string, kind: string, inherited: GraphScope, depth = 0) {
         // Preserve unavailable feature sets as source, not a compatibility
         // layer interpreted using one of the supported authoring families.
-        if (!['3.1', '3.2'].includes(inherited.family)) return;
+        if (!isNativeFamily(inherited.family)) return;
         const id = key(resource, pointer) + ':' + kind;
         if (this.indexed.has(id)) return;
         if(this.indexed.size>=400000) {
@@ -431,7 +443,7 @@ export class ReferenceGraph {
         const doc = this.docs.get(resource)!;
         const value = doc.dataNode(pointer)?.value;
         let scope = { ...inherited, ...target };
-        if (kind === 'schema' && value && typeof value === 'object') {
+        if (kind === 'schema' && modernFamily(scope.family) && value && typeof value === 'object') {
             if (typeof value.$id === 'string') {
                 try {
                     const uri = resolveUri(value.$id, inherited.base);
@@ -471,13 +483,13 @@ export class ReferenceGraph {
                     this.dynamicAnchors.set(anchor, candidates);
                 }
             }
-            if (!knownDialects.has(scope.dialect))
+            if (!supportedSchemaDialect(scope))
                 this.issue(target, 'dialect.unsupported', 'The declared JSON Schema dialect is not supported', true);
         }
         this.scopes.set(key(resource, pointer), scope);
         if (!value || typeof value !== 'object') return;
         const refKind = referenceKinds.has(kind) && (kind !== 'media' || scope.family === '3.2');
-        for (const keyword of kind === 'schema' ? ['$ref', '$dynamicRef'] : ['$ref']) {
+        for (const keyword of kind === 'schema' && modernFamily(scope.family) ? ['$ref', '$dynamicRef'] : ['$ref']) {
             if (!refKind || typeof value[keyword] !== 'string') continue;
             const ref: GraphReference = { ...scope, keyword, value: value[keyword], resolution: 'pending' };
             this.references.push(ref); this.pending.push(ref);
@@ -508,7 +520,7 @@ export class ReferenceGraph {
      * and Path Item inheritance have separate semantics and remain eligible. */
     private checkReferenceChains() {
         const id=(ref:GraphTarget)=>key(ref.resource,ref.pointer)+':'+ref.kind;
-        const edges=new Map(this.references.filter(ref=>ref.keyword==='$ref'&&!ref.connection&&!['schema','path-item'].includes(ref.kind)).map(ref=>[id(ref),ref]));
+        const edges=new Map(this.references.filter(ref=>ref.keyword==='$ref'&&!ref.connection&&ref.kind!=='path-item'&&(ref.kind!=='schema'||!modernFamily(ref.family))).map(ref=>[id(ref),ref]));
         const cyclic=new Map<string,boolean>();
         for(const [start,first] of edges) {
             if(cyclic.has(start))continue;

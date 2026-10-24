@@ -95,7 +95,7 @@ class StandaloneAssets(unittest.TestCase):
             with self.subTest(absolute=absolute), tempfile.TemporaryDirectory() as directory:
                 root = pathlib.Path(directory)
                 bundle = root / 'bundle'
-                prerequisite_files(bundle,['share/busyapi/schemas/oas31.json','share/busyapi/schemas/oas32.json'])
+                prerequisite_files(bundle,['share/busyapi/schemas/oas31.json','share/busyapi/schemas/oas32.json','share/busyapi/schemas/oas30.json'])
                 outside = root / 'build-stage'
                 outside.mkdir()
                 link = bundle / 'share/busyapi/flutter-engine'
@@ -106,6 +106,14 @@ class StandaloneAssets(unittest.TestCase):
                      str(bundle)], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('Non-relocatable bundle symlink', result.stderr)
+
+    def test_missing_oas30_is_an_error_with_modern_schemas_present(self):
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = pathlib.Path(directory)
+            prerequisite_files(bundle, ['share/busyapi/schemas/oas31.json', 'share/busyapi/schemas/oas32.json'])
+            result = subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('package_linux.py')), directory], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Missing standalone schema asset: oas30.json', result.stderr)
 
 
 if __name__ == '__main__':

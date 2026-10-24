@@ -1,5 +1,12 @@
 # Tool support
 
+Native 3.0 authoring now uses its own Schema Object semantics, field metadata,
+reference rules and exact instance evaluation. Creation accepts every 3.0 patch;
+normal workflows retain the declaration. Native Reference and native HTML export
+use the same captured graph. Swagger/Redoc, Prism, generation and comparison
+qualification remain separate. The evolving [family/workflow matrix](implementation/native-openapi-support.md)
+records actual coverage and outstanding native and packaged checks.
+
 ## External tools
 
 OpenAPI Generator **7.26.0** runs as the official local JAR with the packaged

@@ -88,11 +88,21 @@ class WorkspaceController extends ChangeNotifier {
       (selectedOccurrence == null || selectedOccurrence == item['occurrence']);
   BufferStore? get store => project?.store;
   DocumentBuffer? get buffer => active == null ? null : store?.buffers[active];
+  SpecificationContext? get specification =>
+      projection?['specification'] == null
+      ? null
+      : SpecificationContext.fromJson(projection!['specification']);
   Map<String, dynamic>? get projection {
     final current =
             analysis?['projection'] as Map<String, dynamic>? ?? analysis,
         previous = lastGood;
     if (current?['info'] == null) return previous;
+    if (current?['specification']?['declaredVersion'] !=
+            previous?['specification']?['declaredVersion'] ||
+        current?['specification']?['schemaDialect'] !=
+            previous?['specification']?['schemaDialect']) {
+      return current;
+    }
     if (previous == null || current!['complete'] == true) return current;
     final operations = List<dynamic>.from(current['operations'] as List? ?? []);
     final keys = operations

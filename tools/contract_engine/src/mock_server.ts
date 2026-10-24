@@ -253,8 +253,8 @@ async function main(): Promise<void> {
   const examples = exactExamples(input.document, tree);
   const document = JSON.parse(input.document) as Record<string, unknown>;
   const version = document.openapi;
-  if (typeof version !== 'string' || !/^3\.(?:1|2)\./.test(version))
-    throw new Error('mock input must be an OpenAPI 3.1.x or 3.2.x document');
+  if (typeof version !== 'string' || !/^3\.(?:0|1|2)\./.test(version))
+    throw new Error('mock input must be a supported OpenAPI document');
   // This qualified in-memory path never asks Prism's path loader to reinterpret
   // a literal Example Object `$ref` property as a filesystem dependency.
   const operations = transformOas3Operations(document);

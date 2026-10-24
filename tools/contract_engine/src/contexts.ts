@@ -1,3 +1,5 @@
+import {modernFamily} from './specification';
+
 export type Child = [
     string,
     any,
@@ -24,7 +26,7 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
             one('tags', 'tag-array');
             one('externalDocs', 'external-documentation');
             one('paths', 'path-map');
-            one('webhooks', 'webhook-map');
+            if (modernFamily(family)) one('webhooks', 'webhook-map');
             one('components', 'components');
             break;
         case 'info':
@@ -40,7 +42,7 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
         case 'tag-array': entries('tag'); break;
         case 'tag': one('externalDocs', 'external-documentation'); break;
         case 'components':
-            for (const [key, next] of Object.entries({ schemas: 'schema-map', parameters: 'parameter-map', responses: 'response-component-map', headers: 'header-map', requestBodies: 'body-map', examples: 'example-map', links: 'link-map', callbacks: 'callback-map', pathItems: 'path-item-component-map', securitySchemes: 'security-map' }))
+            for (const [key, next] of Object.entries({ schemas: 'schema-map', parameters: 'parameter-map', responses: 'response-component-map', headers: 'header-map', requestBodies: 'body-map', examples: 'example-map', links: 'link-map', callbacks: 'callback-map', ...(modernFamily(family) ? {pathItems: 'path-item-component-map'} : {}), securitySchemes: 'security-map' }))
                 one(key, next);
             if (family === '3.2')
                 one('mediaTypes', 'content-map');
@@ -158,11 +160,11 @@ export function children(value: any, kind: string, family = '3.2'): Child[] {
             one('discriminator', 'discriminator');
             one('xml', 'xml');
             one('externalDocs', 'external-documentation');
-            for (const k of ['properties', 'patternProperties', '$defs', 'dependentSchemas'])
+            for (const k of ['properties', ...(modernFamily(family) ? ['patternProperties', '$defs', 'dependentSchemas'] : [])])
                 one(k, 'schema-map');
-            for (const k of ['items', 'additionalProperties', 'unevaluatedProperties', 'unevaluatedItems', 'contains', 'propertyNames', 'if', 'then', 'else', 'not', 'contentSchema'])
+            for (const k of ['items', ...(typeof value.additionalProperties === 'boolean' && !modernFamily(family) ? [] : ['additionalProperties']), 'not', ...(modernFamily(family) ? ['unevaluatedProperties', 'unevaluatedItems', 'contains', 'propertyNames', 'if', 'then', 'else', 'contentSchema'] : [])])
                 one(k, 'schema');
-            for (const k of ['allOf', 'anyOf', 'oneOf', 'prefixItems'])
+            for (const k of ['allOf', 'anyOf', 'oneOf', ...(modernFamily(family) ? ['prefixItems'] : [])])
                 one(k, 'schema-array');
             break;
     }
@@ -173,6 +175,6 @@ export const referenceKinds = new Set(['path-item', 'response', 'parameter', 'he
 // references keep their own sibling rules; other Reference Object siblings
 // cannot become object definitions merely because their keys look familiar.
 export function isReferenceObject(value:any,kind:string,family:string):boolean {
-    return referenceKinds.has(kind) && kind !== 'schema' && kind !== 'path-item' &&
+    return referenceKinds.has(kind) && (kind !== 'schema' || !modernFamily(family)) && kind !== 'path-item' &&
         (kind !== 'media' || family === '3.2') && typeof value?.$ref === 'string';
 }

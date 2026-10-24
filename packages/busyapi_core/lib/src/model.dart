@@ -30,6 +30,70 @@ class CoreFailure implements Exception {
   String toString() => '$code: $message';
 }
 
+enum SpecificationFamily { openapi30, openapi31, openapi32 }
+
+/// Captured engine semantics. The API's info.version is deliberately absent.
+/// Presentation consumes capabilities instead of interpreting version strings.
+class SpecificationContext {
+  const SpecificationContext._(
+    this.family,
+    this.declaredVersion,
+    this.schemaDialect,
+    this.modernSchema,
+    this.webhooks,
+    this.reusablePathItems,
+    this.additionalOperations,
+    this.referenceAnnotations,
+  );
+
+  factory SpecificationContext.fromJson(Object? value) {
+    if (value case {
+      'family': String family,
+      'declaredVersion': String version,
+      'schemaDialect': String dialect,
+      'capabilities': {
+        'modernSchema': bool modern,
+        'webhooks': bool webhooks,
+        'reusablePathItems': bool pathItems,
+        'additionalOperations': bool additional,
+        'referenceAnnotations': bool annotations,
+      },
+    }) {
+      final selected = switch (family) {
+        '3.0' => SpecificationFamily.openapi30,
+        '3.1' => SpecificationFamily.openapi31,
+        '3.2' => SpecificationFamily.openapi32,
+        _ => throw CoreFailure(
+          'engine.specification',
+          'Unknown specification family in the engine response',
+        ),
+      };
+      return SpecificationContext._(
+        selected,
+        version,
+        dialect,
+        modern,
+        webhooks,
+        pathItems,
+        additional,
+        annotations,
+      );
+    }
+    throw CoreFailure(
+      'engine.specification',
+      'The engine returned an incomplete specification context',
+    );
+  }
+
+  final SpecificationFamily family;
+  final String declaredVersion, schemaDialect;
+  final bool modernSchema,
+      webhooks,
+      reusablePathItems,
+      additionalOperations,
+      referenceAnnotations;
+}
+
 /// UTF-16 code units, half-open ranges. BOM excluded, raw line endings retained.
 class SourceRange {
   const SourceRange(this.start, this.end);

@@ -34,10 +34,10 @@ for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`cont
 
 test('unknown containing versions are incomplete, not interpreted as an approved family',()=>{
  const {createGraph}=require('./dist/model.cjs'),root='file:///approved/root.json',part='file:///approved/part.json';
- const resources=[{id:root,text:JSON.stringify({openapi:'3.2.1',info:{title:'Entry',version:'1'},paths:{},components:{schemas:{Use:{$ref:'part.json#/components/schemas/Model'}}}}),generation:1},{id:part,text:JSON.stringify({openapi:'3.0.4',info:{title:'Unsupported',version:'1'},paths:{},components:{schemas:{Model:{type:'integer'}}}}),generation:1}];
+ const resources=[{id:root,text:JSON.stringify({openapi:'3.2.1',info:{title:'Entry',version:'1'},paths:{},components:{schemas:{Use:{$ref:'part.json#/components/schemas/Model'}}}}),generation:1},{id:part,text:JSON.stringify({openapi:'3.3.0',info:{title:'Unsupported',version:'1'},paths:{},components:{schemas:{Model:{type:'integer'}}}}),generation:1}];
  const graph=createGraph({root,resources}).graph;
  assert(graph.issues.some(issue=>issue.resource===part&&issue.pointer==='/openapi'&&issue.code==='version.unsupported'&&issue.incomplete));
- assert.equal(graph.scope(part,'').family,'3.0');
+ assert.equal(graph.scope(part,'').family,'3.3');
  assert(!graph.scopes.has(part+'#/components/schemas/Model'));
  assert.throws(()=>require('./dist/model.cjs').inspect({root,resources,resource:part,pointer:'/components/schemas/Model'}),error=>error.code==='version.unsupported');
  assert.throws(()=>require('./dist/source_assistance.cjs').assistSource({root,resources,resource:part,caret:0}),error=>error.code==='version.unsupported');

@@ -98,7 +98,8 @@ for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`phys
 test('bundled resource service exposes only selected shipped standards and refuses forged contents',async()=>{
  const catalogue=await standardResource({list:true});
  assert(catalogue.identities.includes('https://json-schema.org/draft/2020-12/schema'));
- assert(!catalogue.identities.some(uri=>uri.includes('draft-07')||uri.includes('3.0')));
+ assert(!catalogue.identities.some(uri=>uri.includes('draft-07')));
+ assert(catalogue.identities.includes('https://spec.openapis.org/oas/3.0/dialect'));
  assert.deepEqual(await standardResource({uri:'https://unapproved.invalid/schema'}),{version:1,found:false});
  const supplied=await standardResource({uri:'https://json-schema.org/draft/2020-12/schema'});
  const input=snapshot(api('3.2.1',{$ref:supplied.source.id},[{minLength:1},{minLength:-1}]),[supplied.source]);

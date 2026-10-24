@@ -5,9 +5,10 @@
 import * as Browser from '@hyperjump/browser';
 import {Reference} from '@hyperjump/browser/jref';
 import * as Instance from '@hyperjump/json-schema/instance/experimental';
-import {addKeyword,getKeyword,canonicalUri} from '@hyperjump/json-schema/experimental';
+import {addKeyword,getKeyword,getKeywordName,canonicalUri} from '@hyperjump/json-schema/experimental';
 import {SourceDocument, SourceError} from './document';
 import {schemaMetaView} from './schema_boundaries';
+import {isReferenceObject} from './contexts';
 
 export function decimal(raw: string) {
  const match=/^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/.exec(raw);
@@ -40,6 +41,8 @@ export function nativeNumberIsExact(raw:string,value:number):boolean {
  return compare(decimal(raw),{coefficient,exponent})===0;
 }
 let standardType:any;
+let standardOas30Type:any;
+let standardRequired:any;
 export function compare(a:Decimal,b:Decimal) {
  const sign=n=>n.coefficient<0n?-1:n.coefficient>0n?1:0;
  const as=sign(a),bs=sign(b);if(as!==bs)return as<bs?-1:1;if(!as)return 0;
@@ -62,6 +65,7 @@ export function createExactNumericAdapter(trustedSchemaIdentities:ReadonlySet<st
 let disposed=false;
 const exactInstanceNumbers=new WeakMap<object,any>(), sourceLocations=new Map<string,{doc:SourceDocument,node:any}>();
 let referenceGraph:any;
+let direction: 'request' | 'response' | undefined;
 const current=()=>{if(disposed)throw new SourceError('schema.owner','The schema evaluation owner was disposed');};
 const fallback=value=>{
  if(!Number.isFinite(value))throw new SourceError('schema.numeric.provenance','A non-finite JavaScript projection has no exact source provenance');
@@ -82,13 +86,21 @@ function addExactSource(doc: SourceDocument,graph: any) {
   sourceLocations.set(uri,{doc,node});
  }
 }
-function exactInstance(doc: SourceDocument,pointer='',opaque?:ReadonlySet<string>) {
+function exactInstance(doc: SourceDocument,pointer='',opaque?:ReadonlySet<string>,restrictedMeta=false) {
  current();
  // A compound document's resources have separate dialect/meta boundaries.
  // Only meta-evaluation uses this view; source and supplied instances remain
  // unchanged, and surviving numbers retain their original full CST pointers.
  const value=doc.dataNode(pointer)!.value;
- const root=Instance.fromJs(schemaMetaView(value,pointer,opaque),doc.id);
+ const referenceView=(value:any,at:string):any=>{
+  if(!value||typeof value!=='object')return value;
+  const scope=referenceGraph?.scopes.get(doc.id+'#'+at);
+  if(scope?.kind==='schema'&&isReferenceObject(value,'schema',scope.family))return {$ref:value.$ref};
+  return Array.isArray(value)?value.map((child,index)=>referenceView(child,at+'/'+index)):
+   Object.fromEntries(Object.entries(value).map(([name,child])=>[name,referenceView(child,at+'/'+name.replaceAll('~','~0').replaceAll('/','~1'))]));
+ };
+ const meta=schemaMetaView(value,pointer,opaque);
+ const root=Instance.fromJs(restrictedMeta?referenceView(meta,pointer):meta,doc.id);
  for(const node of Instance.allNodes(root)) {
   if(Instance.typeOf(node)==='number')exactInstanceNumbers.set(node,decimal(doc.dataJson(pointer+node.pointer)));
  }
@@ -148,6 +160,19 @@ function installExactNumericKeywords() {
    return name==='minimum'?order>=0:name==='maximum'?order<=0:name==='exclusiveMinimum'?order>0:name==='exclusiveMaximum'?order<0:multiple(value,bound);
   }});
  }
+ // OAS 3.0's boolean exclusive bounds are Draft 4 assertions. Retain the
+ // sibling flag while comparing the authored decimal bound exactly.
+ for(const name of ['minimum','maximum']) {
+  const keyword='https://json-schema.org/keyword/draft-04/'+name;
+  const exclusive='https://json-schema.org/keyword/draft-04/'+(name==='minimum'?'exclusiveMinimum':'exclusiveMaximum');
+  addKeyword({...getKeyword(keyword),compile:async(schema,_ast,parent)=>[
+   schemaNumber(schema),Browser.value(await Browser.step(getKeywordName(schema.document.dialectId,exclusive),parent))===true,
+  ],interpret:([bound,strict]:[Decimal,boolean],instance)=>{
+   if(Instance.typeOf(instance)!=='number')return true;
+   const order=compare(number(instance),bound);
+   return name==='minimum'?(strict?order>0:order>=0):(strict?order<0:order<=0);
+  }} as any);
+ }
  // Do not wrap the previous job's handler: that would retain an unbounded
  // delegation chain (and its old owner) across worker reuse.
  const type=standardType??(standardType=getKeyword(id('type')) as any);
@@ -155,6 +180,36 @@ function installExactNumericKeywords() {
   if(Instance.typeOf(instance)!=='number')return type.interpret(types,instance,context);
   return (typeof types==='string'?[types]:types).some(t=>t==='number'||t==='integer'&&(number(instance).coefficient===0n||number(instance).exponent>=0n));
  }});
+ const oas30=standardOas30Type??(standardOas30Type=getKeyword('https://spec.openapis.org/oas/3.0/keyword/type'));
+ addKeyword({...oas30,interpret:(types:any,instance,context)=>{
+  if(Instance.typeOf(instance)!=='number')return oas30.interpret(types,instance,context);
+  return (typeof types==='string'?[types]:types).some(t=>t==='number'||t==='integer'&&(number(instance).coefficient===0n||number(instance).exponent>=0n));
+ }});
+ const required=standardRequired??(standardRequired=getKeyword(id('required')));
+ addKeyword({...required,compile:(schema,_ast,parent)=>{
+  const source=sourceAt(canonicalUri(parent)),names=Browser.value(schema);
+  if(!Array.isArray(names))throw new SourceError('schema.required','required must be an array of property names');
+  const owner=source&&referenceGraph?.scope(source.doc.id,source.node.pointer);
+  if(owner?.family!=='3.0')return {names};
+  const flags=(name:string)=>{
+   let target=referenceGraph.scopes.get(source.doc.id+'#'+source.node.pointer+'/properties/'+name.replaceAll('~','~0').replaceAll('/','~1'));
+   const seen=new Set<string>();
+   while(target){
+    const identity=target.resource+'#'+target.pointer;
+    if(seen.has(identity)||seen.size>=128)return {};
+    seen.add(identity);
+    const value=referenceGraph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
+    if(typeof value?.$ref!=='string')return {readOnly:value?.readOnly===true,writeOnly:value?.writeOnly===true};
+    const resolved=referenceGraph.resolve(value.$ref,target);
+    if(resolved.resolution!=='resolved')return {};
+    target=referenceGraph.scopes.get(resolved.targetResource+'#'+resolved.targetPointer);
+   }
+   return {};
+  };
+  return {names,flags:Object.fromEntries(names.map((name:string)=>[name,flags(name)]))};
+ },interpret:({names,flags},instance,context)=>required.interpret(
+  flags&&direction?names.filter((name:string)=>!(direction==='request'?flags[name]?.readOnly:flags[name]?.writeOnly)):names,instance,context,
+ )} as any);
  addKeyword({...getKeyword(id('const')),compile:schemaFingerprint,interpret:(expected,instance)=>expected===instanceFingerprint(instance)} as any);
  addKeyword({...getKeyword(id('enum')),compile:schema=>{
   const source=sourceAt(canonicalUri(schema));
@@ -171,7 +226,7 @@ function installExactNumericKeywords() {
   }return true;
  }} as any);
 }
-return {addExactSource,exactInstance,install:installExactNumericKeywords,
+return {addExactSource,exactInstance,install:installExactNumericKeywords,setDirection:(value:typeof direction)=>{current();direction=value;},
  fingerprintSource:(doc:SourceDocument,pointer:string)=>{const node=doc.dataNode(pointer);if(!node)throw new SourceError('schema.numeric.provenance','Exact equality source is absent');return fingerprint(node.value,{doc,node});},
  dispose:()=>{disposed=true;sourceLocations.clear();referenceGraph=undefined;}};
 }

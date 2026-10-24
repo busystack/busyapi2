@@ -3,6 +3,7 @@ import {createGraph, propose, Resource} from './engine';
 import {removableField} from './authoring';
 import {escape, segments, SourceError} from './document';
 import {resolveUri} from './reference_graph';
+import {modernFamily} from './specification';
 
 const within = (pointer: string, owner: string) => pointer === owner || pointer.startsWith(owner + '/');
 
@@ -44,8 +45,12 @@ export function planDelete(input: any) {
     if (isProperty) {
         const schemaPointer = parentPointer.slice(0, -'/properties'.length), schema = doc.node(schemaPointer);
         const required = schema.children.get('required');
-        if (required?.kind === 'array') for (const child of [...required.children.values()].reverse())
-            if (child.value === name) actions.push({kind: 'remove', pointer: child.pointer});
+        if (required?.kind === 'array') {
+            const members = [...required.children.values()];
+            if (!modernFamily(scope.family) && members.length && members.every(child => child.value === name))
+                actions.push({kind: 'remove', pointer: required.pointer});
+            else for (const child of members.reverse()) if (child.value === name) actions.push({kind: 'remove', pointer: child.pointer});
+        }
         // These constraints may intentionally mention undeclared properties.
         // Never delete them, composed branches or payload keys by spelling.
         for (const keyword of ['dependentRequired','dependentSchemas','propertyNames','patternProperties','allOf','anyOf','oneOf','if','then','else','not','discriminator'])

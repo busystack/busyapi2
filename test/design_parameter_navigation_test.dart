@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../packages/busyapi_core/test/test_support.dart';
 
 void main() {
-  for (final version in ['3.1.2', '3.2.1']) {
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
     for (final json in [false, true]) {
       testWidgets(
         'Design parameter ownership and all later collection entries $version json=$json',

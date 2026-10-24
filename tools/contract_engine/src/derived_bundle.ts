@@ -3,6 +3,7 @@ import {analyse,createGraph,Resource} from './engine';
 import {escape,RawJsonValue,SourceDocument,SourceError} from './document';
 import {documentUriBase,GraphScope,resolveUri} from './reference_graph';
 import {documentUriFields} from './authoring';
+import {modernFamily} from './specification';
 
 const within=(pointer:string,parent:string)=>pointer===parent||pointer.startsWith(parent+'/');
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
@@ -53,7 +54,7 @@ export function serverTemplate(value:string,retrieval:string,variables:any):stri
  if(form==='root')return resolveUri('/',retrieval).href.slice(0,-1)+value;
  return resolveUri('.',retrieval).href+value;
 }
-const groups:Record<string,string>={schema:'schemas',parameter:'parameters',header:'headers',response:'responses','request-body':'requestBodies',example:'examples',link:'links',callback:'callbacks','path-item':'pathItems',security:'securitySchemes',media:'mediaTypes'};
+const componentGroups:Record<string,string>={schema:'schemas',parameter:'parameters',header:'headers',response:'responses','request-body':'requestBodies',example:'examples',link:'links',callback:'callbacks','path-item':'pathItems',security:'securitySchemes',media:'mediaTypes'};
 type Placement={resource:string;from:string;to:string;kind:string;schema?:boolean;entryContext?:boolean};
 
 /** A bounded derived artifact, never an editable API model or a resolver.
@@ -64,6 +65,16 @@ type Placement={resource:string;from:string;to:string;kind:string;schema?:boolea
  */
 export function deriveBundle(input:any) {
  const {docs,graph,family}=createGraph(input),root=docs.get(input.root)!;
+ const groups={...componentGroups};
+ if(!modernFamily(family)) {
+  // 3.0 permits Path Item $ref but has no reusable Path Items fixed field.
+  // A derived extension holds the unchanged reference target, reached by an
+  // ordinary JSON Pointer. This is output-only storage, never a source edit,
+  // version conversion, new route or implicit inline/merge of shared objects.
+  let group='x-busyapi-path-items',suffix=0;
+  while(Object.hasOwn(root.root.value?.components??{},group))group='x-busyapi-path-items-'+(++suffix);
+  groups['path-item']=group;
+ }
  if(typeof input.outputId!=='string'||!input.outputId.endsWith('.json'))throw new SourceError('bundle.destination','Choose an independent JSON output identity');
  const outputId=resolveUri(input.outputId,input.root).href;
  if(graph.identities.has(outputId))throw new SourceError('bundle.destination','The derived output cannot replace a source resource identity');
@@ -111,6 +122,15 @@ export function deriveBundle(input:any) {
   // identity retained in a compound envelope instead of an unsupported $self.
   if(resource===input.root&&!retainEntryResource)continue;
   const doc=docs.get(resource)!;
+  if(!modernFamily(family)) {
+   for(const scope of scopes) {
+    if(scope.family!==family)throw new SourceError('bundle.object.version','A schema belongs to a different specification family');
+    const to='/components/schemas/'+name('schemas',key(resource,scope.pointer));
+    placements.push({resource,from:scope.pointer,to,kind:'schema',schema:true,entryContext:true});
+    schemaCopies.push({scope,to,entryContext:true});
+   }
+   continue;
+  }
   if(scopes.length===1&&scopes[0].pointer===''&&doc.root.kind==='object') {
    const component=name('schemas',key(resource,'')),to='/components/schemas/'+component;
    placements.push({resource,from:'',to,kind:'schema',schema:true});schemaCopies.push({scope:scopes[0],to});
@@ -216,7 +236,7 @@ export function deriveBundle(input:any) {
   const previous=placementAt(scope.resource,scope.pointer);
   if(!literalBelow(scope.resource,scope.pointer,previous?.from))continue;
   const parent=graph.scope(scope.resource,scope.pointer.slice(0,scope.pointer.lastIndexOf('/')));
-  if(scope.resource===input.root&&parent.resourcePointer===''&&!retainEntryResource) {
+  if(!modernFamily(family)||scope.resource===input.root&&parent.resourcePointer===''&&!retainEntryResource) {
    const to='/components/schemas/'+name('schemas','schema-occurrence:'+key(scope.resource,scope.pointer));
    const placement:Placement={resource:scope.resource,from:scope.pointer,to,kind:'schema',schema:true,entryContext:true};
    placements.push(placement);placementIndex.set(key(scope.resource,scope.pointer),placement);rootSchemaMoves.set(key(scope.resource,scope.pointer),placement);
@@ -441,7 +461,7 @@ export function deriveBundle(input:any) {
   const next=after.scopes.get(outputId+'#'+locate(scope.resource,scope.pointer));
   const derivedEntryBase=after.scope(outputId,'').base;
   const placement=placementAt(scope.resource,scope.pointer);
-  const expectedBase=scope.resource===input.root&&scope.resourcePointer===''&&(!placement?.schema||placement.entryContext)?derivedEntryBase:scope.base;
+  const expectedBase=!modernFamily(family)||scope.resource===input.root&&scope.resourcePointer===''&&(!placement?.schema||placement.entryContext)?derivedEntryBase:scope.base;
   if(!next||next.base!==expectedBase||next.dialect!==scope.dialect)
    throw new SourceError('bundle.proof.scope','A schema resource base or dialect would change');
  }

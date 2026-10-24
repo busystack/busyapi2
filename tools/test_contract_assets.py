@@ -168,6 +168,8 @@ include("''' + str(ROOT / 'linux/contract_assets.cmake') + '''")
                         hashlib.sha256((bundle / 'libexec/busyapi/oasdiff').read_bytes()).hexdigest(),
                         'fa65aae43c867e9f79da9cb121d3c1a113637883afe014c0680fd5b50696f416')
                     self.assertTrue((bundle / 'share/busyapi/schemas/oas32.json').is_file())
+                    self.assertEqual((bundle / 'share/busyapi/schemas/oas30.json').read_bytes(),
+                                     (ROOT / 'tools/contract_engine/schemas/oas30.json').read_bytes())
                     self.assertTrue((bundle / 'share/licenses/busyapi-engine/NODE-LICENSE').is_file())
                     for notice in ['acorn-8.19.0-AUTHORS', 'acorn-8.19.0-LICENSE']:
                         self.assertEqual((bundle / 'share/licenses/busyapi-engine' / notice).read_bytes(),

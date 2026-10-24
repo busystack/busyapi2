@@ -22,7 +22,7 @@ const levels=['error','warning','information','hint'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 const recommended={
     aliases:{OperationObject:['$.paths[*][get,put,post,delete,options,head,patch,trace]']},
-    formats:[oas3_1,oas3_2],
+    formats:[oas3],
     rules:{'operation-summary':{description:'Give each operation an informative summary.',given:'#OperationObject',then:{field:'summary',function:functions.truthy},severity:'warn',recommended:true},
         'server-variable-declarations':{description:'Review unmapped or unused Server URL variables. This is authoring advice, not a security verdict.',given:'#ServerObject',then:{function:function busyapiServerVariables(value:any,_options:any,context:any){return serverVariableAdvice(value).map(item=>({...item,path:[...context.path,...item.path]}));}},severity:'warn',recommended:true}},
 };
@@ -314,7 +314,7 @@ export async function govern(input:any,observeFailure?:(error:unknown)=>void,exe
             };
             ruleset=new Ruleset(bind(definition),{source:input.policy?.source??input.root});
         }catch(error) {observeFailure?.(error);complete=false;add({resource:input.root,pointer:''},'policy.configuration','error');continue;}
-        const detectedFormats=new Set<any>([oas3,family==='3.1'?oas3_1:oas3_2]);
+        const detectedFormats=new Set<any>([oas3,...(family==='3.0'?[]:[family==='3.1'?oas3_1:oas3_2])]);
         const registered=new Set<any>(ruleset.formats);
         for(const rule of Object.values(ruleset.rules))for(const alias of Object.values(rule.owner.aliases??{}) as any[])
             for(const target of alias?.targets??[])for(const format of target.formats??[])registered.add(format);

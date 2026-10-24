@@ -1,5 +1,6 @@
 import { createGraph, propose, Resource } from './engine';
 import { escape, segments, SourceDocument, SourceError } from './document';
+import {modernFamily} from './specification';
 
 function integer(raw: string) {
     const [mantissa, exponent = '0'] = raw.toLowerCase().split('e');
@@ -27,17 +28,21 @@ export function suggestSchema(input: any) {
     const sample = new SourceDocument(raw, 'file:///busyapi-derived-example.json');
     let count = 0;
     const assumptions = new Set(['sample-only','optional-properties','no-enums','no-string-formats','no-numeric-bounds']);
+    const modern = modernFamily(graph.scope(doc.id, input.pointer).family);
     const infer = (pointer: string, depth: number): any => {
         if (++count > 10000 || depth > 32) throw new SourceError('limit.suggest', 'The example exceeds the bounded suggestion complexity');
         const n = sample.node(pointer);
         switch (n.kind) {
-            case 'null': return {type:'null'};
+            case 'null':
+                if (modern) return {type:'null'};
+                assumptions.delete('no-enums'); assumptions.add('null-only-enum');
+                return {type:'string',nullable:true,enum:[null]};
             case 'boolean': return {type:'boolean'};
             case 'string': return {type:'string'};
             case 'number': return {type: integer(raw.slice(...n.range)) ? 'integer' : 'number'};
             case 'object': return {type:'object',properties:Object.fromEntries([...n.children].map(([key, child])=>[key,infer(child.pointer,depth+1)]))};
             case 'array': {
-                if (!n.children.size) { assumptions.add('empty-array'); return {type:'array'}; }
+                if (!n.children.size) { assumptions.add('empty-array'); return modern ? {type:'array'} : {type:'array',items:{}}; }
                 const variants = new Map<string,any>();
                 for (const child of n.children.values()) {
                     const schema=infer(child.pointer,depth+1);
@@ -65,7 +70,8 @@ export function planSchemaSuggestion(input: any) {
         throw new SourceError('suggest.destination','Choose a current schema-bearing object in this root');
     if (destination.children.has('schema') || destination.children.has('content') || destination.value?.$ref)
         throw new SourceError('suggest.collision','The destination already authors a schema, content, or reference; no content was replaced');
-    const schema=input.nullable===true?{anyOf:[suggestion.schema,{type:'null'}]}:suggestion.schema;
+    const nullSchema=modernFamily(scope.family)?{type:'null'}:{type:'string',nullable:true,enum:[null]};
+    const schema=input.nullable===true?{anyOf:[suggestion.schema,nullSchema]}:suggestion.schema;
     const result=propose({...input,target,actions:[{kind:'create',pointer:target.pointer+'/schema',value:schema}]});
     let after=resource.text;
     for(const edit of [...result.edits].reverse())after=after.slice(0,edit.start)+edit.replacement+after.slice(edit.end);

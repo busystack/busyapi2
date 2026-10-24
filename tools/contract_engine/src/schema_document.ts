@@ -2,7 +2,8 @@
 // Literal annotations/extensions stay literal. Only the canonical graph's
 // schema positions undergo schema preprocessing; nothing changes source files.
 import {buildSchemaDocument} from '@hyperjump/json-schema/experimental';
-import {knownDialects,resolveUri,schemaAddress} from './reference_graph';
+import {knownDialects,supportedSchemaDialect,resolveUri,schemaAddress} from './reference_graph';
+import {isReferenceObject} from './contexts';
 
 const escape = key => key.replaceAll('~','~0').replaceAll('/','~1');
 const tokens = pointer => pointer === '' ? [] : pointer.slice(1).split('/').map(s=>s.replaceAll('~1','/').replaceAll('~0','~'));
@@ -22,7 +23,7 @@ export function embeddedSchemaDocument(document:any,uri:string) {
 
 export function typedSchemaDocument(value: any, id: string, graph: any, dialect: string): any {
   const scopes=[...graph.scopes.values()].filter((s:any)=>s.resource===id&&s.kind==='schema') as any[];
-  const schemaPointers = new Set(scopes.filter(s=>knownDialects.has(s.dialect)).map(s=>s.pointer));
+  const schemaPointers = new Set(scopes.filter(s=>supportedSchemaDialect(s)).map(s=>s.pointer));
   const applicators=new Map<string,string>();
   for(const reference of graph.references)if(reference.resource===id&&reference.kind==='schema'&&!reference.connection&&reference.resolution==='resolved'){
     const target=graph.scopes.get(reference.targetResource+'#'+reference.targetPointer);
@@ -37,7 +38,7 @@ export function typedSchemaDocument(value: any, id: string, graph: any, dialect:
       ?target.base+'#'+encodeURIComponent(reference.dynamic.anchor):schemaAddress(target);
     applicators.set(reference.pointer+'/'+escape(reference.keyword),address);
   }
-  const opaque = new Set(scopes.filter(s=>!knownDialects.has(s.dialect)).map(s=>s.pointer));
+  const opaque = new Set(scopes.filter(s=>!supportedSchemaDialect(s)).map(s=>s.pointer));
   const ancestors = new Set(['']);
   for (let pointer of schemaPointers) while(pointer) {ancestors.add(pointer);pointer=pointer.slice(0,pointer.lastIndexOf('/'));}
   const literals:any[]=[];
@@ -46,6 +47,7 @@ export function typedSchemaDocument(value: any, id: string, graph: any, dialect:
     const output:any=Array.isArray(value)?[]:{};
     for(const [name,child]of Object.entries(value)) {
       const at=pointer+'/'+escape(name);
+      if(schemaPointers.has(pointer) && isReferenceObject(value,'schema',graph.scope(id,pointer).family) && name !== '$ref') continue;
       if(schemaPointers.has(pointer)&&applicators.has(at)){
         Object.defineProperty(output,name,{value:applicators.get(at),enumerable:true,writable:true,configurable:true});continue;
       }
@@ -82,7 +84,7 @@ export function typedSchemaDocument(value: any, id: string, graph: any, dialect:
   };
   const prepared=prepare(value,'');
   const host=graph.scope(id,'');
-  const hostDialect=!knownDialects.has(dialect)&&host.kind==='root'?`https://spec.openapis.org/oas/${host.family}/dialect/base`:dialect;
+  const hostDialect=!supportedSchemaDialect({...host,dialect})&&host.kind==='root'?`https://spec.openapis.org/oas/${host.family}/dialect/base`:dialect;
   const document=buildSchemaDocument(prepared,host.base,hostDialect);
   for(const resource of Object.values(document.embedded) as any[]){
     const original=resource.anchorLocation;

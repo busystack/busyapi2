@@ -26,7 +26,7 @@ for required in ['busyapi-desktop', 'busyapi', 'libexec/busyapi/node',
                  'libexec/busyapi/generator/generator-launcher']:
     if not (bundle/required).is_file():
         raise RuntimeError('Missing standalone asset: '+required)
-for schema in ['oas31.json', 'oas32.json']:
+for schema in ['oas31.json', 'oas32.json', 'oas30.json']:
     if not (bundle/'share/busyapi/schemas'/schema).is_file():
         raise RuntimeError('Missing standalone schema asset: '+schema)
 for path in bundle.rglob('*'):
