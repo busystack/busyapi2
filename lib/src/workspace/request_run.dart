@@ -1530,7 +1530,7 @@ class RequestRunPanel extends StatelessWidget {
       final type = entry.value['type'];
       final key = type == 'apiKey'
           ? 'secretRef'
-          : type == 'oauth2'
+          : type == 'oauth2' || type == 'openIdConnect'
           ? 'accessTokenRef'
           : type == 'http' &&
                 entry.value['scheme'].toString().toLowerCase() == 'basic'

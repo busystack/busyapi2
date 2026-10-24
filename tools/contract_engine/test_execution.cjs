@@ -41,6 +41,44 @@ for(const version of ['3.0.0','3.0.4','3.1.2','3.2.1'])test(`form transport meta
 });
 
 const id='file:///execution/openapi.json';
+for(const version of ['3.0.0','3.0.4','3.1.2','3.2.1'])for(const format of ['yaml','json'])test(`${version} ${format} execution follows canonical Security Scheme references`,()=>{
+ const serialize=value=>format==='json'?JSON.stringify(value):require('yaml').stringify(value);
+ const root=`file:///execution/security-api.${format}`,fragment=`file:///execution/security-fragment.${format}`;
+ const declarations={
+  Key:{type:'apiKey',in:'header',name:'X-Key'},
+  Basic:{type:'http',scheme:'basic'},
+  Bearer:{type:'http',scheme:'bearer',bearerFormat:'JWT'},
+  OAuth:{type:'oauth2',flows:{clientCredentials:{tokenUrl:'https://identity.example.invalid/token',scopes:{read:'Read'}}}},
+  OpenID:{type:'openIdConnect',openIdConnectUrl:'https://identity.example.invalid/.well-known/openid-configuration'},
+  ...(!version.startsWith('3.0.')?{Client:{type:'mutualTLS'}}:{})
+ };
+ const schemes=Object.fromEntries(Object.keys(declarations).map(name=>[name,{$ref:`security-fragment.${format}#/${name}Alias`}]));
+ const security=Object.keys(declarations).map(name=>({[name]:['OAuth','OpenID'].includes(name)?['read']:[]}));
+ const value={openapi:version,info:{title:'Referenced security 雪',version:'1'},security,components:{securitySchemes:schemes},paths:{'/items':{get:{responses:{204:{description:'Empty'}}}}}};
+ const fragments=Object.fromEntries(Object.entries(declarations).flatMap(([name,value])=>[[name+'Alias',{$ref:'#/'+name+'~1~0provider'}],[name+'/~provider',{...value,'x-payload':{$ref:'literal.json'}}]]));
+ const resources=[{id:root,text:serialize(value),generation:1},{id:fragment,text:serialize(fragments),generation:2}];
+ const packet={root,snapshot:'security-reference',resources};
+ const checked=analyse(packet);assert.equal(checked.complete,true);assert.deepEqual(checked.findings,[]);
+ const operation=checked.operations[0],plan=requestOperation({...packet,resource:root,pointer:operation.pointer,occurrence:operation.occurrence});
+ assert.deepEqual(plan.security.requirements.map(requirement=>requirement.scopes),security);
+ for(const [name,declaration]of Object.entries(declarations)){
+  const projected=plan.security.schemes[name];assert.equal(projected.type,declaration.type);
+  assert.equal(projected.source.resource,root);assert.equal(projected.source.pointer,'/components/securitySchemes/'+name);
+  assert.equal(projected.definition.resource,fragment);assert.equal(projected.definition.pointer,'/'+name+'~1~0provider');
+  assert.ok(projected.definition.range[1]>projected.definition.range[0]);
+  if(declaration.type==='apiKey'){assert.equal(projected.in,'header');assert.equal(projected.parameterName,'X-Key');}
+  if(declaration.type==='http')assert.equal(projected.scheme,declaration.scheme);
+  if(declaration.type==='oauth2')assert.equal(projected.flows.clientCredentials.tokenUrl,declaration.flows.clientCredentials.tokenUrl);
+  if(declaration.type==='openIdConnect')assert.equal(projected.openIdConnectUrl,declaration.openIdConnectUrl);
+  if(declaration.type==='mutualTLS')assert.equal(projected.mutualTLS,true);
+ }
+ assert.deepEqual(resources.map(resource=>resource.text),[serialize(value),serialize(fragments)]);
+});
+for(const cycle of [false,true])test(`unavailable Security Scheme reference cannot become executable cycle=${cycle}`,()=>{
+ const value={openapi:'3.0.4',info:{title:'Unavailable security',version:'1'},security:[{Access:[]}],components:{securitySchemes:{Access:{$ref:'#/components/securitySchemes/'+(cycle?'Access':'Missing')}}},paths:{'/items':{get:{responses:{204:{description:'Empty'}}}}}};
+ const packet={root:id,snapshot:'unavailable-security',resources:[{id,text:JSON.stringify(value),generation:1}]};
+ assert.throws(()=>requestOperation({...packet,resource:id,pointer:'/paths/~1items/get'}),error=>error.code===(cycle?'request.reference.cycle':'request.reference'));
+});
 for(const version of ['3.0.4','3.1.2','3.2.1'])test(`explicit part media choices use captured ${version} encoding semantics`,()=>{
  const value={openapi:version,info:{title:'Part choices',version:'1'},paths:{'/form':{post:{requestBody:{content:{'multipart/form-data':{
    schema:{type:'object',properties:{metadata:{type:'string'},image:{type:'string'},default:{type:'string'}}},

@@ -1353,7 +1353,7 @@ class ContractRequestBuilder {
       _addHeader(headers, 'Authorization', 'Basic $encoded');
       return;
     }
-    if (type == 'oauth2') {
+    if (type == 'oauth2' || type == 'openIdConnect') {
       if (headers.any((entry) => entry.$1.toLowerCase() == 'authorization')) {
         throw CoreFailure(
           'request.security.collision',

@@ -65,8 +65,15 @@ Future<void> exercise() async {
     'fixture-version-format',
   );
   final swagger = version == '2.0';
-  final secretField = swagger ? 'secretRef' : 'tokenRef';
-  final evidencePrefix = 'http-${version.replaceAll('.', '-')}-$format';
+  final openId = Platform.environment['BUSYAPI_NATIVE_HTTP_OPENID'] == '1';
+  check(!swagger || !openId, 'openid-family');
+  final secretField = swagger
+      ? 'secretRef'
+      : openId
+      ? 'accessTokenRef'
+      : 'tokenRef';
+  final evidencePrefix =
+      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}';
   final directory =
       Platform.environment['BUSYAPI_FILE_CONTROLS_DIRECTORY'] ?? '';
   check(
@@ -74,6 +81,18 @@ Future<void> exercise() async {
     'fixture-boundary',
   );
   final endpoint = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+  ServerSocket? provider;
+  var discoveryConnections = 0;
+  if (openId) {
+    provider = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    provider.listen((socket) {
+      discoveryConnections++;
+      socket.destroy();
+    });
+  }
+  final discoveryUrl = openId
+      ? 'https://127.0.0.1:${provider!.port}/.well-known/openid-configuration'
+      : null;
   final observed = Completer<void>();
   final responseBytes = gzip.encode(
     utf8.encode('{"id":9007199254740993,"message":"native response"}'),
@@ -135,7 +154,9 @@ Future<void> exercise() async {
       ],
       'components': {
         'securitySchemes': {
-          'access': {'type': 'http', 'scheme': 'bearer'},
+          'access': openId
+              ? {'type': 'openIdConnect', 'openIdConnectUrl': discoveryUrl}
+              : {'type': 'http', 'scheme': 'bearer'},
         },
       },
     },
@@ -197,7 +218,7 @@ paths:
 info: {title: Native HTTP client, version: '1'}
 servers: [{url: 'http://127.0.0.1:${endpoint.port}'}]
 security: [{access: []}]
-components: {securitySchemes: {access: {type: http, scheme: bearer}}}
+components: {securitySchemes: {access: ${openId ? '{type: openIdConnect, openIdConnectUrl: "$discoveryUrl"}' : '{type: http, scheme: bearer}'}}}
 paths:
   /items:
     post:
@@ -396,6 +417,8 @@ paths:
       'texts': ['9007199254740993'],
     });
     await endpoint.close(force: true);
+    await provider?.close();
+    check(discoveryConnections == 0, 'manual-token-no-discovery');
     await input.cancel();
     return;
   }
@@ -561,6 +584,8 @@ paths:
     'texts': ['9007199254740993'],
   });
   await endpoint.close(force: true);
+  await provider?.close();
+  check(discoveryConnections == 0, 'manual-token-no-discovery');
   await input.cancel();
   check(
     file.readAsStringSync() == original &&
@@ -570,5 +595,7 @@ paths:
         ),
     'native-http-source-and-credential-isolation',
   );
-  stdout.writeln('BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format');
+  stdout.writeln(
+    'BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format openId=$openId',
+  );
 }

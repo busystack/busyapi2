@@ -205,6 +205,115 @@ Future<void> expectCompleteCopy(
 void main() {
   for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
     testWidgets(
+      '$version OpenID setup reviews a manual token and invalidates changed provider identity',
+      (tester) async {
+        tester.view.physicalSize = const Size(1100, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final fixture = _Fixture();
+        final original = '''openapi: $version
+info: {title: OpenID setup, version: "1"}
+servers: [{url: 'http://127.0.0.1:1'}]
+security: [{Provider: [read]}]
+components:
+  securitySchemes:
+    Provider:
+      type: openIdConnect
+      openIdConnectUrl: https://identity.example.invalid/first/.well-known/openid-configuration
+paths: {/items: {get: {responses: {'204': {description: Empty}}}}}
+''';
+        try {
+          await tester.runAsync(() => fixture.open(original));
+          final manifest = File('${fixture.dir.path}/busyapi.yaml');
+          final configurationText = manifest.readAsStringSync();
+          fixture.run.securityAlternative = 0;
+          fixture.run.bodyText = 'retained draft';
+          final panel = RequestRunPanel(run: fixture.run);
+          await tester.pumpWidget(host(panel));
+          final context = tester.element(find.byType(RequestRunPanel));
+          final setup = panel.setup(context);
+          await tester.pumpAndSettle();
+          expect(find.text('OAuth access token'), findsOneWidget);
+          expect(find.text('OAuth client ID'), findsNothing);
+          await tester.tap(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is BusyApiDialogButton &&
+                  w.label == 'Review configuration changes',
+            ),
+          );
+          final apply = find.byWidgetPredicate(
+            (w) => w is BusyApiDialogButton && w.label == 'Apply',
+          );
+          final watch = Stopwatch()..start();
+          while (apply.evaluate().isEmpty &&
+              watch.elapsed < const Duration(seconds: 10)) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)),
+            );
+            await tester.pump();
+          }
+          expect(apply, findsOneWidget);
+          await tester.tap(apply);
+          await runWidgetIo(
+            tester,
+            () => setup,
+            timeout: const Duration(seconds: 10),
+          );
+          await tester.pump();
+          String tokenReference() {
+            final schemes =
+                fixture
+                        .run
+                        .plan!
+                        .configuration
+                        .environments['local']!
+                        .authentication['schemes']
+                    as Map;
+            return (schemes['Provider'] as Map)['accessTokenRef'] as String;
+          }
+
+          final reference = tokenReference();
+          expect(
+            reference,
+            matches(
+              RegExp(
+                r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+              ),
+            ),
+          );
+          expect(fixture.run.bodyText, 'retained draft');
+          expect(manifest.readAsStringSync(), configurationText);
+          expect(fixture.run.hasUnavailableSelection, isFalse);
+          await tester.runAsync(() async {
+            fixture.c.store!.replace(
+              fixture.c.root!,
+              original.replaceFirst('/first/', '/second/'),
+            );
+            await fixture.run.reconcileDraft();
+          });
+          expect(fixture.run.hasUnavailableSelection, isTrue);
+          expect(fixture.run.canSend, isFalse);
+          expect(fixture.run.bodyText, 'retained draft');
+          expect(tokenReference(), reference);
+          expect(
+            fixture
+                .run
+                .plan!
+                .result['security']['schemes']['Provider']['openIdConnectUrl'],
+            contains('/second/'),
+          );
+          expect(fixture.file.readAsStringSync(), original);
+          expect(manifest.readAsStringSync(), configurationText);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(fixture.dispose);
+        }
+      },
+    );
+  }
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
+    testWidgets(
       '$version TRACE panel retains refused drafts and permits a content-free retry',
       (tester) async {
         final fixture = _Fixture();

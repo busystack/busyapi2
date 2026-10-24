@@ -359,6 +359,17 @@ Dart **3.13.4** normalizes HTTP method capitalization internally. BusyAPI's dedi
 
 HTTP TRACE refuses nonempty content, authorization, cookies and configured HTTP credentials before connecting; it does not silently remove them. Preview and Send retain the entered draft for correction. Mutual TLS remains available because it adds no HTTP credential field. A custom lowercase `trace` remains a different method. These rules follow [RFC 9110 §§9.1,9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html); they apply in the shared desktop/CLI request path. See the [support matrix](implementation/native-openapi-support.md) for coverage and verification status.
 
+OpenAPI 3.x Security Scheme references use the canonical graph's security context,
+including chained external definitions and their physical source locations.
+OpenID Connect schemes retain `openIdConnectUrl` in captured authentication
+identity. Reviewed setup can configure an explicit OAuth bearer access token
+through `accessTokenRef`; the shared request path sends it in the Authorization
+header, following [RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1).
+The CLI accepts the same credential through `--secrets-stdin`. A changed provider
+declaration requires selection against the new capture while retaining entered
+drafts. Provider metadata retrieval and sign-in remain separately unqualified;
+ordinary opening, preparation and manual-token execution make no discovery request.
+
 Desktop persistence uses libsecret **0.21.4** through a BusyAPI-owned native channel and schema. The strict Snap exposes `password-manager-service` but does not assume it is connected; locked, missing, declined, and disconnected paths remain visible session-only operation with no file fallback. `network` and `network-bind` are limited to deliberate request/mock/OAuth/Git execution. Document navigation and messages retain the independent WebKit resource/network denials described above.
 
 Swagger 2.0 native-family implementation and qualification are tracked with

@@ -410,10 +410,11 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       for(const name of names)if(!Object.hasOwn(schemes,name)){
         const at=componentLocation('securitySchemes',family)!+'/'+escape(name),declared=docs.get(graph.root)!.dataNode(at);
         if(!declared)throw new SourceError('request.security.scheme','A selected security requirement names an unavailable scheme');
-        const selected=follow({resource:graph.root,pointer:at,kind:'security-scheme'},'security-scheme'),v=selected.node.value;
+        const selected=follow({resource:graph.root,pointer:at,kind:'security'},'security'),v=selected.node.value;
         schemes[name]={name,type:family==='2.0'&&v?.type==='basic'?'http':v?.type,description:v?.description,source:location(graph.root,at),definition:selected.source,
           ...(v?.type==='apiKey'?{in:v.in,parameterName:v.name}:{}),...(v?.type==='http'?{scheme:v.scheme,bearerFormat:v.bearerFormat}:{}),
           ...(family==='2.0'&&v?.type==='basic'?{scheme:'basic'}:{}),
+          ...(v?.type==='openIdConnect'?{openIdConnectUrl:v.openIdConnectUrl}:{}),
           ...(v?.type==='oauth2'?{flows:family==='2.0'?{[({implicit:'implicit',password:'password',application:'clientCredentials',accessCode:'authorizationCode'} as Record<string,string>)[v.flow]]:{authorizationUrl:v.authorizationUrl,tokenUrl:v.tokenUrl,scopes:v.scopes,source:selected.source}}:oauthFlows(selected.resource,selected.pointer,v.flows,location)}:{}),
           ...(v?.type==='mutualTLS'?{mutualTLS:true}:{})};
       }
