@@ -166,112 +166,122 @@ void main() {
       }
     },
   );
-  testWidgets(
-    'Source notifications retain navigation and update dirty/status and external text',
-    (tester) async {
-      tester.view.physicalSize = const Size(1280, 720);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final temp = Directory.systemTemp.createTempSync('busyapi-local-source-');
-      final engine = HeldAnalysisEngine();
-      final c = WorkspaceController(
-        engine,
-        StateLocations(
-          config: '${temp.path}/config',
-          state: '${temp.path}/state',
-          cache: '${temp.path}/cache',
-        ),
+  for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1']) {
+    for (final format in ['yaml', 'json']) {
+      testWidgets(
+        'Source notifications retain navigation and update dirty/status and external text $version $format',
+        (tester) async {
+          tester.view.physicalSize = const Size(1280, 720);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final temp = Directory.systemTemp.createTempSync(
+            'busyapi-local-source-',
+          );
+          final engine = HeldAnalysisEngine();
+          final c = WorkspaceController(
+            engine,
+            StateLocations(
+              config: '${temp.path}/config',
+              state: '${temp.path}/state',
+              cache: '${temp.path}/cache',
+            ),
+          );
+          try {
+            await tester.runAsync(() async {
+              await c.initialize();
+              await Initializer.create(
+                destination: '${temp.path}/api',
+                title: 'Original',
+                apiVersion: '1',
+                openapi: version,
+                format: format,
+              );
+              await c.open('${temp.path}/api');
+              await c.analyse();
+            });
+            c.mode = 'Source';
+            c.preview = true;
+            await tester.pumpWidget(
+              ProviderScope(
+                overrides: [
+                  linuxAccentPlatformProvider.overrideWithValue(false),
+                ],
+                child: BusyApiApp(controller: c),
+              ),
+            );
+            // Finish platform appearance startup before measuring Source-only
+            // rebuilds. pumpAndSettle alone cannot await real asynchronous streams.
+            final container = ProviderScope.containerOf(
+              tester.element(find.byType(SourceEditor)),
+            );
+            await tester.runAsync(() async {
+              await container.read(systemAccentColorProvider.future);
+              await container.read(gtkAnimationsEnabledProvider.future);
+              await container.read(gtkWindowPreferencesProvider.future);
+            });
+            await tester.pumpAndSettle();
+            final navigation = find.ancestor(
+              of: find.text('Overview'),
+              matching: find.byType(BusyApiTreeRow),
+            );
+            final originalNavigation = tester.widget(navigation);
+            engine.release = Completer<void>();
+            final source = find.descendant(
+              of: find.byType(SourceEditor),
+              matching: find.byType(TextField),
+            );
+            await tester.runAsync(
+              () => tester.enterText(
+                source,
+                c.buffer!.text.replaceFirst('Original', 'Edited'),
+              ),
+            );
+            await tester.pump();
+            expect(tester.widget(navigation), same(originalNavigation));
+            expect(
+              tester
+                  .widget<BusyApiWorkspaceTabButton>(
+                    find.byType(BusyApiWorkspaceTabButton),
+                  )
+                  .dirty,
+              isTrue,
+            );
+            expect(find.textContaining('Problems · Checking'), findsOneWidget);
+            // An external Source command must reconcile the still-mounted adapter.
+            await tester.runAsync(() async {
+              c.sourceEdit(
+                c.buffer!.id,
+                c.buffer!.text.replaceFirst('Edited', 'External'),
+              );
+              await c.persist();
+            });
+            await tester.pump();
+            expect(
+              tester.widget<TextField>(source).controller!.text,
+              contains('External'),
+            );
+            expect(tester.widget(navigation), same(originalNavigation));
+            engine.release!.complete();
+            engine.release = null;
+            await tester.runAsync(c.analyse);
+            await tester.pump();
+            expect(find.text('External'), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          } finally {
+            if (engine.release != null && !engine.release!.isCompleted) {
+              engine.release!.complete();
+            }
+            engine.release = null;
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.runAsync(c.shutdown);
+            c.dispose();
+            temp.deleteSync(recursive: true);
+          }
+        },
       );
-      try {
-        await tester.runAsync(() async {
-          await c.initialize();
-          await Initializer.create(
-            destination: '${temp.path}/api',
-            title: 'Original',
-            apiVersion: '1',
-          );
-          await c.open('${temp.path}/api');
-          await c.analyse();
-        });
-        c.mode = 'Source';
-        c.preview = true;
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [linuxAccentPlatformProvider.overrideWithValue(false)],
-            child: BusyApiApp(controller: c),
-          ),
-        );
-        // Finish platform appearance startup before measuring Source-only
-        // rebuilds. pumpAndSettle alone cannot await real asynchronous streams.
-        final container = ProviderScope.containerOf(
-          tester.element(find.byType(SourceEditor)),
-        );
-        await tester.runAsync(() async {
-          await container.read(systemAccentColorProvider.future);
-          await container.read(gtkAnimationsEnabledProvider.future);
-          await container.read(gtkWindowPreferencesProvider.future);
-        });
-        await tester.pumpAndSettle();
-        final navigation = find.ancestor(
-          of: find.text('Overview'),
-          matching: find.byType(BusyApiTreeRow),
-        );
-        final originalNavigation = tester.widget(navigation);
-        engine.release = Completer<void>();
-        final source = find.descendant(
-          of: find.byType(SourceEditor),
-          matching: find.byType(TextField),
-        );
-        await tester.runAsync(
-          () => tester.enterText(
-            source,
-            c.buffer!.text.replaceFirst('Original', 'Edited'),
-          ),
-        );
-        await tester.pump();
-        expect(tester.widget(navigation), same(originalNavigation));
-        expect(
-          tester
-              .widget<BusyApiWorkspaceTabButton>(
-                find.byType(BusyApiWorkspaceTabButton),
-              )
-              .dirty,
-          isTrue,
-        );
-        expect(find.textContaining('Problems · Checking'), findsOneWidget);
-        // An external Source command must reconcile the still-mounted adapter.
-        await tester.runAsync(() async {
-          c.sourceEdit(
-            c.buffer!.id,
-            c.buffer!.text.replaceFirst('Edited', 'External'),
-          );
-          await c.persist();
-        });
-        await tester.pump();
-        expect(
-          tester.widget<TextField>(source).controller!.text,
-          contains('External'),
-        );
-        expect(tester.widget(navigation), same(originalNavigation));
-        engine.release!.complete();
-        engine.release = null;
-        await tester.runAsync(c.analyse);
-        await tester.pump();
-        expect(find.text('External'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      } finally {
-        if (engine.release != null && !engine.release!.isCompleted) {
-          engine.release!.complete();
-        }
-        engine.release = null;
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.runAsync(c.shutdown);
-        c.dispose();
-        temp.deleteSync(recursive: true);
-      }
-    },
-  );
+    }
+  }
   testWidgets(
     'keyboard Save remains routed after leaving a focused Design field',
     (tester) async {

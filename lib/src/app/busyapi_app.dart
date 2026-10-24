@@ -406,6 +406,8 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
   GlobalKey<ApiNavigatorState> _apiNavigatorKey =
       GlobalKey<ApiNavigatorState>();
   (BusyProject?, String?)? _apiNavigatorOwner;
+  Object? _apiNavigationView;
+  ApiNavigator? _apiNavigationContent;
   final _filesScroll = ScrollController();
   final _fileAnchors = <String, GlobalKey>{};
   (BusyProject, String, int)? _fileSearchView;
@@ -1732,6 +1734,31 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
     final navigationSearch =
         search.active && search.category == BusyApiSearchCategory.navigation;
     final navigationQuery = filter;
+    final apiNavigationView = (
+      project,
+      c.root,
+      projection?['contextSnapshot'],
+      projection?['snapshot'] ?? projection,
+      c.selectedResource,
+      c.selectedPointer,
+      c.selectedOccurrence,
+      filter,
+      navigationSearch,
+      navigationSearch ? search.selected : null,
+    );
+    if (_apiNavigationView != apiNavigationView) {
+      _apiNavigationView = apiNavigationView;
+      // Checking and dirty-state notifications retain the captured tree. A
+      // changed graph, selection or search still updates its owning view.
+      _apiNavigationContent = ApiNavigator(
+        key: _apiNavigatorKey,
+        controller: c,
+        projection: projection,
+        filter: filter,
+        run: run,
+        search: navigationSearch ? search : null,
+      );
+    }
     final visibleFiles =
         project?.files
             .where((f) => f.toLowerCase().contains(filter.toLowerCase()))
@@ -1820,14 +1847,7 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
             )
           : project == null
           ? const SizedBox.shrink()
-          : ApiNavigator(
-              key: _apiNavigatorKey,
-              controller: c,
-              projection: projection,
-              filter: filter,
-              run: run,
-              search: navigationSearch ? search : null,
-            ),
+          : _apiNavigationContent!,
     );
     final navigationSidebar = BusyApiSidebarSurface(
       showEndBorder: false,
