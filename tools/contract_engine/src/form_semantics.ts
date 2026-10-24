@@ -85,7 +85,11 @@ export function formMediaIssues(graph:ReferenceGraph){
                     const types=mediaTypes(segments(scope.pointer).at(-1)!);
                     if(types.length===1&&types[0].type==='multipart'&&!graph.docs.get(scope.resource)!.dataNode(scope.pointer)!.children.has('schema'))
                         issues.push({...scope,code:'media.multipart.schema.required',message:'OpenAPI 3.0 multipart input content requires a schema (4.7.15.3)'});
-                }catch(error){if(!(error instanceof SourceError))throw error;issues.push({...scope,code:error.code,message:error.message});}
+                }catch(error){
+                    // The shared media declaration check reports this at the
+                    // actual key; do not duplicate it as a multipart finding.
+                    if(!(error instanceof SourceError))throw error;
+                }
             }
         }
         if(scope.kind!=='encoding')continue;

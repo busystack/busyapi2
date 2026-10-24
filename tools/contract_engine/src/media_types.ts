@@ -6,7 +6,9 @@ const token=/^[!#$%&'*+.^_`|~0-9A-Za-z-]+/;
 /** OAS Encoding.contentType uses a list of media ranges, not HTTP Accept
  * quality weights. Commas inside quoted parameters do not separate choices. */
 export function mediaTypes(text:string,ranges=true):MediaType[] {
-    if(typeof text!=='string'||text.length>16384||/[\x00-\x08\x0a-\x1f\x7f]/.test(text))
+    if(typeof text==='string'&&text.length>16384)
+        throw new SourceError('limit.media.type','The media type exceeds the 16384-character evaluation bound',[0,0],'unsupported');
+    if(typeof text!=='string'||/[\x00-\x08\x0a-\x1f\x7f]/.test(text))
         throw new SourceError('encoding.content-type','Expected bounded media types without control characters');
     let at=0;
     const space=()=>{while(/[ \t]/.test(text[at]??'')&&at<text.length)at++;};

@@ -3,7 +3,35 @@ const assert=require('node:assert/strict');
 const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
 const {analyse}=require('./dist/model.cjs');
 const {requestOperation}=require('./dist/execution.cjs');
+const YAML=require('yaml');
 const root='file:///runtime-media/api.json';
+for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const json of [false,true])for(const [label,bad,status,code,issue]of [
+ ['quoted','application/json;profile="','invalid','encoding.content-type','encoding.content-type'],
+ ['list','application/json, text/plain','invalid','runtime.media.type','media.type.single'],
+ ['repeated','application/json;profile=One;profile=Two','unsupported','request.form.media-parameters.unsupported','request.form.media-parameters.unsupported'],
+ ['bounded','application/json;profile="'+'x'.repeat(16384)+'"','unsupported','limit.media.type','limit.media.type'],
+])test(`${version} ${json?'JSON':'YAML'} ${label} media stays located without hiding a valid later choice`,()=>{
+ const legacy=version==='2.0',id='file:///runtime-media/choices.'+(json?'json':'yaml');
+ const content={[bad]:{schema:{}},'application/json':{schema:{}},'application/busy-opaque':{schema:{}}};
+ const operation=legacy?{parameters:[{name:'payload',in:'body',schema:{}}],responses:{200:{description:'OK',schema:{}}}}:{requestBody:{content},responses:{200:{description:'OK',content}}};
+ const document={...(legacy?{swagger:version,consumes:Object.keys(content),produces:Object.keys(content)}:{openapi:version}),info:{title:'Media choices',version:'1'},paths:{'/p':{post:operation}},
+  'x-data':{content:{'literal non-media':{$ref:'payload only'}}},
+  ...(version.startsWith('3.2')?{components:{mediaTypes:{Named:{schema:{}}}}}:{})};
+ const text=json?JSON.stringify(document):'# Keep 雪\r\n'+YAML.stringify(document),input={root:id,snapshot:'media-choices',resources:[{id,text,generation:3}],resource:id,pointer:'/paths/~1p/post'};
+ const projection=requestOperation(input);
+ for(const entries of [projection.requestBody.content,projection.responses[0].content]){
+  assert.deepEqual(entries.map(value=>value.mediaType),Object.keys(content));
+  assert.equal(entries[0].dataModelStatus,status);assert.equal(entries[0].dataModel,undefined);assert.equal(entries[0].dataModelIssue.code,code);
+  assert.equal(entries[1].dataModel,'json');assert.equal(entries[1].dataModelStatus,'classified');
+  assert.equal(entries[2].dataModel,'opaque');assert.equal(entries[2].dataModelStatus,'opaque');
+  assert.equal(entries[0].source.resource,id);
+ }
+ const analysis=analyse(input);assert.equal(analysis.status,status==='invalid'?'invalid':'incomplete');
+ assert.equal(analysis.complete,status==='invalid');
+ assert(analysis.findings.some(finding=>finding.code===issue&&finding.resource===id));
+ assert(!analysis.findings.some(finding=>finding.pointer.startsWith('/x-data')||finding.pointer.startsWith('/components/mediaTypes/Named')));
+ assert.equal(input.resources[0].text,text);
+});
 function packet(version,schema,{yaml=false,itemSchema}={}){
  const legacy=version==='2.0',at=legacy?'/definitions/Payload':'/components/schemas/Payload';
  const data={...(legacy?{swagger:version}:{openapi:version}),info:{title:'Native media',version:'api-version'},paths:{},[legacy?'definitions':'components']:legacy?{Payload:schema}:{schemas:{Payload:schema,...(itemSchema===undefined?{}:{Item:itemSchema})}}};

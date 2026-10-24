@@ -12,7 +12,7 @@ import {FormSemantics} from './form_semantics';
 import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
 import {evaluateSchemas} from './schema_evaluation';
-import {runtimeMediaKind} from './runtime_media';
+import {runtimeMediaDescription} from './runtime_media';
 import {ignoresRequestBody} from './operation_semantics';
 
 const maximumItems = 2048;
@@ -354,7 +354,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const projectedExamples=examples(selected.resource,selected.pointer,v,'media').map(e=>({...e,mediaType:name,
         conversionError:['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?e.conversionError:undefined}));
       const mediaFamily=graph.scope(selected.resource,selected.pointer).family;
-      entries.push({mediaType:name,dataModel:runtimeMediaKind(name,true),family:mediaFamily,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:mediaFamily==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
+      entries.push({mediaType:name,...runtimeMediaDescription(name),family:mediaFamily,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:mediaFamily==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
         form: ['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?forms.media(mediaFamily,selected.resource,selected.pointer,name):undefined,
         prefixEncoding:v?.prefixEncoding,itemEncoding:v?.itemEncoding,encoding:v?.encoding&&typeof v.encoding==='object'?Object.fromEntries(Object.entries(v.encoding).slice(0,maximumItems)):undefined});
     }
@@ -428,8 +428,8 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   if(family==='2.0'){
     const projected=parameters.visible.map(parameter),body=projected.find(p=>p.in==='body'),form=projected.filter(p=>p.in==='formData');
     const consumes=swaggerMedia(graph,input.resource,input.pointer,'consumes');
-    if(body)requestBody={required:body.required,source:body.source,definition:body.definition,content:consumes.map(mediaType=>({mediaType,dataModel:runtimeMediaKind(mediaType,true),source:body.source,definition:body.definition,schema:body.schema,examples:[]}))};
-    else if(form.length)requestBody={required:form.some(p=>p.required),source:location(input.resource,input.pointer),definition:location(input.resource,input.pointer),content:consumes.map(mediaType=>({mediaType,dataModel:runtimeMediaKind(mediaType,true),source:location(input.resource,input.pointer),swaggerForm:form,examples:[]}))};
+    if(body)requestBody={required:body.required,source:body.source,definition:body.definition,content:consumes.map(mediaType=>({mediaType,...runtimeMediaDescription(mediaType),source:body.source,definition:body.definition,schema:body.schema,examples:[]}))};
+    else if(form.length)requestBody={required:form.some(p=>p.required),source:location(input.resource,input.pointer),definition:location(input.resource,input.pointer),content:consumes.map(mediaType=>({mediaType,...runtimeMediaDescription(mediaType),source:location(input.resource,input.pointer),swaggerForm:form,examples:[]}))};
   }
   const headerShape=headerShapes(graph);
   const responses:any[]=[];
@@ -444,7 +444,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const hp=selected.pointer+'/headers/'+escape(name),header=follow({resource:selected.resource,pointer:hp,kind:'header'},'header'),hv=header.node.value;
       headers.push({name,family,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv),shape:headerShape({resource:header.resource,pointer:family==='2.0'?header.pointer:header.pointer+'/schema',kind:'schema'}),...(family==='2.0'?swaggerFlat(hv,header.source):{})});
     }
-    responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location).map(item=>({...item,dataModel:runtimeMediaKind(item.mediaType,true)})):media(selected.resource,selected.pointer+'/content',v?.content)});
+    responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location).map(item=>({...item,...runtimeMediaDescription(item.mediaType)})):media(selected.resource,selected.pointer+'/content',v?.content)});
   }
   const identity=createHash('sha256').update(JSON.stringify([input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
   return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method,customMethod:context.customMethod===true,path:context.path,

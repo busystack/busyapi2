@@ -3,6 +3,22 @@ import {mediaTypes} from './media_types';
 
 export type RuntimeMediaKind='json'|'text'|'json-lines'|'json-sequence'|'event-stream'|'opaque';
 export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];kind:RuntimeMediaKind|'octets'|'form-urlencoded'|'multipart-form'};
+export type RuntimeMediaDescription=
+ {dataModelStatus:'classified'|'opaque';dataModel:RuntimeMediaKind}|
+ {dataModelStatus:'invalid'|'unsupported';dataModelIssue:{code:string;message:string}};
+
+/** Inspect every authored choice without letting one malformed declaration
+ * hide valid later choices. Invalid/unsupported metadata has no invented data
+ * model. Actual byte decoding retains its separate, strict failure boundary. */
+export function runtimeMediaDescription(contentType:string):RuntimeMediaDescription {
+ try{
+  const dataModel=runtimeMediaKind(contentType,true);
+  return {dataModelStatus:dataModel==='opaque'?'opaque':'classified',dataModel};
+ }catch(error){
+  if(!(error instanceof SourceError)||!['encoding.content-type','runtime.media.type','request.form.media-parameters.unsupported','limit.media.type','limit.encoding.content-types'].includes(error.code))throw error;
+  return {dataModelStatus:error.kind==='unsupported'||error.code.startsWith('limit.')?'unsupported':'invalid',dataModelIssue:{code:error.code,message:error.message}};
+ }
+}
 
 export function runtimeMediaBytes(text:string,base64:boolean):Buffer {
  if(!base64){
