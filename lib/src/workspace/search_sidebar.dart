@@ -226,8 +226,9 @@ class BusyApiSearchSidebarState extends State<BusyApiSearchSidebar> {
     }
     if (s.category == BusyApiSearchCategory.semantic) {
       final captured = s.semanticResult;
+      if (captured == null) return const [];
       return [
-        for (final match in captured?.matches ?? const <Map<String, dynamic>>[])
+        for (final match in captured.matches)
           BusyApiSearchResult(
             identity: match['semanticId'] as String,
             title: _searchResultTitle(match['label'] as String),
@@ -237,7 +238,7 @@ class BusyApiSearchSidebarState extends State<BusyApiSearchSidebar> {
                 '${match['root']}\n${match['resource']}\n${match['pointer']}',
             activate: () async {
               if (!current() || !identical(s.semanticResult, captured)) return;
-              if (captured?.current != true) {
+              if (!captured.current) {
                 s.setError(CoreFailure('search.stale', ''));
                 return;
               }
@@ -247,8 +248,9 @@ class BusyApiSearchSidebarState extends State<BusyApiSearchSidebar> {
       ];
     }
     final captured = s.result;
+    if (captured == null) return const [];
     return [
-      for (final match in captured?.matches ?? const <SearchMatch>[])
+      for (final match in captured.matches)
         BusyApiSearchResult(
           identity: '${match.resource}:${match.start}',
           title: _searchResultTitle(match.expected),
@@ -256,7 +258,7 @@ class BusyApiSearchSidebarState extends State<BusyApiSearchSidebar> {
           details: match.resource,
           activate: () async {
             if (!current() || !identical(s.result, captured)) return;
-            if (owner == null || !captured!.current(owner.store)) {
+            if (owner == null || !captured.current(owner.store)) {
               s.error = CoreFailure('search.stale', '');
               if (mounted) setState(() {});
               return;
