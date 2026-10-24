@@ -4,6 +4,7 @@ const http=require('node:http');
 const {spawn}=require('node:child_process');
 const {once}=require('node:events');
 const path=require('node:path');
+const {mockStart}=require('./mock_test_capture.cjs');
 
 async function start(t,version,upstream) {
  const legacy=version==='2.0',methods=['get','head','delete','options','post','put','patch',...(legacy?[]:['trace'])];
@@ -14,7 +15,7 @@ async function start(t,version,upstream) {
  const original=JSON.stringify(document),child=spawn(process.execPath,[path.join(__dirname,'dist/mock-server.cjs')],{stdio:['pipe','pipe','pipe']});
  let stderr='';child.stderr.on('data',chunk=>stderr+=chunk);
  t.after(async()=>{if(child.exitCode===null){child.kill('SIGTERM');await once(child,'exit');}});
- child.stdin.end(JSON.stringify({version:1,snapshot:'0'.repeat(64),document:original,...(upstream?{upstream}:{})}));
+ child.stdin.end(JSON.stringify(mockStart(original,upstream?{upstream}:{})));
  const ready=await new Promise((resolve,reject)=>{
   let output='';child.once('error',reject);child.once('exit',()=>reject(Error('mock exited before readiness: '+stderr)));
   child.stdout.on('data',chunk=>{output+=chunk;for(const line of output.split('\n')){if(!line)continue;try{const event=JSON.parse(line);if(event.event==='ready')resolve(event);}catch{}}});

@@ -756,6 +756,7 @@ Future<void> runBusyApi(
             'input': 'saved-source',
             'tool': 'Prism',
             'toolVersion': run.toolVersion,
+            'nativeValidation': run.nativeValidation.toJson(),
             'adapter': 'in-memory-http-spec-7.1.0',
             'host': run.host,
             'port': run.port,

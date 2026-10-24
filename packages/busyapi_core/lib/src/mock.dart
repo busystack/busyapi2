@@ -92,7 +92,9 @@ class MockPlan {
         result['producer'] != 'busyapi-graph-bundle' ||
         result['producerVersion'] != '3' ||
         output is! Map ||
+        output['id'] != outputId ||
         output['text'] is! String ||
+        output['identity'] is! String ||
         output['identity'] != textIdentity(output['text'] as String)) {
       throw CoreFailure(
         'mock.bundle.incomplete',
@@ -115,7 +117,8 @@ class MockPlan {
       plan: this,
       node: node,
       helper: script,
-      document: output['text'] as String,
+      outputId: outputId,
+      outputIdentity: output['identity'] as String,
       port: port,
       errors: errors,
       proxyTarget: proxyTarget,
@@ -166,6 +169,81 @@ class MockPlan {
   void close() => _closed = true;
 }
 
+class MockValidationIdentity {
+  const MockValidationIdentity._(this.name, this.version, this.configuration);
+  final String name, version, configuration;
+  static MockValidationIdentity? _read(Object? value) {
+    if (value
+        case {
+          'name': 'hyperjump+busyapi-exact',
+          'version': String version,
+          'configuration': String configuration,
+        }
+        when version.isNotEmpty &&
+            version.length <= 128 &&
+            configuration.isNotEmpty &&
+            configuration.length <= 16384) {
+      return MockValidationIdentity._(
+        'hyperjump+busyapi-exact',
+        version,
+        configuration,
+      );
+    }
+    return null;
+  }
+
+  Map<String, String> toJson() => {
+    'name': name,
+    'version': version,
+    'configuration': configuration,
+  };
+}
+
+CoreFailure? _mockStartupFailure(Object? value, MockPlan plan) {
+  if (value is! Map ||
+      value['code'] is! String ||
+      value['message'] is! String ||
+      value['kind'] != null && value['kind'] != 'unsupported')
+    return null;
+  CoreFailureSource? location;
+  if (value['source'] != null) {
+    final source = value['source'];
+    if (source is! Map ||
+        source['resource'] is! String ||
+        source['pointer'] is! String)
+      return null;
+    final range = source['range'];
+    if (range is! List ||
+        range.length != 2 ||
+        range[0] is! int ||
+        range[1] is! int ||
+        (range[0] as int) < 0 ||
+        (range[1] as int) < (range[0] as int))
+      return null;
+    final resources = plan.snapshot.resources.where(
+      (resource) => resource['id'] == source['resource'],
+    );
+    if (resources.length != 1 ||
+        resources.single['text'] is! String ||
+        (range[1] as int) > (resources.single['text'] as String).length)
+      return null;
+    location = CoreFailureSource(
+      source['resource'] as String,
+      source['pointer'] as String,
+      SourceRange(range[0] as int, range[1] as int),
+    );
+  }
+  return CoreFailure(
+    value['code'] as String,
+    _sanitizeMockText(
+      utf8.encode(value['message'] as String),
+      plan._owner.access.boundary,
+    ),
+    kind: value['kind'] == 'unsupported' ? CoreFailureKind.unsupported : null,
+    source: location,
+  );
+}
+
 class MockRun {
   MockRun._(
     this.plan,
@@ -176,6 +254,7 @@ class MockRun {
     this.toolVersion,
     this.operations,
     this.upstreamForwarding,
+    this.nativeValidation,
     this._stderr,
   );
   final MockPlan plan;
@@ -184,6 +263,7 @@ class MockRun {
   final String host, toolVersion;
   final int port, operations;
   final bool upstreamForwarding;
+  final MockValidationIdentity nativeValidation;
   final List<int> _stderr;
   bool _stopping = false;
   bool get outdated => plan.outdated;
@@ -195,7 +275,8 @@ class MockRun {
     required MockPlan plan,
     required String node,
     required String helper,
-    required String document,
+    required String outputId,
+    required String outputIdentity,
     required int port,
     required bool errors,
     required Uri? proxyTarget,
@@ -251,7 +332,8 @@ class MockRun {
         jsonEncode({
           'version': 1,
           'snapshot': plan.snapshot.identity,
-          'document': document,
+          'capture': plan.snapshot.toJson(),
+          'derived': {'id': outputId, 'identity': outputIdentity},
           'port': port,
           'errors': errors,
           if (proxyTarget != null) 'upstream': proxyTarget.toString(),
@@ -284,6 +366,9 @@ class MockRun {
       _terminateMock(process, grouped);
       throw CoreFailure('cancelled', 'Mock startup was cancelled');
     }
+    final nativeValidation = MockValidationIdentity._read(
+      message['nativeValidation'],
+    );
     if (message['event'] != 'ready' ||
         message['snapshot'] != plan.snapshot.identity ||
         message['tool'] != 'Prism' ||
@@ -291,10 +376,15 @@ class MockRun {
         message['host'] != '127.0.0.1' ||
         message['port'] is! int ||
         message['operations'] is! int ||
+        nativeValidation == null ||
         message['upstreamForwarding'] != (proxyTarget != null)) {
       _terminateMock(process, grouped);
       await lines.cancel();
       await errorsSubscription.cancel();
+      if (message['event'] == 'failed') {
+        final failure = _mockStartupFailure(message['failure'], plan);
+        if (failure != null) throw failure;
+      }
       final detail = _sanitizeMockText(
         stderrBytes,
         plan._owner.access.boundary,
@@ -313,6 +403,7 @@ class MockRun {
       message['toolVersion'] as String,
       message['operations'] as int,
       message['upstreamForwarding'] as bool,
+      nativeValidation,
       stderrBytes,
     );
   }

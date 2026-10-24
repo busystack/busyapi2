@@ -4,6 +4,7 @@ const http=require('node:http');
 const {spawn}=require('node:child_process');
 const {once}=require('node:events');
 const path=require('node:path');
+const {mockStart}=require('./mock_test_capture.cjs');
 async function fixture(t){
  const cookies=['a=1; Path=/; Expires=Wed, 21 Oct 2037 07:28:00 GMT','b=2; Path=/','a=3; Path=/nested'];
  const upstream=http.createServer((req,res)=>{
@@ -18,7 +19,7 @@ async function fixture(t){
  for(const path of ['/empty','/malformed'])document.paths[path]={get:{responses:{200:{description:'body applies',content:{'application/json':{schema:{type:'object'}}}}}}};
  const child=spawn(process.execPath,[path.join(__dirname,'dist/mock-server.cjs')],{stdio:['pipe','pipe','pipe']});let stderr='';child.stderr.on('data',chunk=>stderr+=chunk);
  t.after(async()=>{if(child.exitCode===null){child.kill('SIGTERM');await once(child,'exit');}});
- child.stdin.end(JSON.stringify({version:1,snapshot:'0'.repeat(64),document:JSON.stringify(document),upstream:'http://127.0.0.1:'+upstream.address().port}));
+ child.stdin.end(JSON.stringify(mockStart(document,{upstream:'http://127.0.0.1:'+upstream.address().port})));
  const ready=await new Promise((resolve,reject)=>{let out='';child.once('error',reject);child.once('exit',()=>reject(Error('proxy exited: '+stderr)));child.stdout.on('data',chunk=>{out+=chunk;for(const line of out.split('\n')){if(!line)continue;try{const event=JSON.parse(line);if(event.event==='ready')resolve(event);}catch{}}});});
  return {cookies,port:ready.port};
 }

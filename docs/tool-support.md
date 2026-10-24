@@ -25,6 +25,21 @@ document. Mock startup rejects a stale capture, cancels owned derivation work an
 rechecks ownership before returning a listener. Switching project roots retires
 both prepared and in-flight native mock captures. A running immutable capture
 retains its original rules and reports that it is outdated after source changes.
+Mock request-body assertions use the packaged native evaluator against that
+original resource capture, including schema direction, null values, false/zero
+and exact numbers. Prism retains routing and response generation. Unsupported
+body evaluation returns HTTP 501 with `complete: false`; it cannot become a clean
+validation result when proxy errors are disabled. Native findings retain source
+coordinates, and diagnostic headers preserve Unicode as valid bounded JSON.
+`mock --json` identifies the native validator separately from Prism. Serialized
+form decoding and the remaining Prism parameter/response roles still need native
+qualification; the passing body cases do not establish complete mock coverage.
+For 3.0, `required` properties marked readOnly/writeOnly use the request/response
+direction rules. In 3.1/3.2 those keywords remain annotations: native schema
+evaluation retains `required` assertions and does not strip fields or add optional
+annotation-based assertions. This follows the distinction described in
+[3.0 Schema Objects](https://spec.openapis.org/oas/v3.0.4.html#schema-object) and
+[3.1 annotation validation](https://spec.openapis.org/oas/v3.1.2.html#validating-readonly-and-writeonly).
 
 Runtime body checks decode captured HTTP bytes through the shared engine before
 applying the captured schema. `text/plain` uses its Unicode string value. Native

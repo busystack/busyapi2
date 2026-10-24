@@ -7,10 +7,14 @@ import { transformOas3Operations } from '@stoplight/http-spec/oas3/operation';
 import { createLogger } from '@stoplight/prism-core';
 import { ContentExample, createInstance, ProblemJsonError } from '@stoplight/prism-http';
 import { DiagnosticSeverity, IMediaTypeContent } from '@stoplight/types';
+import {validateInput} from '@stoplight/prism-http/dist/validator';
+const {default:route}:typeof import('@stoplight/prism-http/dist/router')=require('@stoplight/prism-http/dist/router');
 import { findNodeAtLocation, Node, parseTree } from 'jsonc-parser';
 import pino from 'pino';
 import {specificationDeclaration} from './specification';
-import {ignoresRequestBody} from './operation_semantics';
+import {mockCapture,MockNativeValidation,type MockCapture,type NativeMockCheck} from './mock_native_validation';
+import {record} from './engine_worker_client';
+import {segments,SourceError} from './document';
 
 const maximumInput = 64 * 1024 * 1024;
 const maximumRequestBody = 10 * 1024 * 1024;
@@ -19,7 +23,8 @@ const maximumUpstreamBody = 64 * 1024 * 1024;
 interface StartInput {
   version: 1;
   snapshot: string;
-  document: string;
+  capture: MockCapture;
+  derived: {id:string;identity:string};
   port?: number;
   errors?: boolean;
   upstream?: string;
@@ -48,18 +53,23 @@ async function readInput(): Promise<StartInput> {
     if (bytes > maximumInput) throw new Error('mock input exceeds 64 MiB');
     chunks.push(value);
   }
-  const input = JSON.parse(Buffer.concat(chunks).toString('utf8')) as StartInput;
+  const input:unknown = JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks)));
   if (
+    !record(input) ||
     input.version !== 1 ||
     typeof input.snapshot !== 'string' ||
     !/^[0-9a-f]{64}$/.test(input.snapshot) ||
-    typeof input.document !== 'string' ||
+    !record(input.derived) || typeof input.derived.id!=='string' || typeof input.derived.identity!=='string' || !/^[a-f0-9]{64}$/.test(input.derived.identity) ||
+    input.errors!==undefined&&typeof input.errors!=='boolean' ||
+    input.upstream!==undefined&&typeof input.upstream!=='string' ||
     (input.port !== undefined &&
-      (!Number.isInteger(input.port) || input.port < 0 || input.port > 65535))
+      (typeof input.port!=='number'||!Number.isInteger(input.port) || input.port < 0 || input.port > 65535))
   ) {
     throw new Error('invalid immutable mock start input');
   }
-  if (input.upstream !== undefined) {
+  const capture=mockCapture(input.capture);
+  if(capture.snapshot!==input.snapshot)throw new Error('mock capture and startup snapshot identities differ');
+  if (typeof input.upstream==='string') {
     let upstream: URL;
     try { upstream = new URL(input.upstream); }
     catch { throw new Error('invalid validation proxy target'); }
@@ -67,7 +77,8 @@ async function readInput(): Promise<StartInput> {
       upstream.username || upstream.password || upstream.search || upstream.hash)
       throw new Error('validation proxy target must be an HTTP(S) base URL without credentials, query or fragment');
   }
-  return input;
+  return {version:1,snapshot:input.snapshot,capture,derived:{id:input.derived.id,identity:input.derived.identity},
+    ...(typeof input.port==='number'?{port:input.port}:{}),...(typeof input.errors==='boolean'?{errors:input.errors}:{}),...(typeof input.upstream==='string'?{upstream:input.upstream}:{})};
 }
 
 function children(node: Node | undefined): Node[] {
@@ -134,14 +145,13 @@ async function body(request: IncomingMessage): Promise<CapturedBody> {
     if (length > maximumRequestBody) throw Object.assign(new Error('request body exceeds 10 MiB'), { status: 413 });
     chunks.push(bytes);
   }
-  if (length === 0) return { value: null };
+  if (length === 0) return { value: undefined, raw: Buffer.alloc(0) };
   const bytes = Buffer.concat(chunks), raw = bytes.toString('utf8');
-  const media = String(request.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
-  return { value: media === 'application/json' || media.endsWith('+json') ? JSON.parse(raw) : raw, raw: bytes };
+  return { value: raw, raw: bytes };
 }
 
 function forwardPreservingBytes(rawRequests: WeakMap<object, Buffer | undefined>,
-  rawResponses: WeakMap<object, Buffer>) {
+  rawResponses: WeakMap<object, Buffer>,signals:WeakMap<object,AbortSignal>) {
   return ({ data: request, validations }: any, baseUrl: string) => (logger: any) => async () => {
     try {
       if (validations.length) {
@@ -171,6 +181,7 @@ function forwardPreservingBytes(rawRequests: WeakMap<object, Buffer | undefined>
         headers,
         body: raw?.length ? raw : undefined,
         redirect: 'manual',
+        signal:signals.get(request),
       });
       const chunks: Buffer[] = []; let length = 0;
       if (response.body) {
@@ -243,9 +254,20 @@ function exactBody(examples: ExactExample[], method: string, path: string, statu
   return selected.serialized ? JSON.parse(selected.raw) as string : selected.raw;
 }
 
-function violation(value: { path?: string[]; severity: number; code?: string | number; message: string }, prefix: string) {
+function violation(value: { path?: string[]; severity: number; code?: string | number; message: string; source?:unknown; nativeSource?:unknown }, prefix: string) {
   return { location: [prefix, ...(value.path ?? [])], severity: DiagnosticSeverity[value.severity],
-    code: value.code === undefined ? undefined : String(value.code), message: value.message };
+    code: value.code === undefined ? undefined : String(value.code), message: value.message,...(value.nativeSource!==undefined?{source:value.nativeSource}:value.source!==undefined?{source:value.source}:{}) };
+}
+
+function nativeDiagnostics(checked:NativeMockCheck) {
+  return checked.findings.filter(finding=>finding.severity==='error').map(finding=>({severity:DiagnosticSeverity.Error,code:422,message:finding.code+': '+finding.message,path:['body',...segments(typeof finding.pointer==='string'?finding.pointer:'')],...(record(finding.schema)?{nativeSource:finding.schema}:record(finding.source)?{nativeSource:finding.source}:{})}));
+}
+
+function violationHeader(values:ReturnType<typeof violation>[]):string {
+  const ascii=(value:unknown)=>JSON.stringify(value).replace(/[\u007f-\uffff]/g,character=>'\\u'+character.charCodeAt(0).toString(16).padStart(4,'0'));
+  const entries:string[]=[];let bytes=2;
+  for(const value of values){const encoded=ascii(value);if(bytes+encoded.length+1>7500){entries.push(ascii({severity:'Warning',code:'report.header.limit',message:'Additional diagnostic entries were omitted from this bounded header.'}));break;}entries.push(encoded);bytes+=encoded.length+1;}
+  return '['+entries.join(',')+']';
 }
 
 function send(reply: ServerResponse, status: number, payload: string | Buffer | undefined): void {
@@ -255,139 +277,187 @@ function send(reply: ServerResponse, status: number, payload: string | Buffer | 
 
 async function main(): Promise<void> {
   const input = await readInput();
-  const tree = parseTree(input.document);
-  if (!tree) throw new Error('mock input is not strict derived JSON');
-  const examples = exactExamples(input.document, tree);
-  const document = JSON.parse(input.document) as Record<string, unknown>;
-  const declaration=specificationDeclaration(document);
-  if(declaration.status!=='supported')
-    throw new Error('mock input must be a supported OpenAPI document');
-  // This qualified in-memory path never asks Prism's path loader to reinterpret
-  // a literal Example Object `$ref` property as a filesystem dependency.
-  const operations = declaration.specification.family==='2.0'?transformOas2Operations(document):transformOas3Operations(document);
-  // http-spec 7.1.0 translates every requestBody, including declarations that
-  // OAS 3.0 §4.7.10.1 tells consumers to ignore. Adapt its transport projection
-  // through the shared rule; the captured document and examples stay intact.
-  // Prism treats a missing body projection as rejecting nonempty input; an
-  // optional wildcard without a schema preserves the ignored constraints.
-  for(const operation of operations)if(operation.request?.body&&ignoresRequestBody(declaration.specification.family,operation.method.toUpperCase()))
-    operation.request.body={...operation.request.body,required:false,contents:[{id:operation.request.body.id+'-ignored-content',mediaType:'*/*'}]};
-  if (operations.length === 0) throw new Error('mock input has no operations');
-  const logger = createLogger('BusyAPIMock', { level: 'warn', base: undefined },
-    pino.destination({ dest: 2, sync: false }));
-  const rawRequests = new WeakMap<object, Buffer | undefined>();
-  const rawResponses = new WeakMap<object, Buffer>();
-  const commonConfig = { checkSecurity: true, validateRequest: true, validateResponse: true,
-    mock: { dynamic: false }, upstreamProxy: undefined, errors: input.errors !== false };
-  const baseConfig = input.upstream
-    ? { ...commonConfig, isProxy: true as const, upstream: new URL(input.upstream) }
-    : { ...commonConfig, isProxy: false as const };
-  const prism = createInstance(baseConfig, { logger,
-    mock: options => logger => {
-      const result = mock(options)(logger);
-      if(result._tag==='Right' && !options.config.dynamic) {
-        const output=result.right, resource=options.resource;
-        const responses=resource.responses;
-        const declaration=responses.find(response=>response.code===String(output.statusCode))
-          ??responses.find(response=>response.code===`${Math.floor(output.statusCode/100)}XX`)
-          ??responses.find(response=>response.code==='default');
-        const mediaType=Object.entries(output.headers??{}).find(([name])=>name.toLowerCase()==='content-type')?.[1];
-        const content=declaration?.contents?.find(content=>content.mediaType===mediaType);
-        // Valid requests use the requested key or Prism's transformed-array
-        // head, which can differ from CST order for integer example names.
-        let projected=options.config.exampleKey
-          ?content?.examples?.find(example=>example.key===options.config.exampleKey)
-          :content?.examples?.[0];
-        if(options.input.validations.some(value=>value.severity===DiagnosticSeverity.Error)) {
-          // Invalid requests can suppress the preference. Reuse the pinned
-          // negotiator's selected object rather than duplicate its status rules
-          // or infer identity from parsed values (which can round identically).
-          const [first,...rest]=options.input.validations;
-          const selection=createInvalidInputResponse([first,...rest],responses,options.config)(logger.child({}, {level:'silent'}));
-          if(selection._tag==='Left')throw new Error('Unable to recover the selected mock error example');
-          projected=selection.right.bodyExample;
+  const native=new MockNativeValidation(input.capture);
+  let listening=false;
+  try {
+    const documentText=await native.prepare(input.derived);
+    const tree = parseTree(documentText);
+    if (!tree) throw new Error('mock input is not strict derived JSON');
+    const examples = exactExamples(documentText, tree);
+    const document:unknown = JSON.parse(documentText);
+    if(!record(document))throw new SourceError('mock.capture','The captured root is not an object');
+    const declaration=specificationDeclaration(document);
+    if(declaration.status!=='supported')
+      throw new Error('mock input must be a supported OpenAPI document');
+    // This qualified in-memory path never asks Prism's path loader to reinterpret
+    // a literal Example Object `$ref` property as a filesystem dependency.
+    const operations = declaration.specification.family==='2.0'?transformOas2Operations(document):transformOas3Operations(document);
+    native.qualify(operations);
+    if (operations.length === 0) throw new Error('mock input has no operations');
+    const logger = createLogger('BusyAPIMock', { level: 'warn', base: undefined },
+      pino.destination({ dest: 2, sync: false }));
+    const rawRequests = new WeakMap<object, Buffer | undefined>();
+    const rawResponses = new WeakMap<object, Buffer>();
+    const signals=new WeakMap<object,AbortSignal>();
+    const nativeChecks=new WeakMap<object,NativeMockCheck>();
+    const commonConfig = { checkSecurity: true, validateRequest: true, validateResponse: true,
+      mock: { dynamic: false }, upstreamProxy: undefined, errors: input.errors !== false };
+    const baseConfig = input.upstream
+      ? { ...commonConfig, isProxy: true as const, upstream: new URL(input.upstream) }
+      : { ...commonConfig, isProxy: false as const };
+    const prism = createInstance(baseConfig, { logger,
+      validateInput: options=>{
+        const checked=nativeChecks.get(options.element);
+        if(!checked||!checked.complete)throw new Error('Native body validation did not complete before Prism input validation');
+        const diagnostics=nativeDiagnostics(checked),[first,...rest]=diagnostics;
+        if(!checked.valid&&!first)throw new Error('Native body validation omitted its invalid-input findings');
+        // A malformed Content-Type must stay a rejected request; passing it to
+        // Prism's MIME parser would turn this known violation into a 500.
+        if(first&&checked.findings.some(finding=>finding.code==='runtime.request.content-type'))
+          return {_tag:'Left',left:[first,...rest]};
+        // Delegate body assertions to the canonical engine. Prism 5.15.11's
+        // truthy required-body check and JS numeric conversion cannot own them.
+        const body={id:options.resource.id+'-native-body',required:false,contents:[{id:options.resource.id+'-native-content',mediaType:'*/*'}]};
+        const result=validateInput({resource:{...options.resource,request:{...options.resource.request,body}},element:options.element});
+        if(checked.valid)return result;
+        return {_tag:'Left',left:[first,...rest,...(result._tag==='Left'?result.left:[])]};
+      },
+      mock: options => logger => {
+        const result = mock(options)(logger);
+        if(result._tag==='Right' && !options.config.dynamic) {
+          const output=result.right, resource=options.resource;
+          const responses=resource.responses;
+          const declaration=responses.find(response=>response.code===String(output.statusCode))
+            ??responses.find(response=>response.code===`${Math.floor(output.statusCode/100)}XX`)
+            ??responses.find(response=>response.code==='default');
+          const mediaType=Object.entries(output.headers??{}).find(([name])=>name.toLowerCase()==='content-type')?.[1];
+          const content=declaration?.contents?.find(content=>content.mediaType===mediaType);
+          // Valid requests use the requested key or Prism's transformed-array
+          // head, which can differ from CST order for integer example names.
+          let projected=options.config.exampleKey
+            ?content?.examples?.find(example=>example.key===options.config.exampleKey)
+            :content?.examples?.[0];
+          if(options.input.validations.some(value=>value.severity===DiagnosticSeverity.Error)) {
+            // Invalid requests can suppress the preference. Reuse the pinned
+            // negotiator's selected object rather than duplicate its status rules
+            // or infer identity from parsed values (which can round identically).
+            const [first,...rest]=options.input.validations;
+            const selection=createInvalidInputResponse([first,...rest],responses,options.config)(logger.child({}, {level:'silent'}));
+            if(selection._tag==='Left')throw new Error('Unable to recover the selected mock error example');
+            projected=selection.right.bodyExample;
+          }
+          const exact=declaration && exactBody(examples,resource.method,resource.path,declaration.code,content,projected);
+          if(exact!==undefined) {
+            // Preserve lexemes only for the example Prism actually returned.
+            // Its validation still sees the same projected value as these bytes.
+            if(!isDeepStrictEqual(JSON.parse(exact),output.body))throw new Error('Selected mock example does not match Prism output');
+            rawResponses.set(output,Buffer.from(exact,'utf8'));
+          }
         }
-        const exact=declaration && exactBody(examples,resource.method,resource.path,declaration.code,content,projected);
-        if(exact!==undefined) {
-          // Preserve lexemes only for the example Prism actually returned.
-          // Its validation still sees the same projected value as these bytes.
-          if(!isDeepStrictEqual(JSON.parse(exact),output.body))throw new Error('Selected mock example does not match Prism output');
-          rawResponses.set(output,Buffer.from(exact,'utf8'));
+        return result;
+      },
+      ...(input.upstream ? { forward: forwardPreservingBytes(rawRequests, rawResponses,signals) as never } : {}) });
+    const server = createServer(async (request, reply) => {
+      const cancellation=new AbortController();
+      request.once('aborted',()=>cancellation.abort());
+      reply.once('close',()=>{if(!reply.writableEnded)cancellation.abort();});
+      try {
+        const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+        const preferences = preference(request, url);
+        const query: Record<string, string | string[]> = {};
+        for (const name of url.searchParams.keys()) {
+          const values = url.searchParams.getAll(name);
+          query[name] = values.length === 1 ? values[0] : values;
         }
-      }
-      return result;
-    },
-    ...(input.upstream ? { forward: forwardPreservingBytes(rawRequests, rawResponses) as never } : {}) });
-  const server = createServer(async (request, reply) => {
-    try {
-      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-      const preferences = preference(request, url);
-      const query: Record<string, string | string[]> = {};
-      for (const name of url.searchParams.keys()) {
-        const values = url.searchParams.getAll(name);
-        query[name] = values.length === 1 ? values[0] : values;
-      }
-      const headers: Record<string, string> = {};
-      for (const [name, value] of Object.entries(request.headers))
-        if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(', ') : value;
-      const captured = await body(request);
-      const prismRequest = { method: (request.method ?? 'GET').toLowerCase() as never,
-        url: { path: url.pathname, query }, headers, body: captured.value };
-      rawRequests.set(prismRequest, captured.raw);
-      const outcome = await prism.request(prismRequest, operations,
-      { ...baseConfig, mock: preferences })();
-      if (outcome._tag === 'Left') {
-        const error = outcome.left as Error & { status?: number; detail?: string;
-          additional?: { headers?: Record<string, string> } };
+        const headers: Record<string, string> = {};
+        for (const [name, value] of Object.entries(request.headers))
+          if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(', ') : value;
+        const captured = await body(request);
+        const prismRequest = { method: (request.method ?? 'GET').toLowerCase() as never,
+          url: { path: url.pathname, query }, headers, body: captured.value };
+        rawRequests.set(prismRequest, captured.raw);
+        signals.set(prismRequest,cancellation.signal);
+        const selected=route({resources:operations,input:prismRequest});
+        if(selected._tag==='Right'){
+          const check=await native.body(selected.right.path,selected.right.method,captured.raw??Buffer.alloc(0),headers['content-type'],(captured.raw?.length??0)>0||headers['content-type']!==undefined,cancellation.signal);
+          if(!check.complete){
+            if(reply.destroyed)return;
+            reply.setHeader('content-type','application/problem+json');
+            send(reply,501,JSON.stringify({type:'urn:busyapi:native-validation-incomplete',title:'Native request validation did not complete',status:501,complete:false,findings:check.findings}));
+            return;
+          }
+          nativeChecks.set(prismRequest,check);
+          // Callback expressions consume Prism's JSON object projection only
+          // after native framing/evaluation. These machine numbers never feed
+          // the canonical validator or replace the retained request bytes.
+          const essence=headers['content-type']?.split(';')[0].trim().toLowerCase();
+          if(captured.raw?.length&&(essence==='application/json'||essence?.endsWith('+json'))&&
+              !check.findings.some(finding=>['runtime.body.syntax','runtime.request.content-type'].includes(String(finding.code))))
+            prismRequest.body=JSON.parse(captured.raw.toString('utf8'));
+        }
+        const outcome = await prism.request(prismRequest, operations,
+        { ...baseConfig, mock: preferences })();
+        if(cancellation.signal.aborted||reply.destroyed)return;
+        if (outcome._tag === 'Left') {
+          const error = outcome.left as Error & { status?: number; detail?: string;
+            additional?: { headers?: Record<string, string> } };
+          reply.setHeader('content-type', 'application/problem+json');
+          const checked=nativeChecks.get(prismRequest);
+          if(checked&&!checked.valid)reply.setHeader('sl-violations',violationHeader(nativeDiagnostics(checked).map(value=>violation(value,'request'))));
+          for (const [name, value] of Object.entries(error.additional?.headers ?? {})) reply.setHeader(name, value);
+          send(reply, error.status ?? 500, JSON.stringify(ProblemJsonError.toProblemJson(error)));
+          return;
+        }
+        const result = outcome.right;
+        const violations = [...result.validations.input.map(value => violation(value, 'request')),
+          ...result.validations.output.map(value => violation(value, 'response'))];
+        if (violations.length) reply.setHeader('sl-violations', violationHeader(violations));
+        for (const [name, value] of Object.entries(result.output.headers ?? {})) reply.setHeader(name, value);
+        const mediaType = String(reply.getHeader('content-type') ?? '').split(';')[0].trim().toLowerCase() || undefined;
+        const payload = rawResponses.get(result.output) ?? (result.output.body === undefined ? undefined :
+          mediaType && (mediaType === 'application/json' || mediaType.endsWith('+json'))
+            ? JSON.stringify(result.output.body)
+            : typeof result.output.body === 'string' ? result.output.body : JSON.stringify(result.output.body));
+        process.stderr.write(`${JSON.stringify({ event: 'request', method: request.method,
+          path: url.pathname, status: result.output.statusCode, violations: violations.length })}\n`);
+        send(reply, result.output.statusCode, payload);
+      } catch (error) {
+        if(reply.destroyed||reply.writableEnded)return;
+        const status = typeof error === 'object' && error !== null && 'status' in error ? Number(error.status) : 500;
         reply.setHeader('content-type', 'application/problem+json');
-        for (const [name, value] of Object.entries(error.additional?.headers ?? {})) reply.setHeader(name, value);
-        send(reply, error.status ?? 500, JSON.stringify(ProblemJsonError.toProblemJson(error)));
-        return;
+        send(reply, status, JSON.stringify({ title: 'Mock request failed', status, detail: String(error) }));
       }
-      const result = outcome.right;
-      const violations = [...result.validations.input.map(value => violation(value, 'request')),
-        ...result.validations.output.map(value => violation(value, 'response'))];
-      if (violations.length) reply.setHeader('sl-violations', JSON.stringify(violations).slice(0, 8000));
-      for (const [name, value] of Object.entries(result.output.headers ?? {})) reply.setHeader(name, value);
-      const mediaType = String(reply.getHeader('content-type') ?? '').split(';')[0].trim().toLowerCase() || undefined;
-      const payload = rawResponses.get(result.output) ?? (result.output.body === undefined ? undefined :
-        mediaType && (mediaType === 'application/json' || mediaType.endsWith('+json'))
-          ? JSON.stringify(result.output.body)
-          : typeof result.output.body === 'string' ? result.output.body : JSON.stringify(result.output.body));
-      process.stderr.write(`${JSON.stringify({ event: 'request', method: request.method,
-        path: url.pathname, status: result.output.statusCode, violations: violations.length })}\n`);
-      send(reply, result.output.statusCode, payload);
-    } catch (error) {
-      const status = typeof error === 'object' && error !== null && 'status' in error ? Number(error.status) : 500;
-      reply.setHeader('content-type', 'application/problem+json');
-      send(reply, status, JSON.stringify({ title: 'Mock request failed', status, detail: String(error) }));
-    }
-  });
-  let closing = false;
-  const close = async (signal: string): Promise<void> => {
-    if (closing) return;
-    closing = true;
-    server.closeAllConnections();
-    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    write({ version: 1, event: 'stopped', signal, snapshot: input.snapshot });
-    process.exitCode = 0;
-  };
-  process.once('SIGINT', () => void close('SIGINT'));
-  process.once('SIGTERM', () => void close('SIGTERM'));
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(input.port ?? 0, '127.0.0.1', resolve);
-  });
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('mock listener has no TCP address');
-  write({ version: 1, event: 'ready', snapshot: input.snapshot, tool: 'Prism',
-    toolVersion: '5.15.11', adapter: 'in-memory-http-spec-7.1.0', host: '127.0.0.1',
-    port: address.port, operations: operations.length, upstreamForwarding: input.upstream !== undefined });
+    });
+    let closing = false;
+    const close = async (signal: string): Promise<void> => {
+      if (closing) return;
+      closing = true;
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+      await native.close();
+      write({ version: 1, event: 'stopped', signal, snapshot: input.snapshot });
+      process.exitCode = 0;
+    };
+    process.once('SIGINT', () => void close('SIGINT'));
+    process.once('SIGTERM', () => void close('SIGTERM'));
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(input.port ?? 0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('mock listener has no TCP address');
+    listening=true;
+    write({ version: 1, event: 'ready', snapshot: input.snapshot, tool: 'Prism',
+      toolVersion: '5.15.11', adapter: 'in-memory-http-spec-7.1.0', host: '127.0.0.1',
+      port: address.port, operations: operations.length, nativeValidation:native.identity, upstreamForwarding: input.upstream !== undefined });
+  } finally {
+    if(!listening)await native.close();
+  }
 }
 
 void main().catch(error => {
   const message = String(error);
-  write({ version: 1, event: 'failed', error: message });
+  write({ version: 1, event: 'failed', error: message,...(error instanceof SourceError?{failure:{code:error.code,message:error.message,range:error.range,kind:error.kind,source:error.source}}:{}) });
   process.stderr.write(`BusyAPI mock failed: ${message}\n`);
   process.exitCode = 3;
 });
