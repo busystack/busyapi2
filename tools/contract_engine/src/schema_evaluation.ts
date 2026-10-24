@@ -136,7 +136,10 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
     const targets=graph.identities.get(uri.href);
     if(targets?.length!==1)throw new SourceError('resource.unapproved','The validator requested an unavailable or ambiguous resource identity');
     const target=targets[0],doc=docs.get(target.resource)!;
-    const response=new Response(doc.text,{headers:{'content-type':'application/vnd.busyapi.schema-snapshot+json'}});
+    // The media-type callback reads this operation's captured CST directly.
+    // Response carries its approved identity. Materializing a body here would
+    // encode the entire file again for every independently compiled schema.
+    const response=new Response(null,{headers:{'content-type':'application/vnd.busyapi.schema-snapshot+json'}});
     Object.defineProperty(response,'url',{value:uri.href});return response;
    }});
   }
