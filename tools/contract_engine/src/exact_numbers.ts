@@ -211,7 +211,7 @@ function installExactNumericKeywords() {
     seen.add(identity);
     const value=referenceGraph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
     if(typeof value?.$ref!=='string')return {readOnly:value?.readOnly===true,writeOnly:value?.writeOnly===true};
-    const resolved=referenceGraph.resolve(value.$ref,target);
+    const resolved=referenceGraph.resolveReference(value.$ref,target);
     if(resolved.resolution!=='resolved')return {};
     target=referenceGraph.scopes.get(resolved.targetResource+'#'+resolved.targetPointer);
    }

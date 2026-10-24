@@ -200,7 +200,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
             return value;
         if (typeof value.$ref === 'string' && referenceKinds.has(kind) && (kind !== 'media' || owner.family === '3.2')) {
             try {
-                const ref = graph.resolve(value.$ref, graph.scope(doc.id, pointer));
+                const ref = graph.resolveReference(value.$ref, graph.scope(doc.id, pointer));
                 if (ref.resolution !== 'resolved') return value;
                 const part = ref.targetPointer!, target = docs.get(ref.targetResource!);
                 const key = ref.targetResource + '#' + part;

@@ -339,7 +339,7 @@ export function planFileMove(input:any) {
    if(ref.connection==='security'||ref.connection==='operationId') {
     if(now?.resolution!=='resolved'||!same({resource:now.targetResource,pointer:now.targetPointer},to))throw new SourceError('file.move.implicit','Moving the file would change an implicit connection');
    }else {
-    const proof=after.graph.resolve(value,from,ref.keyword==='$dynamicRef');
+    const proof=after.graph.resolveReference(value,from,ref.keyword);
     if(proof.resolution!=='resolved'||!same({resource:proof.targetResource,pointer:proof.targetPointer},to))throw new SourceError('file.move.address','A repaired locator does not retain its exact captured target at '+ref.pointer+' ('+proof.resolution+')');
    }
    const key=ref.resource+'#'+ref.pointer+'/'+escape(ref.keyword),previous=repairs.get(key);

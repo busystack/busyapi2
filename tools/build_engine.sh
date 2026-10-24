@@ -32,6 +32,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$esbuild_bin" "$engine_dir/src/diagnostic_fixes.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/diagnostic_fixes.cjs"
 "$node_bin" "$engine_dir/test_engine.cjs"
 "$node_bin" "$engine_dir/test_graph.cjs"
+"$node_bin" "$engine_dir/test_reference_families.cjs"
 "$node_bin" "$engine_dir/test_authoring.cjs"
 "$node_bin" "$engine_dir/test_data_value.cjs"
 "$node_bin" "$engine_dir/test_document_integrity_review.cjs"

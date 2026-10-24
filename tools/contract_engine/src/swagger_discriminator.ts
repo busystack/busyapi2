@@ -25,7 +25,7 @@ export function swaggerDiscriminator(owner:(schema:any)=>Owner|undefined) {
                     seen.add(key);
                     const value=graph.docs.get(scope.resource)!.dataNode(scope.pointer)?.value;
                     if(typeof value?.$ref!=='string')return scope;
-                    const ref=graph.resolve(value.$ref,scope);
+                    const ref=graph.resolveReference(value.$ref,scope);
                     if(ref.resolution!=='resolved')return;
                     scope=graph.scope(ref.targetResource!,ref.targetPointer!);
                 }

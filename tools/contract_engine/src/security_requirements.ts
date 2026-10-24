@@ -23,7 +23,7 @@ export function securityRequirementIssues(graph: ReferenceGraph): GraphIssue[] {
                 seen.add(at);
                 const value = graph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
                 if (typeof value?.$ref !== 'string') break;
-                const resolved = graph.resolve(value.$ref, graph.scope(target.resource, target.pointer));
+                const resolved = graph.resolveReference(value.$ref, graph.scope(target.resource, target.pointer));
                 target = resolved.resolution === 'resolved' ? {resource: resolved.targetResource!, pointer: resolved.targetPointer!, kind: 'security'} : undefined;
             }
             definitions.set(identity, target);

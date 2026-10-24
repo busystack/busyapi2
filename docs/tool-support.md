@@ -7,6 +7,18 @@ use the same captured graph. Swagger/Redoc, Prism, generation and comparison
 qualification remain separate. The evolving [family/workflow matrix](implementation/native-openapi-support.md)
 records actual coverage and outstanding native and packaged checks.
 
+References retain the declared family of each complete OpenAPI document. A
+`$ref` substitution crossing between Swagger 2.0 or OpenAPI 3.0 and another declared family
+reports `reference.family.unsupported`; dependent evaluation and bundling remain
+incomplete. BusyAPI uses this explicit policy for unspecified cross-family legacy
+interpretation. The source and target remain available for editing. Modern
+cross-document references retain their owning dialects and feature sets.
+Unversioned fragments use the captured referring context and can be shared among
+different roots without retaining the previous root's schema rules.
+Typed reference choices and Source completions use this same context check.
+An `operationRef` link identifies its target operation and keeps its separate
+reference rules.
+
 Swagger UI **5.33.2** with client **3.38.2** has adapters for all four families.
 Redoc CE **3.0.1** supports native 3.0/3.1/3.2 display input but internally
 converts Swagger 2.0 even with `skipBundle`. BusyAPI therefore rejects Redoc
