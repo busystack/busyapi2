@@ -106,12 +106,13 @@ export async function planMigration(input:MigrationInput) {
             // occurrences. Example and extension payloads are never searched.
             for(const reference of graph.references){
                 if(!['$ref','operationRef'].includes(reference.keyword)||reference.resolution!=='resolved')continue;
-                const destination=sources.get(reference.targetResource!)?.current(reference.targetPointer!);
+                const destinations=[...sources].flatMap(([id,source])=>[...(id===reference.targetResource?source.origins.get(reference.targetPointer!):source.foreignOrigins.get(reference.targetResource+'#'+reference.targetPointer!))??[]].map(pointer=>({resource:id,pointer})));
+                const destination=destinations.length===1?destinations[0]:undefined;
                 for(const [id,source]of sources){
                     const locations=id===reference.resource?source.origins.get(reference.pointer+'/'+escape(reference.keyword)):source.foreignOrigins.get(reference.resource+'#'+reference.pointer+'/'+escape(reference.keyword));
                     for(const pointer of locations??[]){
                         if(destination===undefined){issue(reference,'migration.reference.target','An established target has no surviving mapped source owner','implementation');continue;}
-                        source.set(pointer,reference.targetResource!+fragment(destination));
+                        source.set(pointer,destination.resource+fragment(destination.pointer));
                     }
                 }
             }

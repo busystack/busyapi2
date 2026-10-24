@@ -3,6 +3,7 @@ import {MigrationSource} from './migration_source';
 import {modernFamily} from './specification';
 import {escape} from './document';
 import {compare,decimal} from './exact_numbers';
+import {createHash} from 'node:crypto';
 
 export type MigrationProblem={resource:string;pointer:string;range:number[];code:string;message:string;reason:'target-representation'|'implementation'|'source-incomplete'|'decision';choices?:string[];id?:string};
 export type MigrationIssue=(scope:{resource:string;pointer:string},code:string,message:string,reason:MigrationProblem['reason'],choices?:string[])=>boolean;
@@ -35,12 +36,36 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
         };
         if(!modernFamily(to)&&Object.hasOwn(value,'$schema'))source.remove(pointer+'/$schema');
         if(!modernFamily(to)&&Array.isArray(value.required)&&value.required.length===0)source.remove(pointer+'/required');
-        if(!modernFamily(to))for(const name of ['$id','$anchor','$dynamicAnchor','$dynamicRef','$defs','patternProperties','dependentSchemas','dependentRequired','if','then','else','contains','minContains','maxContains','unevaluatedItems','unevaluatedProperties','propertyNames','contentSchema','contentEncoding','contentMediaType'])
+        if(modernFamily(from)&&!modernFamily(to)){
+            // Static resource/anchor addresses have already been resolved by
+            // the captured graph. Reference repair below maps their physical
+            // owners before the target is evaluated without modern identities.
+            for(const name of ['$id','$anchor'])source.remove(pointer+'/'+name);
+            if(source.doc.nodes.has(pointer+'/$defs')){
+                const entry=sources.get(graph.root)!;
+                for(const name of [...source.doc.node(pointer+'/$defs').children.keys()]){
+                    const at=pointer+'/$defs/'+escape(name),stem='_migrated_'+createHash('sha256').update(scope.resource+'#'+scope.pointer+'/$defs/'+escape(name)).digest('hex').slice(0,24);
+                    let destination='/components/schemas/'+stem,index=0;
+                    while(entry.doc.nodes.has(destination))destination='/components/schemas/'+stem+'_'+(++index);
+                    if(entry===source)source.move(at,destination);
+                    else {entry.copy(source,at,destination);source.remove(at);}
+                }
+                source.remove(pointer+'/$defs');
+            }
+        }
+        if(!modernFamily(to))for(const name of ['$dynamicAnchor','$dynamicRef','patternProperties','dependentSchemas','dependentRequired','if','then','else','contains','minContains','maxContains','unevaluatedItems','unevaluatedProperties','propertyNames','contentSchema','contentEncoding','contentMediaType'])
             if(Object.hasOwn(value,name))issue(field(name),'migration.schema.keyword','This schema keyword or resource identity has no implemented faithful mapping to '+to,'implementation');
         if(!modernFamily(to)&&Array.isArray(value.prefixItems)){
             if(to==='2.0'){
-                if(Object.hasOwn(value,'items'))issue(field('items'),'migration.schema.tuple-tail','The modern tuple tail cannot be represented by the native Swagger subset without an additional mapping','implementation');
-                else source.rename(pointer+'/prefixItems','items');
+                if(Object.hasOwn(value,'items')&&typeof value.items!=='boolean')issue(field('items'),'migration.schema.tuple-tail','A constrained tuple tail needs a faithful Swagger representation','implementation');
+                else {
+                    source.remove(pointer+'/items');
+                    source.rename(pointer+'/prefixItems','items');
+                    if(value.items===false){
+                        const maximum=String(value.prefixItems.length),existing=source.doc.dataNode(pointer+'/maxItems');
+                        if(!existing||compare(decimal(source.doc.dataJson(existing.pointer)),decimal(maximum))>0)source.exact(pointer+'/maxItems',maximum);
+                    }
+                }
             }else issue(field('prefixItems'),'migration.schema.tuple','OpenAPI 3.0 has no positional tuple Schema Object keyword','target-representation');
         }
         if(to==='2.0')for(const name of ['oneOf','anyOf','not','writeOnly','deprecated'])if(Object.hasOwn(value,name))issue(field(name),'migration.schema.keyword','This Schema Object field requires an explicit faithful Swagger mapping','implementation');
@@ -70,7 +95,11 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
             }
             if(value.type==='null'&&to==='3.0')typeComposition(['null']);
             if(Object.hasOwn(value,'const')){
-                if(Object.hasOwn(value,'enum'))issue(field('const'),'migration.schema.const-enum','Combined const and enum constraints need an intersection-preserving mapping','implementation');
+                if(Object.hasOwn(value,'enum')){
+                    if(!source.doc.nodes.has(pointer+'/allOf'))source.set(pointer+'/allOf',[]);
+                    const branch=pointer+'/allOf/'+source.doc.node(pointer+'/allOf').children.size;
+                    source.set(branch,{});source.move(pointer+'/const',branch+'/enum');source.exact(branch+'/enum','['+graph.docs.get(scope.resource)!.dataJson(scope.pointer+'/const')+']');
+                }
                 else source.rename(pointer+'/const','enum'),source.exact(pointer+'/enum','['+graph.docs.get(scope.resource)!.dataJson(scope.pointer+'/const')+']');
             }
             if(typeof value.$ref==='string'&&Object.keys(value).length>1){

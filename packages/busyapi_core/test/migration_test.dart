@@ -104,6 +104,40 @@ void main() {
     expect((await copy.check(copy.roots.single.id))['status'], 'complete');
     expect(await file.readAsBytes(), original);
   });
+  test('static schema resources and anchors downgrade to independently reopenable native Swagger copies', () async {
+    final model = File('${temp.path}/models.json');
+    const modelText =
+        r'{"$id":"https://schemas.invalid/tree","type":"object","properties":{"value":{"$ref":"#needle"}},"$defs":{"a/b":{"$anchor":"needle","type":"integer","enum":[9007199254740992,9007199254740993],"const":9007199254740993}}}';
+    await model.writeAsString(modelText);
+    final (project, file) = await open(
+      'openapi: 3.2.1\ninfo: {title: Static, version: "1"}\npaths: {}\ncomponents: {schemas: {Model: {\$ref: "models.json"}}}\n',
+    );
+    final original = await file.readAsBytes();
+    final review = await project.prepareMigration(
+      file.uri.toString(),
+      '${temp.path}/copy',
+      targetVersion: '2.0',
+    );
+    addTearDown(review.close);
+    expect(review.publishable, true, reason: '${review.result}');
+    await review.publish();
+    await model.rename('${temp.path}/source-only.json');
+    final copy = await BusyProject.open(review.destination, engine);
+    addTearDown(copy.close);
+    final result = await copy.check(copy.roots.single.id);
+    expect(result['status'], 'complete', reason: '$result');
+    expect(result['projection']['specification']['family'], '2.0');
+    expect(await file.readAsBytes(), original);
+    expect(
+      await File('${temp.path}/source-only.json').readAsString(),
+      modelText,
+    );
+    expect(
+      await File('${review.destination}/${review.result['entry']}')
+          .readAsString(),
+      contains('9007199254740993'),
+    );
+  });
   test(
     'Source edits and declaration changes reject stale migration reviews',
     () async {

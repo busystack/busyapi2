@@ -150,7 +150,16 @@ void main() {
               isNotNull,
             );
             await tester.runAsync(() => tester.tap(publish));
-            await ready(() => File('$path/openapi.yaml').existsSync());
+            await ready(
+              () =>
+                  File('$path/openapi.yaml').existsSync() &&
+                  find
+                      .text(
+                        'The migrated copy was created. Original documents are preserved.',
+                      )
+                      .evaluate()
+                      .isNotEmpty,
+            );
             expect(
               File('$path/openapi.yaml').readAsStringSync(),
               contains('3.2.1'),

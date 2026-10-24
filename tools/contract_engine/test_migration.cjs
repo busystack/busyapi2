@@ -36,7 +36,7 @@ test('genuine target incompatibilities and incomplete converter mappings remain 
  for(const [text,targetVersion,code]of [
   ['swagger: "2.0"\ninfo: {title: Model, version: "1"}\npaths: {}\ndefinitions: {Base: {type: object, required: [kind], properties: {kind: {type: string}}, discriminator: kind}}\n','3.0.4','migration.discriminator.dispatch'],
   ['openapi: 3.2.1\ninfo: {title: Query, version: "1"}\npaths: {/x: {query: {responses: {204: {description: Empty}}}}}\n','3.1.2','migration.feature.newer'],
-  ['openapi: 3.1.2\ninfo: {title: Resource, version: "1"}\npaths: {}\ncomponents: {schemas: {Value: {$id: value, type: string}}}\n','3.0.4','migration.schema.keyword'],
+  ['openapi: 3.1.2\ninfo: {title: Resource, version: "1"}\npaths: {}\ncomponents: {schemas: {Value: {$id: value, $dynamicAnchor: tree, type: object, properties: {child: {$dynamicRef: "#tree"}}}}}\n','3.0.4','migration.schema.keyword'],
  ]){const input={...capture(text),targetVersion},result=await planMigration(input);assert.equal(result.status,'blocked');assert.equal(result.outputs.length,0);assert(result.problems.some(p=>p.code===code&&p.resource===input.root&&p.pointer&&p.range[1]>p.range[0]),JSON.stringify(result.problems));assert.equal(input.resources[0].text,text);}
 });
 test('Swagger body inheritance, media, primitive parameters, security and response examples migrate structurally',async()=>{
@@ -54,4 +54,22 @@ test('a changed source graph cannot reuse a previous decision identity',async()=
  const input=capture('openapi: 3.0.4\ninfo: {title: Bound, version: "1"}\npaths: {}\ncomponents: {schemas: {A: {type: string}, B: {$ref: "#/components/schemas/A", type: integer}}}\n');
  const review=await planMigration(input),changed={...input,resources:input.resources.map(resource=>({...resource,text:resource.text.replace('type: integer','type: number')})),decisions:{[review.problems[0].id]:'discard-ignored-siblings'}};
  await assert.rejects(planMigration(changed),error=>error.code==='migration.decisions.stale');
+});
+for(const targetVersion of ['3.0.4','2.0'])test(`static resource identities, anchors, nested definitions and const intersections migrate faithfully to ${targetVersion}`,async()=>{
+ const input={...capture('openapi: 3.2.1\ninfo: {title: Static resource, version: "1"}\npaths: {}\ncomponents: {schemas: {Model: {$ref: "models.json"}}}\n','yaml',[{id:'file:///approved/models.json',generation:2,text:'{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://schemas.invalid/tree","type":"object","properties":{"value":{"$ref":"#needle"}},"$defs":{"a/b":{"$anchor":"needle","type":"integer","enum":[9007199254740992,9007199254740993],"const":9007199254740993}}}'}]),targetVersion};
+ const result=await planMigration(input);assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.outputs.length,2);
+ const pointer=targetVersion==='2.0'?'/definitions/Model':'/components/schemas/Model',samples=['{"value":9007199254740993}','{"value":9007199254740992}','{"value":9007199254740994}'];
+ const before=await evaluateSchemas({...input,runtimeInstances:samples.map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:input.root,pointer:'/components/schemas/Model'}}))});
+ const resources=result.outputs.map(output=>({id:output.id,text:output.text,generation:0}));
+ const after=await evaluateSchemas({root:result.outputRoot,snapshot:'target',resources,runtimeInstances:samples.map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:result.outputRoot,pointer}}))});
+ assert.equal(before.complete,true,JSON.stringify(before.findings));assert.equal(after.complete,true,JSON.stringify(after.findings));assert.deepEqual(after.runtimeEvaluations.map(e=>e.valid),[true,false,false]);assert.deepEqual(after.runtimeEvaluations.map(e=>e.valid),before.runtimeEvaluations.map(e=>e.valid));
+ assert.equal(analyse({root:result.outputRoot,snapshot:'cold',resources}).status,'complete');assert(result.outputs.some(output=>output.text.includes('9007199254740993')));
+});
+test('Swagger downgrade represents a closed positional tuple by exact maxItems and native tuple items',async()=>{
+ const input={...capture('{"openapi":"3.2.1","info":{"title":"Tuple","version":"1"},"paths":{},"components":{"schemas":{"Tuple":{"type":"array","prefixItems":[{"type":"integer"},{"type":"string"}],"items":false,"maxItems":1e999}}}}','json'),targetVersion:'2.0'};
+ const result=await planMigration(input);assert.equal(result.complete,true,JSON.stringify(result.problems));
+ const samples=['[]','[1]','[1,"x"]','[1,"x",3]','["x"]'];
+ const before=await evaluateSchemas({...input,runtimeInstances:samples.map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:input.root,pointer:'/components/schemas/Tuple'}}))});
+ const after=await evaluateSchemas({root:result.outputRoot,snapshot:'target',resources:result.outputs.map(output=>({id:output.id,text:output.text,generation:0})),runtimeInstances:samples.map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:result.outputRoot,pointer:'/definitions/Tuple'}}))});
+ assert.equal(after.complete,true,JSON.stringify(after.findings));assert.deepEqual(after.runtimeEvaluations.map(e=>e.valid),[true,true,true,false,false]);assert.deepEqual(before.runtimeEvaluations.map(e=>e.valid),after.runtimeEvaluations.map(e=>e.valid));
 });
