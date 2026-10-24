@@ -599,7 +599,12 @@ export function planInline(input:any) {
   const visit=(id:string,pointer:string)=>{
    if(++work>20000)throw new SourceError('limit.refactor.inline','The reference impact graph exceeds its bounded review budget');
    const key=id+'#'+pointer;
-   if(active.has(key))throw new SourceError('refactor.inline.recursive','The definition reaches a recursive graph; retain its shared definition instead of silently inlining it');
+   if(active.has(key)){
+    // A non-schema object is copied once. Static recursion in an unchanged
+    // referenced schema stays in that resource; it is never expanded here.
+    if(scope.kind!=='schema'&&(id!==definition.id||!inside(pointer,definitionPointer)))return;
+    throw new SourceError('refactor.inline.recursive','The definition reaches a recursive graph; retain its shared definition instead of silently inlining it');
+   }
    if(visited.has(key))return;visited.add(key);active.add(key);
    for(const edge of g.graph.references){
     if(++inspected>200000)throw new SourceError('limit.refactor.inline','The reference impact graph exceeds its bounded review budget');
@@ -670,9 +675,9 @@ export function planInline(input:any) {
    if(!next||next.dialect!==at.dialect)throw new SourceError('refactor.inline.dialect','The copied schema would inherit a different dialect');
   }
   for(const old of g.graph.references)if(old.resource===definition.id&&inside(old.pointer,definitionPointer)&&intrinsic(g.graph,old.resource,old.pointer,definitionPointer)){
-   // The impact walk above rejects actual cycles. An acyclic internal target
-   // remains the original shared definition, not a recursively expanded copy.
-   // Its address and every copied occurrence are proved again below.
+   // The copied occurrence retains its original shared target. Downstream
+   // static recursion is not expanded; copied and retained addresses are
+   // proved again below.
    const at=after.graph.scopes.get(resource.id+'#'+relocated(old.pointer)),to=after.graph.scopes.get(old.targetResource+'#'+old.targetPointer)??g.graph.scopes.get(old.targetResource+'#'+old.targetPointer);
    const next=old.connection?old.value:at&&to?referenceValue(after.graph,at,to,old.keyword):undefined;
    if(next===undefined)throw new SourceError('refactor.copy.address','An inlined consumer cannot retain its original target');

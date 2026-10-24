@@ -6,6 +6,39 @@ const {createGraph}=require('./dist/model.cjs');
 const {SourceDocument}=require('./dist/document.cjs');
 const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
 const pointer='/paths/~1items/get/responses/200/content/application~1json/schema';
+for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`inline response retains the reachable dynamic-scope refusal ${version} ${json?'JSON':'YAML'}`,()=>{
+ const root='file:///project/dynamic.'+(json?'json':'yaml'),at='/paths/~1p/get/responses/200';
+ const value={openapi:version,info:{title:'Dynamic scope',version:'1'},paths:{'/p':{get:{responses:{200:{$ref:'#/components/responses/Shared'}}}}},components:{responses:{Shared:{description:'Shared',content:{'application/json':{schema:{$ref:'#/components/schemas/Node'}}}}},schemas:{Node:{$id:'https://schemas.invalid/node',$dynamicAnchor:'node',type:'object',properties:{next:{$dynamicRef:'#node'}}}}}};
+ const text=json?JSON.stringify(value):YAML.stringify(value),input={root,snapshot:'dynamic-inline',resources:[{id:root,text,generation:1}],contexts:[{root,resources:[root]}],target:{root,resource:root,generation:1,pointer:at}};
+ assert.throws(()=>planInline(input),error=>error.code==='refactor.inline.schema-resource');assert.equal(input.resources[0].text,text);
+});
+for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const json of [false,true])for(const external of [false,true])test(`inline response retains its unchanged recursive schema target ${version} ${json?'JSON':'YAML'} external=${external}`,async()=>{
+ const legacy=version==='2.0',ext=json?'json':'yaml',root='file:///project/api.'+ext,shared='file:///project/responses.'+ext;
+ const nodePointer=legacy?'/definitions/Node':'/components/schemas/Node',responsePointer=legacy?'/responses/Shared':'/components/responses/Shared',at='/paths/~1p/get/responses/200';
+ const schema={$ref:(external?'api.'+ext:'')+'#'+nodePointer},example={value:'EXACT_NUMBER',$ref:'literal data'};
+ const response={description:'Recursive response',...(legacy?{schema,examples:{'application/json':example}}:{content:{'application/json':{schema,example}}})};
+ const node={type:'object',required:['value'],properties:{value:{type:'integer',minimum:'EXACT_NUMBER'},next:{$ref:'#'+nodePointer}}};
+ const value={...(legacy?{swagger:version}:{openapi:version}),info:{title:'Recursive response',version:'1'},...(legacy?{produces:['application/json']}:{}),
+  paths:{'/p':{get:{responses:{200:{$ref:external?'responses.'+ext+'#/Shared':'#'+responsePointer}}}}},
+  ...(legacy?{definitions:{Node:node},...(!external?{responses:{Shared:response}}:{})}:{components:{schemas:{Node:node},...(!external?{responses:{Shared:response}}:{})}})};
+ const encode=value=>(json?JSON.stringify(value):'# Keep 雪\r\n'+YAML.stringify(value).replaceAll('\n','\r\n')).replaceAll('"EXACT_NUMBER"','9007199254740993.00').replaceAll('EXACT_NUMBER','9007199254740993.00');
+ const resources=[{id:root,text:encode(value),generation:1},...(external?[{id:shared,text:encode({Shared:response}),generation:2}]:[])];
+ const input={root,snapshot:'recursive-response',resources,contexts:[{root,resources:resources.map(r=>r.id)}],target:{root,resource:root,generation:1,pointer:at}};
+ const before=new SourceDocument(resources[0].text,root),plan=planInline(input),after=apply(input,plan),doc=new SourceDocument(after[0].text,root);
+ assert.equal(plan.changes.length,1);assert.equal(plan.changes[0].resource,root);
+ assert.equal(doc.text.slice(...doc.node(nodePointer).range),before.text.slice(...before.node(nodePointer).range));
+ if(external)assert.equal(after[1].text,resources[1].text);
+ else assert.equal(doc.text.slice(...doc.node(responsePointer).range),before.text.slice(...before.node(responsePointer).range));
+ const graph=createGraph({root,resources:after}).graph,schemaPointer=at+(legacy?'/schema':'/content/application~1json/schema');
+ const reference=graph.references.find(r=>r.resource===root&&r.pointer===schemaPointer&&r.keyword==='$ref');
+ assert.equal(reference.targetResource,root);assert.equal(reference.targetPointer,nodePointer);assert.equal(graph.issues.length,0);
+ const raw=doc.dataJson(at);assert(raw.includes('9007199254740993.00'));assert(raw.includes('literal data'));
+ const instances=['{"value":9007199254740993}','{"value":9007199254740993,"next":{"value":9007199254740994}}','{"value":9007199254740992}'];
+ for(const [capture,resource,pointer]of [[resources,external?shared:root,(external?'/Shared':responsePointer)+(legacy?'/schema':'/content/application~1json/schema')],[after,root,schemaPointer]]){
+  const evaluated=await evaluateSchemas({root,snapshot:'inline-invariants',resources:capture,runtimeInstances:instances.map(text=>({subject:'response-body',location:'application/json',text,schema:{resource,pointer}}))});
+  assert.equal(evaluated.complete,true,JSON.stringify(evaluated.findings));assert.deepEqual(evaluated.runtimeEvaluations.map(e=>e.valid),[true,true,false]);
+ }
+});
 for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`inlining a selected literal value cannot silently change its data meaning ${version} ${json}`,()=>{
  const root='file:///project/root.'+(json?'json':'yaml'),value={openapi:version,info:{title:'Selected data',version:'1'},paths:{},components:{schemas:{Value:{type:'string'},Literal:{const:{$ref:'#/components/schemas/Value'}},Use:{$ref:'#/components/schemas/Literal/const'}}}},text=json?JSON.stringify(value):YAML.stringify(value),input={snapshot:'inline-selected-data',resources:[{id:root,text,generation:1}],contexts:[{root,resources:[root]}],target:{root,resource:root,generation:1,pointer:'/components/schemas/Literal/const'}};
  assert.throws(()=>planInline(input),error=>error.code==='refactor.literal.ownership');assert.equal(input.resources[0].text,text);
