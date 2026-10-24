@@ -1768,6 +1768,7 @@ String Function(String) _copyRefactoringFailure(BuildContext context) {
     'refactor.copy.uri-context' => l.copyUriContextBlocked,
     'refactor.copy.retrieval' => l.copyRetrievalBlocked,
     'refactor.copy.resource-context' => l.copyRootContextBlocked,
+    'refactor.copy.binding' => l.copyBindingBlocked,
     'refactor.context.ambiguous' ||
     'refactor.copy.implicit' => l.copyTypedContextBlocked,
     'refactor.extract.destination' => l.extractDestinationBlocked,

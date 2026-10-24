@@ -15,7 +15,7 @@ import '../packages/busyapi_core/test/test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final version in ['3.1.2', '3.2.1']) {
+  for (final version in ['2.0', '3.1.2', '3.2.1']) {
     for (final json in [false, true]) {
       testWidgets('new-file extraction controls $version json=$json', (
         tester,
@@ -101,8 +101,15 @@ void main() {
           final ext = json ? 'json' : 'yaml',
               root = File('${temp.path}/root.$ext'),
               destination = File('${temp.path}/new 雪.$ext');
-          const pointer = '/components/schemas/Owner/properties/child';
-          final source = json
+          final swagger = version == '2.0';
+          final pointer = swagger
+              ? '/paths/~1items/get/responses/200'
+              : '/components/schemas/Owner/properties/child';
+          final movedPointer = swagger ? '/Stored' : '';
+          final bindingPointer = swagger
+              ? '/Stored'
+              : '/components/schemas/Stored';
+          final modernSource = json
               ? jsonEncode({
                   'openapi': version,
                   'info': {'title': 'Extraction 雪😀', 'version': '1'},
@@ -124,6 +131,41 @@ void main() {
                   },
                 }).replaceAll('"EXACT"', '900719925474099312345678901')
               : '# retained 雪😀\r\nopenapi: $version\r\ninfo: {title: Extraction, version: "1"}\npaths: {}\ncomponents:\n  schemas:\n    Owner:\n      properties:\n        child:\n          type: object # kept constraint\n          properties: {n: false}\n          examples: [{n: 900719925474099312345678901, \$ref: "literal payload"}]';
+          final source = !swagger
+              ? modernSource
+              : json
+              ? jsonEncode({
+                  'swagger': '2.0',
+                  'info': {'title': 'Extraction 雪😀', 'version': '1'},
+                  'paths': {
+                    '/items': {
+                      'get': {
+                        'responses': {
+                          '200': {
+                            'description': 'Native response',
+                            'schema': {r'$ref': '#/definitions/Model'},
+                            'examples': {
+                              'application/json': {
+                                'n': 'EXACT',
+                                r'$ref': 'literal payload',
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                  'definitions': {
+                    'Model': {
+                      'type': 'object',
+                      'properties': {
+                        'n': {'type': 'integer'},
+                        'next': {r'$ref': '#/definitions/Model'},
+                      },
+                    },
+                  },
+                }).replaceAll('"EXACT"', '900719925474099312345678901')
+              : '# retained 雪😀\r\nswagger: "2.0"\r\ninfo: {title: Extraction, version: "1"}\npaths:\n  /items:\n    get:\n      responses:\n        "200":\n          description: Native response # retained\n          schema: {\$ref: "#/definitions/Model"}\n          examples: {application/json: {n: 900719925474099312345678901, \$ref: "literal payload"}}\ndefinitions:\n  Model:\n    type: object\n    properties:\n      n: {type: integer}\n      next: {\$ref: "#/definitions/Model"}';
           await tester.runAsync(() async {
             await root.writeAsString('\ufeff$source');
             await c.initialize();
@@ -234,10 +276,7 @@ void main() {
             await waitFor(
               () => currentText('Review extraction to source file'),
             );
-            expect(
-              find.textContaining('/components/schemas/Stored'),
-              findsWidgets,
-            );
+            expect(find.textContaining(bindingPointer), findsWidgets);
             expect(owner.bytes(), original);
             expect(destination.existsSync(), false);
           }
@@ -266,7 +305,7 @@ void main() {
               movedReading = jsonEncode([
                 c.root,
                 destination.uri.toString(),
-                '',
+                movedPointer,
                 'description',
               ]);
           c.layoutState = {
@@ -281,18 +320,26 @@ void main() {
           await button('Apply');
           await settleAction();
           expect(c.selectedResource, destination.uri.toString());
-          expect(c.selectedPointer, '');
+          expect(c.selectedPointer, movedPointer);
           final created = c.store!.get(destination.uri.toString()),
               changed = owner.bytes();
           expect(created.text, contains('900719925474099312345678901'));
           expect(created.text, isNot(contains('openapi')));
           expect(created.present, true);
           expect(created.publishedPresent, false);
-          expect(c.sourceFolds(c.root!, created.id), contains(''));
+          expect(c.sourceFolds(c.root!, created.id), contains(movedPointer));
           expect((c.layoutState['referenceText'] as Map)[movedReading], {
             'page': 1,
           });
           expect(destination.existsSync(), false);
+          final checked = await tester.runAsync(
+            () => c.project!.check(c.root!),
+          );
+          expect(
+            checked!['status'],
+            'complete',
+            reason: '${checked['findings']}',
+          );
           await tester.runAsync(c.undo);
           expect(owner.bytes(), original);
           expect(c.selectedResource, owner.id);
@@ -302,7 +349,7 @@ void main() {
           expect((c.layoutState['referenceText'] as Map)[reading], {'page': 1});
           await tester.runAsync(c.redo);
           expect(c.selectedResource, created.id);
-          expect(c.selectedPointer, '');
+          expect(c.selectedPointer, movedPointer);
           expect(owner.bytes(), changed);
           await tester.runAsync(c.saveAll);
           expect(root.readAsBytesSync(), changed);

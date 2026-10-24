@@ -1,5 +1,5 @@
 import { analyse, createGraph, Resource } from './engine';
-import { fieldsFor } from './authoring';
+import { fieldsForScope } from './authoring';
 import { escape, segments, SourceDocument, SourceError } from './document';
 import { GraphReference, supportedSchemaDialect } from './reference_graph';
 import { referenceValue } from './reference_choices';
@@ -69,7 +69,7 @@ export function assistSource(input: any) {
     const scope = graph.scope(doc.id, pointer), parentScope = graph.scope(doc.id, parentPointer);
     const exact = graph.scopes.get(doc.id + '#' + pointer), parent = doc.nodes.get(parentPointer);
     const parentContext = graph.scopes.get(doc.id + '#' + parentPointer);
-    const field = parent && parentContext && fieldsFor(parentScope.kind, family, parent.value, segments(parentPointer).at(-1)).find(f => f.name === name);
+    const field = parent && parentContext && fieldsForScope(graph,parentScope,parent.value).find(f => f.name === name);
     const schemaDialectKnown = scope.kind !== 'schema' || supportedSchemaDialect(scope);
     const customKeyword = !field && parentContext?.kind === 'schema';
     const reference = graph.references.find(r => r.resource === doc.id && inRange(caret, refLocation(doc, r)));
@@ -137,7 +137,7 @@ export function assistSource(input: any) {
         return result;
     if (!keyNode && doc.format === 'yaml' && !container.flow && !/^\s*$/.test(doc.text.slice(Math.max(container.range[0] + 1, doc.text.lastIndexOf('\n', caret - 1) + 1), caret)))
         return result;
-    const descriptions = fieldsFor(context.kind, family, container.value, segments(containerPointer).at(-1));
+    const descriptions = fieldsForScope(graph,context,container.value);
     let prefix = '';
     if (keyNode) {
         const raw=doc.text.slice(keyNode.keyRange![0],caret);
@@ -194,7 +194,7 @@ function incompleteKeyCompletions(doc:SourceDocument, graph:any, family:string, 
     if(doc.format==='yaml'&&(container.flow||doc.indent(container.children.values().next().value?.keyRange?.[0]??container.range[0])!==line.length-prefix.length))return [];
     if(context.kind==='schema'&&!supportedSchemaDialect(context))return [];
     const completions:any[]=[];
-    for(const field of fieldsFor(context.kind,family,container.value,segments(container.pointer).at(-1))) {
+    for(const field of fieldsForScope(graph,context,container.value)) {
         if(!field.name.startsWith(prefix)||Object.hasOwn(container.value,field.name)||field.prohibited||field.blockedBy?.length)continue;
         const values=field.options??(field.type==='boolean'?[true,false]:[field.type==='string'?'':field.type==='array'?[]:['object','schema'].includes(field.type)?{}:['number','integer'].includes(field.type)?0:null]);
         for(const value of values) {

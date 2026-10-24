@@ -1,4 +1,4 @@
-import {children,isReferenceObject} from './contexts';
+import {children} from './contexts';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {ReferenceGraph} from './reference_graph';
 import {modernFamily} from './specification';
@@ -23,8 +23,8 @@ export function governanceProjection(graph:ReferenceGraph,resolved:boolean) {
         if(!node)throw new SourceError('policy.provenance','Governance source is absent');
         origins.set(output,origin);kinds.set(output,origin.kind);
         const value=node.value;
-        const family=graph.scope(origin.resource,origin.pointer).family;
-        const referenceObject=isReferenceObject(value,origin.kind,family);
+        const scope={...graph.scope(origin.resource,origin.pointer),kind:origin.kind},family=scope.family;
+        const referenceObject=graph.referenceObject(value,scope);
         if(resolved&&origin.kind==='path-item'&&value&&typeof value.$ref==='string') {
             const view=graph.pathItem(origin),identity=JSON.stringify([origin.resource,origin.pointer,origin.kind]);
             if(!view.complete)problems.push({origin,code:view.conflicts.length?'policy.path-item.ambiguous':view.cyclic?'policy.reference.cycle':'policy.reference.incomplete'});

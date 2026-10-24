@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {createGraph,Resource} from './engine';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {referenceValue} from './reference_choices';
-import {fieldsFor,componentFamily,componentLocation,documentUriOccurrences} from './authoring';
+import {fieldsForScope,componentFamily,componentLocation,documentUriOccurrences} from './authoring';
 import {documentUriBase,ReferenceGraph,resolveUri} from './reference_graph';
 import {coldGraph} from './reference_selection';
 import {ParameterSemantics} from './parameter_semantics';
@@ -202,8 +202,12 @@ function planCopy(input:any,moving=false) {
  if(!family||scope.kind==='media'&&scope.family!=='3.2'||typeof input.name!=='string'||!/^[a-zA-Z0-9._-]+$/.test(input.name)||input.name.length>4096)
   throw new SourceError('refactor.copy.context','Choose an inline reusable object and a legal component name');
  const destinationId=input.destinationResource??resource.id,destinationResource=resources.find(r=>r.id===destinationId);
- const fragment=input.destinationFragment===true;
- if(fragment&&(!moving||!destinationResource||destinationResource.text!=='null'||graphs.some(g=>g.docs.has(destinationId))))
+ const namedFragment=input.destinationFragment==='named';
+ const fragment=input.destinationFragment===true||namedFragment;
+ if(namedFragment&&(moving||scope.family!=='2.0'||!['parameter','response'].includes(scope.kind)))
+  throw new SourceError('refactor.extract.destination','A named fragment is supported for inline Swagger Parameter and Response Objects');
+ const slotText=namedFragment?doc.emit({[input.name]:null}):'null';
+ if(fragment&&(!moving&&!namedFragment||!destinationResource||destinationResource.text!==slotText||graphs.some(g=>g.docs.has(destinationId))))
   throw new SourceError('refactor.extract.destination','A new fragment destination must be a separately captured empty planning slot');
  if(fragment&&(typeof node.value?.openapi==='string'||typeof node.value?.swagger==='string'))
   throw new SourceError('refactor.copy.resource-context','An authored OpenAPI-looking keyword needs an unambiguous resource interpretation before copying this object to a document root');
@@ -215,8 +219,11 @@ function planCopy(input:any,moving=false) {
   throw new SourceError('refactor.extract.definition',moving?'Choose an authored component definition to move':'Choose an inline object, not an existing component definition');
  if(typeof node.value?.$ref==='string'||typeof node.value?.$dynamicRef==='string')
   throw new SourceError('refactor.extract.definition','Choose an inline object, not an existing definition or reference occurrence');
+ if(!selected.graph.allowsReference(scope)&&(!moving||scope.kind==='security'))
+  throw new SourceError('refactor.copy.binding','This authored position cannot be replaced by a Reference Object; Swagger security definitions must remain in their owning document',node.range);
+ const preserveBinding=moving&&selected.graph.allowsReference(scope),removeBinding=moving&&!preserveBinding;
  const cross=destinationId!==resource.id;
- const destination=fragment?'':componentLocation(family,scope.family)!+'/'+escape(input.name),move=(id:string,pointer:string)=>id===resource.id&&inside(pointer,target.pointer)?destination+pointer.slice(target.pointer.length):pointer;
+ const destination=namedFragment?'/'+escape(input.name):fragment?'':componentLocation(family,scope.family)!+'/'+escape(input.name),move=(id:string,pointer:string)=>id===resource.id&&inside(pointer,target.pointer)?destination+pointer.slice(target.pointer.length):pointer;
  const movedResource=(id:string,pointer:string)=>id===resource.id&&inside(pointer,target.pointer)?destinationId:id;
  if(moving&&!cross&&destination===target.pointer)return {version:1,kind:'component-move',snapshot:input.snapshot,edits:[],changes:[],usages:[],transitions:[],from:target,to:target,checkedRoots:input.contexts.map((c:any)=>c.root)};
  semanticOwner(owning,resource.id,target.pointer,node.range);
@@ -232,48 +239,51 @@ function planCopy(input:any,moving=false) {
   }
  }
  const admit=editBudget(resources);admit(destinationId);admit(resource.id);
- let changed=fragment?replaceValue(destinationDoc,'',doc,target.pointer):insertValue(destinationDoc,destination,doc,target.pointer);
+ let changed=fragment?replaceValue(destinationDoc,destination,doc,target.pointer):insertValue(destinationDoc,destination,doc,target.pointer);
+ if(removeBinding)changed=retainOccurrenceComments(doc,changed,destination,target.pointer,true);
  // Relocation of an already authored $id retains its canonical identity. This
  // is a reviewed edit of that field, not an invented identifier/resource.
  if(cross)for(const at of selected.graph.scopes.values())if(at.kind==='schema'&&at.resource===resource.id&&inside(at.pointer,target.pointer)&&doc.nodes.has(at.pointer+'/$id')){
   admit(destinationId);changed=new SourceDocument(changed.set(move(resource.id,at.pointer)+'/$id',at.base),destinationId);
  }
- const occurrenceValue={$ref:fragment?destinationId:'#'+destination};
+ const occurrenceValue={$ref:fragment?destinationId+(destination?'#'+destination:''):'#'+destination};
  const parent=doc.node(target.pointer.slice(0,target.pointer.lastIndexOf('/')));
  const occurrence=doc.format==='yaml'&&!parent.flow
   ?new SourceDocument(doc.emit(occurrenceValue),'occurrence.yaml')
   :new SourceDocument(JSON.stringify(occurrenceValue),'occurrence.json');
- const sourceAfter=replaceValue(cross?doc:changed,target.pointer,occurrence,'');
+ const sourceDoc=cross?doc:changed;
+ const sourceAfter=removeBinding?new SourceDocument(sourceDoc.remove(target.pointer),sourceDoc.id):replaceValue(sourceDoc,target.pointer,occurrence,'');
  const outputs=new Map<string,string>([[destinationId,changed.text],[resource.id,sourceAfter.text]]),repairs=new Map<string,string>(),usages=new Map<string,any>();
  const conversions=new Map<string,{resource:string,from:string,to:string}>();
  const keywordFor=(ref:any)=>conversions.has(movedResource(ref.resource,ref.pointer)+'#'+move(ref.resource,ref.pointer)+'/operationId')&&ref.keyword==='operationId'?'operationRef':ref.keyword;
  const currentResources=()=>resources.map(r=>outputs.has(r.id)?{...r,text:outputs.get(r.id)!}:r);
- const rebuilt=(g:typeof selected)=>{
+ const rebuilt=(g:typeof selected,seedDestination=false)=>{
   const current=currentResources(),ids=new Set<string>(g.context.resources);
   if(owning.includes(g))ids.add(destinationId);
   // Do not inject one entry description's entire resource set into unrelated
   // roots. Reuse canonical cold closure for genuinely new outgoing resources.
   for(const id of coldGraph(g.context.root,current).docs.keys())ids.add(id);
-  return createGraph({root:g.context.root,resources:current.filter(r=>ids.has(r.id))});
+  return createGraph({root:g.context.root,resources:current.filter(r=>ids.has(r.id)),
+   ...(seedDestination?{occurrences:[{resource:destinationId,pointer:destination,kind:scope.kind}]}:{})});
  };
  for(const g of owning) {
-  let after=rebuilt(g);
-  const nextScope=after.graph.scopes.get(destinationId+'#'+destination),from=after.graph.scopes.get(resource.id+'#'+target.pointer);
+  let after=rebuilt(g,removeBinding);
+  const nextScope=after.graph.scopes.get(destinationId+'#'+destination),from=removeBinding?scope:after.graph.scopes.get(resource.id+'#'+target.pointer);
   if(!nextScope||!from||nextScope.kind!==scope.kind)throw new SourceError('refactor.extract.destination','This component family is not supported in every owning root');
   if(cross)relocateCopiedUris(g.graph,after.graph,{resource:resource.id,pointer:target.pointer},{resource:destinationId,pointer:destination},outputs,repairs,admit);
-  const address=referenceValue(after.graph,from,nextScope);
-  if(!address)throw new SourceError('refactor.copy.address','The extracted definition has no unambiguous reference address');
-  const addresses:[string,string,any,string?][]= [[resource.id,target.pointer+'/$ref',address]];
+  const address=removeBinding?undefined:referenceValue(after.graph,from,nextScope);
+  if(!removeBinding&&!address)throw new SourceError('refactor.copy.address','The extracted definition has no unambiguous reference address');
+  const addresses:[string,string,any,string?][]= removeBinding?[]:[[resource.id,target.pointer+'/$ref',address]];
   for(const ref of g.graph.references) {
    const sourcePointer=move(ref.resource,ref.pointer),targetPointer=move(ref.targetResource!,ref.targetPointer!);
-   if(sourcePointer===ref.pointer&&targetPointer===ref.targetPointer)continue;
-   const retained=moving&&!(ref.resource===resource.id&&inside(ref.pointer,target.pointer))&&ref.targetResource===resource.id&&ref.targetPointer===target.pointer;
+   const targetResource=movedResource(ref.targetResource!,ref.targetPointer!),sourceResource=movedResource(ref.resource,ref.pointer);
+   if(sourcePointer===ref.pointer&&targetPointer===ref.targetPointer&&sourceResource===ref.resource&&targetResource===ref.targetResource)continue;
+   const retained=preserveBinding&&!(ref.resource===resource.id&&inside(ref.pointer,target.pointer))&&ref.targetResource===resource.id&&ref.targetPointer===target.pointer;
    if(retained){
     const key=ref.resource+'#'+ref.pointer+'/'+escape(ref.keyword),usage=usages.get(key)??{resource:ref.resource,pointer:ref.pointer+'/'+escape(ref.keyword),connection:ref.connection??ref.keyword,target:{resource:ref.targetResource,pointer:ref.targetPointer},roots:[],unchangedIdentity:true,bindingRetained:true};
     if(!usage.roots.includes(g.context.root))usage.roots.push(g.context.root);usages.set(key,usage);
     continue;
    }
-   const targetResource=movedResource(ref.targetResource!,ref.targetPointer!),sourceResource=movedResource(ref.resource,ref.pointer);
    const to=after.graph.scopes.get(targetResource+'#'+targetPointer),at=after.graph.scopes.get(sourceResource+'#'+sourcePointer);
    if(!to||!at||ref.connection==='security'||ref.connection==='discriminator'&&ref.value.indexOf('/')<0&&ref.value.indexOf('#')<0)
     throw new SourceError('refactor.copy.implicit','An implicit connection needs an explicit ownership decision before extraction');
@@ -319,7 +329,7 @@ function planCopy(input:any,moving=false) {
   }
  }
  const retainedBinding=(before:any,next:any,graph:any)=>{
-  if(!moving||before.resource===resource.id&&inside(before.pointer,target.pointer)||before.targetResource!==resource.id||before.targetPointer!==target.pointer||
+  if(!preserveBinding||before.resource===resource.id&&inside(before.pointer,target.pointer)||before.targetResource!==resource.id||before.targetPointer!==target.pointer||
      next?.targetResource!==resource.id||next?.targetPointer!==target.pointer)return false;
   const bridge=graph.references.find((r:any)=>r.resource===resource.id&&r.pointer===target.pointer&&r.keyword==='$ref');
   return bridge?.resolution==='resolved'&&bridge.targetResource===destinationId&&bridge.targetPointer===destination;
@@ -357,16 +367,15 @@ function planCopy(input:any,moving=false) {
   }
  }
  const edits=editsFor(resources,outputs);
- return {version:1,kind:moving?'component-move':'component-extract',...(moving?{preservedBinding:{resource:resource.id,pointer:target.pointer}}:{}),snapshot:input.snapshot,identity:createHash('sha256').update(JSON.stringify({snapshot:input.snapshot,target,name:input.name,moving,edits})).digest('hex'),edits,
+ return {version:1,kind:moving?'component-move':'component-extract',...(moving?{[preserveBinding?'preservedBinding':'removedBinding']:{resource:resource.id,pointer:target.pointer}}:{}),snapshot:input.snapshot,identity:createHash('sha256').update(JSON.stringify({snapshot:input.snapshot,target,name:input.name,moving,edits})).digest('hex'),edits,
   changes:[...outputs].map(([id,after])=>({resource:id,before:resources.find(r=>r.id===id)!.text,after})),usages:[...usages.values()],from:target,to:{...target,resource:destinationId,pointer:destination},
   transitions:[{resource:resource.id,from:target.pointer,to:destination,...(cross?{toResource:destinationId}:{})},...conversions.values()],checkedRoots:input.contexts.map((c:any)=>c.root)};
 }
 
 export const planExtract=(input:any)=>planCopy(input);
 
-/** Compose the existing extraction and definition relocation proofs in one
- * immutable proposal. The temporary null is only a CST insertion slot, never
- * an authored API wrapper, published file, buffer or second document model. */
+/** Compose extraction/relocation proofs in one immutable proposal. Temporary
+ * CST insertion slots are never published buffers or a second document model. */
 export function planExtractToFile(input:any) {
  const original=capture(input),id=input.destinationResource;
  if(typeof id!=='string'||original.resources.some(resource=>resource.id===id))throw new SourceError('edit.collision','Choose an unused approved source destination');
@@ -383,6 +392,24 @@ export function planExtractToFile(input:any) {
   }
   return text===resource.text?resource:{...resource,text,identity:createHash('sha256').update(text).digest('hex')};
  });
+ const proposal=(final:Resource[],binding:{resource:string;pointer:string},to:{resource:string;pointer:string},usages:any[],transitions:any[])=>{
+  const created=final.find(resource=>resource.id===id)!;
+  const outputs=new Map(final.filter(resource=>resource.id!==id&&resource.text!==original.resources.find(before=>before.id===resource.id)!.text).map(resource=>[resource.id,resource.text]));
+  const data={version:1,kind:'component-extract-file',snapshot:input.snapshot,checkedRoots:input.contexts.map((context:any)=>context.root),
+   edits:editsFor(original.resources,outputs),changes:[...outputs].map(([resource,after])=>({resource,before:original.resources.find(value=>value.id===resource)!.text,after})).concat([{resource:id,before:'',after:created.text,fileAction:'create'}] as any),
+   creations:[{resource:id,text:created.text,identity:created.identity}],usages,from:input.target,to,binding,transitions};
+  return {...data,identity:createHash('sha256').update(JSON.stringify(data)).digest('hex')};
+ };
+ // Swagger's global Parameters/Responses maps do not allow a forwarding
+ // Reference Object (§§6.4.21–22). Extract straight to a named, unversioned
+ // fragment and retain the usage-site reference instead of inventing an
+ // invalid public binding. All copy/address/cold-reopen proofs still apply.
+ if(original.scope.family==='2.0'&&['parameter','response'].includes(original.scope.kind)){
+  const text=original.doc.emit({[input.name]:null}),slot:Resource={id,text,generation:0,identity:createHash('sha256').update(text).digest('hex')};
+  const extracted=planCopy({...input,resources:[...original.resources,slot],destinationFragment:'named'});
+  const to={resource:id,pointer:extracted.to.pointer};
+  return proposal(project([...original.resources,slot],extracted.edits),to,to,extracted.usages,extracted.transitions);
+ }
  const extracted=planCopy({...input,destinationResource:original.selected.context.root}),intermediate=project(original.resources,extracted.edits);
  // Extraction can make the selected entry's public binding newly reachable
  // from a different configured root. Reuse the canonical cold closure over
@@ -392,16 +419,11 @@ export function planExtractToFile(input:any) {
  const slot:Resource={id,text:'null',generation:0,identity:createHash('sha256').update('null').digest('hex')};
  const relocated=planCopy({...input,contexts,resources:[...intermediate,slot],destinationFragment:true,
   target:{root:input.target.root,resource:extracted.to.resource,pointer:extracted.to.pointer,generation:intermediate.find(resource=>resource.id===extracted.to.resource)!.generation}},true);
- const final=project([...intermediate,slot],relocated.edits),created=final.find(resource=>resource.id===id)!;
- const outputs=new Map(final.filter(resource=>resource.id!==id&&resource.text!==original.resources.find(before=>before.id===resource.id)!.text).map(resource=>[resource.id,resource.text]));
- const edits=editsFor(original.resources,outputs),binding={resource:extracted.to.resource,pointer:extracted.to.pointer};
+ const final=project([...intermediate,slot],relocated.edits),binding={resource:extracted.to.resource,pointer:extracted.to.pointer};
  const conversions=extracted.transitions.slice(1).map(move=>move.resource===binding.resource&&inside(move.from,binding.pointer)
   ?{...move,resource:id,from:move.from.slice(binding.pointer.length),to:move.to.slice(binding.pointer.length)}:move);
- const data={version:1,kind:'component-extract-file',snapshot:input.snapshot,checkedRoots:input.contexts.map((context:any)=>context.root),
-  edits,changes:[...outputs].map(([resource,after])=>({resource,before:original.resources.find(value=>value.id===resource)!.text,after})).concat([{resource:id,before:'',after:created.text,fileAction:'create'}] as any),
-  creations:[{resource:id,text:created.text,identity:created.identity}],usages:extracted.usages,from:input.target,to:{resource:id,pointer:''},binding,
-  transitions:[{resource:original.resource.id,from:input.target.pointer,to:'',toResource:id},...conversions,...relocated.transitions.slice(1)]};
- return {...data,identity:createHash('sha256').update(JSON.stringify(data)).digest('hex')};
+ return proposal(final,binding,{resource:id,pointer:''},extracted.usages,
+  [{resource:original.resource.id,from:input.target.pointer,to:'',toResource:id},...conversions,...relocated.transitions.slice(1)]);
 }
 
 /** Relocate exactly one physical Operation Object. Both standard and 3.2
@@ -639,7 +661,7 @@ export function planInline(input:any) {
   throw new SourceError('refactor.inline.pathItem','The Path Item reference has overlapping fields with undefined combined behavior');
  if(scope.kind!=='schema'&&scope.kind!=='path-item'&&siblings.some(key=>!['summary','description'].includes(key)))
   throw new SourceError('refactor.inline.ignored','Inlining would activate ignored Reference Object siblings; decide their ownership explicitly');
- if(scope.kind!=='schema'&&scope.kind!=='path-item'&&siblings.some(key=>!fieldsFor(scope.kind,scope.family,definitionNode.value).some(field=>field.name===key&&!field.prohibited)))
+ if(scope.kind!=='schema'&&scope.kind!=='path-item'&&siblings.some(key=>!fieldsForScope(selected.graph,scope,definitionNode.value).some(field=>field.name===key&&!field.prohibited)))
   throw new SourceError('refactor.inline.ignored','An inapplicable Reference Object override cannot become an authored inline field');
  if(scope.kind!=='schema'&&definitionNode.value?.$ref)
   throw new SourceError('refactor.inline.chain','Navigate to the final definition before explicitly inlining a reference chain');

@@ -38,7 +38,7 @@ export function planDelete(input: any) {
     // Components map. Its established child context still identifies the
     // physical definition; surviving consumers below will block its removal.
     const fragmentDefinition = parent.kind === 'object' && owner.graph.scopes.has(resource.id + '#' + target.pointer) && (!scope || scope.kind === 'root' && !owner.graph.specifications.has(doc.id));
-    if (!fragmentDefinition && (!scope || !removableField(scope.kind, scope.family, parent.value, name, parts.at(-1)))) throw new SourceError('refactor.delete.required', 'This is not an optional field or authored collection member');
+    if (!fragmentDefinition && (!scope || !removableField(scope.kind, scope.family, parent.value, name, parts.at(-1),owner.graph.allowsReference(scope)))) throw new SourceError('refactor.delete.required', 'This is not an optional field or authored collection member');
     const isProperty = scope?.kind === 'schema-map' && parts.at(-1) === 'properties';
     const actions: any[] = [{kind: 'remove', pointer: target.pointer}];
     const preservedRelationships: string[] = [];

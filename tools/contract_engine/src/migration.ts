@@ -2,7 +2,6 @@ import {createHash} from 'node:crypto';
 import {analyse,createGraph,Resource} from './engine';
 import {SourceDocument,SourceError,escape} from './document';
 import {specificationDeclaration,nativeFamilies,modernFamily} from './specification';
-import {isReferenceObject} from './contexts';
 import {MigrationSource,MigrationLocation,migrationValueIdentity} from './migration_source';
 import {migrateSchemas,MigrationProblem,MigrationIssue} from './migration_schema';
 import {upgradeSwagger} from './migration_swagger';
@@ -82,7 +81,7 @@ export async function planMigration(input:MigrationInput) {
             for(const scope of graph.scopes.values()){
                 const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value,source=sources.get(scope.resource)!;
                 if(source.current(scope.pointer)===undefined)continue;
-                if(isReferenceObject(value,scope.kind,scope.family)&&scope.kind!=='path-item'){
+                if(graph.referenceObject(value,scope)&&scope.kind!=='path-item'){
                     const siblings=Object.keys(value).filter(name=>name!=='$ref');
                     if(siblings.length&&modernFamily(after)&&!modernFamily(before)&&issue(scope,'migration.reference.ignored-siblings','The target would activate ignored Reference Object siblings; explicitly discard those preserved values or revise the source','decision',['discard-ignored-siblings']))for(const name of siblings)source.remove(scope.pointer+'/'+escape(name));
                     if(siblings.length&&!modernFamily(after)&&modernFamily(before)&&scope.kind!=='schema')issue(scope,'migration.reference.annotations','The target cannot retain these Reference Object annotation overrides','target-representation');

@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {createGraph,propose,Resource} from './engine';
-import {fieldsFor} from './authoring';
+import {fieldsForScope} from './authoring';
 import {escape,segments,SourceError} from './document';
 import {referenceValue} from './reference_choices';
 import {resolveUri} from './reference_graph';
@@ -51,7 +51,7 @@ export function planReference(input:any) {
  const doc=selected?.docs.get(source.id),node=doc?.nodes.get(target.pointer),toDoc=selected?.docs.get(destination.id),toNode=toDoc?.nodes.get(choice.pointer);
  if(!scope||!to||!node||!toNode||node.kind!=='object'||node.shared||same(scope,to)&&scope.kind!=='schema'||
   to.kind!==(keyword==='operationRef'?'operation':scope.kind)||!doc!.syntaxSafe(target.pointer)||!toDoc!.syntaxSafe(choice.pointer)||
-  !fieldsFor(scope.kind,selected.family,node.value,segments(target.pointer).at(-1)).some(f=>f.name===keyword&&!f.prohibited&&!f.blockedBy?.length))
+  !fieldsForScope(selected.graph,scope,node.value).some(f=>f.name===keyword&&!f.prohibited&&!f.blockedBy?.length))
   throw new SourceError('reference.choice.context','The selected source and target do not have compatible, unambiguous ownership');
  for(const [captured,actual,resource]of [[target,node,source],[choice,toNode,destination]] as const)
   if(JSON.stringify(captured.range)!==JSON.stringify(actual.range)||captured.expected!==resource.text.slice(...actual.range))

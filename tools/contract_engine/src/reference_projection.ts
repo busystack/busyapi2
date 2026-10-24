@@ -1,7 +1,7 @@
 import {createGraph, Resource} from './engine';
-import {children, isReferenceObject, supportsReference} from './contexts';
+import {children} from './contexts';
 import {swaggerServers} from './swagger_operation';
-import {fieldsFor,richTextField} from './authoring';
+import {fieldsForScope,richTextField} from './authoring';
 import {escape, segments, SourceError} from './document';
 import {ParameterSemantics} from './parameter_semantics';
 import {GraphTarget,ReferenceGraph} from './reference_graph';
@@ -69,7 +69,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
             ...(target.pointer!==pointer?{physicalPointer:target.pointer,occurrenceRange:source!.nodes.get(occurrence)!.range}:{}),
             kind: graph.scopes.get(resource + '#' + pointer)?.kind ?? 'data', syntaxSafe: source!.dataSyntaxSafe(pointer)};
     };
-    const fieldDefinitions = fieldsFor(kind, family, node.value, segments(node.pointer).at(-1));
+    const fieldDefinitions = fieldsForScope(graph,{...graph.scope(doc.id,node.pointer),kind},node.value);
     const referenceIndex = new Map(graph.references.map(ref => [JSON.stringify([ref.resource, ref.pointer, ref.keyword]), ref]));
     const definitions = new Map(fieldDefinitions.map(field => [field.name, field]));
     // Do not use String(number), JSON.stringify(parsed values), or ?? to select
@@ -86,7 +86,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
             representation: alias ? 'yaml-source' : typeof value === 'string' ? 'text' : 'json'};
     };
     const offset = Math.min(Math.max(0, Number.isSafeInteger(input.offset) ? input.offset : 0), Math.max(0, (Math.ceil(node.children.size / 50) - 1) * 50));
-    const referenceData = kind === 'data' || isReferenceObject(node.value,kind,family);
+    const referenceData = kind === 'data' || graph.referenceObject(node.value,{...graph.scope(doc.id,node.pointer),kind});
     const entries = [...node.children].slice(offset, offset + 50).map(([name, child]) => {
         const definition = definitions.get(name);
         // The whole containing occurrence, not an isolated key/value, decides
@@ -100,7 +100,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
         const pointer=node.pointer+'/'+escape(name),value=read(doc.id,pointer)!;
         return {name, ...located(doc.id, pointer), kind:context??'data', data:!context, nodeKind: value.kind, count: value.children.size,
             defined: !!definition, contextual: !!context, extension: name.startsWith('x-'),
-            richText:richTextField(kind,family,node.value,name,segments(node.pointer).at(-1))&&doc.nodes.get(pointer)?.alias===undefined,
+            richText:richTextField(kind,family,node.value,name,segments(node.pointer).at(-1),graph.allowsReference({...graph.scope(doc.id,node.pointer),kind}))&&doc.nodes.get(pointer)?.alias===undefined,
             ...(schema ? {required: Array.isArray(schema.value?.required) && schema.value.required.includes(name)} : {}),
             ...(definition && Object.hasOwn(definition, 'effectiveDefault') ? {effectiveDefault: definition.effectiveDefault} : {}),
             ...(!['object','array'].includes(value.kind) ? excerpt(pointer, 0, 240) : {}),
@@ -114,7 +114,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
     }));
     const defaults = fieldDefinitions.filter(field => !node.children.has(field.name) && Object.hasOwn(field, 'effectiveDefault')).map(field => ({name: field.name, value: field.effectiveDefault}));
     const interpretation = kind === 'schema' ? 'schema-applicators' : kind === 'path-item' ? 'path-item' :
-        supportsReference(kind,family) && typeof node.value?.$ref === 'string' ? 'reference-object' : kind === 'data' ? 'data' : 'inline';
+        graph.allowsReference({...graph.scope(doc.id,node.pointer),kind}) && typeof node.value?.$ref === 'string' ? 'reference-object' : kind === 'data' ? 'data' : 'inline';
     const issues = kind === 'data' ? [] : graph.issues.filter(issue => issue.resource === doc.id && (issue.pointer === node.pointer || issue.pointer.startsWith(node.pointer + '/')));
     const previews: any[] = [];
     let previewsLimited = false;
@@ -139,7 +139,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
             if(visited.has(key))return;
             visited.add(key);chain.push({resource,pointer});
             const n=read(resource,pointer)!;
-            if(typeof n.value?.$ref!=='string' || !supportsReference(kind,graph.scope(resource,pointer).family))return {resource,pointer,chain};
+            if(typeof n.value?.$ref!=='string' || !graph.allowsReference({...graph.scope(resource,pointer),kind}))return {resource,pointer,chain};
             const edge=referenceIndex.get(JSON.stringify([resource,pointer,'$ref']));
             if(!edge || edge.resolution!=='resolved')return;
             resource=edge.targetResource!;pointer=edge.targetPointer!;
@@ -211,7 +211,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
         if(selected)effective=operationEffective(graph,doc.id,node.pointer,selected.pathItem,located,input.parameterOffset,false,undefined,selected.method);
     }
     const parentPointer=node.pointer.slice(0,node.pointer.lastIndexOf('/')),parent=graph.scopes.get(doc.id+'#'+parentPointer);
-    const richText=input.data!==true&&doc.nodes.get(node.pointer)?.alias===undefined&&!!parent&&richTextField(parent.kind,family,doc.dataNode(parentPointer)?.value,segments(node.pointer).at(-1)!,segments(parentPointer).at(-1));
+    const richText=input.data!==true&&doc.nodes.get(node.pointer)?.alias===undefined&&!!parent&&richTextField(parent.kind,family,doc.dataNode(parentPointer)?.value,segments(node.pointer).at(-1)!,segments(parentPointer).at(-1),graph.allowsReference(parent));
     return {version: 1, snapshot: input.snapshot, family, ...located(doc.id, node.pointer), kind, data:kind==='data', nodeKind: node.kind,richText,
         interpretation, references, defaults, entries, offset, count: node.children.size, issues:issues.slice(0,50).map(issue => ({...issue, source:located(issue.resource,issue.pointer)})), issueCount:issues.length, effective, previews, previewsLimited,
         ...(kind==='operation'?{occurrence:selected?.occurrence??null,contextSelectionRequired:contexts.length>0&&!selected,
@@ -261,8 +261,8 @@ export function referenceDocument(input:any) {
     const sections=scopes.map(scope=>{
         const doc=docs.get(scope.resource)!,node=doc.dataNode(scope.pointer)!;
         const family=scope.family;
-        const definitions=fieldsFor(scope.kind,family,node.value,segments(scope.pointer).at(-1));
-        const contexts=new Map((isReferenceObject(node.value,scope.kind,family)?[]:children(node.value,scope.kind,family)).map(([name,,kind])=>[name,kind]));
+        const definitions=fieldsForScope(graph,scope,node.value);
+        const contexts=new Map((graph.referenceObject(node.value,scope)?[]:children(node.value,scope.kind,family)).map(([name,,kind])=>[name,kind]));
         const entries=[...node.children].map(([name,physical])=>{
             if(++fields>200000)throw new SourceError('limit.documentation.fields','Documentation exceeds 200000 fields');
             const pointer=scope.pointer+'/'+escape(name),child=doc.dataNode(pointer)!;
@@ -278,7 +278,7 @@ export function referenceDocument(input:any) {
                 ...(target?{target:location(scope.resource,pointer)}:
                     {text:retain(typeof child.value==='string'?child.value:doc.dataJson(pointer)),
                      representation:typeof child.value==='string'?'text':'json',
-                     richText:richTextField(scope.kind,family,node.value,name,segments(scope.pointer).at(-1))}),
+                     richText:richTextField(scope.kind,family,node.value,name,segments(scope.pointer).at(-1),graph.allowsReference(scope))}),
             };
         });
         const references=(referenceIndex.get(JSON.stringify([scope.resource,scope.pointer]))??[]).map(reference=>({

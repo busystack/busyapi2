@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { children, referenceKinds, standardOperationMethods } from './contexts';
 import { ReferenceGraph, supportedSchemaDialect } from './reference_graph';
-import { fieldsFor, removableField, allowsExtensions, componentFamily, componentLocation } from './authoring';
+import { fieldsFor, fieldsForScope, removableField, allowsExtensions, componentFamily, componentLocation } from './authoring';
 import { SourceDocument, SourceError, RawJsonValue, escape, segments, limits } from './document';
 import {structuralEvaluator as ajv, structuralValidators as validators, structuralRevisions, structuralSchema} from './structural_schema';
 import {specificationDeclaration, isNativeFamily, modernFamily} from './specification';
@@ -291,7 +291,7 @@ export function inspect(input: any) {
         let missing=false,field:any;
         for(let i=0;i<tokens.length;i++) {
             const next=at+'/'+escape(tokens[i]),existing=doc.nodes.get(next);
-            field=fieldsFor(kind,family,doc.nodes.get(at)?.value??{},segments(at).at(-1)).find(f=>f.name===tokens[i]);
+            field=fieldsForScope(graph,{...graph.scope(doc.id,at),pointer:at,kind},doc.nodes.get(at)?.value??{}).find(f=>f.name===tokens[i]);
             const childKind=children({[tokens[i]]:{}},kind,family,doc.nodes.get(at)?.value??{})[0]?.[2];
             if(!field||!childKind||!['object','array','schema'].includes(field.type)) {field=undefined;break;}
             if(!missing&&existing)owner=existing;
@@ -307,7 +307,7 @@ export function inspect(input: any) {
       }
         const parts = segments(input.pointer), name = parts.pop()!, parentPointer = parts.length ? '/' + parts.map(escape).join('/') : '';
         const parent = doc.nodes.get(parentPointer), parentScope = graph.scopes.get(doc.id + '#' + parentPointer);
-        const field = parent && parentScope && fieldsFor(parentScope.kind, family, parent.value).find(f => f.name === name);
+        const field = parent && parentScope && fieldsForScope(graph,parentScope,parent.value).find(f => f.name === name);
         const kind = parentScope && children({[name]: {}}, parentScope.kind, family, parent?.value)[0]?.[2];
         if (parent && field && kind && ['object', 'array', 'schema'].includes(field.type)) {
             const generation = input.resources.find((r: Resource) => r.id === doc.id).generation;
@@ -323,10 +323,10 @@ export function inspect(input: any) {
     const parentNode = node.pointer ? doc.nodes.get(parentPointer) : undefined;
     const parentScope = parentNode && graph.scopes.get(doc.id + '#' + parentPointer);
     const fragmentDefinition = parentNode?.kind === 'object' && (!parentScope || parentScope.kind === 'root' && !graph.specifications.has(doc.id));
-    const removable = !!parentNode && (fragmentDefinition || !!parentScope && removableField(parentScope.kind, family, parentNode.value, last!, tokens.at(-1)));
+    const removable = !!parentNode && (fragmentDefinition || !!parentScope && removableField(parentScope.kind, family, parentNode.value, last!, tokens.at(-1),graph.allowsReference(parentScope)));
     const located = (n: any, kind: string) => ({root: input.root, resource: doc.id, generation: resource.generation, pointer: n.pointer, range: n.range,
         syntaxSafe: doc.syntaxSafe(n.pointer), nodeKind: kind==='schema'&&typeof n.value==='boolean'?'boolean':n.kind, shared: n.shared, kind});
-    const definitions = fieldsFor(scope.kind, family, node.value, segments(node.pointer).at(-1));
+    const definitions = fieldsForScope(graph,scope,node.value);
     const fields = definitions.map(field => {
         const child = node.children.get(field.name);
         const childKind = children({[field.name]: {}}, scope.kind, family, node.value)[0]?.[2];
@@ -370,7 +370,7 @@ export function inspect(input: any) {
         }
     }
     const sharedTarget=!!componentFamily(scope.kind,family)&&graph.references.some(ref=>ref.resolution==='resolved'&&ref.targetResource===doc.id&&ref.targetPointer===node.pointer);
-    return {version: 1, snapshot: input.snapshot, family, customSchemaKeywords: modernFamily(family), ...located(node, scope.kind), sharedTarget, componentDestination: graph.specifications.get(doc.id)?.family===family, componentDestinations, ...(componentFamily(scope.kind,family)?{componentFamily:componentFamily(scope.kind,family)}:{}), ...(schemaTreeRoot!==undefined?{schemaTreeRoot}:{}), removable, allowsExtensions: allowsExtensions(scope.kind, family, node.value, segments(node.pointer).at(-1)), fields, entries, offset, count: node.children.size, references,
+    return {version: 1, snapshot: input.snapshot, family, customSchemaKeywords: modernFamily(family), ...located(node, scope.kind), sharedTarget, componentDestination: graph.specifications.get(doc.id)?.family===family, componentDestinations, ...(componentFamily(scope.kind,family)?{componentFamily:componentFamily(scope.kind,family)}:{}), ...(schemaTreeRoot!==undefined?{schemaTreeRoot}:{}), removable, allowsExtensions: allowsExtensions(scope.kind, family, node.value, segments(node.pointer).at(-1),graph.allowsReference(scope)), fields, entries, offset, count: node.children.size, references,
         ...(ownerSchema ? {ownerSchema: located(ownerSchema, 'schema')} : {}),
         value: Object.fromEntries(fields.filter(f => f.present && Object.hasOwn(f, 'value')).map(f => [f.name, f.value])),
         boolean: scope.kind==='schema'&&typeof node.value === 'boolean' ? node.value : undefined,

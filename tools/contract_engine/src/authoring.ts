@@ -2,7 +2,7 @@ import Ajv2020 from 'ajv/dist/2020';
 import {structuralSchema, structuralDefinition, structuralReference} from './structural_schema';
 import {modernFamily} from './specification';
 import type {ReferenceGraph,GraphScope} from './reference_graph';
-import {escape} from './document';
+import {escape,segments} from './document';
 import {isReferenceObject,referenceKinds,supportsReference} from './contexts';
 
 // This shared description supplies native fields, Source assistance and help.
@@ -42,16 +42,16 @@ export function* documentUriOccurrences(graph:ReferenceGraph):Generator<{scope:G
 }
 /** Presentation metadata is attached only to an established standard field,
  * never an arbitrary payload property that happens to be called description. */
-export function richTextField(kind:string,family:string,value:any,name:string,contextName=''):boolean {
-    return name==='description'&&fieldsFor(kind,family,value,contextName).some(field=>field.name===name&&field.type==='string');
+export function richTextField(kind:string,family:string,value:any,name:string,contextName='',referenceAllowed=supportsReference(kind,family)):boolean {
+    return name==='description'&&fieldsFor(kind,family,value,contextName,referenceAllowed).some(field=>field.name===name&&field.type==='string');
 }
 /** OAS Specification Extensions apply only at declared object positions, not
  * arbitrary string-keyed maps or OpenAPI Reference Objects. Schema Objects
  * also allow unknown vocabulary keywords. Payloads remain opaque data. */
-export function allowsExtensions(kind: string, family: string, value: any, contextName = ''): boolean {
+export function allowsExtensions(kind: string, family: string, value: any, contextName = '', referenceAllowed = supportsReference(kind,family)): boolean {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     if (kind === 'schema') return true;
-    if (typeof value.$ref === 'string' && kind !== 'path-item') return false;
+    if (referenceAllowed && typeof value.$ref === 'string' && kind !== 'path-item') return false;
     if (['xml', 'discriminator', 'callback', 'path-map', 'response-map'].includes(kind)) return true;
     const standard = structuralSchema(family);
     if (!standard) return false;
@@ -72,16 +72,21 @@ export function allowsExtensions(kind: string, family: string, value: any, conte
     };
     return visit(target);
 }
-export function removableField(kind: string, family: string, value: any, name: string, contextName = ''): boolean {
+export function removableField(kind: string, family: string, value: any, name: string, contextName = '', referenceAllowed = supportsReference(kind,family)): boolean {
     if (kind.endsWith('-map') || kind.endsWith('-array') || ['callback','security-requirement'].includes(kind)) return true;
-    const field = fieldsFor(kind, family, value, contextName).find(f => f.name === name);
+    const field = fieldsFor(kind, family, value, contextName, referenceAllowed).find(f => f.name === name);
     return !!field && !field.required;
 }
-export function fieldsFor(kind: string, family: string, value: any = {}, contextName = ''): any[] {
+/** Source-aware metadata uses the graph's occurrence policy, including the
+ * distinction between reusable definitions and Reference Object usage sites. */
+export function fieldsForScope(graph: ReferenceGraph, scope: GraphScope, value: any, contextName = segments(scope.pointer).at(-1) ?? ''): any[] {
+    return fieldsFor(scope.kind, scope.family, value, contextName, graph.allowsReference(scope));
+}
+export function fieldsFor(kind: string, family: string, value: any = {}, contextName = '', referenceAllowed = supportsReference(kind,family)): any[] {
     const standard = structuralSchema(family);
     if (!standard) return [];
     const target = structuralDefinition(kind, family, value, contextName);
-    if (isReferenceObject(value,kind,family)) return (modernFamily(family) ? ['$ref', 'summary', 'description'] : ['$ref']).map(name => ({name, type: 'string'}));
+    if (referenceAllowed && isReferenceObject(value,kind,family)) return (modernFamily(family) ? ['$ref', 'summary', 'description'] : ['$ref']).map(name => ({name, type: 'string'}));
     if (kind === 'schema' && modernFamily(family)) return schemaFields();
     if(family==='2.0'&&kind==='parameter'&&!value?.in)return [
         {name:'name',type:'string',required:true},{name:'in',type:'string',required:true,options:['path','query','header','body','formData']},
@@ -178,7 +183,7 @@ export function fieldsFor(kind: string, family: string, value: any = {}, context
     // fields. Reuse the graph's position/version boundary; payload/metadata
     // keys never acquire reference semantics. Existing inline content still
     // requires extraction/removal rather than an implicit destructive switch.
-    if (supportsReference(kind,family) && kind !== 'schema' && kind !== 'path-item' &&
+    if (referenceAllowed && kind !== 'schema' && kind !== 'path-item' &&
         (kind !== 'media' || family === '3.2') && value && typeof value === 'object' && !Array.isArray(value) &&
         Object.keys(value).every(name => ['summary','description'].includes(name)) && !fields.some(field => field.name === '$ref'))
         fields.unshift({name:'$ref',type:'string'});

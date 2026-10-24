@@ -302,7 +302,7 @@ Map<String, dynamic> _mergeSchemaEvaluation(
         'schema': {
           'complete': evaluated?['complete'] == true,
           'producer': evaluated?['producer'] ?? 'hyperjump+busyapi-exact',
-          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+7',
+          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+8',
           if (evaluated != null) ...{
             'configuration': evaluated['configuration'],
             'coverage': evaluated['coverage'],
@@ -1658,7 +1658,7 @@ class BusyProject {
         result['snapshot'] == snapshot.identity &&
         result['root'] == snapshot.root &&
         result['producer'] == 'hyperjump+busyapi-exact' &&
-        result['producerVersion'] == '1.18.0+7' &&
+        result['producerVersion'] == '1.18.0+8' &&
         result['complete'] is bool &&
         result['configuration'] is String &&
         result['coverage'] is Map &&
@@ -2767,8 +2767,9 @@ class BusyProject {
   Future<RefactoringPlan> planReferenceInlining(Map<String, Object?> target) =>
       _planSemantic('planInline', target, const {});
 
-  /// Retain the public name as an explicit reference while relocating the
-  /// authored definition into an existing approved component destination.
+  /// Relocate an authored definition into an existing approved destination.
+  /// The graph retains a public reference binding only where its family and
+  /// position permit it; otherwise the review removes it and repairs consumers.
   Future<RefactoringPlan> planComponentDefinitionMove(
     Map<String, Object?> target,
     String name, {

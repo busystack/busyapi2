@@ -168,7 +168,11 @@ class _RefactoringReviewState extends State<_RefactoringReview> {
             ),
           ],
           if (plan.result['kind'] == 'component-move')
-            Text(l.moveComponentImpact),
+            Text(
+              plan.result['removedBinding'] == null
+                  ? l.moveComponentImpact
+                  : l.moveComponentRepairedConsumersImpact,
+            ),
           if (plan.result['kind'] == 'file-move') Text(l.fileMoveImpact),
           if (plan.result['file']?['opaque'] == true)
             Text(l.fileMoveOpaqueImpact),

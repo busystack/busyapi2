@@ -317,7 +317,7 @@ export class ReferenceGraph {
                 const doc = this.docs.get(scope.resource)!;
                 if (scope.kind === 'root' && !this.specifications.has(doc.id)) continue;
                 const node = doc.dataNode(scope.pointer)!;
-                const typed = new Set(isReferenceObject(node.value, scope.kind, scope.family) ? [] : children(node.value, scope.kind, scope.family).map(([name]) => name));
+                const typed = new Set(this.referenceObject(node.value, scope) ? [] : children(node.value, scope.kind, scope.family).map(([name]) => name));
                 for (const [name, authored] of node.children) {
                     if (typed.has(name)) continue;
                     const pointer = scope.pointer + '/' + escape(name);
@@ -367,10 +367,29 @@ export class ReferenceGraph {
         return this.resolveReference(ref.value, ref, ref.keyword);
     }
 
+    /** Swagger's reusable Parameters/Responses definitions contain Objects,
+     * not Reference Objects (2.0 §§6.4.21–22). An unversioned fragment can use
+     * the same key spelling without becoming an OpenAPI definitions namespace.
+     * Schema references and usage-site references retain their own rules. */
+    private referencePositionAllowed(scope: GraphScope): boolean {
+        return !(scope.family === '2.0' && this.specifications.has(scope.resource) &&
+            (scope.kind === 'parameter' && /^\/parameters\/[^/]+$/.test(scope.pointer) ||
+             scope.kind === 'response' && /^\/responses\/[^/]+$/.test(scope.pointer)));
+    }
+
+    allowsReference(scope: GraphScope): boolean {
+        return supportsReference(scope.kind, scope.family) && (scope.kind !== 'media' || scope.family === '3.2') && this.referencePositionAllowed(scope);
+    }
+
+    referenceObject(value: unknown, scope: GraphScope): boolean {
+        return this.referencePositionAllowed(scope) && isReferenceObject(value, scope.kind, scope.family);
+    }
+
     /** Object-context resolution shared by graph edges, authoring choices,
      * evaluation adapters and refactoring proofs. operationRef identifies an
      * operation without substituting its object into the referring context. */
     resolveReference(value: string, scope: GraphScope, keyword = '$ref'): Partial<GraphReference> {
+        if (keyword === '$ref' && !this.referencePositionAllowed(scope)) return {resolution: 'invalid-position'};
         const resolved = this.resolve(value, scope, keyword === '$dynamicRef');
         if (keyword === '$ref' && resolved.resolution === 'resolved') {
             const target = this.scope(resolved.targetResource!, resolved.targetPointer!);
@@ -515,7 +534,7 @@ export class ReferenceGraph {
         }
         this.scopes.set(key(resource, pointer), scope);
         if (!value || typeof value !== 'object') return;
-        const refKind = supportsReference(kind,scope.family) && (kind !== 'media' || scope.family === '3.2');
+        const refKind = this.allowsReference(scope);
         for (const keyword of kind === 'schema' && modernFamily(scope.family) ? ['$ref', '$dynamicRef'] : ['$ref']) {
             if (!refKind || typeof value[keyword] !== 'string') continue;
             const ref: GraphReference = { ...scope, keyword, value: value[keyword], resolution: 'pending' };
@@ -523,7 +542,7 @@ export class ReferenceGraph {
         }
         // Reference Object siblings are summary/description, never object
         // definitions. Schema $ref is an applicator with ordinary siblings.
-        if (isReferenceObject(value,kind,scope.family)) return;
+        if (this.referenceObject(value,scope)) return;
         const connection = (pointer: string, keyword: string, name: string, targetKind: string, type: GraphReference['connection']) => {
             const ref: GraphReference = {...scope, pointer, kind: targetKind, keyword, value: name, resolution: 'pending', connection: type};
             this.references.push(ref); this.pending.push(ref);

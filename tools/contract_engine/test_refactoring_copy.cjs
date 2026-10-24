@@ -2,10 +2,48 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const YAML=require('yaml');
 const {planExtract,planInline,planMoveDefinition}=require('./dist/refactoring_copy.cjs');
-const {createGraph}=require('./dist/model.cjs');
+const {createGraph,analyse}=require('./dist/model.cjs');
 const {SourceDocument}=require('./dist/document.cjs');
 const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
 const pointer='/paths/~1items/get/responses/200/content/application~1json/schema';
+for(const kind of ['response','parameter'])for(const cross of [false,true])test(`Swagger definition move retains binding comments ${kind} cross=${cross}`,()=>{
+ const root='file:///project/api.yaml',destination=cross?'file:///project/other.yaml':root,group=kind==='response'?'responses':'parameters';
+ const text='swagger: "2.0"\ninfo: {title: Comments, version: "1"}\npaths:\n  /p:\n    get:\n'+(kind==='response'?'      responses:\n        "200": {$ref: "#/responses/Stored"}\n':'      parameters: [{$ref: "#/parameters/Stored"}]\n      responses: {"204": {description: Empty}}\n')+group+':\n  # named definition documentation\n  Stored: # binding note 雪\n'+(kind==='response'?'    description: Kept # value note\n':'    name: q # value note\n    in: query\n    type: string\n');
+ const resources=[{id:root,text,generation:1},...(cross?[{id:destination,text:'swagger: "2.0"\ninfo: {title: Other, version: "1"}\npaths: {}\n',generation:2}]:[])];
+ const input={snapshot:'binding-comments',resources,contexts:[{root,resources:resources.map(r=>r.id)}],target:{root,resource:root,pointer:'/'+group+'/Stored',generation:1},name:'Moved',destinationResource:destination};
+ const plan=planMoveDefinition(input),after=apply(input,plan),moved=new SourceDocument(after.find(r=>r.id===destination).text,destination);
+ assert(moved.text.includes('# binding note 雪'),'the removed definition key comment must survive at its destination');
+ assert(moved.text.includes('# value note'));
+ // The leading comment belongs to the original map's CST, outside the
+ // selected definition entry. Preserve it with that untouched owner.
+ assert(after.find(r=>r.id===root).text.includes('# named definition documentation'));
+ assert.equal(moved.node('/'+group+'/Moved/'+(kind==='response'?'description':'name')).value,kind==='response'?'Kept':'q');
+ assert.equal(analyse({root,resources:after}).status,'complete');assert.equal(input.resources[0].text,text);
+});
+for(const json of [false,true])for(const kind of ['response','parameter'])for(const sameName of [false,true])test(`Swagger definition move repairs consumers without an invalid forwarder ${kind} ${json?'JSON':'YAML'} sameName=${sameName}`,()=>{
+ const ext=json?'json':'yaml',root='file:///project/api.'+ext,destination='file:///project/other.'+ext,group=kind==='parameter'?'parameters':'responses';
+ const authored=kind==='parameter'?{name:'q',in:'query',type:'array',items:{type:'integer'},collectionFormat:'multi'}:{description:'Stored',schema:{$ref:'#/definitions/Model'},examples:{'application/json':{id:'EXACT_NUMBER',$ref:'literal'}}};
+ const operation=kind==='parameter'?{parameters:[{$ref:'#/'+group+'/Stored'}],responses:{204:{description:'Empty'}}}:{responses:{200:{$ref:'#/'+group+'/Stored'},201:{$ref:'#/'+group+'/Stored'}}};
+ const document={swagger:'2.0',info:{title:'Move',version:'1'},paths:{'/items':{get:operation}},[group]:{Stored:authored},definitions:{Model:{type:'object',properties:{id:{type:'integer',minimum:'EXACT_NUMBER'}}}}};
+ const encode=value=>(json?JSON.stringify(value,null,2):'# keep 雪\n'+YAML.stringify(value)).replaceAll('"EXACT_NUMBER"','9007199254740993.00').replaceAll('EXACT_NUMBER','9007199254740993.00');
+ const resources=[{id:root,text:encode(document),generation:1},{id:destination,text:encode({swagger:'2.0',info:{title:'Destination',version:'1'},paths:{}}),generation:2}];
+ const name=sameName?'Stored':'Moved',input={snapshot:'move-swagger-definition',resources,contexts:[{root,resources:[root,destination]}],target:{root,resource:root,pointer:'/'+group+'/Stored',generation:1},name,destinationResource:destination};
+ const frozen=JSON.stringify(resources),plan=planMoveDefinition(input),after=apply(input,plan),api=new SourceDocument(after[0].text,root),other=new SourceDocument(after[1].text,destination);
+ assert.equal(plan.preservedBinding,undefined);assert.deepEqual(plan.removedBinding,{resource:root,pointer:'/'+group+'/Stored'});
+ assert.equal(api.nodes.has('/'+group+'/Stored'),false);assert(other.nodes.has('/'+group+'/'+name));
+ assert(plan.usages.every(usage=>!usage.bindingRetained));
+ const graph=createGraph({root,resources:after}).graph;assert.deepEqual(graph.issues,[]);
+ assert(graph.references.filter(ref=>ref.resource===root&&ref.kind===kind).every(ref=>ref.targetResource===destination&&ref.targetPointer==='/'+group+'/'+name));
+ if(kind==='response'){assert.equal(other.node('/responses/'+name+'/schema/$ref').value,'api.'+ext+'#/definitions/Model');assert(other.text.includes('9007199254740993.00'));}
+ assert.equal(analyse({root,resources:after}).status,'complete');assert.equal(JSON.stringify(resources),frozen);
+});
+test('Swagger security definition relocation reports its unrepresentable reference binding',()=>{
+ const root='file:///project/api.json',destination='file:///project/other.json';
+ const resources=[{id:root,text:JSON.stringify({swagger:'2.0',info:{title:'Security',version:'1'},paths:{},securityDefinitions:{Key:{type:'apiKey',in:'header',name:'X-Key'}},security:[{Key:[]}]}),generation:1},{id:destination,text:JSON.stringify({swagger:'2.0',info:{title:'Other',version:'1'},paths:{}}),generation:2}];
+ const frozen=JSON.stringify(resources);
+ assert.throws(()=>planMoveDefinition({snapshot:'security-relocation',resources,contexts:[{root,resources:[root,destination]}],target:{root,resource:root,pointer:'/securityDefinitions/Key',generation:1},destinationResource:destination,name:'Key'}),error=>error.code==='refactor.copy.binding');
+ assert.equal(JSON.stringify(resources),frozen);
+});
 for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`inline response retains the reachable dynamic-scope refusal ${version} ${json?'JSON':'YAML'}`,()=>{
  const root='file:///project/dynamic.'+(json?'json':'yaml'),at='/paths/~1p/get/responses/200';
  const value={openapi:version,info:{title:'Dynamic scope',version:'1'},paths:{'/p':{get:{responses:{200:{$ref:'#/components/responses/Shared'}}}}},components:{responses:{Shared:{description:'Shared',content:{'application/json':{schema:{$ref:'#/components/schemas/Node'}}}}},schemas:{Node:{$id:'https://schemas.invalid/node',$dynamicAnchor:'node',type:'object',properties:{next:{$dynamicRef:'#node'}}}}}};

@@ -3,12 +3,38 @@ const assert=require('node:assert/strict');
 const YAML=require('yaml');
 const {planExtractToFile}=require('./dist/refactoring_copy.cjs');
 const {SourceDocument}=require('./dist/document.cjs');
-const {createGraph,inspect}=require('./dist/model.cjs');
+const {createGraph,inspect,analyse}=require('./dist/model.cjs');
 const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
 function apply(input,plan){
  return [...input.resources.map(resource=>{let text=resource.text;for(const edit of plan.edits.filter(edit=>edit.buffer===resource.id).sort((a,b)=>b.start-a.start)){assert.equal(text.slice(edit.start,edit.end),edit.expected);text=text.slice(0,edit.start)+edit.replacement+text.slice(edit.end);}return {...resource,text};}),...plan.creations.map(created=>({id:created.resource,text:created.text,generation:0}))];
 }
 const pointer='/paths/~1items/get/responses/200/content/application~1json/schema';
+for(const json of [false,true])for(const kind of ['response','body','query'])for(const external of [false,true])test(`Swagger named fragment extraction preserves native ${kind} semantics ${json?'JSON':'YAML'} external=${external}`,async()=>{
+ const ext=json?'json':'yaml',root='file:///project/api.'+ext,part='file:///project/part.'+ext,destination='file:///project/shared%20%E9%9B%AA.'+ext;
+ const at=kind==='response'?'/paths/~1items/get/responses/200':'/paths/~1items/get/parameters/0',schema={$ref:(external?'api.'+ext:'')+'#/definitions/Model'};
+ const authored=kind==='response'?{description:'Recursive 雪 response',schema,examples:{'application/json':{value:'EXACT_NUMBER',$ref:'literal payload'}}}:kind==='body'?{name:'payload',in:'body',schema}:{name:'q',in:'query',type:'array',items:{type:'integer',minimum:'EXACT_NUMBER'},collectionFormat:'multi'};
+ const operation=kind==='response'?{responses:{200:external?{$ref:'part.'+ext+'#/Inline'}:authored}}:{parameters:[external?{$ref:'part.'+ext+'#/Inline'}:authored],responses:{204:{description:'Empty'}}};
+ const document={swagger:'2.0',info:{title:'Named fragments',version:'1'},produces:['application/json'],paths:{'/items':{get:operation}},definitions:{Model:{type:'object',required:['value'],properties:{value:{type:'integer',minimum:'EXACT_NUMBER'},next:{$ref:'#/definitions/Model'}}}},'x-preserved':{$ref:'literal extension'}};
+ const encode=value=>(json?JSON.stringify(value,null,2):'# preserve 雪\r\n'+YAML.stringify(value).replaceAll('\n','\r\n')).replaceAll('"EXACT_NUMBER"','9007199254740993.00').replaceAll('EXACT_NUMBER','9007199254740993.00');
+ const resources=[{id:root,text:encode(document),generation:3},...(external?[{id:part,text:encode({Inline:authored}),generation:4}]:[])];
+ const input={root,snapshot:'swagger-file',resources,contexts:[{root,resources:resources.map(r=>r.id)}],target:{root,resource:external?part:root,pointer:external?'/Inline':at,generation:external?4:3},name:'Stored',destinationResource:destination};
+ const frozen=JSON.stringify(resources),before=new SourceDocument(resources[0].text,root),plan=planExtractToFile(input),after=apply(input,plan),api=new SourceDocument(after[0].text,root),created=new SourceDocument(after.at(-1).text,destination);
+ assert.deepEqual(plan.binding,{resource:destination,pointer:'/Stored'});assert.deepEqual(plan.to,{resource:destination,pointer:'/Stored'});
+ assert(!api.nodes.has('/responses/Stored'));assert(!api.nodes.has('/parameters/Stored'));
+ assert.equal(created.nodes.has('/swagger'),false);assert.equal(created.nodes.has('/components'),false);
+ assert.equal(api.text.slice(...api.node('/definitions/Model').range),before.text.slice(...before.node('/definitions/Model').range));
+ const replaced=new SourceDocument(after.find(r=>r.id===input.target.resource).text,input.target.resource);
+ assert.equal(replaced.node(input.target.pointer+'/$ref').value,'shared%20%E9%9B%AA.'+ext+'#/Stored');
+ assert(created.text.includes('9007199254740993.00')||kind==='body');
+ if(kind!=='query')assert.equal(created.node('/Stored/schema/$ref').value,'api.'+ext+'#/definitions/Model');
+ const graph=createGraph({root,resources:after}).graph;assert.deepEqual(graph.issues,[]);assert(graph.references.every(ref=>ref.resolution==='resolved'));
+ const analysis=analyse({root,resources:after});assert.equal(analysis.status,'complete',JSON.stringify(analysis.findings));
+ assert.equal(JSON.stringify(resources),frozen);assert.equal(plan.creations.length,1);assert(!plan.edits.some(edit=>edit.buffer===destination));
+ if(kind!=='query')for(const [captured,resource,pointer]of [[resources,input.target.resource,input.target.pointer+'/schema'],[after,destination,'/Stored/schema']]){
+  const evaluated=await evaluateSchemas({root,snapshot:'extraction-invariants',resources:captured,runtimeInstances:['{"value":9007199254740993}','{"value":9007199254740994,"next":{"value":9007199254740993}}','{"value":9007199254740992}'].map(text=>({subject:'response-body',location:'application/json',text,schema:{resource,pointer}}))});
+  assert.equal(evaluated.complete,true,JSON.stringify(evaluated.findings));assert.deepEqual(evaluated.runtimeEvaluations.map(e=>e.valid),[true,true,false]);
+ }
+});
 for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])for(const boolean of [false,true])test(`new fragment extraction composes proved edits without API scaffolding ${version} ${json?'JSON':'YAML'} boolean=${boolean}`,()=>{
  const ext=json?'json':'yaml',root='file:///project/root.'+ext,destination='file:///project/model%20%E9%9B%AA.'+ext;
  const schema=boolean?false:{type:'object',properties:{value:{type:'integer'}},examples:[{value:111,$ref:'literal payload'}],'x-data':{$ref:'literal extension'}};

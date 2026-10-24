@@ -1,6 +1,6 @@
 import {posix} from 'node:path';
 import {createGraph,Resource} from './engine';
-import {fieldsFor} from './authoring';
+import {fieldsForScope} from './authoring';
 import {segments,SourceError} from './document';
 import {GraphScope,ReferenceGraph,resolveUri,supportedSchemaDialect} from './reference_graph';
 
@@ -63,7 +63,7 @@ export function referenceChoices(input:any) {
  const {docs,graph}=createGraph(input),doc=docs.get(input.resource),scope=graph.scopes.get(input.resource+'#'+input.pointer);
  const keyword=input.keyword??'$ref';
  if(!doc||!scope||doc.node(input.pointer).kind!=='object'||!['$ref','$dynamicRef','operationRef'].includes(keyword)||
-   !fieldsFor(scope.kind,scope.family,doc.node(input.pointer).value,segments(input.pointer).at(-1)).some(field=>field.name===keyword&&!field.prohibited&&!field.blockedBy?.length))
+   !fieldsForScope(graph,scope,doc.node(input.pointer).value).some(field=>field.name===keyword&&!field.prohibited&&!field.blockedBy?.length))
   throw new SourceError('reference.choice.context','This field is not a reference selector in the selected object context');
  const expectedKind=keyword==='operationRef'?'operation':scope.kind;
  const current=graph.references.find(ref=>ref.resource===doc.id&&ref.pointer===input.pointer&&ref.keyword===keyword);
@@ -80,7 +80,7 @@ export function referenceChoices(input:any) {
   const resource=resources.get(target.resource)!;
   const role=/^(?:\/components\/[^/]+|\/(?:definitions|parameters|responses|securityDefinitions))\/[^/]+$/.test(target.pointer)?'component':target.kind==='schema'&&target.resourcePointer===target.pointer?'schema-resource':'inline';
   all.push({semanticId:JSON.stringify([input.root,target.resource,target.pointer,target.kind]),label:bounded(label),value,kind:target.kind,role,
-   reference:typeof node.value?.$ref==='string'||target.kind==='schema'&&typeof node.value?.$dynamicRef==='string',
+   reference:graph.allowsReference(target)&&typeof node.value?.$ref==='string'||target.kind==='schema'&&typeof node.value?.$dynamicRef==='string',
    sharedSource:node.shared,
    selected:current?.resolution==='resolved'&&target.resource===current.targetResource&&target.pointer===current.targetPointer,
    target:{root:input.root,resource:target.resource,pointer:target.pointer,generation:resource.generation,range:node.range},
