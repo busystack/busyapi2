@@ -117,6 +117,7 @@ void main() {
             status: status,
             complete: status != 'incomplete' && status != 'skipped',
             passed: status == 'passed',
+            dispatched: status != 'skipped',
             elapsed: const Duration(milliseconds: 125),
             findings: [
               {

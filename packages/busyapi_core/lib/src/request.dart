@@ -2468,6 +2468,19 @@ class ContractHttpTransport {
           'request.transport',
           'The native HTTP transport could not reach the selected target',
         );
+      } on HttpException {
+        cancellation?.throwIfCancelled();
+        if (deadline.reason != null) {
+          throw CoreFailure(
+            'request.timeout',
+            'The request timed out without automatic replay',
+          );
+        }
+        // HttpException can contain the complete URI, including credentials.
+        throw CoreFailure(
+          'request.transport.protocol',
+          'The native HTTP exchange failed before a complete response was available',
+        );
       } on HandshakeException {
         throw CoreFailure(
           'request.tls',
@@ -3124,6 +3137,7 @@ class ContractRequestExecutor {
     OperationRequestDraft draft, {
     required SecretResolver resolveSecret,
     RunCancellation? cancellation,
+    void Function()? onRequestDispatched,
   }) async {
     final secretValues = <String>{};
     Future<String?> ownedSecret(String reference) async {
@@ -3187,6 +3201,8 @@ class ContractRequestExecutor {
         cancellation: cancellation,
       );
       cancellation?.throwIfCancelled();
+      // A dispatch is a transport attempt; it does not prove server execution.
+      onRequestDispatched?.call();
       final response = await transport.send(
         request,
         cancellation: cancellation,

@@ -241,7 +241,7 @@ class _ContractTestsDialogState extends State<ContractTestsDialog> {
                 BusyApiActionRow(
                   title: value.name,
                   subtitle:
-                      '${value.operation} · ${context.l10n.contractCaseStatus(value.status)}${value.responseStatus == null ? '' : ' · HTTP ${value.responseStatus}'}',
+                      '${value.operation} · ${context.l10n.contractCaseStatus(value.status)} · ${value.dispatched ? context.l10n.contractTestDispatched : context.l10n.contractTestNotSent}${value.responseStatus == null ? '' : ' · HTTP ${value.responseStatus}'}',
                 ),
                 for (final finding in value.findings)
                   BusyApiActionRow(

@@ -32,7 +32,7 @@ BusyAPI provides native editing for **Swagger 2.0 and OpenAPI 3.0.x, 3.1.x and 3
 ### API execution, testing, and Git
 
 - **Try:** Prepare and send requests for a selected operation, including parameters, headers, authentication (API key, Basic, bearer, OAuth 2), request bodies, custom CAs/mTLS, and response inspection. Requests are sent only when explicitly started. Saving a redacted response as an example is a separate reviewed source edit.
-- **Contract tests:** Run explicitly selected declarative cases with environments and assertions. Results distinguish executed and untested operations; a subset is not presented as full API coverage.
+- **Contract tests:** Run explicitly selected declarative cases with environments and assertions. Reports distinguish preparation refusals, dispatched requests and untested operations; a subset is not presented as full API coverage.
 - **Mock:** Start a local Prism-backed mock, or explicitly start a validation proxy against a configured upstream target. Ordinary mock requests are not forwarded upstream.
 - **Git:** Inspect changes and history, stage/unstage, commit, manage branches, and explicitly fetch, pull, or push. Source buffers, disk working tree, and index remain distinct. BusyAPI does not automatically stash, reset, force-push, or execute repository hooks.
 - **Semantic diff:** Compare an explicit Git revision or merge base using the bundled `oasdiff` tooling while retaining the source diff and coverage limitations.

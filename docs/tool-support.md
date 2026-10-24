@@ -62,6 +62,12 @@ ignored 3.0 multipart style fields before they could become active in 3.1.
 Swagger multipart arrays with a CSV/space/pipe separator are blocked for a 3.0
 target, whose repeated-part encoding cannot preserve those delimiters.
 
+Contract-case JSON reports include `dispatched` and `operationalFailure`. Coverage
+counts operation occurrences handed to the HTTP transport; refused preparation
+remains untested. The retained `executedOperations` field counts these dispatched
+attempts, which can still fail during connection or receipt. Desktop results show
+“Request not sent” or “Request dispatched” alongside the case outcome.
+
 ## External tools
 
 OpenAPI Generator **7.26.0** runs as the official local JAR with the packaged

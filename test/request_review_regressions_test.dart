@@ -2144,6 +2144,7 @@ paths:
         expect(tester.getSize(content).width, lessThanOrEqualTo(500));
         await expectCompleteCopy(tester, content, diagnostic);
         expect(find.textContaining('failed'), findsWidgets);
+        expect(find.textContaining('Request dispatched'), findsWidgets);
         expect(tester.takeException(), isNull);
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
@@ -2154,6 +2155,103 @@ paths:
       }
     },
   );
+  for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1']) {
+    testWidgets(
+      'contract case preparation refusal is visibly unsent $version',
+      (tester) async {
+        tester.view.physicalSize = const Size(1100, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final f = _Fixture();
+        HttpServer? endpoint;
+        final seen = <String>[];
+        late String original;
+        try {
+          await tester.runAsync(() async {
+            endpoint = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+            endpoint!.listen((request) async {
+              seen.add(request.uri.path);
+              request.response.statusCode = 204;
+              await request.response.close();
+            });
+            original =
+                '''${version == '2.0' ? "swagger: '2.0'" : 'openapi: $version'}
+info: {title: Case dispatch, version: '1'}
+${version == '2.0' ? "host: '127.0.0.1:${endpoint!.port}'\nschemes: [http]" : "servers: [{url: 'http://127.0.0.1:${endpoint!.port}'}]"}
+paths:
+  /pets/{id}:
+    get:
+      parameters:
+        - {name: id, in: path, required: true, ${version == '2.0' ? 'type: string' : 'schema: {type: string}'}}
+      responses: {'204': {description: ok}}
+''';
+            await f.open(
+              original,
+              extraConfiguration: "tests: [{name: missing, operation: {method: get, path: '/pets/{id}'}}]",
+            );
+          });
+          final captured = (await tester.runAsync(
+            () => f.c.project!.captureContractSnapshot(f.c.root!),
+          ))!;
+          await tester.pumpWidget(
+            host(
+              ContractTestsDialog(
+                workspace: f.c,
+                owner: f.c.project!,
+                root: f.c.root!,
+                captured: captured,
+                configuration: ExecutionConfiguration.parse(
+                  captured.snapshot.configuration.singleOrNull,
+                  f.c.project!.access.boundary,
+                ),
+                secrets: EnvironmentSecretStore(),
+              ),
+            ),
+          );
+          await tester.tap(find.text('missing'));
+          await tester.pump();
+          await tester.runAsync(() async {
+            HttpOverrides.runWithHttpOverrides(
+              () => tester
+                  .widget<BusyApiDialogButton>(
+                    find.widgetWithText(
+                      BusyApiDialogButton,
+                      'Test selected cases',
+                    ),
+                  )
+                  .onPressed!
+                  .call(),
+              _NativeHttp(),
+            );
+          });
+          final unsent = find.textContaining('Request not sent');
+          final clock = Stopwatch()..start();
+          while (unsent.evaluate().isEmpty &&
+              clock.elapsed < const Duration(seconds: 8)) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)),
+            );
+            await tester.pump();
+          }
+          expect(unsent, findsOneWidget);
+          expect(
+            find.textContaining('0 dispatched operations; 1 untested.'),
+            findsOneWidget,
+          );
+          expect(seen, isEmpty);
+          expect(f.file.readAsStringSync(), original);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(() async {
+            await endpoint?.close(force: true);
+            await f.dispose();
+          });
+        }
+      },
+    );
+  }
+
   testWidgets(
     'H02 H06 H07 H11 H21 real draft actions preserve literal requests and fresh defaults',
     (tester) async {

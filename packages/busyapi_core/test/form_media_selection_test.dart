@@ -230,6 +230,7 @@ void main() {
             );
             expect(report.complete, isTrue, reason: '${report.toJson()}');
             expect(report.passed, isTrue, reason: '${report.toJson()}');
+            expect(report.cases.single.dispatched, isTrue);
             final first = seen.last,
                 type = name == 'json'
                     ? _jsonType
@@ -302,6 +303,9 @@ void main() {
             expect(report.cases.single.status, 'failed');
             expect(report.cases.single.operationalFailure, isTrue);
             expect(report.cases.single.responseStatus, isNull);
+            expect(report.cases.single.dispatched, isFalse);
+            expect(report.executedOperations, isEmpty);
+            expect(report.untestedOperations, hasLength(1));
             expect(
               jsonEncode(report.toJson()),
               contains('request.form.content-type'),
@@ -318,6 +322,8 @@ void main() {
           expect(unsupported.passed, isFalse);
           expect(unsupported.cases.single.status, 'incomplete');
           expect(unsupported.cases.single.operationalFailure, isFalse);
+          expect(unsupported.cases.single.dispatched, isFalse);
+          expect(unsupported.executedOperations, isEmpty);
           expect(
             jsonEncode(unsupported.toJson()),
             contains('request.form.media-parameters.unsupported'),
@@ -337,6 +343,11 @@ void main() {
             (jsonDecode(unsupportedCli.stdout as String) as Map)['status'],
             'incomplete',
           );
+          final unsupportedJson =
+              jsonDecode(unsupportedCli.stdout as String) as Map;
+          expect(unsupportedJson['executedOperations'], isEmpty);
+          expect(unsupportedJson['cases'][0]['dispatched'], isFalse);
+          expect(unsupportedJson['cases'][0]['operationalFailure'], isFalse);
           expect(seen.length, count);
           final buffer = await project.buffer(file.uri.toString());
           project.store.replace(

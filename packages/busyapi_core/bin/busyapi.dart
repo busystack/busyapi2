@@ -873,7 +873,7 @@ Future<void> runBusyApi(
             }
           }
           stdout.writeln(
-            'Executed ${report.executedOperations.length}; untested ${report.untestedOperations.length}; exhaustive: no',
+            'Dispatched ${report.executedOperations.length}; untested ${report.untestedOperations.length}; exhaustive: no',
           );
         }
         exitCode = !report.complete

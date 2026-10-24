@@ -865,7 +865,9 @@
       }
     }
   },
-  "contractTestCoverage": "{executed} executed operations; {untested} untested. Example coverage is not exhaustive.",
+  "contractTestDispatched": "Request dispatched",
+  "contractTestNotSent": "Request not sent",
+  "contractTestCoverage": "{executed} dispatched operations; {untested} untested. Example coverage is not exhaustive.",
   "@contractTestCoverage": {
     "placeholders": {
       "executed": {

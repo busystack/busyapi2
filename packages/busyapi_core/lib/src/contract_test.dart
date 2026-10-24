@@ -11,6 +11,7 @@ class ContractCaseResult {
     required this.complete,
     required this.passed,
     required this.findings,
+    required this.dispatched,
     this.responseStatus,
     this.mediaType,
     this.bodyIdentity,
@@ -24,6 +25,7 @@ class ContractCaseResult {
   final String? mediaType, bodyIdentity;
   final Duration elapsed;
   final bool operationalFailure;
+  final bool dispatched;
   final List<Map<String, Object?>> findings;
   Map<String, Object?> toJson() => {
     'name': name,
@@ -32,6 +34,8 @@ class ContractCaseResult {
     'status': status,
     'complete': complete,
     'passed': passed,
+    'dispatched': dispatched,
+    'operationalFailure': operationalFailure,
     if (responseStatus != null) 'responseStatus': responseStatus,
     if (mediaType != null) 'mediaType': mediaType,
     if (bodyIdentity != null) 'bodyIdentity': bodyIdentity,
@@ -74,6 +78,7 @@ class ContractTestReport {
     'untestedOperations': untestedOperations,
     'coverage': {
       'selection': 'explicit-cases-only',
+      'execution': 'transport-dispatched-attempts',
       'transport': 'native-dart-http',
       'schema': 'busyapi-contract-engine',
       'exhaustive': false,
@@ -211,7 +216,8 @@ class ContractTestRunner {
         continue;
       }
       final label = '${httpOperationMethod(selected)} ${selected['path']}';
-      executed.add(selected['occurrence']?.toString() ?? label);
+      final operationIdentity = selected['occurrence']?.toString() ?? label;
+      var dispatched = false;
       OperationRequestPlan? plan;
       final clock = Stopwatch()..start();
       try {
@@ -237,6 +243,10 @@ class ContractTestRunner {
           draft,
           resolveSecret: resolveSecret,
           cancellation: cancellation,
+          onRequestDispatched: () {
+            dispatched = true;
+            executed.add(operationIdentity);
+          },
         );
         try {
           results.add(_assert(name, label, definition, result, clock.elapsed));
@@ -253,6 +263,7 @@ class ContractTestRunner {
             failure.code,
             failure.message,
             elapsed: clock.elapsed,
+            dispatched: dispatched,
             complete:
                 !failure.code.startsWith('runtime.') &&
                 !failure.code.contains('timeout') &&
@@ -596,6 +607,7 @@ class ContractTestRunner {
           : 'incomplete',
       complete: complete,
       passed: passed,
+      dispatched: true,
       responseStatus: result.response.status,
       mediaType: _contentType(result.response.headers),
       bodyIdentity: result.response.bodyIdentity,
@@ -613,6 +625,7 @@ class ContractTestRunner {
     String message, {
     bool complete = true,
     bool operationalFailure = true,
+    bool dispatched = false,
     Duration elapsed = Duration.zero,
   }) => ContractCaseResult(
     name: name,
@@ -623,6 +636,7 @@ class ContractTestRunner {
     passed: false,
     elapsed: elapsed,
     operationalFailure: operationalFailure,
+    dispatched: dispatched,
     findings: [
       {'code': code, 'severity': 'error', 'message': message},
     ],
