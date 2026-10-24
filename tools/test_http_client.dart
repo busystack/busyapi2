@@ -56,6 +56,17 @@ Future<void> main(List<String> args) async {
 }
 
 Future<void> exercise() async {
+  final version =
+      Platform.environment['BUSYAPI_FILE_CONTROLS_VERSION'] ?? '3.2.1';
+  final format = Platform.environment['BUSYAPI_FILE_CONTROLS_FORMAT'] ?? 'yaml';
+  check(
+    const ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
+        const ['yaml', 'json'].contains(format),
+    'fixture-version-format',
+  );
+  final swagger = version == '2.0';
+  final secretField = swagger ? 'secretRef' : 'tokenRef';
+  final evidencePrefix = 'http-${version.replaceAll('.', '-')}-$format';
   final directory =
       Platform.environment['BUSYAPI_FILE_CONTROLS_DIRECTORY'] ?? '';
   check(
@@ -70,13 +81,20 @@ Future<void> exercise() async {
   endpoint.listen((request) async {
     final bytes = await request.fold<List<int>>([], (a, b) => a..addAll(b));
     check(
-      request.method == 'POST' && request.uri.path == '/items',
+      request.method == 'POST' && request.uri.toString() == '/items',
       'request-target',
     );
     check(utf8.decode(bytes) == 'hello', 'example-wire');
     check(
-      request.headers.value('authorization') == 'Bearer fixture-token',
+      swagger
+          ? request.headers.value('x-fixture-key') == 'fixture-token' &&
+                request.headers.value('authorization') == null
+          : request.headers.value('authorization') == 'Bearer fixture-token',
       'session-auth-wire',
+    );
+    check(
+      request.headers.contentType?.mimeType == 'text/plain',
+      'request-media',
     );
     request.response.headers.contentType = ContentType.json;
     request.response.headers.set('content-encoding', 'gzip');
@@ -88,9 +106,94 @@ Future<void> exercise() async {
     if (!observed.isCompleted) observed.complete();
   });
   final project = Directory('$directory/project')..createSync();
-  final file = File('${project.path}/openapi.yaml');
-  final original =
-      '''openapi: 3.2.1
+  final file = File('${project.path}/api.$format');
+  const schema = {
+    'type': 'object',
+    'required': ['id'],
+    'properties': {
+      'id': {'type': 'integer', 'minimum': '@exact-minimum'},
+    },
+  };
+  final contract = <String, Object?>{
+    if (swagger) 'swagger': version else 'openapi': version,
+    'info': {'title': 'Native HTTP client', 'version': '1'},
+    'security': [
+      {'access': <String>[]},
+    ],
+    if (swagger) ...{
+      'host': '127.0.0.1:${endpoint.port}',
+      'basePath': '/',
+      'schemes': ['http'],
+      'consumes': ['text/plain'],
+      'produces': ['application/json'],
+      'securityDefinitions': {
+        'access': {'type': 'apiKey', 'in': 'header', 'name': 'X-Fixture-Key'},
+      },
+    } else ...{
+      'servers': [
+        {'url': 'http://127.0.0.1:${endpoint.port}'},
+      ],
+      'components': {
+        'securitySchemes': {
+          'access': {'type': 'http', 'scheme': 'bearer'},
+        },
+      },
+    },
+    'paths': {
+      '/items': {
+        'post': {
+          if (swagger)
+            'parameters': [
+              {
+                'name': 'payload',
+                'in': 'body',
+                'required': true,
+                'schema': {'type': 'string'},
+              },
+            ]
+          else
+            'requestBody': {
+              'required': true,
+              'content': {
+                'text/plain': {
+                  'schema': <String, Object?>{},
+                  'example': 'hello',
+                },
+              },
+            },
+          'responses': {
+            '200': {
+              'description': 'OK',
+              if (swagger)
+                'schema': schema
+              else
+                'content': {
+                  'application/json': {'schema': schema},
+                },
+            },
+          },
+        },
+      },
+    },
+  };
+  final yaml = swagger
+      ? '''swagger: '2.0'
+info: {title: Native HTTP client, version: '1'}
+host: '127.0.0.1:${endpoint.port}'
+basePath: /
+schemes: [http]
+consumes: [text/plain]
+produces: [application/json]
+security: [{access: []}]
+securityDefinitions: {access: {type: apiKey, in: header, name: X-Fixture-Key}}
+paths:
+  /items:
+    post:
+      parameters: [{name: payload, in: body, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: OK, schema: {type: object, required: [id], properties: {id: {type: integer, minimum: 9007199254740993}}}}
+'''
+      : '''openapi: $version
 info: {title: Native HTTP client, version: '1'}
 servers: [{url: 'http://127.0.0.1:${endpoint.port}'}]
 security: [{access: []}]
@@ -102,8 +205,12 @@ paths:
         required: true
         content: {text/plain: {schema: {}, example: hello}}
       responses:
-        '200': {description: OK, content: {application/json: {schema: {type: object, required: [id], properties: {id: {type: integer}}}}}}
+        '200': {description: OK, content: {application/json: {schema: {type: object, required: [id], properties: {id: {type: integer, minimum: 9007199254740993}}}}}}
 ''';
+  final original = format == 'yaml'
+      ? yaml
+      : jsonEncode(contract)
+            .replaceFirst('"@exact-minimum"', '9007199254740993');
   file.writeAsStringSync(original);
   await application.main([file.path]);
   WorkspaceController? owner;
@@ -117,6 +224,10 @@ paths:
     }
     return owner?.projection != null;
   }, 'workspace-open');
+  check(
+    owner!.specification?.declaredVersion == version,
+    'native-family-owner',
+  );
   await windowManager
       .focus(); // Focus only this explicit, owned native fixture.
   final input = StreamIterator(
@@ -172,6 +283,15 @@ paths:
         View.of(target).physicalSize.height,
       ],
     });
+    if (editable) {
+      await waitFor(
+        () =>
+            target.mounted &&
+            target.widget is EditableText &&
+            (target.widget as EditableText).focusNode.hasFocus,
+        '$code-focused',
+      );
+    }
   }
 
   Future<void> row(String title) =>
@@ -193,7 +313,7 @@ paths:
       'authentication': {
         'alternative': 0,
         'schemes': {
-          'access': {'tokenRef': reference},
+          'access': {secretField: reference},
         },
       },
     });
@@ -207,7 +327,12 @@ paths:
     );
     final media =
         (run.plan!.result['requestBody']['content'] as List).single as Map;
-    run.useBodyExample(media);
+    if (swagger) {
+      run.bodyText = 'hello';
+      run.refresh();
+    } else {
+      run.useBodyExample(media);
+    }
     await run.send();
     await observed.future.timeout(const Duration(seconds: 15));
     check(run.result?.conforming == true, 'native-render-conformance');
@@ -245,7 +370,7 @@ paths:
     await Future<void>.delayed(const Duration(milliseconds: 250));
     await send({
       'kind': 'snapshot',
-      'name': 'http-light-headers',
+      'name': '$evidencePrefix-light-headers',
       'labels': ['Send', 'Search retained headers'],
     });
     await workspace!.widget.setTheme(ThemeMode.dark);
@@ -253,7 +378,7 @@ paths:
     await Future<void>.delayed(const Duration(milliseconds: 250));
     await send({
       'kind': 'snapshot',
-      'name': 'http-dark-headers',
+      'name': '$evidencePrefix-dark-headers',
       'labels': ['Send', 'Search retained headers'],
     });
     selector.onSelected('body');
@@ -266,7 +391,7 @@ paths:
     await Future<void>.delayed(const Duration(milliseconds: 250));
     await send({
       'kind': 'snapshot',
-      'name': 'http-dark-body',
+      'name': '$evidencePrefix-dark-body',
       'labels': ['Search retained preview'],
       'texts': ['9007199254740993'],
     });
@@ -332,7 +457,7 @@ paths:
   final reference =
       run.plan!.configuration.environments['local']!.authentication['schemes']
           as Map;
-  final tokenReference = (reference['access'] as Map)['tokenRef'] as String;
+  final tokenReference = (reference['access'] as Map)[secretField] as String;
   await waitFor(
     () => run.secrets.status(tokenReference)?.name == 'sessionOnly',
     'credential-session-submitted',
@@ -341,7 +466,18 @@ paths:
     await run.secrets.read(tokenReference) == 'fixture-token',
     'credential-stored-value',
   );
-  await row('Examples · text/plain · json');
+  if (swagger) {
+    await click(
+      (w) =>
+          w is BusyApiGroupedTextEntry &&
+          w.label == 'Authored text or exact JSON bytes',
+      'swagger-native-body',
+      editable: true,
+    );
+    await keys(['Control_L+a', 'h', 'e', 'l', 'l', 'o']);
+  } else {
+    await row('Examples · text/plain · json');
+  }
   await waitFor(() => run.bodyText == 'hello' && run.canSend, 'example-ready');
   await keys(['Control_L+Return']);
   await observed.future.timeout(const Duration(seconds: 15));
@@ -354,6 +490,17 @@ paths:
     base64Encode(export.readAsBytesSync()) == base64Encode(responseBytes),
     'original-export',
   );
+  final decoded = File('$directory/decoded.json');
+  await run.result!.response.export(decoded.path, decoded: true);
+  final decodedBytes = utf8.encode(
+    '{"id":9007199254740993,"message":"native response"}',
+  );
+  check(
+    base64Encode(await run.result!.response.decodedBytes()) ==
+            base64Encode(decodedBytes) &&
+        base64Encode(decoded.readAsBytesSync()) == base64Encode(decodedBytes),
+    'decoded-export',
+  );
   await windowManager.setSize(const Size(620, 820));
   await waitFor(
     () => elements((w) => w is RequestRunPanel).isNotEmpty,
@@ -364,7 +511,7 @@ paths:
     'response-view',
   );
   await send({'kind': 'menu-ready'});
-  await keys(['Down', 'Return']);
+  await keys(['Home', 'Down', 'Return']);
   await waitFor(
     () => elements(
       (w) =>
@@ -376,16 +523,52 @@ paths:
   );
   await send({
     'kind': 'snapshot',
-    'name': 'http-light-headers',
+    'name': '$evidencePrefix-light-headers',
     'labels': ['Send', 'Search retained headers'],
   });
   await workspace!.widget.setTheme(ThemeMode.dark);
   await WidgetsBinding.instance.endOfFrame;
   await send({
     'kind': 'snapshot',
-    'name': 'http-dark-headers',
+    'name': '$evidencePrefix-dark-headers',
     'labels': ['Send', 'Search retained headers'],
+  });
+  await click(
+    (w) => w is BusyApiComboRow<String> && w.title == 'Responses',
+    'response-body-view',
+  );
+  await send({'kind': 'menu-ready'});
+  await keys(['Home', 'Return']);
+  await waitFor(
+    () =>
+        elements(
+          (w) =>
+              w is BusyApiRawSourceView &&
+              w.source.contains('9007199254740993'),
+        ).length ==
+        1,
+    'retained-body-view',
+  );
+  final raw = elements(
+    (w) => w is BusyApiRawSourceView && w.source.contains('9007199254740993'),
+  ).single;
+  await Scrollable.ensureVisible(raw, alignment: .6, duration: Duration.zero);
+  await WidgetsBinding.instance.endOfFrame;
+  await send({
+    'kind': 'snapshot',
+    'name': '$evidencePrefix-dark-body',
+    'labels': ['Search retained preview'],
+    'texts': ['9007199254740993'],
   });
   await endpoint.close(force: true);
   await input.cancel();
+  check(
+    file.readAsStringSync() == original &&
+        !File('${project.path}/busyapi.yaml').existsSync() &&
+        owner!.project!.store.buffers.values.every(
+          (buffer) => !buffer.text.contains('fixture-token'),
+        ),
+    'native-http-source-and-credential-isolation',
+  );
+  stdout.writeln('BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format');
 }
