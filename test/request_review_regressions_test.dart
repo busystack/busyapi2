@@ -205,6 +205,111 @@ Future<void> expectCompleteCopy(
 void main() {
   for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
     testWidgets(
+      '$version TRACE panel retains refused drafts and permits a content-free retry',
+      (tester) async {
+        final fixture = _Fixture();
+        HttpServer? endpoint;
+        var received = 0;
+        late final String original;
+        try {
+          await tester.runAsync(() async {
+            endpoint = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+            endpoint!.listen((request) async {
+              received++;
+              expect(request.method, 'TRACE');
+              expect(await request.toList(), isEmpty);
+              expect(request.headers.value('cookie'), isNull);
+              request.response.statusCode = 204;
+              await request.response.close();
+            });
+            original =
+                '''openapi: $version
+info: {title: TRACE request, version: "1"}
+servers: [{url: 'http://127.0.0.1:${endpoint!.port}'}]
+paths:
+  /trace:
+    trace:
+      requestBody:
+        content: {text/plain: {schema: {type: string}}}
+      responses: {'204': {description: Empty}}
+''';
+            await fixture.open(original);
+            fixture.run.bodyEnabled = version != '3.0.4';
+            fixture.run.bodyText = 'retained 雪';
+            fixture.run.refresh();
+          });
+          await tester.pumpWidget(
+            host(
+              SingleChildScrollView(child: RequestRunPanel(run: fixture.run)),
+            ),
+          );
+          await tester.pump();
+          final l = AppLocalizations.of(
+            tester.element(find.byType(RequestRunPanel)),
+          )!;
+          Future<void> send() => tester.runAsync(
+            () => HttpOverrides.runWithHttpOverrides(
+              fixture.run.send,
+              _NativeHttp(),
+            ),
+          );
+          if (version == '3.0.4') {
+            expect(fixture.run.plan!.ignoredRequestBody!.method, 'TRACE');
+            expect(fixture.run.bodyMediaType, isNull);
+            expect(find.text(l.requestBodyIgnored('TRACE')), findsOneWidget);
+          } else {
+            expect(fixture.run.canSend, isTrue);
+            await send();
+            await tester.pump();
+            expect(received, 0);
+            expect(fixture.run.failure, 'request.trace.content');
+            expect(find.text(l.requestTraceContent), findsOneWidget);
+            expect(fixture.run.bodyText, 'retained 雪');
+            expect(fixture.run.result, isNull);
+          }
+          fixture.run.bodyEnabled = false;
+          fixture.run.customHeaders.add(
+            const RequestHeaderValue('Cookie', 'synthetic-secret'),
+          );
+          fixture.run.refresh();
+          expect(fixture.run.canSend, isTrue);
+          await send();
+          await tester.pump();
+          expect(received, 0);
+          expect(fixture.run.failure, 'request.trace.credentials');
+          expect(find.text(l.requestTraceCredentials), findsOneWidget);
+          expect(
+            fixture.run.failureMessage,
+            isNot(contains('synthetic-secret')),
+          );
+          expect(fixture.run.customHeaders.single.value, 'synthetic-secret');
+          expect(fixture.run.bodyText, 'retained 雪');
+          fixture.run.customHeaders.clear();
+          fixture.run.refresh();
+          await send();
+          await tester.pump();
+          expect(received, 1);
+          expect(
+            fixture.run.failure,
+            isNull,
+            reason: fixture.run.failureMessage,
+          );
+          expect(fixture.run.result!.conforming, isTrue);
+          expect(fixture.run.bodyText, 'retained 雪');
+          expect(fixture.c.store!.get(fixture.c.root!).text, original);
+          expect(fixture.file.readAsStringSync(), original);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(() async {
+            await endpoint?.close(force: true);
+            await fixture.dispose();
+          });
+        }
+      },
+    );
+  }
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
+    testWidgets(
       '$version request panel reflects method-specific body applicability',
       (tester) async {
         final fixture = _Fixture();

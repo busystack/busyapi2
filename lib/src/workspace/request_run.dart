@@ -1453,6 +1453,9 @@ Future<void> _performRequestAction(
               'oauth.configuration' => context.l10n.oauthConfigurationRequired,
               'request.method.unsupported' =>
                 context.l10n.requestMethodUnsupported,
+              'request.trace.content' => context.l10n.requestTraceContent,
+              'request.trace.credentials' =>
+                context.l10n.requestTraceCredentials,
               _ =>
                 error is CoreFailure
                     ? '${error.message}\n[$code]'
@@ -2079,6 +2082,10 @@ class RequestRunPanel extends StatelessWidget {
           ? l.requestDraftTooLarge
           : run.failure == 'request.method.unsupported'
           ? l.requestMethodUnsupported
+          : run.failure == 'request.trace.content'
+          ? l.requestTraceContent
+          : run.failure == 'request.trace.credentials'
+          ? l.requestTraceCredentials
           : switch (run.phase) {
               'preparing' => l.requestPreparing,
               'ready' =>

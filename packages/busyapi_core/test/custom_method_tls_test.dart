@@ -87,6 +87,7 @@ Future<({BusyProject project, String root, String original})> openProject(
   Uri server, {
   Map<String, Object?> environments = const {},
   List<Map<String, Object?>> cases = const [],
+  bool includeTrace = false,
 }) async {
   final original = jsonEncode({
     'openapi': '3.2.1',
@@ -94,8 +95,33 @@ Future<({BusyProject project, String root, String original})> openProject(
     'servers': [
       {'url': server.toString()},
     ],
+    if (includeTrace)
+      'components': {
+        'securitySchemes': {
+          'Client': {'type': 'mutualTLS'},
+        },
+      },
     'paths': {
       '/tls': {
+        if (includeTrace)
+          'trace': {
+            'security': [
+              {'Client': <String>[]},
+            ],
+            'responses': {
+              '200': {
+                'description': 'Verified',
+                'content': {
+                  'application/json': {
+                    'schema': {
+                      'type': 'object',
+                      'required': ['verified'],
+                    },
+                  },
+                },
+              },
+            },
+          },
         'additionalOperations': {
           for (final method in ['purge', 'head'])
             method: {
@@ -153,7 +179,7 @@ Future<OperationRequestPlan> methodPlan(
   expect(checked['complete'], true, reason: '$checked');
   final operation = (checked['projection']['operations'] as List)
       .whereType<Map>()
-      .singleWhere((value) => value['method'] == method);
+      .singleWhere((value) => httpOperationMethod(value) == method);
   final plan = await project.prepareRequest(
     root,
     resource: operation['resource'] as String,
@@ -197,10 +223,11 @@ void main() {
           if (end < 0) continue;
           final length = int.parse(
             RegExp(
-              r'^content-length:\s*(\d+)',
-              caseSensitive: false,
-              multiLine: true,
-            ).firstMatch(text.substring(0, end))!.group(1)!,
+                  r'^content-length:\s*(\d+)',
+                  caseSensitive: false,
+                  multiLine: true,
+                ).firstMatch(text.substring(0, end))?.group(1) ??
+                '0',
           );
           if (bytes.length < end + 4 + length) continue;
           seen.add((
@@ -234,8 +261,14 @@ void main() {
     final fixture = await openProject(
       directory,
       Uri.parse('https://127.0.0.1:${server.port}'),
+      includeTrace: true,
       environments: {
-        'secure': {'tls': tls},
+        'secure': {
+          'tls': tls,
+          'authentication': {
+            'schemes': {'Client': <String, Object?>{}},
+          },
+        },
         'untrusted': {
           'tls': {
             'clientCertificateFile': 'certs/client.crt',
@@ -304,6 +337,22 @@ void main() {
         );
       }
     }
+    final tracePlan = await methodPlan(fixture.project, fixture.root, 'TRACE');
+    final traceResult = await const ContractRequestExecutor().execute(
+      tracePlan,
+      OperationRequestDraft(
+        planIdentity: tracePlan.identity,
+        environment: 'secure',
+        securityAlternative: 0,
+      ),
+      resolveSecret: (_) async =>
+          throw StateError('TLS credentials must not become HTTP secrets'),
+    );
+    addTearDown(traceResult.close);
+    expect(traceResult.conforming, true);
+    expect(seen.last.line, 'TRACE /tls HTTP/1.1');
+    expect(seen.last.body, isEmpty);
+    expect(seen.last.client, contains('BusyAPI fixture client'));
     final cli = await Process.run(
       '$testBundle/busyapi',
       [
@@ -347,7 +396,7 @@ void main() {
     final expected = utf8.encode(jsonEncode({'verified': true, 'echo': large}));
     expect(File(largeResult.response.bodyFile).readAsBytesSync(), expected);
     expect(await largeResult.response.decodedBytes(), expected);
-    expect(seen, hasLength(4));
+    expect(seen, hasLength(5));
     expect(
       File.fromUri(Uri.parse(fixture.root)).readAsStringSync(),
       fixture.original,

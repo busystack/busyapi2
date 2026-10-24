@@ -22,6 +22,7 @@ import 'atomic_file_writer.dart';
 import 'storage.dart';
 import 'gzip_framing.dart';
 import 'exact_http_method.dart';
+import 'trace_request_policy.dart';
 
 typedef SecretResolver = Future<String?> Function(String reference);
 
@@ -429,6 +430,10 @@ class ContractRequestBuilder {
         'Reconcile this draft with the changed operation before sending it',
       );
     }
+    final trace = TraceRequestPolicy.capture(
+      plan.operation['method'] as String,
+      plan.operation['source'],
+    );
     _positiveTimeout(draft.connectTimeout, 'connect');
     _positiveTimeout(draft.overallTimeout, 'overall');
     _positiveTimeout(draft.inactivityTimeout, 'inactivity');
@@ -544,6 +549,7 @@ class ContractRequestBuilder {
     for (final header in draft.headers.where((value) => value.enabled)) {
       _addHeader(headers, header.name, substitute(header.value));
     }
+    trace?.headers(headers.map((header) => header.$1), const []);
     final sensitiveHeaders = <String>{'authorization', 'proxy-authorization'};
     final sensitiveQuery = <String>{};
     final security = Map<String, dynamic>.from(plan.result['security'] as Map);
@@ -579,6 +585,7 @@ class ContractRequestBuilder {
             'Configure credentials for $schemeName in the selected environment',
           );
         }
+        trace?.securityScheme(declaration['type']);
         await _applySecurity(
           schemeName,
           Map<String, dynamic>.from(declaration),
@@ -644,6 +651,9 @@ class ContractRequestBuilder {
         for (final field in draft.body.fields) ...[field.name, field.value],
       ]);
     }
+    if (previewOnly && draft.body.kind == RequestBodyKind.raw) {
+      trace?.content((draft.body.text ?? '').isEmpty ? 0 : 1);
+    }
     final body = previewOnly
         ? (draft.body.kind == RequestBodyKind.none
               ? null
@@ -660,6 +670,7 @@ class ContractRequestBuilder {
             plan.ensureCurrentPreparation,
           );
     try {
+      if (!previewOnly) trace?.content(body?.length ?? 0);
       final bodyDeclaration = plan.result['requestBody'];
       if (bodyDeclaration is Map &&
           bodyDeclaration['required'] == true &&
@@ -2488,6 +2499,21 @@ class ContractHttpTransport {
     try {
       input.plan.ensureCurrentPreparation();
       cancellation?.throwIfCancelled();
+      final trace = TraceRequestPolicy.capture(
+        input.method,
+        input.plan.operation['source'],
+      );
+      trace?.content(input.body?.length ?? 0);
+      trace?.headers(
+        input.headers.map((header) => header.$1),
+        input.sensitiveHeaders,
+      );
+      if (trace != null &&
+          input.sensitiveQueryNames.any(
+            input.uri.queryParameters.containsKey,
+          )) {
+        trace.credentials();
+      }
       final exact = input.method == input.method.toUpperCase()
           ? null
           : ExactHttpMethod(input.method);

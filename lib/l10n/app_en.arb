@@ -988,6 +988,8 @@
   "gitNoRepository": "The project is not inside a Git repository.",
   "analysisDidNotComplete": "Analysis did not complete.",
   "requestMethodUnsupported": "Sending this custom method with its exact capitalization is unavailable.",
+  "requestTraceContent": "Remove the request body before sending TRACE. HTTP TRACE does not permit request content.",
+  "requestTraceCredentials": "TRACE cannot send authorization, cookies or configured credentials. Select an operation that permits those credentials.",
   "theme": "Theme",
   "requestEffective": "Effective request",
   "requestPreviewPending": "Resolving current draft…",

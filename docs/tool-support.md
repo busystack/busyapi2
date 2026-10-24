@@ -29,7 +29,8 @@ acceptance status in the [support matrix](implementation/native-openapi-support.
 OpenAPI 3.0 request-body declarations remain editable and inspectable on every
 method. Its consumption rule ignores them for GET, HEAD, DELETE, OPTIONS and
 TRACE; they neither force an outgoing body nor constrain an explicitly entered
-body. Request and native Reference show that distinction, including offline HTML.
+body. HTTP rules independently forbid sending content with TRACE. Request and
+native Reference show the family distinction, including offline HTML.
 POST, PUT and PATCH retain their declared body semantics. Swagger 2.0 and modern
 OpenAPI retain their own body rules. See [OAS 3.0 §4.7.10.1](https://spec.openapis.org/oas/v3.0.4.html#operation-object).
 The pinned mock adapter consumes this same rule without changing the captured
@@ -354,7 +355,9 @@ source review. Dynamic references and reusable Component Path Items remain
 unclassified where the pinned tool cannot prove coverage. An empty result with
 incomplete loading is not compatibility proof.
 
-Dart **3.13.4** normalizes HTTP method capitalization internally. BusyAPI preserves OAS 3.2 additional-operation identities but refuses lowercase/mixed-case sends before connecting, with an unsupported/incomplete result. Uppercase custom methods and fixed GET/POST/QUERY remain available. This is an explicit native transport limitation, not canonical equivalence between differently cased tokens.
+Dart **3.13.4** normalizes HTTP method capitalization internally. BusyAPI's dedicated connection adapter preserves OAS 3.2 additional-operation tokens on the wire, including lowercase/mixed-case methods, without changing URI, header or body bytes. It retains native TLS trust, hostname and client-certificate checks and owns cancellation during the handshake. Exact HTTP method identity remains case-sensitive.
+
+HTTP TRACE refuses nonempty content, authorization, cookies and configured HTTP credentials before connecting; it does not silently remove them. Preview and Send retain the entered draft for correction. Mutual TLS remains available because it adds no HTTP credential field. A custom lowercase `trace` remains a different method. These rules follow [RFC 9110 §§9.1,9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html); they apply in the shared desktop/CLI request path. See the [support matrix](implementation/native-openapi-support.md) for coverage and verification status.
 
 Desktop persistence uses libsecret **0.21.4** through a BusyAPI-owned native channel and schema. The strict Snap exposes `password-manager-service` but does not assume it is connected; locked, missing, declined, and disconnected paths remain visible session-only operation with no file fallback. `network` and `network-bind` are limited to deliberate request/mock/OAuth/Git execution. Document navigation and messages retain the independent WebKit resource/network denials described above.
 
