@@ -3705,6 +3705,7 @@ class ContractRequestExecutor {
             ),
           );
         } else if (preparedBody != null &&
+            preparedBody.formInstance == null &&
             preparedBody.length <= _evaluationLimit) {
           final bytes = BytesBuilder(copy: false);
           await for (final chunk in preparedBody.open()) {

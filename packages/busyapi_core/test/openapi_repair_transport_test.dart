@@ -1437,7 +1437,12 @@ void main() {
                     resolveSecret: (_) async => null,
                   );
           addTearDown(result.close);
-          expect(result.outgoing.complete, i == 0);
+          expect(
+            result.outgoing.complete,
+            i == 0,
+            reason:
+                'body $i; logical=${result.request.body?.formInstance?.length}; coverage=${result.outgoing.coverage}; findings=${result.outgoing.findings}',
+          );
           expect(result.conforming, i == 0);
           final record = ContractRequestRecord.fromResult(
             result,
@@ -1449,6 +1454,28 @@ void main() {
             'conforming': i == 0,
           });
         }
+        for (final body in bodies.skip(2)) {
+          final result =
+              await const ContractRequestExecutor(
+                maximumEvaluationBytes: 9,
+              ).execute(
+                plan,
+                OperationRequestDraft(planIdentity: plan.identity, body: body),
+                resolveSecret: (_) async => null,
+              );
+          addTearDown(result.close);
+          expect(result.request.body!.formInstance, '{"a":"1"}');
+          expect(result.outgoing.complete, true);
+          expect(result.conforming, true);
+          expect(
+            ContractRequestRecord.fromResult(
+              result,
+              recordedAt: DateTime.utc(2026),
+            ).conformanceComplete,
+            true,
+          );
+        }
+        expect(sizes, hasLength(6));
         expect(sizes, everyElement(greaterThan(0)));
       },
     );
