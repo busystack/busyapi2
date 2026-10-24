@@ -1,4 +1,4 @@
-import {escape,SourceError} from './document';
+import {escape,segments,SourceError} from './document';
 import type {GraphReference,ReferenceGraph} from './reference_graph';
 import {mediaTypeOptions,mediaTypes} from './media_types';
 
@@ -77,6 +77,17 @@ export class FormSemantics {
 export function formMediaIssues(graph:ReferenceGraph){
     const issues:{resource:string;pointer:string;code:string;message:string;incomplete?:boolean;severity?:string}[]=[];
     for(const scope of graph.scopes.values()){
+        if(scope.family==='3.0'&&scope.kind==='media'){
+            let parent=scope.pointer,owner:string|undefined;
+            while(parent){parent=parent.slice(0,parent.lastIndexOf('/'));const kind=graph.scopes.get(scope.resource+'#'+parent)?.kind;if(kind&&['request-body','response','parameter','header'].includes(kind)){owner=kind;break;}}
+            if(owner==='request-body'){
+                try{
+                    const types=mediaTypes(segments(scope.pointer).at(-1)!);
+                    if(types.length===1&&types[0].type==='multipart'&&!graph.docs.get(scope.resource)!.dataNode(scope.pointer)!.children.has('schema'))
+                        issues.push({...scope,code:'media.multipart.schema.required',message:'OpenAPI 3.0 multipart input content requires a schema (4.7.15.3)'});
+                }catch(error){if(!(error instanceof SourceError))throw error;issues.push({...scope,code:error.code,message:error.message});}
+            }
+        }
         if(scope.kind!=='encoding')continue;
         const value=graph.docs.get(scope.resource)?.dataNode(scope.pointer)?.value?.contentType;
         if(typeof value!=='string')continue;

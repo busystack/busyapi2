@@ -4,13 +4,14 @@ import {SourceError,limits,type Range} from './document';
 import {EngineWorkerClient,record} from './engine_worker_client';
 import {mediaTypeChoice,mediaTypes} from './media_types';
 import {runtimeMediaKind} from './runtime_media';
+import type {RuntimeFormTarget} from './runtime_form';
 import type {OperationOccurrence} from './reference_graph';
 
 export type MockCapture={root:string;snapshot:string;resources:Resource[]};
 export type NativeMockCheck={complete:boolean;valid:boolean;findings:Record<string,unknown>[]};
 type SchemaLocation={resource:string;pointer:string};
 type SourceLocation=SchemaLocation&{range:Range};
-type NativeMedia={mediaType:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;form:boolean};
+type NativeMedia={mediaType:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;formOwner?:RuntimeFormTarget};
 type BodyDeclaration={required:boolean;source:SourceLocation;content:NativeMedia[]};
 const schemaLocation=(value:unknown):SchemaLocation|undefined=>record(value)&&typeof value.resource==='string'&&typeof value.pointer==='string'
     ?{resource:value.resource,pointer:value.pointer}:undefined;
@@ -75,7 +76,7 @@ export class MockNativeValidation {
 
     get identity(){return this.producer;}
 
-    private declaration(value:unknown):BodyDeclaration|undefined {
+    private declaration(value:unknown,operation:OperationOccurrence):BodyDeclaration|undefined {
         if(value===undefined)return;
         if(!record(value)||typeof value.required!=='boolean'||!Array.isArray(value.content))throw new SourceError('mock.validation.protocol','The native body projection is malformed');
         const source=sourceLocation(value.source);if(!source)throw new SourceError('mock.validation.protocol','The native body projection omitted its source');
@@ -84,7 +85,9 @@ export class MockNativeValidation {
             const schema=schemaLocation(media.schema),itemSchema=schemaLocation(media.itemSchema);
             if(media.schema!==undefined&&!schema||media.itemSchema!==undefined&&!itemSchema)
                 throw new SourceError('mock.validation.protocol','The native media projection omitted a schema identity');
-            return {mediaType:media.mediaType,schema:record(media.schema)&&media.schema.unconstrained===true?undefined:schema,itemSchema,form:media.form!==undefined||media.swaggerForm!==undefined};
+            const formOwner=schemaLocation(media.definition??media.source);
+            return {mediaType:media.mediaType,schema:record(media.schema)&&media.schema.unconstrained===true?undefined:schema,itemSchema,
+                ...(formOwner?{formOwner:{...formOwner,...(media.swaggerForm!==undefined?{occurrence:operation.occurrence}:{})}}:{})};
         });
         return {required:value.required,source,content};
     }
@@ -103,7 +106,7 @@ export class MockNativeValidation {
         if(!this.plans.has(key)){
             const plan=requestOperation({...this.capture,resource:operation.source.resource,pointer:operation.source.pointer,occurrence:operation.occurrence},this.context);
             if(this.plans.size>=128)this.plans.clear();
-            this.plans.set(key,this.declaration(plan.requestBody));
+            this.plans.set(key,this.declaration(plan.requestBody,operation));
         }
         const declaration=this.plans.get(key);
         const source=declaration?.source??{resource:operation.source.resource,pointer:operation.source.pointer,range:this.context.docs.get(operation.source.resource)!.dataNode(operation.source.pointer)!.range};
@@ -135,14 +138,15 @@ export class MockNativeValidation {
             throw new SourceError('mock.content-type.ambiguous','Equally specific content declarations need an explicit interpretation',[0,0],'unsupported');
         const media=matches[0].media;
         const {schema,itemSchema}=media;
-        if(!schema&&!itemSchema&&!media.form&&runtimeMediaKind(actual)==='opaque')return {complete:true,valid:true,findings:[]};
-        return this.evaluate(bytes,actual,signal,schema,itemSchema);
+        const form=['application/x-www-form-urlencoded','multipart/form-data'].includes(parsed[0].type+'/'+parsed[0].subtype)?media.formOwner:undefined;
+        if(!schema&&!itemSchema&&!form&&runtimeMediaKind(actual)==='opaque')return {complete:true,valid:true,findings:[]};
+        return this.evaluate(bytes,actual,signal,schema,itemSchema,form);
     }
 
-    private async evaluate(bytes:Buffer,actual:string,signal:AbortSignal,schema?:SchemaLocation,itemSchema?:SchemaLocation):Promise<NativeMockCheck> {
+    private async evaluate(bytes:Buffer,actual:string,signal:AbortSignal,schema?:SchemaLocation,itemSchema?:SchemaLocation,form?:RuntimeFormTarget):Promise<NativeMockCheck> {
         const result=await this.client.request('evaluateSchemas',{...this.capture,runtimeInstances:[{
             subject:'request-body',location:actual,text:bytes.toString('base64'),mediaType:actual,mediaBase64:true,
-            ...(schema?{schema}:{}),...(itemSchema?{itemSchema}:{})}]},signal);
+            ...(schema?{schema}:{}),...(itemSchema?{itemSchema}:{}),...(form?{form}:{})}]},signal);
         if(result.snapshot!==this.capture.snapshot||typeof result.complete!=='boolean'||!Array.isArray(result.runtimeEvaluations)||!Array.isArray(result.runtimeFindings))
             throw new SourceError('mock.validation.protocol','Native validation returned an unrelated runtime result');
         const evaluations=result.runtimeEvaluations,findings:Record<string,unknown>[]=[];

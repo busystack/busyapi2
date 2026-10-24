@@ -8,9 +8,10 @@ import type {SchemaEvaluationScope} from './swagger_schema';
 import {FormSemantics} from './form_semantics';
 import {createExactNumericAdapter} from './exact_numbers';
 import {decodeRuntimeMedia} from './runtime_media';
+import {decodeRuntimeForm,type RuntimeFormTarget,type RuntimeFormData} from './runtime_form';
 
 type SchemaLocation={resource:string;pointer:string};
-type RuntimeInstance={text:string;subject:string;location:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean};
+type RuntimeInstance={text:string;subject:string;location:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget};
 type Finding=Record<string,unknown>;
 type Owner={snapshot:string;graph:ReferenceGraph;scopes:ReadonlyMap<string,SchemaEvaluationScope>;
  exact:ReturnType<typeof createExactNumericAdapter>;compile:(scope:SchemaEvaluationScope)=>Promise<CompiledSchema|undefined>;
@@ -24,6 +25,7 @@ function suppliedInstance(value:unknown):RuntimeInstance {
  if(typeof item.text!=='string'||item.text.length>64*1024*1024||typeof item.subject!=='string'||item.subject.length>1024||
   typeof item.location!=='string'||item.location.length>4096||item.schema!==undefined&&!schema(item.schema)||
   item.itemSchema!==undefined&&!schema(item.itemSchema)||item.mediaType!==undefined&&(typeof item.mediaType!=='string'||item.mediaType.length>16384)||
+  item.form!==undefined&&(!schema(item.form)||'occurrence' in item.form&&(typeof item.form.occurrence!=='string'||item.form.occurrence.length>4096)||item.mediaType===undefined)||
   item.mediaBase64!==undefined&&typeof item.mediaBase64!=='boolean'||item.mediaBase64===true&&item.mediaType===undefined)
   throw new SourceError('runtime.instance','Runtime conformance requires bounded text, media, subject, location and schema identities');
  return item as RuntimeInstance;
@@ -46,9 +48,11 @@ export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
   const shape=scope?.family==='3.0'?forms.shape(scope.resource,scope.pointer):undefined;
   const octets=shape?.types?.includes('string')===true&&shape.format==='binary';
   let decoded:ReturnType<typeof decodeRuntimeMedia>;
+  let form:RuntimeFormData|undefined;
   try{
    const identity=createHash('sha256').update(JSON.stringify([owner.snapshot,index,supplied.subject,supplied.mediaType])).digest('hex');
-   decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,octets);
+   if(supplied.form){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
+   else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,octets);
   }catch(error){
    const limited=error instanceof SourceError&&error.code.startsWith('limit.');
    const unsupported=error instanceof SourceError&&error.kind==='unsupported';
@@ -58,10 +62,12 @@ export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
    evaluations.push({subject:supplied.subject,location:supplied.location,complete:known&&!limited&&!unsupported,valid:false,
     reason:limited?'instance-limit':unsupported?'unsupported-representation':known?(supplied.mediaType===undefined?'invalid-json':'invalid-media'):'decoding-failed'});
    const limitation=unsupported?(supplied.subject==='request-body'?'runtime.request.body.unchecked':supplied.subject==='response-body'?'runtime.response.body.unchecked':'runtime.media.unsupported'):undefined;
-   const source=supplied.schema??supplied.itemSchema;
+   const source=supplied.schema??supplied.itemSchema,formSource=supplied.form;
    add({code:limited?'runtime.body.limit':unsupported?limitation:known?'runtime.body.syntax':'runtime.media.incomplete',
     ...(unsupported?{kind:'unsupported',reason:'unsupported-representation'}:{}),
     ...(source?{schema:{...source,range:owner.graph.docs.get(source.resource)?.dataNode(source.pointer)?.range}}:{}),
+    ...(!source&&formSource?{source:{resource:formSource.resource,pointer:formSource.pointer,range:owner.graph.docs.get(formSource.resource)?.dataNode(formSource.pointer)?.range}}:{}),
+    ...(error instanceof SourceError?{detailCode:error.code,...(error.source?{source:error.source}:{})}:{}),
     severity:limited||unsupported||!known?'warning':'error',subject:supplied.subject,location:supplied.location,
     pointer:'',range:error instanceof SourceError?error.range:[0,0],
     message:limited?'The runtime representation exceeds a bounded decoding limit; its schema check was not performed.':
@@ -69,7 +75,11 @@ export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
      known?'The runtime representation is not valid for its selected media type.':'Runtime decoding did not complete; no clean schema result is claimed.'});
    continue;
   }
-  const checks:{document:SourceDocument;schema?:SchemaLocation;prefix:string}[]=[{document:decoded.document,schema:supplied.schema,prefix:''}];
+  const checks:{document:SourceDocument;schema?:SchemaLocation;prefix:string;file?:boolean}[]=[{document:decoded.document,schema:supplied.schema,prefix:''},...(form?.checks??[])];
+  for(const issue of form?.issues??[]){
+   if(issue.severity==='error')evaluations.push({subject:supplied.subject,location:supplied.location,pointer:issue.pointer,complete:true,valid:false,representation:decoded.kind});
+   add({...issue,subject:supplied.subject,location:supplied.location});
+  }
   if(supplied.itemSchema!==undefined){
    if(decoded.items===undefined){
     complete=false;
@@ -81,7 +91,7 @@ export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
    if(++work>2048){
     complete=false;add({code:'runtime.body.limit',severity:'warning',subject:supplied.subject,location:supplied.location,pointer:check.prefix,range:[0,0],message:'Runtime evaluation exceeds 2048 whole-value and item checks.'});break;
    }
-   if(check.schema===undefined){evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:true,valid:true,syntax:decoded.kind});instances++;continue;}
+   if(check.schema===undefined){evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:true,valid:true,syntax:check.file?'file-part-presence-and-framing':decoded.kind});instances++;continue;}
    const scope=owner.scopes.get(check.schema.resource+'#'+check.schema.pointer);
    if(scope?.kind!=='schema'){
     complete=false;evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:false,valid:false,reason:'schema-unavailable'});continue;

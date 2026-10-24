@@ -259,8 +259,8 @@ function violation(value: { path?: string[]; severity: number; code?: string | n
     code: value.code === undefined ? undefined : String(value.code), message: value.message,...(value.nativeSource!==undefined?{source:value.nativeSource}:value.source!==undefined?{source:value.source}:{}) };
 }
 
-function nativeDiagnostics(checked:NativeMockCheck) {
-  return checked.findings.filter(finding=>finding.severity==='error').map(finding=>({severity:DiagnosticSeverity.Error,code:422,message:finding.code+': '+finding.message,path:['body',...segments(typeof finding.pointer==='string'?finding.pointer:'')],...(record(finding.schema)?{nativeSource:finding.schema}:record(finding.source)?{nativeSource:finding.source}:{})}));
+function nativeDiagnostics(checked:NativeMockCheck,severity:'error'|'warning'='error') {
+  return checked.findings.filter(finding=>finding.severity===severity).map(finding=>({severity:severity==='error'?DiagnosticSeverity.Error:DiagnosticSeverity.Warning,code:severity==='error'?422:String(finding.code),message:finding.code+': '+finding.message,path:['body',...segments(typeof finding.pointer==='string'?finding.pointer:'')],...(record(finding.source)?{nativeSource:finding.source}:record(finding.schema)?{nativeSource:finding.schema}:{})}));
 }
 
 function violationHeader(values:ReturnType<typeof violation>[]):string {
@@ -403,14 +403,16 @@ async function main(): Promise<void> {
             additional?: { headers?: Record<string, string> } };
           reply.setHeader('content-type', 'application/problem+json');
           const checked=nativeChecks.get(prismRequest);
-          if(checked&&!checked.valid)reply.setHeader('sl-violations',violationHeader(nativeDiagnostics(checked).map(value=>violation(value,'request'))));
+          if(checked&&(!checked.valid||checked.findings.some(finding=>finding.severity==='warning')))
+            reply.setHeader('sl-violations',violationHeader([...nativeDiagnostics(checked),...nativeDiagnostics(checked,'warning')].map(value=>violation(value,'request'))));
           for (const [name, value] of Object.entries(error.additional?.headers ?? {})) reply.setHeader(name, value);
           send(reply, error.status ?? 500, JSON.stringify(ProblemJsonError.toProblemJson(error)));
           return;
         }
         const result = outcome.right;
+        const checked=nativeChecks.get(prismRequest),notes=checked?nativeDiagnostics(checked,'warning').map(value=>violation(value,'request')):[];
         const violations = [...result.validations.input.map(value => violation(value, 'request')),
-          ...result.validations.output.map(value => violation(value, 'response'))];
+          ...result.validations.output.map(value => violation(value, 'response')),...notes];
         if (violations.length) reply.setHeader('sl-violations', violationHeader(violations));
         for (const [name, value] of Object.entries(result.output.headers ?? {})) reply.setHeader(name, value);
         const mediaType = String(reply.getHeader('content-type') ?? '').split(';')[0].trim().toLowerCase() || undefined;

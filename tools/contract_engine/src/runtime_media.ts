@@ -2,7 +2,19 @@ import {SourceDocument,SourceError} from './document';
 import {mediaTypes} from './media_types';
 
 export type RuntimeMediaKind='json'|'text'|'json-lines'|'json-sequence'|'event-stream'|'opaque';
-export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];kind:RuntimeMediaKind|'octets'};
+export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];kind:RuntimeMediaKind|'octets'|'form-urlencoded'|'multipart-form'};
+
+export function runtimeMediaBytes(text:string,base64:boolean):Buffer {
+ if(!base64){
+  const bytes=Buffer.from(text,'utf8');
+  if(bytes.toString('utf8')!==text)throw new SourceError('runtime.media.encoding','The wire text contains an unpaired Unicode surrogate');
+  return bytes;
+ }
+ if(text.length%4!==0)throw new SourceError('runtime.instance','Runtime byte input requires canonical base64');
+ const bytes=Buffer.from(text,'base64');
+ if(bytes.toString('base64')!==text)throw new SourceError('runtime.instance','Runtime byte input requires canonical base64');
+ return bytes;
+}
 
 /** Media framing is separate from Schema Object evaluation. In particular,
  * sequence records retain their CST numeric lexemes when assembled as an array
@@ -24,12 +36,7 @@ export function decodeRuntimeMedia(text:string,id:string,contentType?:string,bas
  if(type&&type.length!==1)throw new SourceError('runtime.media.type','Runtime content requires one concrete media type');
  const kind=contentType===undefined?'json':runtimeMediaKind(contentType);
  let bytes:Buffer|undefined;
- if(base64){
-  if(text.length%4!==0)
-   throw new SourceError('runtime.instance','Runtime byte input requires canonical base64');
-  bytes=Buffer.from(text,'base64');
-  if(bytes.toString('base64')!==text)throw new SourceError('runtime.instance','Runtime byte input requires canonical base64');
- }
+ if(base64)bytes=runtimeMediaBytes(text,true);
  const parse=(value:string,suffix='')=>{
   const doc=new SourceDocument(value,id+suffix,true,'json');
   if(doc.issues.length)throw doc.issues[0];

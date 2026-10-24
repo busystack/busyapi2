@@ -336,6 +336,18 @@ class OperationRequestPlan {
     }
   }
 
+  /// Preparation must use a current capture. Completed response inspection
+  /// keeps using its original capture through [ensureCurrentOwner].
+  void ensureCurrentPreparation() {
+    ensureCurrentOwner();
+    if (outdated) {
+      throw CoreFailure(
+        'request.draft.stale',
+        'Reconcile the changed operation before preparing a request.',
+      );
+    }
+  }
+
   Future<Uint8List> readProjectFile(String relative) async {
     ensureCurrentOwner();
     final path = p.normalize(
@@ -505,12 +517,7 @@ class OperationRequestPlan {
     String requestId,
     RunCancellation? cancellation,
   ) async {
-    ensureCurrentOwner();
-    if (outdated)
-      throw CoreFailure(
-        'request.draft.stale',
-        'Reconcile the changed operation before preparing form data.',
-      );
+    ensureCurrentPreparation();
     cancellation?.throwIfCancelled();
     final work = _owner.engine.request(method, params, requestId: requestId);
     final result = cancellation == null
@@ -526,12 +533,7 @@ class OperationRequestPlan {
             }),
           ]);
     cancellation?.throwIfCancelled();
-    ensureCurrentOwner();
-    if (outdated)
-      throw CoreFailure(
-        'request.draft.stale',
-        'The operation changed during form preparation; no request was sent.',
-      );
+    ensureCurrentPreparation();
     return result;
   }
 
@@ -743,6 +745,21 @@ class OperationRequestPlan {
   }
 }
 
+class RuntimeFormTarget {
+  const RuntimeFormTarget({
+    required this.resource,
+    required this.pointer,
+    this.occurrence,
+  });
+  final String resource, pointer;
+  final String? occurrence;
+  Map<String, String> toJson() => {
+    'resource': resource,
+    'pointer': pointer,
+    if (occurrence != null) 'occurrence': occurrence!,
+  };
+}
+
 class RuntimeSchemaInstance {
   const RuntimeSchemaInstance({
     required this.subject,
@@ -754,11 +771,13 @@ class RuntimeSchemaInstance {
     this.itemSchemaPointer,
     this.mediaType,
     this.mediaBase64 = false,
+    this.form,
   });
   final String subject, location, text;
   final String? schemaResource, schemaPointer;
   final String? itemSchemaResource, itemSchemaPointer, mediaType;
   final bool mediaBase64;
+  final RuntimeFormTarget? form;
   Map<String, Object?> toJson() => {
     'subject': subject,
     'location': location,
@@ -772,6 +791,7 @@ class RuntimeSchemaInstance {
       },
     if (mediaType != null) 'mediaType': mediaType,
     if (mediaBase64) 'mediaBase64': true,
+    if (form != null) 'form': form!.toJson(),
   };
 }
 

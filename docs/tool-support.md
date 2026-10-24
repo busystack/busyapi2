@@ -31,9 +31,11 @@ and exact numbers. Prism retains routing and response generation. Unsupported
 body evaluation returns HTTP 501 with `complete: false`; it cannot become a clean
 validation result when proxy errors are disabled. Native findings retain source
 coordinates, and diagnostic headers preserve Unicode as valid bounded JSON.
-`mock --json` identifies the native validator separately from Prism. Serialized
-form decoding and the remaining Prism parameter/response roles still need native
-qualification; the passing body cases do not establish complete mock coverage.
+`mock --json` identifies the native validator separately from Prism. Named
+URL-encoded and multipart bodies use the same native decoder as request/response
+checks. Advanced multipart representations and the remaining Prism
+parameter/response roles still need native qualification; these passing body
+cases do not establish complete mock coverage.
 For 3.0, `required` properties marked readOnly/writeOnly use the request/response
 direction rules. In 3.1/3.2 those keywords remain annotations: native schema
 evaluation retains `required` assertions and does not strip fields or add optional
@@ -72,6 +74,20 @@ evaluation when their typed content cannot be decoded. Literal fields remain
 strings when the schema also permits strings. Untyped repeated fields use an
 array; content-based arrays use repeated entries. These are explicit input
 policies, not guarantees about how a particular server decodes ambiguous forms.
+
+Raw serialized form bodies and form-valued parameter/header content are decoded
+under their original captured declaration. Repeated fields retain order; exact
+numbers and JSON part values retain their numeric tokens. Declared string fields
+remain literal; numeric, boolean and null fields use strict JSON scalar spelling.
+Undeclared URL-encoded fields remain strings, so the original schema can evaluate
+additional properties. MIME decoding retains original response bytes separately,
+checks framing and transfer encodings, and reports unavailable part decoders as
+incomplete. MIME base64 ignores nonalphabet transport characters and uses its
+significant encoded spelling for an encoded-string schema; other supported
+encodings retain their lexical spelling. RFC 7578's ignored extra part headers
+produce advisory findings. Positional, nested and ambiguous conditional binding
+remain incomplete. OpenAPI 3.0 multipart request content requires a schema;
+response content and the modern families retain their own rules.
 
 **Use an exact JSON value** accepts an object for form or multipart data without
 passing through literal `name=value` rows. Saved contract cases with object

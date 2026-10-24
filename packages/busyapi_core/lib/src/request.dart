@@ -297,7 +297,7 @@ class ContractRequestBuilder {
   /// The selected API base, shared by HTTP requests and relative OAuth URLs.
   /// It deliberately uses Server retrieval context rather than schema/OAD identity.
   Uri serverBase(OperationRequestPlan plan, OperationRequestDraft draft) {
-    plan.ensureCurrentOwner();
+    plan.ensureCurrentPreparation();
     if (draft.planIdentity != plan.identity) {
       throw CoreFailure(
         'request.draft.stale',
@@ -423,7 +423,7 @@ class ContractRequestBuilder {
     bool previewOnly = false,
     RunCancellation? cancellation,
   }) async {
-    plan.ensureCurrentOwner();
+    plan.ensureCurrentPreparation();
     if (draft.planIdentity != plan.identity) {
       throw CoreFailure(
         'request.draft.stale',
@@ -453,6 +453,7 @@ class ContractRequestBuilder {
         if (entry.value.present && entry.value.json)
           entry.key: entry.value.text,
     });
+    plan.ensureCurrentPreparation();
     for (final value
         in environment?.headers.entries ??
             const Iterable<MapEntry<String, String>>.empty()) {
@@ -657,7 +658,7 @@ class ContractRequestBuilder {
             draft.body,
             selectedBodyMedia,
             cancellation,
-            plan.ensureCurrentOwner,
+            plan.ensureCurrentPreparation,
           );
     try {
       final bodyDeclaration = plan.result['requestBody'];
@@ -711,7 +712,7 @@ class ContractRequestBuilder {
           : await _tls(plan, environment, resolveSecret, draft.tlsFiles);
       // Credential resolution can outlive its native dialog or project. Never
       // let that delayed completion construct a request for a closed owner.
-      plan.ensureCurrentOwner();
+      plan.ensureCurrentPreparation();
       return PreparedContractRequest(
         runId: previewOnly ? 'preview' : _runIdentity(),
         plan: plan,
@@ -1392,9 +1393,11 @@ class ContractRequestBuilder {
         kind: CoreFailureKind.unsupported,
       );
     }
-    final nativeForm = (declaration?['swaggerForm'] as List?)
-        ?.whereType<Map>()
-        .toList();
+    final nativeForm =
+        body.kind == RequestBodyKind.form ||
+            body.kind == RequestBodyKind.multipart
+        ? (declaration?['swaggerForm'] as List?)?.whereType<Map>().toList()
+        : null;
     final data =
         body.text != null &&
             (body.kind == RequestBodyKind.form ||
@@ -2484,7 +2487,7 @@ class ContractHttpTransport {
     RunCancellation? cancellation,
   }) async {
     try {
-      input.plan.ensureCurrentOwner();
+      input.plan.ensureCurrentPreparation();
       cancellation?.throwIfCancelled();
       // Dart 3.13.4 HttpClient._openUrl uppercases methods before writing. Refuse
       // before opening a socket rather than executing another operation.
@@ -3310,8 +3313,10 @@ class ContractRequestExecutor {
     final secretValues = <String>{};
     Future<String?> ownedSecret(String reference) async {
       cancellation?.throwIfCancelled();
+      plan.ensureCurrentPreparation();
       final value = await resolveSecret(reference);
       cancellation?.throwIfCancelled();
+      plan.ensureCurrentPreparation();
       if (value != null && value.isNotEmpty) secretValues.add(value);
       return value;
     }
@@ -3370,6 +3375,7 @@ class ContractRequestExecutor {
       );
       cancellation?.throwIfCancelled();
       // A dispatch is a transport attempt; it does not prove server execution.
+      plan.ensureCurrentPreparation();
       onRequestDispatched?.call();
       final response = await transport.send(
         request,
@@ -3513,9 +3519,12 @@ class ContractRequestExecutor {
           }
         }
       }
-      if (_nativeMedia(contentMedia) &&
-          value.representation !=
-              RequestValueRepresentation.serializedParameter) {
+      final wireFormParameter =
+          _formMedia(contentMedia?['mediaType'] as String?) && !value.json;
+      if (wireFormParameter ||
+          _nativeMedia(contentMedia) &&
+              value.representation !=
+                  RequestValueRepresentation.serializedParameter) {
         var text = value.text;
         if (value.json && contentMedia?['dataModel'] == 'text') {
           final trimmed = text.trim();
@@ -3613,6 +3622,9 @@ class ContractRequestExecutor {
       final schema = media?['schema'];
       final formDeclarations = (media?['swaggerForm'] as List?)
           ?.whereType<Map>();
+      final wireForm =
+          draft.body.kind == RequestBodyKind.raw &&
+          _formMedia(draft.body.mediaType);
       if (preparedBody?.formParameters
           case final List<RuntimeSchemaInstance> parameters) {
         instances.addAll(parameters);
@@ -3658,6 +3670,7 @@ class ContractRequestExecutor {
           }
         }
       if (draft.body.kind == RequestBodyKind.raw &&
+          !wireForm &&
           (media?['form'] is Map ||
               (draft.body.mediaType ?? '').toLowerCase().startsWith(
                 'multipart/',
@@ -3678,6 +3691,7 @@ class ContractRequestExecutor {
       if (schema is Map && schema['unconstrained'] != true ||
           media?['itemSchema'] is Map ||
           _nativeMedia(media) ||
+          wireForm ||
           _jsonMedia(draft.body.mediaType ?? '')) {
         if (preparedBody?.formInstance != null &&
             utf8.encode(preparedBody!.formInstance!).length <=
@@ -3712,6 +3726,7 @@ class ContractRequestExecutor {
               text: base64Encode(bytes.takeBytes()),
               mediaType: preparedBody.mediaType ?? draft.body.mediaType,
               mediaBase64: true,
+              formOccurrence: plan.operation['occurrence'] as String?,
             ),
           );
         } else if (preparedBody == null &&
@@ -3724,9 +3739,11 @@ class ContractRequestExecutor {
               location: draft.body.mediaType ?? '',
               text: draft.body.text ?? '',
               mediaType: draft.body.mediaType,
+              formOccurrence: plan.operation['occurrence'] as String?,
             ),
           );
         } else if (_nativeMedia(media) ||
+            wireForm ||
             _jsonMedia(draft.body.mediaType ?? '') ||
             schema?['unconstrained'] != true ||
             media?['itemSchema'] is Map) {
@@ -3842,7 +3859,8 @@ class ContractRequestExecutor {
           .whereType<Map>()
           .toList();
       if (headerMedia.length == 1 &&
-          _nativeMedia(headerMedia.single) &&
+          (_nativeMedia(headerMedia.single) ||
+              _formMedia(headerMedia.single['mediaType'] as String?)) &&
           values.length == 1) {
         if (utf8.encode(values.single).length > _evaluationLimit) {
           checksComplete = false;
@@ -4033,6 +4051,7 @@ class ContractRequestExecutor {
         supportedCharset &&
         (_jsonMedia(contentType ?? '') ||
             _nativeMedia(media) ||
+            _formMedia(contentType) ||
             media?['itemSchema'] is Map ||
             schema is Map && schema['unconstrained'] != true)) {
       if (!response.receiptComplete) {
@@ -4121,6 +4140,11 @@ class ContractRequestExecutor {
         : 'selected-json-body';
   }
 
+  static bool _formMedia(String? value) => const [
+    'application/x-www-form-urlencoded',
+    'multipart/form-data',
+  ].contains(value?.split(';').first.trim().toLowerCase());
+
   static RuntimeSchemaInstance _mediaInstance(
     Map? media, {
     required String subject,
@@ -4128,15 +4152,33 @@ class ContractRequestExecutor {
     required String text,
     String? mediaType,
     bool mediaBase64 = false,
+    String? formOccurrence,
   }) {
     final schema = media?['schema'] as Map?,
         itemSchema = media?['itemSchema'] as Map?;
+    RuntimeFormTarget? form;
+    if (_formMedia(mediaType) && media != null) {
+      final owner = media['definition'] ?? media['source'];
+      if (owner case {'resource': String resource, 'pointer': String pointer}) {
+        form = RuntimeFormTarget(
+          resource: resource,
+          pointer: pointer,
+          occurrence: media['swaggerForm'] is List ? formOccurrence : null,
+        );
+      } else {
+        throw CoreFailure(
+          'runtime.form.owner',
+          'The captured form media omitted its source owner.',
+        );
+      }
+    }
     return RuntimeSchemaInstance(
       subject: subject,
       location: location,
       text: text,
       mediaType: mediaType,
       mediaBase64: mediaBase64,
+      form: form,
       schemaResource: schema?['resource'] as String?,
       schemaPointer: schema?['pointer'] as String?,
       itemSchemaResource: itemSchema?['resource'] as String?,
