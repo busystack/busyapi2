@@ -10,6 +10,8 @@ import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './
 import {componentLocation} from './authoring';
 import {FormSemantics} from './form_semantics';
 import {mediaTypeChoice} from './media_types';
+import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
+import {evaluateSchemas} from './schema_evaluation';
 
 const maximumItems = 2048;
 
@@ -188,6 +190,64 @@ export function requestFormMediaTypes(input:any){
   return {version:1,snapshot:input.snapshot,identity:plan.identity,types,files};
 }
 
+/** Resolve MIME transfer headers under their own captured Schema Objects. The
+ * family evaluator checks candidate tokens; transport only implements codecs. */
+export async function requestMultipartEncoding(input:any){
+  if(!Array.isArray(input.parts)||input.parts.length>maximumItems||input.parts.some((part:any)=>!part||typeof part.name!=='string'||!['literal','string','other','item-string','item-other'].includes(part.kind))||
+     !Array.isArray(input.files)||input.files.length>maximumItems||input.files.some((name:unknown)=>typeof name!=='string'))
+    throw new SourceError('request.multipart.encoding','Expected bounded captured multipart field kinds');
+  const captured=createGraph(input),plan=requestOperation(input,captured),content=plan.requestBody?.content.find((value:any)=>value.mediaType===input.mediaType);
+  if(!content||input.mediaType.split(';')[0].trim().toLowerCase()!=='multipart/form-data')
+    throw new SourceError('request.multipart.encoding','Select a captured named multipart declaration');
+  const projection=new MultipartEncoding(captured.graph),media={...content.definition,kind:'media'},schema={...content.schema,kind:'schema'};
+  const result:Record<string,{string?:MultipartTransfer;other?:MultipartTransfer}>=Object.create(null),candidates:{transfer:MultipartTransfer;header:MultipartHeaderCandidate;subjects:string[]}[]=[];
+  const runtime:any[]=[];
+  const part=(name:string,isString:boolean,array:boolean)=>{
+    const output=result[name]??=(Object.create(null)),key=isString?'string':'other';
+    if(output[key])return;
+    if(content.swaggerForm){output[key]={schemaEncoded:false};return;}
+    const transfer:MultipartTransfer=isString&&content.schema?projection.schemaEncoding(schema,name,array):{schemaEncoded:false};
+    output[key]=transfer;
+    const header=projection.header(media,name,transfer);
+    if(!header){
+      if(transfer.encoding!==undefined&&!supportsMultipartTransfer(transfer.encoding))projection.failure('request.multipart.encoding.unsupported','The native transport has no codec for the declared transfer encoding',transfer.source!);
+      return;
+    }
+    const subjects=header.values.map(value=>{
+      if(runtime.length>=maximumItems)throw new SourceError('limit.request.encoding','Multipart header evaluation exceeds 2048 candidates');
+      const subject='multipart-header:'+runtime.length;
+      runtime.push({subject,location:header.source.pointer,text:JSON.stringify(value),schema:header.schema});
+      return subject;
+    });
+    candidates.push({transfer,header,subjects});
+  };
+  for(const field of input.parts){
+    const property=content.form?.shape?.properties?.[field.name],array=field.kind.startsWith('item-')||field.kind==='literal'&&property?.literalType==='array',shape=array?property?.items:property;
+    const literalString=!shape?.literalType||shape.literalType==='string';
+    part(field.name,field.kind==='string'||field.kind==='item-string'||field.kind==='literal'&&literalString,array);
+  }
+  for(const name of input.files){
+    const property=content.form?.shape?.properties?.[name];
+    if(property?.types?.includes('array')&&property.types.some((type:string)=>type!=='array'&&type!=='null'))
+      projection.failure('request.multipart.encoding.unsupported','A file under an array union requires an explicit part-shape selection',schema);
+    part(name,true,property?.literalType==='array');
+  }
+  if(runtime.length){
+    const checked=await evaluateSchemas({...input,runtimeInstances:runtime},undefined,captured);
+    const evaluations=new Map(checked.runtimeEvaluations.map((value:any)=>[value.subject,value]));
+    for(const {transfer,header,subjects}of candidates){
+      if(subjects.some(subject=>evaluations.get(subject)?.complete!==true))projection.failure('request.multipart.encoding.unsupported','The transfer header schema could not be completely evaluated',header.source);
+      const index=subjects.findIndex(subject=>evaluations.get(subject)?.valid===true);
+      if(index<0)projection.failure(header.implicit?'request.multipart.encoding.undefined':header.literalExample?'request.multipart.header.invalid':'request.multipart.encoding.unsupported',header.implicit?'The explicit transfer header disallows the schema encoding':header.literalExample?'The literal transfer token does not satisfy its captured schema':'No implemented transfer token satisfies the captured header schema',header.source,header.implicit);
+      const encoding=header.values[index];
+      if(!supportsMultipartTransfer(encoding))projection.failure('request.multipart.encoding.unsupported','The native transport has no codec for the selected transfer token',header.source);
+      transfer.encoding=encoding;
+      transfer.source={resource:header.source.resource,pointer:header.source.pointer,range:captured.docs.get(header.source.resource)!.dataNode(header.source.pointer)!.range};
+    }
+  }
+  return {version:1,snapshot:input.snapshot,identity:plan.identity,parts:result};
+}
+
 /**
  * A request plan is a located, immutable projection of one physical operation
  * occurrence.  It deliberately contains no credential or environment value.
@@ -195,8 +255,8 @@ export function requestFormMediaTypes(input:any){
  * data.  In particular, examples are emitted as canonical CST JSON text rather
  * than as JavaScript values.
  */
-export function requestOperation(input:any) {
-  const {docs,graph,family}=createGraph(input);
+export function requestOperation(input:any,captured?:ReturnType<typeof createGraph>) {
+  const {docs,graph,family}=captured??createGraph(input);
   const generation=new Map((input.resources as Resource[]).map(resource=>[resource.id,resource.generation]));
   const operation=graph.scopes.get(input.resource+'#'+input.pointer);
   if(operation?.kind!=='operation')throw new SourceError('request.operation','Select an authored Operation Object');

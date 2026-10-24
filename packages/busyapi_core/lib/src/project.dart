@@ -20,6 +20,7 @@ import 'documentation_runtime.dart';
 import 'generator_runtime.dart';
 import 'request_form_values.dart';
 import 'form_media_types.dart';
+import 'multipart_encoding.dart';
 
 part 'governance.dart';
 part 'policy_code_review.dart';

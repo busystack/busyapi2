@@ -274,11 +274,38 @@ class EngineProcess {
           }
         } else {
           if (!request.result.isCompleted) {
+            final error = value['error'];
+            if (error is! Map ||
+                error['kind'] != null && error['kind'] != 'unsupported')
+              throw const FormatException();
+            final source = error['source'];
+            CoreFailureSource? location;
+            if (source != null) {
+              if (source is! Map ||
+                  source['resource'] is! String ||
+                  source['pointer'] is! String ||
+                  source['range'] is! List)
+                throw const FormatException();
+              final range = source['range'] as List;
+              if (range.length != 2 ||
+                  range.any((value) => value is! int) ||
+                  (range[0] as int) < 0 ||
+                  (range[1] as int) < (range[0] as int))
+                throw const FormatException();
+              location = CoreFailureSource(
+                source['resource'] as String,
+                source['pointer'] as String,
+                SourceRange(range[0] as int, range[1] as int),
+              );
+            }
             request.result.completeError(
               CoreFailure(
-                (value['error']?['code'] as String?) ?? 'engine.error',
-                (value['error']?['message'] as String?) ??
-                    'Engine rejected the request',
+                (error['code'] as String?) ?? 'engine.error',
+                (error['message'] as String?) ?? 'Engine rejected the request',
+                kind: error['kind'] == 'unsupported'
+                    ? CoreFailureKind.unsupported
+                    : null,
+                source: location,
               ),
             );
           }

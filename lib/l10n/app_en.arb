@@ -1075,7 +1075,7 @@
   "requestHeaderDeclaredOrigin": "Declared parameter · edit its inclusion and value above",
   "requestHeaderCustomOrigin": "Custom input",
   "requestPartEncoding": "Declared form parts",
-  "requestPartEncodingHelp": "Choose a Content-Type for parts that declare several types or a media range. Literal fields send serialized text; exact JSON values use the selected serializer. File parts send captured bytes with the selected type.",
+  "requestPartEncodingHelp": "Choose a Content-Type for parts that declare several types or a media range. Literal fields send serialized text; exact JSON values use the selected serializer. Enter encoded values as encoded text. Files are captured and encoded for the request.",
   "requestPartMediaChoose": "Choose a Content-Type",
   "requestPartMediaConcrete": "Concrete Content-Type",
   "requestPartMediaStale": "This retained selection no longer applies. Remove it before sending.",

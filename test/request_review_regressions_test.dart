@@ -2461,6 +2461,119 @@ paths:
 
   for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
     testWidgets(
+      'F10 native multipart controls encode captured files and preserve encoded JSON strings $version',
+      (tester) async {
+        tester.view.physicalSize = const Size(1500, 1100);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final f = _Fixture();
+        HttpServer? server;
+        final seen = <String>[];
+        late String original;
+        try {
+          await tester.runAsync(() async {
+            server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+            server!.listen((request) async {
+              expect(request.method, 'POST');
+              expect(request.uri.path, '/upload');
+              seen.add(await utf8.decoder.bind(request).join());
+              request.response.statusCode = 204;
+              await request.response.close();
+            });
+            final encoded = version.startsWith('3.0.')
+                ? '{type: string, format: byte}'
+                : '{type: string, contentEncoding: base64}';
+            original =
+                '''# Native MIME data and raw file inputs
+openapi: $version
+info: {title: MIME, version: '1'}
+servers: [{url: 'http://127.0.0.1:${server!.port}'}]
+paths:
+  /upload:
+    post:
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {encoded: $encoded, file: $encoded, json: {type: object}}}
+            encoding:
+              json:
+                contentType: application/json
+                headers: {Content-Transfer-Encoding: {\$ref: '#/components/headers/Transfer'}}
+      responses: {'204': {description: ok}}
+components:
+  headers:
+    Transfer: {schema: {type: string, enum: [base64]}}
+''';
+            await f.open(original);
+          });
+          await tester.pumpWidget(host(RequestRunPanel(run: f.run)));
+          final toggle = find.byWidgetPredicate(
+            (widget) =>
+                widget is BusyApiSwitchRow &&
+                widget.title == 'Use an exact JSON value',
+          );
+          await tester.ensureVisible(toggle);
+          await tester.tap(toggle);
+          await tester.pumpAndSettle();
+          final entry = find.byWidgetPredicate(
+            (widget) =>
+                widget is RequestDraftEntry &&
+                widget.label == 'Use an exact JSON value',
+          );
+          final input = find.descendant(
+            of: entry,
+            matching: find.byType(TextFormField),
+          );
+          await tester.ensureVisible(input);
+          await tester.enterText(
+            input,
+            '{"encoded":"Zg==","json":{"n":9007199254740993}}',
+          );
+          await tester.runAsync(() async {
+            final upload = File('${f.dir.path}/file.bin');
+            await upload.writeAsBytes([0, 255, 1]);
+            f.run.bodyFilePart = 'file';
+            f.run.addBodyFile(XFile(upload.path));
+            await HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp());
+          });
+          expect(f.run.failure, isNull, reason: f.run.failureMessage);
+          expect(
+            seen.single,
+            contains(
+              'name="encoded"\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n\r\nZg==\r\n',
+            ),
+          );
+          expect(
+            seen.single,
+            contains(
+              'Content-Type: application/json\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64.encode(utf8.encode('{"n":9007199254740993}'))}\r\n',
+            ),
+          );
+          expect(
+            seen.single,
+            contains(
+              'filename="file.bin"\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n\r\nAP8B\r\n',
+            ),
+          );
+          expect(f.run.result!.outgoing.complete, isTrue);
+          expect(f.run.result!.outgoing.valid, isTrue);
+          expect(f.file.readAsStringSync(), original);
+          expect(f.c.buffer!.text, original);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(() async {
+            await server?.close(force: true);
+            await f.dispose();
+          });
+        }
+      },
+    );
+  }
+
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
+    testWidgets(
       'F09 native part media controls retain explicit choices and reject changed declarations $version',
       (tester) async {
         tester.view.physicalSize = const Size(1500, 1200);

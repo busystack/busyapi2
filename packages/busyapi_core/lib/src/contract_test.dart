@@ -262,14 +262,15 @@ class ContractTestRunner {
             plan?.snapshot.identity ?? captured.snapshot.identity,
             failure.code,
             failure.message,
+            source: failure.source,
             elapsed: clock.elapsed,
             dispatched: dispatched,
             complete:
                 !failure.code.startsWith('runtime.') &&
                 !failure.code.contains('timeout') &&
                 !failure.code.contains('transport') &&
-                !failure.code.endsWith('.unsupported'),
-            operationalFailure: !failure.code.endsWith('.unsupported'),
+                !failure.unsupported,
+            operationalFailure: !failure.unsupported,
           ),
         );
       } finally {
@@ -626,6 +627,7 @@ class ContractTestRunner {
     bool complete = true,
     bool operationalFailure = true,
     bool dispatched = false,
+    CoreFailureSource? source,
     Duration elapsed = Duration.zero,
   }) => ContractCaseResult(
     name: name,
@@ -638,7 +640,16 @@ class ContractTestRunner {
     operationalFailure: operationalFailure,
     dispatched: dispatched,
     findings: [
-      {'code': code, 'severity': 'error', 'message': message},
+      {
+        'code': code,
+        'severity': 'error',
+        'message': message,
+        if (source != null) ...{
+          'resource': source.resource,
+          'pointer': source.pointer,
+          'range': [source.range.start, source.range.end],
+        },
+      },
     ],
   );
 

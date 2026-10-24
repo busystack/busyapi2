@@ -1,4 +1,5 @@
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
+import {SourceError} from './document';
 import { analyse, propose, discover, inspect, readDataValue, protocol, engineVersion } from './engine';
 import { planRename, planPropertyRename, planResponseRename } from './refactoring';
 import { planDelete } from './refactoring_delete';
@@ -17,7 +18,7 @@ import { referenceChoices } from './reference_choices';
 import { planReference } from './reference_selection';
 import { WorkerDispatcher } from './worker_dispatcher';
 import {planDiagnosticFix} from './diagnostic_fixes';
-import {planResponseExample,requestOperation,requestParameterValues,requestFormDataValues,requestFormMediaTypes,executionCaseValues,inspectExecutionJson,planExecutionEnvironment,semanticDiffCoverage} from './execution';
+import {planResponseExample,requestOperation,requestParameterValues,requestFormDataValues,requestFormMediaTypes,requestMultipartEncoding,executionCaseValues,inspectExecutionJson,planExecutionEnvironment,semanticDiffCoverage} from './execution';
 import {discoverPolicy} from './governance_configuration';
 import {inspectPolicyCode} from './policy_code';
 import {PolicyProcessWorker} from './policy_process_worker';
@@ -50,6 +51,7 @@ if (!isMainThread) {
             methods.requestParameterValues = requestParameterValues;
             methods.requestFormDataValues = requestFormDataValues;
             methods.requestFormMediaTypes = requestFormMediaTypes;
+            methods.requestMultipartEncoding = requestMultipartEncoding;
             methods.executionCaseValues = executionCaseValues;
             methods.inspectExecutionJson = inspectExecutionJson;
             methods.planExecutionEnvironment = planExecutionEnvironment;
@@ -64,7 +66,7 @@ if (!isMainThread) {
             reply({ ok: true, result });
         }
         catch (e: any) {
-            reply({ ok: false, error: { code: e.code ?? 'engine.failure', message: e.message ?? 'Engine failure', range: e.range } });
+            reply({ ok: false, error: { code: e.code ?? 'engine.failure', message: e.message ?? 'Engine failure', range: e.range,...(e instanceof SourceError?{kind:e.kind,source:e.source}:{}) } });
         }
     });
 }

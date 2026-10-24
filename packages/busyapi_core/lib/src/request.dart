@@ -14,6 +14,8 @@ import 'header_serialization.dart';
 import 'swagger_serialization.dart';
 import 'form_serialization.dart';
 import 'form_media_types.dart';
+import 'multipart_encoding.dart';
+import 'multipart_transfer.dart';
 import 'request_form_values.dart';
 import 'project.dart';
 import 'atomic_file_writer.dart';
@@ -1375,12 +1377,19 @@ class ContractRequestBuilder {
         'Form input exceeds 2048 fields.',
       );
     }
+    // Picker metadata is captured input even when the contract selects another
+    // media type. Reject malformed headers before acquiring any file bytes.
+    for (final file in body.files) {
+      _mediaType(file.mediaType);
+      if (file.selectedMediaType != null) _mediaType(file.selectedMediaType!);
+    }
     if (body.kind == RequestBodyKind.multipart &&
         (declaration?['prefixEncoding'] != null ||
             declaration?['itemEncoding'] != null)) {
       throw CoreFailure(
         'request.multipart.encoding',
         'Positional multipart encodings are unsupported; no request was sent.',
+        kind: CoreFailureKind.unsupported,
       );
     }
     final nativeForm = (declaration?['swaggerForm'] as List?)
@@ -1431,6 +1440,33 @@ class ContractRequestBuilder {
     final partMediaTypes = resolvedMediaTypes.fields;
     checkOwner();
     cancellation?.throwIfCancelled();
+    final transfers = body.kind == RequestBodyKind.multipart
+        ? await plan.multipartEncoding(
+            body.mediaType!,
+            data == null
+                ? [
+                    for (final field in body.fields)
+                      {'name': field.name, 'kind': 'literal'},
+                  ]
+                : [
+                    for (final entry in data.fields.entries)
+                      for (final value
+                          in entry.value.kind == RequestDataKind.array
+                              ? entry.value.items
+                              : [entry.value])
+                        {
+                          'name': entry.key,
+                          'kind':
+                              '${entry.value.kind == RequestDataKind.array ? 'item-' : ''}${value.kind == RequestDataKind.string ? 'string' : 'other'}',
+                        },
+                  ],
+            [for (final file in body.files) file.name],
+            requestId: 'multipart-${_runIdentity()}',
+            cancellation: cancellation,
+          )
+        : const <String, MultipartPartEncoding>{};
+    checkOwner();
+    cancellation?.throwIfCancelled();
     var fields = nativeForm == null
         ? body.fields
         : data != null
@@ -1467,6 +1503,7 @@ class ContractRequestBuilder {
     final partTypes = <String, String>{};
     final encodedFields = <RequestFormField>{};
     final fieldOwners = <RequestFormField, String>{};
+    final fieldTransfers = <RequestFormField, MultipartTransferEncoding?>{};
     final multipart = body.kind == RequestBodyKind.multipart;
     if (nativeForm == null &&
         declaration?['form'] is Map &&
@@ -1479,12 +1516,16 @@ class ContractRequestBuilder {
         plan.parameterValues,
         data: data,
         mediaTypes: partMediaTypes,
+        transfers: transfers,
       );
       checkOwner();
       cancellation?.throwIfCancelled();
       final serialized = <RequestFormField>[
         for (final part in form.content) RequestFormField(part.name, part.text),
       ];
+      for (final (index, part) in form.content.indexed) {
+        fieldTransfers[serialized[index]] = part.transfer;
+      }
       for (final part in form.content) {
         validateTextCharset(part.contentType, [part.text]);
         validateTextCharset(body.mediaType!, [part.name, part.text]);
@@ -1532,7 +1573,17 @@ class ContractRequestBuilder {
         );
         for (final pair in pairs) {
           final field = RequestFormField(pair.$1, pair.$2);
+          final options = transfers[group.name];
+          final transfer = options?.strings ?? options?.other;
+          if (transfer?.schemaEncoded == true && value is! String) {
+            throw CoreFailure(
+              'request.multipart.encoding.undefined',
+              'A combined style value cannot use one item transfer encoding.',
+              kind: CoreFailureKind.unsupported,
+            );
+          }
           serialized.add(field);
+          fieldTransfers[field] = transfer;
           encodedFields.add(field);
           fieldOwners[field] = group.name;
           partTypes[pair.$1] = 'text/plain';
@@ -1589,6 +1640,11 @@ class ContractRequestBuilder {
         final captures = <PreparedRequestBody>[];
         try {
           var length = 0;
+          var typedFiles = form?.instance != null;
+          var instanceBytes = form?.instance == null
+              ? 0
+              : utf8.encode(form!.instance!).length;
+          final fileInstances = <String, List<String>>{};
           void bytes(String value) {
             final encoded = Uint8List.fromList(utf8.encode(value));
             _uploadLimit(length + encoded.length);
@@ -1596,118 +1652,57 @@ class ContractRequestBuilder {
             length += encoded.length;
           }
 
-          final encoding = declaration?['encoding'];
-          final formMetadata = declaration?['form'];
-          String partHeaders(String name, {String? text, String? mediaType}) {
-            final rule = encoding is Map ? encoding[name] : null;
-            if (rule == null) {
-              final type = mediaType ?? partMediaTypes[name] ?? partTypes[name];
-              return type == null ? '' : 'Content-Type: $type\r\n';
-            }
-            if (rule is! Map ||
-                rule['encoding'] != null ||
-                rule['prefixEncoding'] != null ||
-                rule['itemEncoding'] != null ||
-                rule['headers'] != null && rule['headers'] is! Map ||
-                rule['headers'] is Map &&
-                    (rule['headers'] as Map).values.any((h) => h is! Map)) {
-              throw CoreFailure(
-                'request.multipart.encoding',
-                'Part $name uses an unsupported multipart encoding rule.',
-              );
-            }
-            final rfcStyle =
-                formMetadata is Map &&
-                formMetadata['multipartStyle'] == true &&
-                ['style', 'explode', 'allowReserved'].any(rule.containsKey);
-            final type = rfcStyle
-                ? 'text/plain'
-                : mediaType ??
-                      partMediaTypes[name] ??
-                      rule['contentType'] ??
-                      partTypes[name];
+          void octets(List<int> value) {
+            _uploadLimit(length + value.length);
+            chunks.add(Uint8List.fromList(value));
+            length += value.length;
+          }
+
+          String partHeaders(
+            String name, {
+            String? text,
+            String? mediaType,
+            MultipartTransferEncoding? transfer,
+          }) {
+            final type = mediaType ?? partMediaTypes[name] ?? partTypes[name];
             var output = '';
             if (type != null) {
-              if (type is! String) {
-                throw CoreFailure(
-                  'request.multipart.encoding',
-                  'Choose one declared part Content-Type for $name.',
-                );
-              }
               _mediaType(type);
-              final charset = ContentType.parse(type).charset?.toLowerCase();
-              if (text != null &&
-                  charset != null &&
-                  charset != 'utf-8' &&
-                  charset != 'us-ascii') {
-                throw CoreFailure(
-                  'request.charset.unsupported',
-                  'Part $name requires an unsupported charset. Choose UTF-8 or a complete serialized representation.',
-                );
-              }
-              if (charset == 'us-ascii' &&
-                  text != null &&
-                  text.runes.any((r) => r > 127)) {
-                throw CoreFailure(
-                  'request.charset',
-                  'Part $name contains text outside its declared ASCII charset.',
-                );
-              }
-              output += 'Content-Type: $type\r\n';
+              if (text != null) validateTextCharset(type, [text]);
+              output = 'Content-Type: $type\r\n';
             }
-            if (rule['headers'] is Map) {
-              for (final entry in (rule['headers'] as Map).entries) {
-                final header = entry.value;
-                final headerName = entry.key.toString().toLowerCase();
-                if (headerName != 'content-type' &&
-                    headerName != 'content-transfer-encoding') {
-                  throw CoreFailure(
-                    'request.multipart.headers',
-                    'multipart/form-data forbids this additional part header. Select a representation compatible with the contract.',
-                  );
-                }
-                if (entry.key.toString().toLowerCase() == 'content-type') {
-                  continue;
-                }
-                if (header is! Map ||
-                    header[r'$ref'] != null ||
-                    header['example'] is! String) {
-                  throw CoreFailure(
-                    'request.multipart.headers',
-                    'Part $name requires an explicit literal header example; complex part headers are unsupported.',
-                  );
-                }
-                if (headerName == 'content-transfer-encoding' &&
-                    header['example'].toString().toLowerCase() != 'binary') {
-                  throw CoreFailure(
-                    'request.multipart.encoding',
-                    'This part requires a transfer encoding that this flat multipart editor cannot produce.',
-                  );
-                }
-                final validated = <(String, String)>[];
-                _addHeader(
-                  validated,
-                  entry.key as String,
-                  header['example'] as String,
-                );
-                if ((entry.key as String).toLowerCase() ==
-                    'content-disposition') {
-                  throw CoreFailure(
-                    'request.multipart.headers',
-                    'Content-Disposition is owned by multipart serialization.',
-                  );
-                }
-                output += '${entry.key}: ${header['example']}\r\n';
-              }
+            if (transfer?.encoding case final String value) {
+              final validated = <(String, String)>[];
+              _addHeader(validated, 'Content-Transfer-Encoding', value);
+              output += 'Content-Transfer-Encoding: $value\r\n';
             }
             return output;
           }
 
           for (final field in fields) {
             _partName(field.name);
+            final transfer = fieldTransfers[field];
+            final type =
+                partMediaTypes[fieldOwners[field] ?? field.name] ??
+                partTypes[field.name] ??
+                'text/plain';
+            final Uint8List content;
+            try {
+              content = await multipartTextBytes(
+                field.value,
+                transfer,
+                textual: ContentType.parse(type).primaryType == 'text',
+              );
+            } on CoreFailure catch (failure) {
+              throw _multipartFailure(failure, transfer, field.name);
+            }
+            checkOwner();
+            cancellation?.throwIfCancelled();
             bytes(
-              '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(field.name)}"\r\n${partHeaders(fieldOwners[field] ?? field.name, text: field.value)}\r\n${field.value}\r\n',
+              '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(field.name)}"\r\n${partHeaders(fieldOwners[field] ?? field.name, text: field.value, transfer: transfer)}\r\n',
             );
+            octets(content);
+            bytes('\r\n');
           }
           for (final (index, item) in body.files.indexed) {
             _partName(item.name);
@@ -1722,19 +1717,78 @@ class ContractRequestBuilder {
               checkOwner: checkOwner,
             );
             captures.add(captured);
-            final size = captured.length;
+            final transfer = transfers[item.name]?.strings;
+            final encoded = transfer?.encoding == null
+                ? captured
+                : await _multipartFile(
+                    captured,
+                    transfer!,
+                    cancellation,
+                    checkOwner,
+                    maximumUploadBytes - length,
+                  ).onError<CoreFailure>(
+                    (failure, _) =>
+                        throw _multipartFailure(failure, transfer, item.name),
+                  );
+            if (!identical(encoded, captured)) captures.add(encoded);
+            final size = encoded.length;
+            if (typedFiles &&
+                transfer?.schemaEncoded == true &&
+                instanceBytes + size < 16 * 1024 * 1024) {
+              final capturedBytes = BytesBuilder(copy: false);
+              await for (final chunk in encoded.open()) {
+                checkOwner();
+                cancellation?.throwIfCancelled();
+                capturedBytes.add(chunk);
+              }
+              try {
+                var text = utf8.decode(capturedBytes.takeBytes());
+                if (transfer!.encoding!.toLowerCase() == 'base64')
+                  text = text.replaceAll('\r\n', '');
+                final json = jsonEncode(text);
+                instanceBytes += utf8.encode(json).length;
+                (fileInstances[item.name] ??= []).add(json);
+              } on FormatException {
+                typedFiles = false;
+              }
+            } else {
+              typedFiles = false;
+            }
             final filename = item.filename ?? p.basename(item.path);
             _partName(filename);
-            final headers = partHeaders(item.name, mediaType: mediaType);
+            final headers = partHeaders(
+              item.name,
+              mediaType: mediaType,
+              transfer: transfer,
+            );
             bytes(
               '--$boundary\r\nContent-Disposition: form-data; name="${_quoted(item.name)}"; filename="${_quoted(filename)}"\r\n$headers\r\n',
             );
-            chunks.add(captured);
+            chunks.add(encoded);
             length += size;
             bytes('\r\n');
           }
           bytes('--$boundary--\r\n');
           _uploadLimit(length);
+          var instance = body.files.isEmpty ? form?.instance : null;
+          if (body.files.isNotEmpty &&
+              typedFiles &&
+              instanceBytes < 16 * 1024 * 1024) {
+            final values = await plan.formData(
+              form!.instance!,
+              requestId: 'multipart-instance-${_runIdentity()}',
+              cancellation: cancellation,
+            );
+            instance = multipartInstanceWithFiles(
+              values,
+              fileInstances,
+              declaration!,
+            );
+            if (utf8.encode(instance).length > 16 * 1024 * 1024)
+              instance = null;
+          }
+          checkOwner();
+          cancellation?.throwIfCancelled();
           return PreparedRequestBody(
             length,
             () async* {
@@ -1747,7 +1801,7 @@ class ContractRequestBuilder {
               }
             },
             mediaType: '${body.mediaType}; boundary=$boundary',
-            formInstance: body.files.isEmpty ? form?.instance : null,
+            formInstance: instance,
             formParameters: formParameters,
             release: () async {
               for (final captured in captures) {
@@ -1761,6 +1815,86 @@ class ContractRequestBuilder {
           }
           rethrow;
         }
+    }
+  }
+
+  CoreFailure _multipartFailure(
+    CoreFailure failure,
+    MultipartTransferEncoding? transfer,
+    String name,
+  ) {
+    if (!failure.code.startsWith('request.multipart.')) return failure;
+    final resource = transfer?.resource,
+        pointer = transfer?.pointer,
+        range = transfer?.range;
+    return CoreFailure(
+      failure.code,
+      'Part $name: ${failure.message}',
+      kind: failure.kind,
+      source:
+          failure.source ??
+          (resource != null && pointer != null && range != null
+              ? CoreFailureSource(resource, pointer, range)
+              : null),
+    );
+  }
+
+  Future<PreparedRequestBody> _multipartFile(
+    PreparedRequestBody source,
+    MultipartTransferEncoding transfer,
+    RunCancellation? cancellation,
+    void Function() checkOwner,
+    int remainingBytes,
+  ) async {
+    if (transfer.encoding == 'binary' || transfer.encoding == 'identity')
+      return source;
+    final temp = await Directory.systemTemp.createTemp('busyapi-multipart-');
+    final file = File(p.join(temp.path, 'part.bin'));
+    final sink = file.openWrite();
+    var length = 0, buffered = 0;
+    try {
+      await for (final bytes in multipartTransferBytes(
+        source.open(),
+        transfer,
+        textual:
+            source.mediaType != null &&
+            ContentType.parse(source.mediaType!).primaryType == 'text',
+      )) {
+        checkOwner();
+        cancellation?.throwIfCancelled();
+        if (length + bytes.length > remainingBytes) {
+          throw CoreFailure(
+            'limit.request.body',
+            'The encoded multipart file exceeds the remaining transport limit.',
+          );
+        }
+        sink.add(bytes);
+        length += bytes.length;
+        buffered += bytes.length;
+        if (buffered >= 262144) {
+          await sink.flush();
+          buffered = 0;
+        }
+      }
+      await sink.flush();
+      await sink.close();
+      checkOwner();
+      cancellation?.throwIfCancelled();
+      return PreparedRequestBody(
+        length,
+        file.openRead,
+        release: () async {
+          if (await temp.exists()) await temp.delete(recursive: true);
+        },
+      );
+    } on Object {
+      try {
+        await sink.close();
+      } on FileSystemException {
+        /* Preserve the preparation failure. */
+      }
+      if (await temp.exists()) await temp.delete(recursive: true);
+      rethrow;
     }
   }
 

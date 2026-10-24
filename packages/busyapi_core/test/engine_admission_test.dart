@@ -23,6 +23,7 @@ else if(q.method==='cancel'){
  cancelled.push(q.params.id);const job=held.get(q.params.id);held.delete(q.params.id);
  setTimeout(()=>{if(job)send(job.id,{ok:false,error:{code:'cancelled',message:'Cancelled'}});send(q.id,{ok:true,result:{cancelled:q.params.id}});},30);
 }else if(q.method==='shutdown'){for(const job of held.values())send(job.id,{ok:false,error:{code:'cancelled',message:'Closed'}});held.clear();send(q.id,{ok:true,result:{stopped:true}});process.stdin.destroy();}
+else if(q.params.failure)send(q.id,{ok:false,error:q.params.failure});
 else {received.push(q.id);if(q.params.crash)setTimeout(()=>process.exit(7),30);if(q.params.hold)held.set(q.id,q);else send(q.id,{ok:true,result:{snapshot:q.params.snapshot,resources:q.params.resources}});}
 }});
 ''');
@@ -54,6 +55,115 @@ Future<void> received(EngineProcess engine, int count) async {
 }
 
 void main() {
+  test('engine errors retain typed unsupported meaning and exact source locations independently of their code', () async {
+    final engine = await heldEngine();
+    await expectLater(
+      engine.request('inspect', {
+        'failure': {
+          'code': 'request.multipart.encoding',
+          'message': 'A serialization limitation',
+          'kind': 'unsupported',
+          'source': {
+            'resource': 'file:///fixture/雪.yaml',
+            'pointer': '/encoding/value',
+            'range': [2, 7],
+          },
+        },
+      }),
+      throwsA(
+        isA<CoreFailure>()
+            .having((value) => value.code, 'code', 'request.multipart.encoding')
+            .having((value) => value.unsupported, 'unsupported', isTrue)
+            .having((value) => value.kind, 'kind', CoreFailureKind.unsupported)
+            .having(
+              (value) => value.source?.resource,
+              'resource',
+              'file:///fixture/雪.yaml',
+            )
+            .having((value) => value.source?.range.start, 'start', 2)
+            .having((value) => value.source?.range.end, 'end', 7),
+      ),
+    );
+    await expectLater(
+      engine.request('inspect', {
+        'failure': {
+          'code': 'existing.error',
+          'message': 'Existing operational failure',
+        },
+      }),
+      throwsA(
+        isA<CoreFailure>().having(
+          (value) => value.kind,
+          'kind',
+          CoreFailureKind.operational,
+        ),
+      ),
+    );
+  });
+  test('existing unsupported error codes retain their meaning without new metadata', () async {
+    final engine = await heldEngine();
+    await expectLater(
+      engine.request('inspect', {
+        'failure': {
+          'code': 'existing.unsupported',
+          'message': 'A prior limitation',
+        },
+      }),
+      throwsA(
+        isA<CoreFailure>().having(
+          (value) => value.kind,
+          'kind',
+          CoreFailureKind.unsupported,
+        ),
+      ),
+    );
+  });
+  test('unknown error kinds and malformed source locations fail the protocol instead of becoming ordinary results', () async {
+    for (final extra in [
+      {'kind': 'success'},
+      {
+        'source': {
+          'resource': false,
+          'pointer': '',
+          'range': [0, 1],
+        },
+      },
+      {
+        'source': {
+          'resource': 'file:///fixture.yaml',
+          'pointer': '',
+          'range': [-1, 0],
+        },
+      },
+      {
+        'source': {
+          'resource': 'file:///fixture.yaml',
+          'pointer': '',
+          'range': [2, 1],
+        },
+      },
+      {
+        'source': {
+          'resource': 'file:///fixture.yaml',
+          'pointer': '',
+          'range': [0, false],
+        },
+      },
+    ]) {
+      final engine = await heldEngine();
+      await expectLater(
+        engine.request('inspect', {
+          'failure': {
+            'code': 'claimed.error',
+            'message': 'Malformed metadata',
+            ...extra,
+          },
+        }),
+        throwsA(failure('engine.json')),
+      );
+    }
+  });
+
   test(
     'large documentation display waits behind Source and bounded native pages',
     () async {

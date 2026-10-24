@@ -7,6 +7,7 @@ export 'src/project.dart';
 export 'src/request.dart';
 export 'src/request_form_values.dart';
 export 'src/form_media_types.dart';
+export 'src/multipart_encoding.dart';
 export 'src/oauth.dart';
 export 'src/git.dart';
 export 'src/semantic_diff.dart';

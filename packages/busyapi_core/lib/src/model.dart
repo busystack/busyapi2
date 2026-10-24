@@ -23,9 +23,25 @@ String httpOperationMethod(Map operation) => operation['customMethod'] == true
     ? '${operation['method']}'
     : '${operation['method']}'.toUpperCase();
 
+enum CoreFailureKind { operational, unsupported }
+
+class CoreFailureSource {
+  const CoreFailureSource(this.resource, this.pointer, this.range);
+  final String resource, pointer;
+  final SourceRange range;
+}
+
 class CoreFailure implements Exception {
-  CoreFailure(this.code, this.message);
+  CoreFailure(this.code, this.message, {CoreFailureKind? kind, this.source})
+    : kind =
+          kind ??
+          (code.endsWith('.unsupported')
+              ? CoreFailureKind.unsupported
+              : CoreFailureKind.operational);
   final String code, message;
+  final CoreFailureKind kind;
+  final CoreFailureSource? source;
+  bool get unsupported => kind == CoreFailureKind.unsupported;
   @override
   String toString() => '$code: $message';
 }

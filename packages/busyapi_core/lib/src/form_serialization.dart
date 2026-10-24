@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'model.dart';
+import 'multipart_encoding.dart';
 import 'request_form_values.dart';
 
 class FormContentPart {
-  const FormContentPart(this.name, this.text, this.contentType);
+  const FormContentPart(this.name, this.text, this.contentType, this.transfer);
   final String name, text, contentType;
+  final MultipartTransferEncoding? transfer;
 }
 
 class FormStyleValue {
@@ -31,6 +33,7 @@ Future<PreparedFormValues> prepareFormValues(
   Future<Map<String, dynamic>> Function(Map<String, String>) parseJson, {
   RequestFormData? data,
   Map<String, String> mediaTypes = const {},
+  Map<String, MultipartPartEncoding> transfers = const {},
 }) async {
   final metadata = declaration['form'];
   if (metadata is! Map || metadata['shape'] is! Map) {
@@ -144,6 +147,12 @@ Future<PreparedFormValues> prepareFormValues(
       final text = entry.value[index], itemType = type(itemShape);
       final literalMedia = media?.split(';').first.trim().toLowerCase();
       final actual = suppliedValues?[index];
+      final transfer = transfers[entry.key]?.forValue(
+        actual == null
+            ? itemType == null || itemType == 'string'
+            : actual.kind == RequestDataKind.string,
+      );
+      final encodedInput = transfer?.schemaEncoded == true;
       if (actual != null) {
         if (!styled &&
             !jsonMedia &&
@@ -163,11 +172,12 @@ Future<PreparedFormValues> prepareFormValues(
         values.add(
           _FormScalar(
             '${definitions.length}:$index',
-            jsonMedia ? actual.raw : actual.text,
+            jsonMedia && !encodedInput ? actual.raw : actual.text,
             actual.raw,
             false,
             supplied: true,
             value: actual.value,
+            transfer: transfer,
           ),
         );
         continue;
@@ -187,6 +197,7 @@ Future<PreparedFormValues> prepareFormValues(
       if (undecoded) complete = false;
       final parse =
           !undecoded &&
+          !encodedInput &&
           (jsonMedia ||
               [
                 'object',
@@ -199,7 +210,13 @@ Future<PreparedFormValues> prepareFormValues(
       final key = '${definitions.length}:$index';
       if (parse) jsonInputs[key] = text;
       values.add(
-        _FormScalar(key, text, parse ? text : jsonEncode(text), parse),
+        _FormScalar(
+          key,
+          text,
+          parse ? text : jsonEncode(text),
+          parse,
+          transfer: transfer,
+        ),
       );
     }
     definitions[entry.key] = _FormValue(
@@ -251,6 +268,7 @@ Future<PreparedFormValues> prepareFormValues(
           entry.key,
           value.text,
           definition.mediaType!,
+          value.transfer,
         );
         content.add(part);
         if (data == null) contentOrder[part] = fieldOrder[entry.key]![index];
@@ -276,10 +294,12 @@ class _FormScalar {
     this.parse, {
     this.supplied = false,
     this.value,
+    this.transfer,
   });
   final String key, text, json;
   final bool parse, supplied;
   final Object? value;
+  final MultipartTransferEncoding? transfer;
 }
 
 class _FormValue {
@@ -294,4 +314,39 @@ class _FormValue {
   final Map<String, Object?> rule;
   final String? mediaType;
   final List<_FormScalar> values;
+}
+
+/// Merge captured file string representations without round-tripping exact
+/// numeric field values through Dart's JSON number representation.
+String multipartInstanceWithFiles(
+  RequestFormData fields,
+  Map<String, List<String>> files,
+  Map declaration,
+) {
+  final shape = (declaration['form'] as Map)['shape'] as Map;
+  final properties = shape['properties'];
+  final values = <String, String>{
+    for (final entry in fields.fields.entries) entry.key: entry.value.raw,
+  };
+  for (final entry in files.entries) {
+    final existing = fields.fields[entry.key];
+    final items = <String>[
+      if (existing != null)
+        ...existing.kind == RequestDataKind.array
+            ? existing.items.map((item) => item.raw)
+            : [existing.raw],
+      ...entry.value,
+    ];
+    final property = properties is Map ? properties[entry.key] : null;
+    final type = property is Map ? property['literalType'] : null;
+    final array = type == 'array' || type == null && items.length > 1;
+    if (!array && items.length != 1) {
+      throw CoreFailure(
+        'request.form.scalar',
+        'This form property permits one scalar value.',
+      );
+    }
+    values[entry.key] = array ? '[${items.join(',')}]' : items.single;
+  }
+  return '{${values.entries.map((entry) => '${jsonEncode(entry.key)}:${entry.value}').join(',')}}';
 }

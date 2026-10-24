@@ -427,6 +427,46 @@ class OperationRequestPlan {
     );
   }
 
+  Future<Map<String, MultipartPartEncoding>> multipartEncoding(
+    String mediaType,
+    List<Map<String, String>> parts,
+    List<String> files, {
+    required String requestId,
+    RunCancellation? cancellation,
+  }) async {
+    final result = await _formProjection(
+      'requestMultipartEncoding',
+      {
+        ...snapshot.toJson(),
+        'resource': (operation['source'] as Map)['resource'],
+        'pointer': (operation['source'] as Map)['pointer'],
+        'occurrence': operation['occurrence'],
+        'mediaType': mediaType,
+        'parts': parts,
+        'files': files,
+      },
+      requestId,
+      cancellation,
+    );
+    final values = result['parts'];
+    final names = {...parts.map((part) => part['name']), ...files};
+    if (result['version'] != 1 ||
+        result['snapshot'] != snapshot.identity ||
+        result['identity'] != identity ||
+        values is! Map ||
+        values.length != names.length ||
+        values.keys.any((name) => name is! String || !names.contains(name))) {
+      throw CoreFailure(
+        'request.multipart.protocol',
+        'Invalid captured multipart transfer projection.',
+      );
+    }
+    return Map.unmodifiable({
+      for (final entry in values.entries)
+        entry.key as String: MultipartPartEncoding.fromJson(entry.value),
+    });
+  }
+
   Future<Map<String, dynamic>> _formProjection(
     String method,
     Map<String, Object?> params,

@@ -53,9 +53,21 @@ body:
 ```
 
 The field applies to native form data, including URL-encoded content. It never
-grants file access or changes a literal whole-body representation. Positional,
-nested and transfer encodings still require further implementation and are
-reported as limitations before sending.
+grants file access or changes a literal whole-body representation.
+
+Named multipart parts apply 3.0 `format: byte` and modern `contentEncoding`
+through the shared graph. Encoded string inputs retain their spelling; selected
+files contain raw bytes and receive the declared transfer encoding. MIME base64
+adds required line folding. The native codecs cover binary/identity, 7bit/8bit,
+base64/base64url, base16, base32/base32hex and quoted-printable. Transfer-header
+references and constraints are evaluated under the owning family. An explicit
+literal example selects its token; otherwise valid declared defaults/enums are
+preferred, then implemented tokens starting with binary. A token is never used
+without satisfying that header's schema. Undefined implicit/header conflicts
+are refused; unavailable codecs and ambiguous conditional annotations report
+incomplete serialization. These choices are an input policy, not a server
+interoperability guarantee. Positional and nested encodings still require
+implementation and are reported as limitations before sending.
 
 Migration checks effective form encodings as well as media names. It removes
 ignored 3.0 multipart style fields before they could become active in 3.1.
