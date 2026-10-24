@@ -3,8 +3,9 @@ import {decimal} from './exact_numbers';
 import {isReferenceObject} from './contexts';
 import {SourceError} from './document';
 
-/** Normative OAS 3.0 Schema Object rules absent from its informational schema
- * (3.0.4 §4.7.24). Assertions still execute in the pinned OAS evaluator. */
+/** Normative restricted Schema Object rules absent from the informational
+ * artifacts (2.0 §6.4.18, 3.0.4 §4.7.24). Instance assertions still execute
+ * in the pinned evaluator with exact CST values. */
 export function restrictedSchemaIssues(graph: ReferenceGraph): GraphIssue[] {
     const issues: GraphIssue[] = [];
     const add = (scope: GraphScope, field: string, code: string, message: string) =>
@@ -25,10 +26,19 @@ export function restrictedSchemaIssues(graph: ReferenceGraph): GraphIssue[] {
         return ['oneOf', 'anyOf'].some(keyword => Array.isArray(value[keyword]) && value[keyword].length > 0 && value[keyword].every((_: unknown, i: number) => requires(graph.scope(scope.resource, scope.pointer + '/' + keyword + '/' + i), name, nested)));
     };
     for (const scope of graph.scopes.values()) {
-        const flat=scope.family==='2.0'&&['parameter','header','items'].includes(scope.kind);
-        if ((!flat&&scope.kind !== 'schema') || !['2.0','3.0'].includes(scope.family)) continue;
         const doc = graph.docs.get(scope.resource)!, node = doc.dataNode(scope.pointer), value = node?.value;
+        const flat=scope.family==='2.0'&&(scope.kind==='parameter'&&value?.in!=='body'&&typeof value?.$ref!=='string'||['header','items'].includes(scope.kind));
+        if ((!flat&&scope.kind !== 'schema') || !['2.0','3.0'].includes(scope.family)) continue;
         if (!node || !doc.dataSyntaxSafe(scope.pointer) || !value || typeof value !== 'object' || Array.isArray(value) || isReferenceObject(value, 'schema', scope.family)) continue;
+        if(typeof value.multipleOf==='number') {
+            try {
+                if(decimal(doc.dataJson(scope.pointer+'/multipleOf')).coefficient<=0n)
+                    add(scope,'multipleOf','schema.multipleOf.positive','multipleOf must be strictly greater than zero');
+            }catch(error) {
+                if(!(error instanceof SourceError))throw error;
+                issues.push({...scope,pointer:scope.pointer+'/multipleOf',code:error.code,message:error.message,incomplete:true,severity:'warning'});
+            }
+        }
         if (value.type === 'array' && (scope.family==='3.0'||flat) && !Object.hasOwn(value, 'items'))
             add(scope, '', 'schema.items.required', 'An array in this OpenAPI object must declare items');
         if (scope.family==='3.0'&&value.readOnly === true && value.writeOnly === true)

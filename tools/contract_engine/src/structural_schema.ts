@@ -53,6 +53,10 @@ bound30.$id = 'urn:busyapi:structural:3.0:2024-10-18';
 delete bound30.properties.tags.uniqueItems;
 delete bound30.$defs['path-item'].properties.parameters.uniqueItems;
 delete bound30.$defs.operation.properties.parameters.uniqueItems;
+// The fast JS projection cannot decide exact decimal positivity or value
+// equality. restrictedSchemaIssues owns multipleOf positivity; the awaited
+// exact-CST meta evaluator owns enum uniqueness (including object values).
+delete bound30.$defs.schema.properties.multipleOf.exclusiveMinimum;
 const bound20 = bindDraft4(schema20);
 bound20.$id = 'urn:busyapi:structural:2.0:2017-08-27';
 delete bound20.$defs['parameters-list'].uniqueItems;
@@ -63,6 +67,8 @@ export const structuralRevisions = Object.freeze({'2.0': '2017-08-27', '3.0': '2
 export const structuralEvaluator = new Ajv2020({strict: false, allErrors: true, validateFormats: false});
 const boundDraft04 = bindDraft4(draft04);
 boundDraft04.$id = 'urn:busyapi:structural:draft04';
+delete boundDraft04.properties.multipleOf.exclusiveMinimum;
+delete boundDraft04.properties.enum.uniqueItems;
 structuralEvaluator.addSchema(boundDraft04);
 export function structuralReference(reference:string,standard:any):any {
     const prefix='urn:busyapi:structural:draft04';
