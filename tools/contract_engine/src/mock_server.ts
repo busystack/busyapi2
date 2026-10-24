@@ -9,6 +9,8 @@ import { ContentExample, createInstance, ProblemJsonError } from '@stoplight/pri
 import { DiagnosticSeverity, IMediaTypeContent } from '@stoplight/types';
 import { findNodeAtLocation, Node, parseTree } from 'jsonc-parser';
 import pino from 'pino';
+import {specificationDeclaration} from './specification';
+import {ignoresRequestBody} from './operation_semantics';
 
 const maximumInput = 64 * 1024 * 1024;
 const maximumRequestBody = 10 * 1024 * 1024;
@@ -257,12 +259,19 @@ async function main(): Promise<void> {
   if (!tree) throw new Error('mock input is not strict derived JSON');
   const examples = exactExamples(input.document, tree);
   const document = JSON.parse(input.document) as Record<string, unknown>;
-  const version = document.openapi;
-  if (document.swagger!=='2.0'&&(typeof version !== 'string' || !/^3\.(?:0|1|2)\./.test(version)))
+  const declaration=specificationDeclaration(document);
+  if(declaration.status!=='supported')
     throw new Error('mock input must be a supported OpenAPI document');
   // This qualified in-memory path never asks Prism's path loader to reinterpret
   // a literal Example Object `$ref` property as a filesystem dependency.
-  const operations = document.swagger==='2.0'?transformOas2Operations(document):transformOas3Operations(document);
+  const operations = declaration.specification.family==='2.0'?transformOas2Operations(document):transformOas3Operations(document);
+  // http-spec 7.1.0 translates every requestBody, including declarations that
+  // OAS 3.0 §4.7.10.1 tells consumers to ignore. Adapt its transport projection
+  // through the shared rule; the captured document and examples stay intact.
+  // Prism treats a missing body projection as rejecting nonempty input; an
+  // optional wildcard without a schema preserves the ignored constraints.
+  for(const operation of operations)if(operation.request?.body&&ignoresRequestBody(declaration.specification.family,operation.method.toUpperCase()))
+    operation.request.body={...operation.request.body,required:false,contents:[{id:operation.request.body.id+'-ignored-content',mediaType:'*/*'}]};
   if (operations.length === 0) throw new Error('mock input has no operations');
   const logger = createLogger('BusyAPIMock', { level: 'warn', base: undefined },
     pino.destination({ dest: 2, sync: false }));

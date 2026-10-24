@@ -22,6 +22,49 @@ class MockPlan {
       !saved && !snapshot.current(_owner.store);
   String get root => snapshot.root;
 
+  void _ensureStartCurrent(RunCancellation? cancellation) {
+    if (_closed || _owner._closed) {
+      throw CoreFailure('mock.closed', 'The captured mock owner is closed');
+    }
+    cancellation?.throwIfCancelled();
+    if (outdated) {
+      throw CoreFailure(
+        'mock.stale',
+        'The contract changed. Prepare a new mock before starting it.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _derive(
+    String outputId,
+    RunCancellation? cancellation,
+  ) async {
+    final settled = Completer<void>();
+    final requestId =
+        'mock-${snapshot.identity.substring(0, 16)}-${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(settled)}';
+    final work = _owner.engine.request('deriveBundle', {
+      ...snapshot.toJson(),
+      'outputId': outputId,
+    }, requestId: requestId);
+    try {
+      return cancellation == null
+          ? await work
+          : await Future.any<Map<String, dynamic>>([
+              work,
+              cancellation.whenCancelled.then((_) async {
+                if (settled.isCompleted) return work;
+                await _owner.engine.cancel(requestId);
+                throw CoreFailure(
+                  'cancelled',
+                  'Mock derivation cancelled; late results are discarded.',
+                );
+              }),
+            ]);
+    } finally {
+      settled.complete();
+    }
+  }
+
   Future<MockRun> start({
     int port = 0,
     bool errors = true,
@@ -30,9 +73,7 @@ class MockPlan {
     Uri? proxyTarget,
     RunCancellation? cancellation,
   }) async {
-    if (_closed || _owner._closed) {
-      throw CoreFailure('mock.closed', 'The captured mock owner is closed');
-    }
+    _ensureStartCurrent(cancellation);
     if (port < 0 || port > 65535) {
       throw CoreFailure('mock.port', 'Mock port must be between 0 and 65535');
     }
@@ -42,15 +83,10 @@ class MockPlan {
         .replace(fragment: '')
         .resolve('./busyapi-mock.json')
         .toString();
-    final result = await _owner.engine.request('deriveBundle', {
-      ...snapshot.toJson(),
-      'outputId': outputId,
-    }, requestId: 'mock-${snapshot.identity.substring(0, 16)}');
+    final result = await _derive(outputId, cancellation);
+    _ensureStartCurrent(cancellation);
     final output = result['output'];
-    if (_closed ||
-        _owner._closed ||
-        cancellation?.cancelled == true ||
-        result['version'] != 1 ||
+    if (result['version'] != 1 ||
         result['snapshot'] != snapshot.identity ||
         result['complete'] != true ||
         result['producer'] != 'busyapi-graph-bundle' ||
@@ -74,7 +110,8 @@ class MockPlan {
         'The packaged Prism mock runtime is unavailable',
       );
     }
-    return MockRun._start(
+    _ensureStartCurrent(cancellation);
+    final run = await MockRun._start(
       plan: this,
       node: node,
       helper: script,
@@ -84,6 +121,13 @@ class MockPlan {
       proxyTarget: proxyTarget,
       cancellation: cancellation,
     );
+    try {
+      _ensureStartCurrent(cancellation);
+      return run;
+    } on Object {
+      await run.stop();
+      rethrow;
+    }
   }
 
   Uri configuredProxyTarget() {
@@ -160,6 +204,7 @@ class MockRun {
     final snap = Platform.environment['SNAP'];
     final setsid = snap == null ? '/usr/bin/setsid' : '$snap/usr/bin/setsid';
     final grouped = Platform.isLinux && await File(setsid).exists();
+    plan._ensureStartCurrent(cancellation);
     final process = await Process.start(
       grouped ? setsid : node,
       grouped ? ['--wait', '--', node, helper] : [helper],

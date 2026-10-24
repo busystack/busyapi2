@@ -15,6 +15,7 @@ class MockRunController extends ChangeNotifier {
   }
   final WorkspaceController workspace;
   BusyProject? owner;
+  String? _root;
   MockPlan? plan;
   MockRun? run;
   String phase = 'idle';
@@ -30,7 +31,10 @@ class MockRunController extends ChangeNotifier {
   }
 
   void _observe() {
-    if (owner != null && !identical(owner, workspace.project)) clear();
+    if (owner != null &&
+        (!identical(owner, workspace.project) || _root != workspace.root)) {
+      clear();
+    }
     if (run != null) _notify();
   }
 
@@ -39,6 +43,7 @@ class MockRunController extends ChangeNotifier {
     if (project == null || root == null || busy) return;
     final epoch = ++_epoch;
     owner = project;
+    _root = root;
     phase = 'preparing';
     failure = null;
     expanded = true;
@@ -53,7 +58,8 @@ class MockRunController extends ChangeNotifier {
       );
       if (_disposed ||
           epoch != _epoch ||
-          !identical(project, workspace.project)) {
+          !identical(project, workspace.project) ||
+          workspace.root != root) {
         captured.close();
         return;
       }
@@ -148,6 +154,7 @@ class MockRunController extends ChangeNotifier {
     plan?.close();
     plan = null;
     owner = null;
+    _root = null;
     phase = 'idle';
     failure = null;
     _notify();

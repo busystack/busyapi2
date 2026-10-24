@@ -20,6 +20,11 @@ TRACE; they neither force an outgoing body nor constrain an explicitly entered
 body. Request and native Reference show that distinction, including offline HTML.
 POST, PUT and PATCH retain their declared body semantics. Swagger 2.0 and modern
 OpenAPI retain their own body rules. See [OAS 3.0 §4.7.10.1](https://spec.openapis.org/oas/v3.0.4.html#operation-object).
+The pinned mock adapter consumes this same rule without changing the captured
+document. Mock startup rejects a stale capture, cancels owned derivation work and
+rechecks ownership before returning a listener. Switching project roots retires
+both prepared and in-flight native mock captures. A running immutable capture
+retains its original rules and reports that it is outdated after source changes.
 
 Runtime body checks decode captured HTTP bytes through the shared engine before
 applying the captured schema. `text/plain` uses its Unicode string value. Native
