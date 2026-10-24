@@ -283,8 +283,7 @@ class ApiNavigatorState extends State<ApiNavigator> {
       'callbacks': l.callbacks,
       if (c.specification?.reusablePathItems == true) 'pathItems': l.pathItems,
       'securitySchemes': l.securitySchemes,
-      if ((projection?['openapi'] as String? ?? '').startsWith('3.2.'))
-        'mediaTypes': l.mediaTypes,
+      'mediaTypes': l.mediaTypes,
     };
     return [
       node(
@@ -336,10 +335,14 @@ class ApiNavigatorState extends State<ApiNavigator> {
               ],
             ),
         ]),
-      node('callbacks', l.callbacks, null, [
-        for (final op in ops.where((o) => o['role'] == 'callback'))
-          operation(op, 'callback'),
-      ]),
+      if ((projection?['componentLocations'] as Map?)?.containsKey(
+            'callbacks',
+          ) ==
+          true)
+        node('callbacks', l.callbacks, null, [
+          for (final op in ops.where((o) => o['role'] == 'callback'))
+            operation(op, 'callback'),
+        ]),
     ];
   }
 

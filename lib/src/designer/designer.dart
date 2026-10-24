@@ -316,7 +316,11 @@ class _DesignerState extends State<Designer> {
                   children: [
                     field(item, 'title', l.title),
                     field(item, 'version', l.apiVersion),
-                    field(item, 'summary', l.summary),
+                    if ((item['fields'] as List?)?.whereType<Map>().any(
+                          (field) => field['name'] == 'summary',
+                        ) ==
+                        true)
+                      field(item, 'summary', l.summary),
                     field(item, 'description', l.description, multiline: true),
                     field(item, 'termsOfService', l.termsOfService),
                   ],

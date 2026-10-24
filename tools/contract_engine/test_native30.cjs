@@ -28,6 +28,7 @@ for(const version of versions)for(const json of [true,false])test(`native ${vers
   const result=analyse(input);
   assert.equal(result.status,'complete',JSON.stringify(result.findings));
   assert.equal(result.specification.family,'3.0');assert.equal(result.specification.declaredVersion,version);
+  assert(!result.info.fields.some(field=>field.name==='summary'));
   assert.equal(result.operations.length,1);assert.equal(result.operations[0].family,'3.0');
   const pointer='/components/schemas/Pet',page=inspect({...input,pointer});
   assert(page.fields.some(f=>f.name==='nullable'&&f.type==='boolean'));

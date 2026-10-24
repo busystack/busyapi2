@@ -17,6 +17,7 @@ function target(input,pointer){const doc=new SourceDocument(input.resources[0].t
 for(const json of [true,false])test(`Swagger native ${json?'JSON':'YAML'} owners, editing, documentation, request and bundle`,async()=>{
  const input=capture(api(),json),before=input.resources[0].text,result=analyse(input);
  assert.equal(result.status,'complete',JSON.stringify(result.findings));assert.equal(result.specification.family,'2.0');assert.equal(result.operations.length,1);
+ assert(!result.info.fields.some(field=>field.name==='summary'));assert(!Object.hasOwn(result.componentLocations,'callbacks'));
  assert.deepEqual(result.componentLocations,{schemas:'/definitions',parameters:'/parameters',responses:'/responses',securitySchemes:'/securityDefinitions'});
  assert(result.components.some(c=>c.pointer==='/definitions/Pet'));assert(result.components.some(c=>c.pointer==='/securityDefinitions/Basic'));
  const page=inspect({...input,pointer:'/parameters/Id'});assert(page.fields.some(f=>f.name==='type'));assert(!page.fields.some(f=>['schema','style','content'].includes(f.name)));
