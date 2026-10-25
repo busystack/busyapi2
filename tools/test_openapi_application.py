@@ -40,7 +40,7 @@ from native_focus import (
 )
 
 
-def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False):
+def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False, schema_definitions=False):
     swagger = version == '2.0'
     schema = {
         'type': 'object',
@@ -78,6 +78,12 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
         'Item': schema,
         'x-literal': {'$ref': 'literal', 'number': 'EXACT'},
     }
+    if schema_definitions:
+        document['components'] = {'schemas': {
+            'Envelope': {'$ref': './model.' + format + '#/Envelope'},
+            'Use': {'$ref': './model.' + format + '#/Envelope/$defs/Old'},
+        }}
+        model['Envelope'] = {'type': 'object', '$defs': {'Old': False}}
     if format == 'json':
         source = json.dumps(document, ensure_ascii=False, indent=2) + '\r\n'
         shared = json.dumps(model, ensure_ascii=False, indent=2)
@@ -132,6 +138,13 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
             '  number: 9007199254740993.00\n'
             "  text: 'café 東京'\n"
         ).replace('\n', '\r\n')
+        if schema_definitions:
+            source += (
+                'components:\r\n  schemas:\r\n'
+                "    Envelope: {$ref: './model.yaml#/Envelope'}\r\n"
+                "    Use: {$ref: './model.yaml#/Envelope/$defs/Old'}\r\n"
+            )
+            shared += "Envelope:\r\n  type: object\r\n  $defs:\r\n    'Old': false\r\n"
     return b'\xef\xbb\xbf' + source.encode(), shared.encode()
 
 
@@ -212,6 +225,22 @@ def text_keys(value):
              '-': 'minus', ' ': 'space'}
     return [('Shift_L+' + character.lower()) if 'A' <= character <= 'Z'
             else names.get(character, character) for character in value]
+
+def focus_control(native, pid, label, *, tabs=64):
+    for _ in range(tabs):
+        nodes = tree(pid, details=True)
+        matches = [node for node in nodes if node['focused']
+                   and node['name'].split('\n')[0] == label]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise RuntimeError('Multiple focused controls claim ' + label)
+        keys(native, ['Tab'])
+    raise RuntimeError('Bounded native keyboard traversal did not focus ' + label)
+
+def activate_control(native, pid, label):
+    focus_control(native, pid, label)
+    keys(native, ['Return'])
 
 def wait_tree(native, pid, predicate, label):
     deadline = time.monotonic() + 30
@@ -493,6 +522,8 @@ def main():
     parser.add_argument('--mock-methods', action='store_true')
     parser.add_argument('--mock-nested', action='store_true')
     parser.add_argument('--documentation', action='store_true')
+    parser.add_argument('--schema-definitions', action='store_true')
+    parser.add_argument('--operations', action='store_true')
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1'])
@@ -508,6 +539,10 @@ def main():
         parser.error('--mock-samples requires --edit for the save/reopen journey')
     if args.documentation and not args.edit:
         parser.error('--documentation requires --edit for the save/reopen journey')
+    if args.schema_definitions and (not args.edit or not args.version.startswith(('3.1.', '3.2.'))):
+        parser.error('--schema-definitions requires --edit and a modern OpenAPI family')
+    if args.operations and not args.edit:
+        parser.error('--operations requires --edit for the save/reopen journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:
@@ -521,6 +556,8 @@ def main():
                 *(['--mock-methods'] if args.mock_methods else []),
                 *(['--mock-nested'] if args.mock_nested else []),
                 *(['--documentation'] if args.documentation else []),
+                *(['--schema-definitions'] if args.schema_definitions else []),
+                *(['--operations'] if args.operations else []),
             ]
             return subprocess.run(
                 command, env=private_session_environment(environment, runtime),
@@ -557,10 +594,12 @@ def main():
             + ('-methods' if args.mock_methods else '')
             + ('-nested' if args.mock_nested else '')
             + ('-documentation' if args.documentation else '')
+            + ('-schema-definitions' if args.schema_definitions else '')
+            + ('-operations' if args.operations else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
-        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested)
+        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested, args.schema_definitions)
         file.write_bytes(source)
         fragment.write_bytes(shared)
         files = [file, fragment]
@@ -586,6 +625,8 @@ def main():
         }
         expected_sources = dict(original)
         documentation_result = None
+        schema_definition_result = None
+        operation_result = None
         binary = ROOT / 'build/linux/x64/release/bundle/busyapi-desktop'
         log = evidence / (case + '.log')
         with log.open('w') as stream:
@@ -633,6 +674,18 @@ def main():
                 if args.edit:
                     edited, nodes = edit(native, process, file, fragment, original, args.version)
                     expected_sources[str(file)] = edited
+                    if args.operations:
+                        from native_operation_maintenance import maintain_operation
+                        changed, operation_result = maintain_operation(
+                            native, process, file, fragment, expected_sources, args.version)
+                        expected_sources.update(changed)
+                        nodes = tree(process.pid, details=True)
+                    if args.schema_definitions:
+                        from native_schema_definitions import maintain_definitions
+                        changed, schema_definition_result = maintain_definitions(
+                            native, process, file, fragment, expected_sources, args.version)
+                        expected_sources.update(changed)
+                        nodes = tree(process.pid, details=True)
                     if args.documentation:
                         documentation_result = documentation(
                             native, process, file, expected_sources, args.version, evidence, case)
@@ -677,6 +730,8 @@ def main():
                     'nativeMockMethods': args.mock_methods,
                     'nativeMockNested': args.mock_nested,
                     'nativeDocumentation': documentation_result,
+                    'nativeSchemaDefinitions': schema_definition_result,
+                    'nativeOperations': operation_result,
                     'files': {
                         str(Path(name).relative_to(project_directory)):
                             hashlib.sha256(raw).hexdigest()

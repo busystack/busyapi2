@@ -117,6 +117,37 @@ export class ReferenceGraph {
     private pathReferences?: Map<string,GraphReference>;
     private operationIndex?: readonly OperationOccurrence[];
     private operationContextsIndex = new Map<string,OperationOccurrence[]>();
+    private schemaAdmissions = new Map<string,{target:GraphTarget;inherited:GraphScope;root:boolean}>();
+    private contextChanges = new Map<string,GraphTarget>();
+    private static readonly scopeBudget=400000;
+
+    /** A pointer may reach a fragment before another edge establishes its
+     * enclosing schema resource. OAS 3.1.2 §4.3.1 requires complete context
+     * discovery before a reference is deemed missing. Rebuild this same graph
+     * from proven enclosing occurrences; never guess schema keywords in data. */
+    static capture(docs:Map<string,SourceDocument>,root:string,family:string,aliases:Map<string,string[]>=new Map(),occurrences:GraphTarget[]=[]):ReferenceGraph {
+        const seeds=new Map(occurrences.map(target=>[key(target.resource,target.pointer)+':'+target.kind,target]));
+        let work=0;
+        for(let pass=0;pass<=limits.depth;pass++) {
+            const graph=new ReferenceGraph(docs,root,family,aliases,[...seeds.values()]);
+            work+=graph.scopes.size;
+            if(work>2*ReferenceGraph.scopeBudget)break;
+            if(!graph.contextChanges.size)return graph;
+            const before=seeds.size;
+            for(const {target,root:entry} of graph.schemaAdmissions.values()) {
+                if(!entry)continue;
+                let parent=target.pointer,nested=false;
+                while(parent) {
+                    parent=parent.slice(0,parent.lastIndexOf('/'));
+                    if(graph.scopes.get(key(target.resource,parent))?.kind==='schema'){nested=true;break;}
+                }
+                if(!nested)seeds.set(key(target.resource,target.pointer)+':schema',target);
+            }
+            if(seeds.size===before)break;
+        }
+        const range=docs.get(root)!.root.range;
+        throw new SourceError('limit.graph.context','The captured schema contexts could not stabilize within the bounded graph budget',range,'unsupported',{resource:root,pointer:'',range});
+    }
 
     constructor(readonly docs: Map<string, SourceDocument>, readonly root: string, readonly family: string, aliases: Map<string, string[]> = new Map(), occurrences: GraphTarget[] = []) {
         // Register identities before resolving any edge, so ordering cannot
@@ -475,8 +506,13 @@ export class ReferenceGraph {
         // layer interpreted using one of the supported authoring families.
         if (!isNativeFamily(inherited.family)) return;
         const id = key(resource, pointer) + ':' + kind;
-        if (this.indexed.has(id)) return;
-        if(this.indexed.size>=400000) {
+        if (this.indexed.has(id)) {
+            const previous=kind==='schema'&&depth>0?this.schemaAdmissions.get(id):undefined;
+            if(previous&&(['base','resourcePointer','dialect','family'] as const).some(field=>previous.inherited[field]!==inherited[field]))
+                this.contextChanges.set(id,previous.target);
+            return;
+        }
+        if(this.indexed.size>=ReferenceGraph.scopeBudget) {
             if(!this.scopeLimited) {
                 this.scopeLimited=true;
                 this.issue({resource:this.root,pointer:'',kind:'root'},'limit.graph.scopes','Semantic occurrences exceed the bounded scope budget',true);
@@ -485,6 +521,7 @@ export class ReferenceGraph {
         }
         this.indexed.add(id);
         const target = { resource, pointer, kind };
+        if(kind==='schema')this.schemaAdmissions.set(id,{target,inherited,root:depth===0});
         const established=this.scopes.get(key(resource,pointer));
         // A whole OpenAPI document can also be a JSON Schema: its OpenAPI
         // members are extension keywords in that use. Other typed positions

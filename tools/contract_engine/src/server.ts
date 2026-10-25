@@ -1,7 +1,7 @@
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
 import {SourceError} from './document';
 import { analyse, propose, discover, inspect, readDataValue, protocol, engineVersion } from './engine';
-import { planRename, planPropertyRename, planResponseRename } from './refactoring';
+import { planRename, planPropertyRename, planResponseRename, planSchemaDefinitionRename } from './refactoring';
 import { planDelete } from './refactoring_delete';
 import {planExtract,planExtractToFile,planInline,planMoveDefinition,planOperationMove} from './refactoring_copy';
 import {planFileMove,planFileDeletion,planRootRemoval} from './refactoring_file';
@@ -41,7 +41,7 @@ if (!isMainThread) {
             parentPort!.postMessage(payload, [payload.buffer as ArrayBuffer]);
         };
         try {
-            const methods: any = { analyse, evaluateSchemas, standardResource, deriveBundle, referenceDisplay:referenceDisplayPacket, referenceDocument, requestOperation, semanticDiffCoverage, planResponseExample, propose, discover, inspect, readDataValue, schemaTree, referenceChoices, planReference, referencePage, planRename, planPropertyRename, planResponseRename, planDelete, planExtract, planInline, planMoveDefinition, planFileMove, planFileDeletion, planDiagnosticFix, assistSource, sourceFolds, semanticSearch, suggestSchema, planSchemaSuggestion,
+            const methods: any = { analyse, evaluateSchemas, standardResource, deriveBundle, referenceDisplay:referenceDisplayPacket, referenceDocument, requestOperation, semanticDiffCoverage, planResponseExample, propose, discover, inspect, readDataValue, schemaTree, referenceChoices, planReference, referencePage, planRename, planPropertyRename, planResponseRename, planSchemaDefinitionRename, planDelete, planExtract, planInline, planMoveDefinition, planFileMove, planFileDeletion, planDiagnosticFix, assistSource, sourceFolds, semanticSearch, suggestSchema, planSchemaSuggestion,
                 discoverPolicy,inspectPolicyCode,policyRuntime,
                 resolvePolicyCode:async(params:any)=>(await import('./policy_code_resolution')).resolvePolicyCode(params),
                 reviewPolicyCode:async(params:any)=>(await import('./policy_code_review')).reviewPolicyCode(params),

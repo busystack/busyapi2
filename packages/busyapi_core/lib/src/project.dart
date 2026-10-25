@@ -37,7 +37,7 @@ part 'migration.dart';
 
 // Semantic revisions are part of captured evaluator ownership, alongside the
 // wire protocol and snapshot identity.
-const _schemaProducerVersion = '1.18.0+15';
+const _schemaProducerVersion = '1.18.0+16';
 
 // Keep native-isolate IO wakeups bounded without serializing every resource.
 // Each batch finishes (including failures) before access can be released.
@@ -2744,6 +2744,11 @@ class BusyProject {
     String name,
   ) => _planSemantic('planRename', target, {'name': name});
 
+  Future<RefactoringPlan> planSchemaDefinitionRename(
+    Map<String, Object?> target,
+    String name,
+  ) => _planSemantic('planSchemaDefinitionRename', target, {'name': name});
+
   Future<RefactoringPlan> planOperationMove(
     Map<String, Object?> target, {
     required String method,
@@ -3069,6 +3074,7 @@ class BusyProject {
       label: switch (plan.result['kind']) {
         'schema-suggestion' => 'Insert schema suggestion',
         'property-rename' => 'Rename schema property',
+        'schema-definition-rename' => 'Rename schema definition',
         'object-delete' => 'Delete authored object',
         'reference-selection' => 'Change reference',
         'diagnostic-fix' => 'Apply diagnostic repair',

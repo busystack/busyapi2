@@ -1871,6 +1871,14 @@ Future<void> resumeCapturedForm(
           item,
           kind: _ObjectRenameKind.responseStatus,
         );
+      case 'object.renameSchemaDefinition':
+        if (!context.mounted) return;
+        await _renameObjectMember(
+          context,
+          c,
+          item,
+          kind: _ObjectRenameKind.schemaDefinition,
+        );
       case 'object.extract':
         if (!context.mounted) return;
         await _extractObjectComponent(context, c, item);

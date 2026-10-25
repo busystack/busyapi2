@@ -562,6 +562,15 @@ name syntax. Rename and extraction repair captured references through the graph.
 An extraction's semantic name and separately reviewed filename are independent;
 names containing path characters receive an editable safe filename suggestion.
 
+In OpenAPI 3.1 and 3.2, authored `$defs` members offer **Rename schema
+definition**. Their names follow JSON member rules, including empty names and
+Unicode, independently of Components names. The review repairs captured schema
+references while retaining resource identities, anchors and literal example
+data. Cancel, Undo/Redo, recovered forms and coupled multi-file save use the
+existing transaction owner. Unsupported dialects and ambiguous alias ownership
+produce a located refusal. Shared schema resources retain their enclosing
+`$id` and dialect context even when an operation first references a descendant.
+
 Operation responses offer **Rename response status…** with reviewed reference
 repairs, Undo/Redo and the document family's status rules. Swagger 2.0 accepts
 `default` or codes 100–599; OpenAPI 3.x also accepts uppercase ranges such as

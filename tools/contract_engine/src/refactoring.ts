@@ -3,7 +3,7 @@ import { createGraph, propose, Resource } from './engine';
 import { escape, segments, SourceError } from './document';
 import { GraphReference, resolveUri, pointerFragment } from './reference_graph';
 import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
-import {componentNamePolicy,permitsMemberName,responseStatusNamePolicy} from './member_names';
+import {componentNamePolicy,permitsMemberName,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 
 /** Semantic plans operate on each entry description's namespace separately.
  * Physical edits are coalesced only after every occurrence agrees. There is no
@@ -19,7 +19,10 @@ export function planRename(input: any) {
     const parts = segments(input.target.pointer);
     const property = input.property === true;
     const response = input.response === true;
-    if (typeof input.name !== 'string' || input.name.length > 4096 || (property ? parts.length < 2 || parts.at(-2) !== 'properties' : response ? parts.at(-2)!=='responses' : !(parts.length===2&&['definitions','parameters','responses','securityDefinitions'].includes(parts[0]) || parts.length===3&&parts[0]==='components'&&['schemas','parameters','responses','headers','requestBodies','examples','links','callbacks','pathItems','securitySchemes','mediaTypes'].includes(parts[1]))))
+    const schemaDefinition = input.schemaDefinition === true;
+    if ([property,response,schemaDefinition].filter(Boolean).length>1)
+        throw new SourceError('refactor.context','Choose one kind of authored binding');
+    if (typeof input.name !== 'string' || input.name.length > 4096 || (property ? parts.length < 2 || parts.at(-2) !== 'properties' : response ? parts.at(-2)!=='responses' : schemaDefinition ? parts.at(-2)!=='$defs' : !(parts.length===2&&['definitions','parameters','responses','securityDefinitions'].includes(parts[0]) || parts.length===3&&parts[0]==='components'&&['schemas','parameters','responses','headers','requestBodies','examples','links','callbacks','pathItems','securitySchemes','mediaTypes'].includes(parts[1]))))
         throw new SourceError('refactor.name', 'Choose a component definition and a legal component name');
     const oldName = parts.at(-1)!, oldPointer = input.target.pointer;
     const nextPointer = '/' + parts.slice(0,-1).map(escape).join('/') + '/' + escape(input.name);
@@ -34,11 +37,18 @@ export function planRename(input: any) {
             throw new SourceError('refactor.context', 'A root context contains an unavailable resource');
         return {context, ...createGraph({root: context.root, resources: resources.filter(r => context.resources.includes(r.id))})};
     });
-    const owningScopes=graphs.map(g=>g.graph.scopes.get(source.id+'#'+oldPointer)).filter(scope=>scope!==undefined);
-    if(!property&&(!owningScopes.length||owningScopes.some(scope=>!permitsMemberName(response?responseStatusNamePolicy(scope.family):componentNamePolicy(scope.family),input.name))))
-        throw new SourceError('refactor.name','Choose a name permitted by every owning specification family',input.target.range,undefined,{resource:source.id,pointer:oldPointer,range:input.target.range});
-    if(!property&&!response&&parts.length===2&&!graphs.some((g:any)=>g.graph.specifications.get(source.id)?.family==='2.0'))throw new SourceError('refactor.definition','Choose a native Swagger reusable definition');
     const definition = graphs.map((g: any) => g.docs.get(source.id)?.nodes.get(oldPointer)).find(Boolean);
+    if(schemaDefinition&&(!definition||!definition.keyRange||definition.shared||definition.keyShared))
+        throw new SourceError('refactor.definition','The definition needs an unambiguous physical key, not an alias or reference projection');
+    const owners=graphs.flatMap(({graph})=>{
+        const scope=graph.scopes.get(source.id+'#'+oldPointer);
+        return scope?[{graph,scope}]:[];
+    });
+    if(schemaDefinition&&(!owners.length||owners.some(({graph,scope})=>!schemaDefinitionNamePolicy(graph,scope))))
+        throw new SourceError('refactor.schema-definition.context','The captured roots must establish a $defs binding in a supported schema dialect',definition.range,undefined,{resource:source.id,pointer:oldPointer,range:definition.range});
+    if(!property&&(!owners.length||owners.some(({graph,scope})=>!permitsMemberName(schemaDefinition?schemaDefinitionNamePolicy(graph,scope):response?responseStatusNamePolicy(scope.family):componentNamePolicy(scope.family),input.name))))
+        throw new SourceError('refactor.name','Choose a name permitted by every owning specification family',input.target.range,undefined,{resource:source.id,pointer:oldPointer,range:input.target.range});
+    if(!property&&!response&&!schemaDefinition&&parts.length===2&&!graphs.some((g:any)=>g.graph.specifications.get(source.id)?.family==='2.0'))throw new SourceError('refactor.definition','Choose a native Swagger reusable definition');
     if (!definition || !definition.keyRange || definition.shared || definition.keyShared)
         throw new SourceError('refactor.definition', 'The definition needs an unambiguous physical key, not an alias or reference projection');
     if (!graphs.some((g: any) => g.graph.scopes.has(source.id + '#' + oldPointer)))
@@ -47,7 +57,7 @@ export function planRename(input: any) {
     if (property && !graphs.some((g:any)=>g.graph.scopes.get(source.id+'#'+ownerPointer)?.kind==='schema' && g.graph.scopes.get(source.id+'#'+oldPointer)?.kind==='schema'))
         throw new SourceError('refactor.property.context','Choose a property in an authored Schema Object');
     if(response&&!graphs.some((g:any)=>g.graph.scopes.get(source.id+'#'+oldPointer)?.kind==='response'&&g.graph.scopes.get(source.id+'#'+ownerPointer)?.kind==='operation'))throw new SourceError('refactor.response.context','Choose an authored operation response');
-    if (property && input.name !== oldName && graphs.some((g:any)=>g.graph.literalContainer(source.id,oldPointer)!==undefined))
+    if ((property||schemaDefinition) && input.name !== oldName && graphs.some((g:any)=>g.graph.literalContainer(source.id,oldPointer)!==undefined))
         throw new SourceError('refactor.literal.ownership','This property also belongs to literal data; a semantic rename cannot preserve both source meanings',definition.keyRange);
     if (input.target.range && JSON.stringify(definition.range) !== JSON.stringify(input.target.range) || input.target.expected !== undefined && source.text.slice(definition.range[0], definition.range[1]) !== input.target.expected)
         throw new SourceError('edit.stale', 'The captured definition occurrence changed');
@@ -72,7 +82,7 @@ export function planRename(input: any) {
             usages.set(id, usage);
         }
     };
-    if (nextPointer === oldPointer) return {version: 1, snapshot: input.snapshot, edits: [], usages: [], from: input.target, to: {...input.target, pointer: nextPointer}, checkedRoots: input.contexts.map((c: any) => c.root)};
+    if (nextPointer === oldPointer) return {version: 1, snapshot: input.snapshot, edits: [], usages: [], from: input.target, to: {...input.target, pointer: nextPointer}, ...(schemaDefinition?{kind:'schema-definition-rename'}:{}), checkedRoots: input.contexts.map((c: any) => c.root)};
     if (property) {
         const doc=graphs.find((g:any)=>g.docs.has(source.id))!.docs.get(source.id)!;
         const constraint=(pointer:string)=>{
@@ -165,7 +175,7 @@ export function planRename(input: any) {
             if (ref.connection === 'security') add(ref.resource, pointer, {kind: 'rename', pointer, name: next}, ref, context.root);
             else add(ref.resource, pointer, {kind: 'set', pointer, value: next}, ref, context.root);
         }
-        if(!property&&parts[0]==='definitions')for(const scope of graph.scopes.values()) {
+        if(!property&&!schemaDefinition&&parts[0]==='definitions')for(const scope of graph.scopes.values()) {
             if(scope.family!=='2.0'||scope.kind!=='schema'||typeof docs.get(scope.resource)!.dataNode(scope.pointer)?.value?.discriminator!=='string')continue;
             const inherits=(at:string,seen=new Set<string>()):boolean=>{
                 if(at===scope.pointer&&source.id===scope.resource)return true;
@@ -177,7 +187,7 @@ export function planRename(input: any) {
         }
         // A renamed component must not silently change an implicit discriminator
         // wire value. Preserve it with an explicit, graph-proven mapping.
-        if (!property && parts[1] === 'schemas') for (const scope of graph.scopes.values()) {
+        if (!property && !schemaDefinition && parts[1] === 'schemas') for (const scope of graph.scopes.values()) {
             if (scope.kind !== 'schema') continue;
             const node = docs.get(scope.resource)!.dataNode(scope.pointer)!, discriminator = node.value?.discriminator;
             if (!discriminator || typeof discriminator.propertyName !== 'string') continue;
@@ -248,8 +258,9 @@ export function planRename(input: any) {
         edits.push(...result.edits);changes.push({resource:configuration.source.id,before:configuration.source.text,after:text});
         for(const usage of configuration.usages)usages.set(JSON.stringify([usage.resource,usage.pointer,usage.target.resource,usage.target.pointer]),usage);
     }
-    return {version: 1, snapshot: input.snapshot, identity: createHash('sha256').update(JSON.stringify({snapshot: input.snapshot, target: input.target, name: input.name, edits})).digest('hex'), edits, changes, usages: [...usages.values()], from: input.target, to: {...input.target, pointer: transition(source.id, oldPointer)}, transitions:[...moves].sort((a,b)=>b.from.length-a.from.length), ...(property?{kind:'property-rename',preservedNameConstraints:[...warnings]}:{}), checkedRoots: input.contexts.map((c: any) => c.root), externalConsumers: 'Only the supplied configured-root graph is known; consumers outside this project are not rewritten.'};
+    return {version: 1, snapshot: input.snapshot, identity: createHash('sha256').update(JSON.stringify({snapshot: input.snapshot, target: input.target, name: input.name, edits})).digest('hex'), edits, changes, usages: [...usages.values()], from: input.target, to: {...input.target, pointer: transition(source.id, oldPointer)}, transitions:[...moves].sort((a,b)=>b.from.length-a.from.length), ...(property?{kind:'property-rename',preservedNameConstraints:[...warnings]}:{}), ...(schemaDefinition?{kind:'schema-definition-rename'}:{}), checkedRoots: input.contexts.map((c: any) => c.root), externalConsumers: 'Only the supplied configured-root graph is known; consumers outside this project are not rewritten.'};
 }
 
 export const planPropertyRename = (input:any) => planRename({...input,property:true});
 export const planResponseRename = (input:any) => planRename({...input,response:true});
+export const planSchemaDefinitionRename = (input:any) => planRename({...input,schemaDefinition:true});

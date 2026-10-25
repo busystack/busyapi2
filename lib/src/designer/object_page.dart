@@ -613,6 +613,20 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                         ? () => run(() => _renameObjectMember(context, c, item))
                         : null,
                   ),
+                if (item['schemaDefinitionNamePolicy'] != null)
+                  BusyApiActionRow(
+                    title: l.renameSchemaDefinition,
+                    onTap: c.scopeSafe(item)
+                        ? () => run(
+                            () => _renameObjectMember(
+                              context,
+                              c,
+                              item,
+                              kind: _ObjectRenameKind.schemaDefinition,
+                            ),
+                          )
+                        : null,
+                  ),
                 if (item['componentFamily'] is String &&
                     item['componentDefinition'] == true &&
                     !(item['references'] as List).any(
@@ -1534,7 +1548,7 @@ Future<void> _addObjectExtension(
   );
 }
 
-enum _ObjectRenameKind { component, property, responseStatus }
+enum _ObjectRenameKind { component, property, responseStatus, schemaDefinition }
 
 String _responseStatusNameFailure(
   BuildContext context,
@@ -1561,6 +1575,9 @@ Future<void> _renameObjectMember(
     _ObjectRenameKind.responseStatus => MemberNamePolicy.fromJson(
       item['responseStatusNamePolicy'],
     ),
+    _ObjectRenameKind.schemaDefinition => MemberNamePolicy.fromJson(
+      item['schemaDefinitionNamePolicy'],
+    ),
   };
   RefactoringPlan? plan;
   final name = (item['pointer'] as String)
@@ -1574,6 +1591,7 @@ Future<void> _renameObjectMember(
       _ObjectRenameKind.property => l.renameProperty,
       _ObjectRenameKind.component => l.renameComponent,
       _ObjectRenameKind.responseStatus => l.renameResponseStatus,
+      _ObjectRenameKind.schemaDefinition => l.renameSchemaDefinition,
     },
     [
       FormFieldSpec(
@@ -1588,6 +1606,7 @@ Future<void> _renameObjectMember(
       _ObjectRenameKind.property => 'object.renameProperty',
       _ObjectRenameKind.component => 'object.rename',
       _ObjectRenameKind.responseStatus => 'object.renameResponse',
+      _ObjectRenameKind.schemaDefinition => 'object.renameSchemaDefinition',
     },
     waitForDismissal: true,
     validate: (value) => namePolicy == null || namePolicy.allows(value['name'])
@@ -1614,6 +1633,8 @@ Future<void> _renameObjectMember(
             target,
             value['name'],
           ),
+          _ObjectRenameKind.schemaDefinition =>
+            owner.planSchemaDefinitionRename(target, value['name']),
           _ObjectRenameKind.responseStatus => owner.planResponseRename(
             target,
             value['name'],

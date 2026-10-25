@@ -14,7 +14,7 @@ import {restrictedSchemaIssues} from './restricted_schema';
 import {securityRequirementIssues,securityRequirementValueRule} from './security_requirements';
 import {formMediaIssues} from './form_semantics';
 import {mediaTypeIssues} from './media_validation';
-import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy} from './member_names';
+import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
 const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions };
@@ -60,7 +60,7 @@ export function createGraph(input: any) {
     const declaration = specificationDeclaration(root.root.value);
     if (declaration.status !== 'supported') throw new SourceError(declaration.code, declaration.message, root.dataNode(declaration.pointer)?.range);
     const family = declaration.specification.family;
-    return {docs, family, graph: new ReferenceGraph(docs, input.root, family, new Map(input.resources.map((r: Resource) => [r.id, r.aliases ?? []])), input.occurrences)};
+    return {docs, family, graph: ReferenceGraph.capture(docs, input.root, family, new Map(input.resources.map((r: Resource) => [r.id, r.aliases ?? []])), input.occurrences)};
 }
 export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
     const started = performance.now();
@@ -120,7 +120,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
                 diagnostic(rootResource, 'openapi', 'structure.' + e.keyword, e.message ?? 'Structural violation', e.instancePath);
     }
     const validatedAt = performance.now();
-    const graph = context?.graph??new ReferenceGraph(docs, input.root, family, new Map(input.resources.map((r: Resource) => [r.id, r.aliases ?? []])));
+    const graph = context?.graph??ReferenceGraph.capture(docs, input.root, family, new Map(input.resources.map((r: Resource) => [r.id, r.aliases ?? []])));
     for (const issue of graph.issues) {
         if (issue.incomplete) complete = false;
         diagnostic(input.resources.find((r: Resource) => r.id === issue.resource), 'openapi', issue.code, issue.message, issue.pointer, undefined, issue.severity??(issue.code === 'dialect.unsupported' ? 'warning' : 'error'));
@@ -366,6 +366,7 @@ export function inspect(input: any) {
     const componentDestinations=componentFamily(scope.kind,family)?[...docs.values()].filter(candidate=>graph.specifications.get(candidate.id)?.family===family&&candidate.syntaxSafe('')&&!candidate.root.shared).map(candidate=>candidate.id):[];
     const memberPolicy=collectionMemberNamePolicy(graph,scope),componentPolicy=componentFamily(scope.kind,family)?componentNamePolicy(family):undefined;
     const componentDefinition=!!componentPolicy&&graph.specifications.has(doc.id)&&reusableDefinitionPointer(node.pointer,family);
+    const schemaDefinitionPolicy=schemaDefinitionNamePolicy(graph,scope);
     let operationContext:any;
     if(scope.kind==='operation'){
         let at=node.pointer;
@@ -386,6 +387,7 @@ export function inspect(input: any) {
         ...(memberPolicy?{memberNamePolicy:memberPolicy}:{}),
         ...(componentPolicy?{componentNamePolicy:componentPolicy}:{}),
         componentDefinition,
+        ...(schemaDefinitionPolicy?{schemaDefinitionNamePolicy:schemaDefinitionPolicy}:{}),
         ...(scope.kind==='response'&&parentScope?.kind==='response-map'?{responseStatusNamePolicy:responseStatusNamePolicy(family)}:{}),
         value: Object.fromEntries(fields.filter(f => f.present && Object.hasOwn(f, 'value')).map(f => [f.name, f.value])),
         boolean: scope.kind==='schema'&&typeof node.value === 'boolean' ? node.value : undefined,

@@ -144,6 +144,7 @@
   "caseSensitive": "Case sensitive",
   "reviewReplacement": "Review replacement",
   "renameComponent": "Rename component",
+  "renameSchemaDefinition": "Rename schema definition",
   "reviewRefactoring": "Review refactoring",
   "extractComponent": "Extract to component…",
   "moveComponentDefinition": "Move definition…",

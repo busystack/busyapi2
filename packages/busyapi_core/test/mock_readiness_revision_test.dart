@@ -9,6 +9,7 @@ import 'test_support.dart';
 void main() {
   for (final mutation in [
     'schema-version',
+    'schema-previous',
     'response-version',
     'response-configuration',
     'parameter-version',
@@ -45,7 +46,7 @@ void main() {
       addTearDown(plan.close);
       final schema = <String, String>{
         'name': 'hyperjump+busyapi-exact',
-        'version': '1.18.0+15',
+        'version': '1.18.0+16',
         'configuration': 'fixture-runtime',
       };
       final response = <String, String>{
@@ -76,6 +77,8 @@ void main() {
       switch (mutation) {
         case 'schema-version':
           schema['version'] = 'obsolete';
+        case 'schema-previous':
+          schema['version'] = '1.18.0+15';
         case 'response-version':
           response['version'] = '2';
         case 'response-configuration':
