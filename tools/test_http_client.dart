@@ -81,26 +81,47 @@ Future<void> exercise() async {
   final multiline = version.startsWith('3.2.');
   final cookies = Platform.environment['BUSYAPI_NATIVE_HTTP_COOKIES'] == '1';
   final openId = Platform.environment['BUSYAPI_NATIVE_HTTP_OPENID'] == '1';
+  final credentialMode =
+      Platform.environment['BUSYAPI_NATIVE_CREDENTIAL_MODE'] ?? 'normal';
+  check(
+    const ['normal', 'basic-empty', 'key-empty'].contains(credentialMode),
+    'credential-mode',
+  );
+  final basic = credentialMode == 'basic-empty';
+  final emptyCredential = credentialMode != 'normal';
+  final credential = emptyCredential ? '' : 'fixture-token';
   final binding =
       Platform.environment['BUSYAPI_NATIVE_HTTP_BINDING'] ?? 'named';
   check(const ['named', 'prototype', 'uri'].contains(binding), 'binding-mode');
   check(binding != 'uri' || version.startsWith('3.2.'), 'binding-family');
   check(!openId || binding == 'named', 'binding-authentication');
   check(!cookies || !swagger && !openId && binding == 'named', 'cookie-family');
+  check(
+    !emptyCredential ||
+        !openId &&
+            !cookies &&
+            binding == 'named' &&
+            Platform.environment['BUSYAPI_HTTP_INSPECT_ONLY'] != '1',
+    'credential-mode-workflow',
+  );
   final schemeName = binding == 'prototype'
       ? '__proto__'
       : binding == 'uri'
       ? 'security.$format#/Alias'
       : 'access';
-  final apiKey = swagger || binding != 'named';
+  final apiKey =
+      !basic &&
+      (swagger || binding != 'named' || credentialMode == 'key-empty');
   check(!swagger || !openId, 'openid-family');
-  final secretField = apiKey
+  final secretField = basic
+      ? 'passwordRef'
+      : apiKey
       ? 'secretRef'
       : openId
       ? 'accessTokenRef'
       : 'tokenRef';
   final evidencePrefix =
-      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}${binding == 'named' ? '' : '-$binding'}${cookies ? '-cookies' : ''}';
+      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}${binding == 'named' ? '' : '-$binding'}${cookies ? '-cookies' : ''}${emptyCredential ? '-$credentialMode' : ''}';
   final directory =
       Platform.environment['BUSYAPI_FILE_CONTROLS_DIRECTORY'] ?? '';
   check(
@@ -143,10 +164,13 @@ Future<void> exercise() async {
       );
     }
     check(
-      apiKey
-          ? request.headers.value('x-fixture-key') == 'fixture-token' &&
+      basic
+          ? request.headers.value('authorization') == 'Basic dXNlcjo=' &&
+                request.headers.value('x-fixture-key') == null
+          : apiKey
+          ? request.headers.value('x-fixture-key') == credential &&
                 request.headers.value('authorization') == null
-          : request.headers.value('authorization') == 'Bearer fixture-token',
+          : request.headers.value('authorization') == 'Bearer $credential',
       'session-auth-wire',
     );
     check(
@@ -181,7 +205,11 @@ Future<void> exercise() async {
   });
   final project = Directory('$directory/project')..createSync();
   final file = File('${project.path}/api.$format');
-  final declaration = apiKey
+  final declaration = basic
+      ? swagger
+            ? {'type': 'basic'}
+            : {'type': 'http', 'scheme': 'basic'}
+      : apiKey
       ? {'type': 'apiKey', 'in': 'header', 'name': 'X-Fixture-Key'}
       : openId
       ? {'type': 'openIdConnect', 'openIdConnectUrl': discoveryUrl}
@@ -607,6 +635,28 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
   await send({'kind': 'menu-ready'});
   await keys(['Home', 'Return']);
   await row('Set up environment and authentication…');
+  if (basic) {
+    await click(
+      (widget) =>
+          widget is BusyApiGroupedTextEntry && widget.label == 'Basic username',
+      'basic-username',
+      editable: true,
+    );
+    await keys(['u', 's', 'e', 'r']);
+    await waitFor(
+      () =>
+          elements(
+            (widget) =>
+                widget is BusyApiGroupedTextEntry &&
+                widget.label == 'Basic username',
+          ).any(
+            (element) =>
+                (element.widget as BusyApiGroupedTextEntry).controller?.text ==
+                'user',
+          ),
+      'basic-username-value',
+    );
+  }
   await dialogButton('Review configuration changes');
   await dialogButton('Apply');
   await waitFor(
@@ -626,21 +676,22 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
     'credential',
     editable: true,
   );
-  await keys([
-    'f',
-    'i',
-    'x',
-    't',
-    'u',
-    'r',
-    'e',
-    'minus',
-    't',
-    'o',
-    'k',
-    'e',
-    'n',
-  ]);
+  if (!emptyCredential)
+    await keys([
+      'f',
+      'i',
+      'x',
+      't',
+      'u',
+      'r',
+      'e',
+      'minus',
+      't',
+      'o',
+      'k',
+      'e',
+      'n',
+    ]);
   await waitFor(() {
     final entry =
         elements(
@@ -648,7 +699,7 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
                   w is BusyApiGroupedTextEntry && w.label == 'Credential value',
             ).single.widget
             as BusyApiGroupedTextEntry;
-    return entry.controller?.text == 'fixture-token' &&
+    return entry.controller?.text == credential &&
         entry.controller?.value.composing.isValid == false;
   }, 'credential-visible-value');
   await row('Use for this session');
@@ -661,7 +712,7 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
     'credential-session-submitted',
   );
   check(
-    await run.secrets.read(tokenReference) == 'fixture-token',
+    await run.secrets.read(tokenReference) == credential,
     'credential-stored-value',
   );
   if (swagger) {
@@ -852,6 +903,9 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
   }
   stdout.writeln(
     'BUSYAPI_NATIVE_HTTP_HEADERS_PASS version=$version format=$format wire=separate-lines schema=exact-and-boolean retries=invalid-recovered source=unchanged',
+  );
+  stdout.writeln(
+    'BUSYAPI_NATIVE_CREDENTIAL_PASS version=$version format=$format mode=$credentialMode source=unchanged',
   );
   stdout.writeln(
     'BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format openId=$openId binding=$binding cookies=$cookies',

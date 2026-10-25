@@ -424,7 +424,12 @@ not establish compatibility.
 
 ## Execution tools
 
-The historical Prism **5.16.0** CLI result above remains a failed development probe. Production uses Prism core/http **5.15.11**, `@stoplight/http-spec` **7.1.0**, and the packaged Node **24.15.0** runtime through a fixed BusyAPI entry point. That version pairing satisfies Prism 5.15.11's declared Node floor; Prism 5.16.0 declares Node 24.18 or newer and is not shipped. The adapter supplies captured resolved operations to Prism's public `createInstance`/`transformOas3Operations` path instead of asking its filesystem loader to reinterpret the derived document. A narrow CST overlay preserves literal example `$ref` data and numeric lexemes. Real loopback qualification covers rich 3.1/3.2 examples, exact integers beyond JavaScript's safe range, actual readiness/port, invalid-request diagnostics, stale snapshots, cancellation, descendant cleanup, proof that ordinary mock mode does not contact a controlled upstream, and a separately selected Prism validation-proxy run that does. This qualifies local stateless example mocking, explicit proxy conformance, and Prism-produced request/response findings; it does not claim exhaustive JSON Schema support, stateful behavior, or complete dynamic-reference semantics.
+Production mocks use Prism core/http **5.15.11**, `@stoplight/http-spec`
+**7.1.0** and Node **24.15.0** through a fixed packaged entry point. The adapter
+supplies captured operations through Prism's public APIs and preserves authored
+example bytes through a CST overlay. Ordinary mock mode binds loopback and never
+forwards upstream. Validation proxying is a separate explicit action. Complete
+stateful behavior and exhaustive dynamic-reference support are not claimed.
 
 oasdiff **1.33.0** is a checksum-verified Linux amd64 executable. It receives
 separately coherent captured revisions and classifies compatibility while retaining
@@ -433,6 +438,23 @@ unclassified where the pinned tool cannot prove coverage. An empty result with
 incomplete loading is not compatibility proof.
 
 Dart **3.13.4** normalizes HTTP method capitalization internally. BusyAPI's dedicated connection adapter preserves OAS 3.2 additional-operation tokens on the wire, including lowercase/mixed-case methods, without changing URI, header or body bytes. It retains native TLS trust, hostname and client-certificate checks and owns cancellation during the handshake. Exact HTTP method identity remains case-sensitive.
+
+Request credential rules are shared by desktop and CLI. Basic credentials use
+UTF-8 as entered, preserve password colons, and reject ASCII control characters
+before Base64 encoding. Bearer, OAuth and manual OpenID tokens must fit the
+[RFC 6750 field grammar](https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1).
+An explicitly supplied empty Basic password or API key retains its value; a
+missing credential remains unavailable. Other credential kinds apply their own
+rules. Invalid values fail before network dispatch, and previews acquire no
+credentials.
+
+The native editor permits explicit empty submission only for the selected
+consumer rules. Default secret-store writes still require a nonempty value;
+allowed empty values remain distinct from missing entries through session
+storage and the persistent bridge. Scoped UUID keys, the 64 KiB UTF-8 limit,
+NUL/scalar checks, stale-write ownership and private credential handling remain
+enforced. Empty values do not become text-replacement patterns when diagnostics
+are redacted, preserving source links.
 
 HTTP TRACE refuses nonempty content, authorization, cookies and configured HTTP credentials before connecting; it does not silently remove them. Preview and Send retain the entered draft for correction. Mutual TLS remains available because it adds no HTTP credential field. A custom lowercase `trace` remains a different method. These rules follow [RFC 9110 §§9.1,9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html); they apply in the shared desktop/CLI request path. See the [support matrix](implementation/native-openapi-support.md) for coverage and verification status.
 

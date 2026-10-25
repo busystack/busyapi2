@@ -5,6 +5,7 @@ export 'src/storage.dart';
 export 'src/engine_process.dart';
 export 'src/project.dart';
 export 'src/request.dart';
+export 'src/credential_values.dart';
 export 'src/request_form_values.dart';
 export 'src/form_media_types.dart';
 export 'src/multipart_encoding.dart';

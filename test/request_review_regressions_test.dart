@@ -3717,9 +3717,13 @@ class _GateSecretStore extends SessionBusyApiSecretStore
   }
 
   @override
-  Future<void> write(String reference, String value) async {
+  Future<void> write(
+    String reference,
+    String value, {
+    bool allowEmpty = false,
+  }) async {
     writes++;
-    await super.write(reference, value);
+    await super.write(reference, value, allowEmpty: allowEmpty);
   }
 }
 

@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 
 import 'model.dart';
 import 'content_selection.dart';
+import 'credential_values.dart';
 import 'swagger_serialization.dart';
 import 'form_serialization.dart';
 import 'form_media_types.dart';
@@ -644,6 +645,7 @@ class ContractRequestBuilder {
           cookieOwners,
           sensitiveHeaders,
           sensitiveQuery,
+          previewOnly: previewOnly,
         );
       }
     } else if (requirements.isNotEmpty && security['anonymous'] != true) {
@@ -1299,9 +1301,13 @@ class ContractRequestBuilder {
     List<(String, String)> cookies,
     Set<String> cookieOwners,
     Set<String> sensitiveHeaders,
-    Set<String> sensitiveQuery,
-  ) async {
-    Future<String> secret(String key) async {
+    Set<String> sensitiveQuery, {
+    required bool previewOnly,
+  }) async {
+    Future<String> secret(
+      String key, {
+      CredentialValuePolicy policy = CredentialValuePolicy.opaque,
+    }) async {
       final reference = configuration[key] ?? configuration['secretRef'];
       if (reference is! String || !_secretReference.hasMatch(reference)) {
         throw CoreFailure(
@@ -1310,16 +1316,21 @@ class ContractRequestBuilder {
         );
       }
       final value = await resolver(reference);
-      if (value == null || value.isEmpty) {
+      if (value == null) {
         throw CoreFailure(
           'secret.unavailable',
           'The selected $schemeName secret is unavailable; choose session-only input or unlock Secret Service',
         );
       }
-      if (value.length > 64 * 1024 || value.contains('\u0000')) {
+      // Preview uses a synthetic marker, without acquiring credential bytes.
+      if (!previewOnly && !policy.accepts(value)) {
         throw CoreFailure(
           'secret.value',
-          'A resolved secret is invalid or too large',
+          policy == CredentialValuePolicy.basicPassword
+              ? 'The Basic password contains an invalid character or exceeds the credential byte limit'
+              : policy == CredentialValuePolicy.bearerToken
+              ? 'The credential cannot be represented as a Bearer token or exceeds the credential byte limit'
+              : 'A resolved secret is invalid or too large',
         );
       }
       return value;
@@ -1327,7 +1338,10 @@ class ContractRequestBuilder {
 
     final type = declaration['type'];
     if (type == 'apiKey') {
-      final value = await secret('secretRef'),
+      final value = await secret(
+            'secretRef',
+            policy: CredentialValuePolicy.apiKey,
+          ),
           name = declaration['parameterName'];
       if (name is! String || name.isEmpty) {
         throw CoreFailure(
@@ -1411,22 +1425,22 @@ class ContractRequestBuilder {
       _addHeader(
         headers,
         'Authorization',
-        'Bearer ${await secret('tokenRef')}',
+        'Bearer ${await secret('tokenRef', policy: CredentialValuePolicy.bearerToken)}',
       );
       return;
     }
     if (type == 'http' && '${declaration['scheme']}'.toLowerCase() == 'basic') {
       final username = configuration['username'];
-      if (username is! String ||
-          username.contains(':') ||
-          RegExp(r'[\x00-\x1f\x7f]').hasMatch(username)) {
+      if (username is! String || !validBasicUsername(username)) {
         throw CoreFailure(
           'request.security.configuration',
-          'Basic authentication requires a username without a colon',
+          'Basic authentication requires a bounded username without a colon or control characters',
         );
       }
       final encoded = base64.encode(
-        utf8.encode('$username:${await secret('passwordRef')}'),
+        utf8.encode(
+          '$username:${await secret('passwordRef', policy: CredentialValuePolicy.basicPassword)}',
+        ),
       );
       if (headers.any((entry) => entry.$1.toLowerCase() == 'authorization')) {
         throw CoreFailure(
@@ -1447,7 +1461,7 @@ class ContractRequestBuilder {
       _addHeader(
         headers,
         'Authorization',
-        'Bearer ${await secret('accessTokenRef')}',
+        'Bearer ${await secret('accessTokenRef', policy: CredentialValuePolicy.bearerToken)}',
       );
       return;
     }
@@ -3542,8 +3556,9 @@ class ContractRequestExecutor {
     Set<String> secrets,
   ) {
     if (secrets.isEmpty) return value;
-    final ordered = secrets.toList()
+    final ordered = secrets.where((secret) => secret.isNotEmpty).toList()
       ..sort((a, b) => b.length.compareTo(a.length));
+    if (ordered.isEmpty) return value;
     Object? redact(Object? input) {
       if (input is String) {
         for (final secret in ordered) {

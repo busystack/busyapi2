@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:busyapi_core/busyapi_core.dart'
-    show contentIdentity, RunCancellation;
+    show contentIdentity, RunCancellation, credentialValueFitsStorage;
 import 'package:flutter/services.dart';
 
 enum SecretPersistence { persistent, sessionOnly }
@@ -15,7 +15,7 @@ class SecretStoreFailure implements Exception {
 
 abstract interface class BusyApiSecretStore {
   Future<String?> read(String reference);
-  Future<void> write(String reference, String value);
+  Future<void> write(String reference, String value, {bool allowEmpty = false});
   Future<void> delete(String reference);
 }
 
@@ -33,10 +33,8 @@ class LibsecretBusyApiSecretStore
   static final _reference = RegExp(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
   );
-  static bool validValue(String value) =>
-      value.isNotEmpty &&
-      utf8.encode(value).length <= 64 * 1024 &&
-      !value.contains('\u0000');
+  static bool validValue(String value, {bool allowEmpty = false}) =>
+      credentialValueFitsStorage(value, allowEmpty: allowEmpty);
   static String key(String reference) {
     if (!_reference.hasMatch(reference)) {
       throw const SecretStoreFailure(
@@ -72,13 +70,10 @@ class LibsecretBusyApiSecretStore
       final result = await channel.invokeMethod<String>('read', {
         'key': key(reference),
       });
-      if (result != null &&
-          (result.isEmpty ||
-              utf8.encode(result).length > 64 * 1024 ||
-              result.contains('\u0000'))) {
+      if (result != null && !validValue(result, allowEmpty: true)) {
         throw const SecretStoreFailure(
           'secret.value',
-          'Stored credential is empty or too large',
+          'Stored credential is invalid or too large',
         );
       }
       return result;
@@ -98,19 +93,22 @@ class LibsecretBusyApiSecretStore
   }
 
   @override
-  Future<void> write(String reference, String value) async {
-    if (value.isEmpty ||
-        utf8.encode(value).length > 64 * 1024 ||
-        value.contains('\u0000')) {
+  Future<void> write(
+    String reference,
+    String value, {
+    bool allowEmpty = false,
+  }) async {
+    if (!validValue(value, allowEmpty: allowEmpty)) {
       throw const SecretStoreFailure(
         'secret.value',
-        'Credential is empty or too large',
+        'Credential is invalid or too large',
       );
     }
     try {
       await channel.invokeMethod<void>('write', {
         'key': key(reference),
         'value': value,
+        'allowEmpty': allowEmpty,
       });
     } on PlatformException catch (error) {
       throw SecretStoreFailure(
@@ -148,14 +146,19 @@ class SessionBusyApiSecretStore implements BusyApiSecretStore {
   @override
   Future<String?> read(String reference) async => _values[reference];
   @override
-  Future<void> write(String reference, String value) async {
+  Future<void> write(
+    String reference,
+    String value, {
+    bool allowEmpty = false,
+  }) async {
     LibsecretBusyApiSecretStore.key(reference);
-    if (value.isEmpty ||
-        utf8.encode(value).length > 64 * 1024 ||
-        value.contains('\u0000')) {
+    if (!LibsecretBusyApiSecretStore.validValue(
+      value,
+      allowEmpty: allowEmpty,
+    )) {
       throw const SecretStoreFailure(
         'secret.value',
-        'Credential is empty or too large',
+        'Credential is invalid or too large',
       );
     }
     _values[reference] = value;
@@ -300,14 +303,16 @@ class EnvironmentSecretStore {
     String reference,
     String value, {
     required SecretPersistence persistence,
+    bool allowEmpty = false,
   }) async {
     LibsecretBusyApiSecretStore.key(reference);
-    if (value.isEmpty ||
-        utf8.encode(value).length > 64 * 1024 ||
-        value.contains('\u0000')) {
+    if (!LibsecretBusyApiSecretStore.validValue(
+      value,
+      allowEmpty: allowEmpty,
+    )) {
       throw const SecretStoreFailure(
         'secret.value',
-        'Enter a non-empty credential of at most 64 KiB, without NUL characters.',
+        'Use a valid credential of at most 64 KiB, without NUL characters.',
       );
     }
     final epoch = _epoch, version = (_versions[reference] ?? 0) + 1;
@@ -322,7 +327,7 @@ class EnvironmentSecretStore {
           'Credential ownership changed; enter the value again deliberately.',
         );
       }
-      await store.write(reference, value);
+      await store.write(reference, value, allowEmpty: allowEmpty);
       if (epoch != _epoch || version != _versions[reference]) return;
       _oauth.remove((reference, persistence));
       _locations[reference] = persistence;

@@ -96,6 +96,106 @@ void main() {
       if (call.method != 'write') expect(arguments.containsKey('value'), false);
     }
   });
+  test('explicit empty credentials retain presence while default storage stays non-empty', () async {
+    final store = EnvironmentSecretStore(
+      persistent: SessionBusyApiSecretStore(),
+    );
+    await expectLater(
+      store.write(reference, '', persistence: SecretPersistence.sessionOnly),
+      throwsA(isA<SecretStoreFailure>()),
+    );
+    expect(store.status(reference), null);
+    await store.write(
+      reference,
+      '',
+      persistence: SecretPersistence.sessionOnly,
+      allowEmpty: true,
+    );
+    expect(store.status(reference), SecretPersistence.sessionOnly);
+    expect(store.availability(reference), SecretAvailability.session);
+    expect(await store.read(reference), '');
+    await store.clearOverride(reference);
+    expect(await store.read(reference), null);
+    expect(store.availability(reference), SecretAvailability.missing);
+  });
+
+  test('persistent empty permission is explicit and metadata does not read its value', () async {
+    String? stored;
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          if (call.method == 'write') {
+            expect((call.arguments as Map)['allowEmpty'], true);
+            stored = (call.arguments as Map)['value'] as String;
+          }
+          if (call.method == 'read') return stored;
+          if (call.method == 'availability') {
+            return stored == null ? 'missing' : 'persistent';
+          }
+          if (call.method == 'delete') stored = null;
+          return null;
+        });
+    final store = LibsecretBusyApiSecretStore(channel: channel);
+    await expectLater(
+      store.write(reference, ''),
+      throwsA(isA<SecretStoreFailure>()),
+    );
+    expect(calls, isEmpty);
+    await store.write(reference, '', allowEmpty: true);
+    expect(await store.availability(reference), SecretAvailability.persistent);
+    expect(calls.map((call) => call.method), ['write', 'availability']);
+    expect(await store.read(reference), '');
+    await store.delete(reference);
+    expect(await store.read(reference), null);
+    for (final call in calls) {
+      expect(
+        (call.arguments as Map)['key'],
+        'busyapi.request.secret.$reference',
+      );
+      if (call.method != 'write') {
+        expect((call.arguments as Map).containsKey('value'), false);
+      }
+    }
+  });
+
+  test(
+    'empty permission retains UTF-8 byte, NUL and scalar-integrity bounds',
+    () async {
+      final store = EnvironmentSecretStore(
+        persistent: SessionBusyApiSecretStore(),
+      );
+      await store.write(
+        reference,
+        'retained',
+        persistence: SecretPersistence.sessionOnly,
+      );
+      for (final allowEmpty in [false, true]) {
+        for (final value in [
+          '雪' * 21846,
+          '\u0000',
+          String.fromCharCode(0xd800),
+        ]) {
+          await expectLater(
+            store.write(
+              reference,
+              value,
+              persistence: SecretPersistence.sessionOnly,
+              allowEmpty: allowEmpty,
+            ),
+            throwsA(
+              isA<SecretStoreFailure>().having(
+                (error) => error.code,
+                'code',
+                'secret.value',
+              ),
+            ),
+          );
+          expect(await store.read(reference), 'retained');
+        }
+      }
+    },
+  );
   test('H18 metadata-only availability discovers a stored credential without reading it', () async {
     final calls = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

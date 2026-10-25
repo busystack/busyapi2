@@ -1063,7 +1063,7 @@
   "secretStatusLocked": "Credential storage is locked or inaccessible.",
   "secretClearOverride": "Clear session override",
   "secretDeletePersistent": "Delete stored credential",
-  "secretInvalid": "Enter a non-empty credential of at most 64 KiB without NUL characters.",
+  "secretInvalid": "Use a credential accepted by the selected authentication scheme, at most 64 KiB and without NUL characters.",
   "secretExpiryUnknown": "Expiry unknown",
   "secretExpired": "Expired — authorize again before Send",
   "secretTlsPassword": "TLS private-key password",

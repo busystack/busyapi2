@@ -3,6 +3,7 @@
 #include "secret_store_host.h"
 
 #include "secret_key_policy.h"
+#include "secret_value_policy.h"
 
 #include <libsecret/secret.h>
 
@@ -11,7 +12,6 @@
 namespace {
 
 constexpr char kChannelName[] = "com.busyapi.app/secure_credentials";
-constexpr gsize kMaximumSecretBytes = 64 * 1024;
 
 struct SecretRequest {
   FlMethodCall* method_call;
@@ -166,9 +166,14 @@ void method_call(FlMethodChannel*, FlMethodCall* call, gpointer) {
   }
   if (std::strcmp(method, "write") == 0) {
     const gchar* secret = map_string(args, "value");
-    if (secret == nullptr || secret[0] == '\0' ||
-        std::strlen(secret) > kMaximumSecretBytes) {
-      invalid(call, "Credential value is empty or too large.");
+    FlValue* empty = fl_value_lookup_string(args, "allowEmpty");
+    if (empty != nullptr && fl_value_get_type(empty) != FL_VALUE_TYPE_BOOL) {
+      invalid(call, "Credential empty-value permission must be a boolean.");
+      return;
+    }
+    const bool allow_empty = empty != nullptr && fl_value_get_bool(empty);
+    if (!busyapi_secrets::is_allowed_value(secret, allow_empty)) {
+      invalid(call, "Credential value is invalid or too large.");
       return;
     }
     auto* request = request_new(call, key, secret);

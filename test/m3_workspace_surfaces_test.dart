@@ -848,7 +848,11 @@ class _DelayedSecretStore implements BusyApiSecretStore {
   final completed = Completer<void>();
   int writes = 0;
   @override
-  Future<void> write(String reference, String value) {
+  Future<void> write(
+    String reference,
+    String value, {
+    bool allowEmpty = false,
+  }) {
     writes++;
     return completed.future;
   }

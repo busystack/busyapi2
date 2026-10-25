@@ -972,13 +972,19 @@ class RequestRunController extends ChangeNotifier {
   Future<void> writeSecret(
     String reference,
     String value,
-    SecretPersistence persistence,
-  ) async {
+    SecretPersistence persistence, {
+    bool allowEmpty = false,
+  }) async {
     final scope = (owner, plan, environment);
     _credentialWrites[scope] = (_credentialWrites[scope] ?? 0) + 1;
     _notify();
     try {
-      await secrets.write(reference, value, persistence: persistence);
+      await secrets.write(
+        reference,
+        value,
+        persistence: persistence,
+        allowEmpty: allowEmpty,
+      );
     } finally {
       final remaining = (_credentialWrites[scope] ?? 1) - 1;
       if (remaining == 0) {
@@ -2304,15 +2310,16 @@ class RequestRunPanel extends StatelessWidget {
                       message: l.requestSelectionUnavailable,
                       kind: BusyApiStatusKind.warning,
                     ),
-                  for (final reference in _secretReferences(run))
+                  for (final credential in _secretPolicies(run).entries)
                     RequestSecretInput(
                       key: ValueKey(
-                        '${plan.identity}/${run.environment}/$reference',
+                        '${plan.identity}/${run.environment}/${credential.key}',
                       ),
                       run: run,
-                      reference: reference,
-                      role: _secretRole(run, reference, context),
-                      tokenCredential: _isTokenReference(run, reference),
+                      reference: credential.key,
+                      role: _secretRole(run, credential.key, context),
+                      tokenCredential: _isTokenReference(run, credential.key),
+                      valuePolicies: List.unmodifiable(credential.value),
                     ),
                   BusyApiDisclosure(
                     title: Text(l.requestTls),
@@ -2792,9 +2799,11 @@ class RequestRunPanel extends StatelessWidget {
     return l.authentication;
   }
 
-  static List<String> _secretReferences(RequestRunController run) {
+  static Map<String, Set<CredentialValuePolicy>> _secretPolicies(
+    RequestRunController run,
+  ) {
     final plan = run.plan!, alternative = run.securityAlternative;
-    if (run.environment == null) return const [];
+    if (run.environment == null) return const {};
     final effectiveTls = ContractRequestBuilder.effectiveTls(
       plan.configuration.environments[run.environment],
       run.tlsFiles,
@@ -2806,14 +2815,18 @@ class RequestRunPanel extends StatelessWidget {
         (alternative < 0 ||
             alternative >=
                 (plan.result['security']['requirements'] as List).length)) {
-      return tlsPassword is String ? [tlsPassword] : const [];
+      return tlsPassword is String
+          ? {
+              tlsPassword: {CredentialValuePolicy.opaque},
+            }
+          : const {};
     }
     final environment = plan.configuration.environments[run.environment];
     final configured = environment?.authentication['schemes'];
     final requirement = alternative == null
         ? const {'schemes': <String>[]}
         : (plan.result['security']['requirements'] as List)[alternative] as Map;
-    final output = <String>{};
+    final output = <String, Set<CredentialValuePolicy>>{};
     if (configured is Map) {
       for (final name in (requirement['schemes'] as List).whereType<String>()) {
         final scheme = configured[name];
@@ -2825,13 +2838,21 @@ class RequestRunPanel extends StatelessWidget {
           }
           if (entry.key.toString().toLowerCase().endsWith('ref') &&
               entry.value is String) {
-            output.add(entry.value as String);
+            output
+                .putIfAbsent(entry.value as String, () => {})
+                .add(
+                  CredentialValuePolicy.forReferenceField(entry.key.toString()),
+                );
           }
         }
       }
     }
-    if (tlsPassword is String) output.add(tlsPassword);
-    return output.toList();
+    if (tlsPassword is String) {
+      output
+          .putIfAbsent(tlsPassword, () => {})
+          .add(CredentialValuePolicy.opaque);
+    }
+    return output;
   }
 
   static List<(String, bool, bool)> _oauthSchemes(RequestRunController run) {
@@ -3251,8 +3272,10 @@ class RequestSecretInput extends StatefulWidget {
     required this.reference,
     this.role,
     this.tokenCredential = false,
+    this.valuePolicies = const [CredentialValuePolicy.opaque],
   });
   final bool tokenCredential;
+  final List<CredentialValuePolicy> valuePolicies;
   final RequestRunController run;
   final String reference;
   final String? role;
@@ -3333,9 +3356,24 @@ class _SecretInputRowState extends State<RequestSecretInput> {
     final owner = run.owner, plan = run.plan, environment = run.environment;
     final epoch = run._epoch, revision = _revision, submission = ++_submission;
     final value = controller.text;
+    final policies = List<CredentialValuePolicy>.unmodifiable(
+      widget.valuePolicies,
+    );
     setState(() => busy = true);
     try {
-      await run.writeSecret(reference, value, persistence);
+      if (policies.isEmpty ||
+          !policies.every((policy) => policy.accepts(value))) {
+        throw const SecretStoreFailure(
+          'secret.value',
+          'The credential does not satisfy the selected authentication policy',
+        );
+      }
+      await run.writeSecret(
+        reference,
+        value,
+        persistence,
+        allowEmpty: policies.every((policy) => policy.allowsEmpty),
+      );
       if (mounted &&
           submission == _submission &&
           revision == _revision &&
@@ -3365,7 +3403,9 @@ class _SecretInputRowState extends State<RequestSecretInput> {
   Widget build(BuildContext context) {
     final status = widget.run.secrets.status(widget.reference);
     final metadata = widget.run.secrets.metadata(widget.reference);
-    final validInput = LibsecretBusyApiSecretStore.validValue(controller.text);
+    final validInput =
+        widget.valuePolicies.isNotEmpty &&
+        widget.valuePolicies.every((policy) => policy.accepts(controller.text));
     return BusyApiGroupedList(
       title: widget.role ?? context.l10n.authentication,
       description: widget.reference,

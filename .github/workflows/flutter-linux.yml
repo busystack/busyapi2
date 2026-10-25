@@ -55,5 +55,5 @@ jobs:
       - name: Verify kernel capabilities, unsupported refusal and restricted execution
         # Unsupported hosts prove refusal then fail explicitly with exit 2.
         run: python3 tools/test_policy_isolation.py --capability-aware
-      - run: python3 -m unittest tools.test_contract_assets tools.test_package_linux tools.test_m3_assets tools.test_generator tools.test_build_toolchain tools.test_publication_sync tools.test_policy_isolation_assets tools.test_policy_provision tools.test_native_sources tools.test_exec_fixture tools.test_snap_extension_notices tools.test_snap_package tools.test_native_focus tools.test_widget_runner
+      - run: python3 -m unittest tools.test_contract_assets tools.test_package_linux tools.test_m3_assets tools.test_generator tools.test_build_toolchain tools.test_publication_sync tools.test_policy_isolation_assets tools.test_policy_provision tools.test_native_sources tools.test_secret_value_policy tools.test_exec_fixture tools.test_snap_extension_notices tools.test_snap_package tools.test_native_focus tools.test_widget_runner
       - run: python3 tools/test_flutter_engine.py
