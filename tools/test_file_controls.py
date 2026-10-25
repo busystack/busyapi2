@@ -353,6 +353,7 @@ def main():
     parser.add_argument('--mock-responses', action='store_true', help='Exercise native proxy controls and captured unsaved response validation')
     parser.add_argument('--mock-parameters', action='store_true', help='Exercise native mock controls and captured unsaved parameter validation')
     parser.add_argument('--mock-security', action='store_true', help='Exercise native mock controls and captured unsaved security validation')
+    parser.add_argument('--mock-samples', action='store_true', help='Exercise native mock controls and exact generated values from unsaved shared schemas')
     parser.add_argument('--nested-items', action='store_true', help='Use native Swagger nested Items in the selected mock workflow')
     parser.add_argument('--session', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -360,7 +361,7 @@ def main():
         parser.error('Nested Items require Swagger 2.0 and a mock workflow')
     if args.member_names and (args.openapi != '2.0' or args.security_maintenance != 'named'):
         parser.error('Member-name cases require Swagger 2.0 and named security maintenance')
-    if sum(bool(value) for value in [args.security_maintenance, args.security_selection, args.authoring, args.response_status, args.mock_responses, args.mock_parameters, args.mock_security]) > 1:
+    if sum(bool(value) for value in [args.security_maintenance, args.security_selection, args.authoring, args.response_status, args.mock_responses, args.mock_parameters, args.mock_security, args.mock_samples]) > 1:
         parser.error('Choose one native workflow per run')
     if (args.security_maintenance == 'uri' or args.security_selection == 'uri') and not args.openapi.startswith('3.2.'):
         parser.error('URI Security Requirements require OpenAPI 3.2')
@@ -379,6 +380,7 @@ def main():
                 *(['--mock-responses'] if args.mock_responses else []),
                 *(['--mock-parameters'] if args.mock_parameters else []),
                 *(['--mock-security'] if args.mock_security else []),
+                *(['--mock-samples'] if args.mock_samples else []),
                 *(['--nested-items'] if args.nested_items else []),
             ], env=private_session_environment(environment, runtime), timeout=900 if args.authoring else 210).returncode
     # Give GTK a valid private accessibility bus without modifying the desktop
@@ -409,6 +411,7 @@ def main():
                            BUSYAPI_FILE_CONTROLS_MOCK_RESPONSES='1' if args.mock_responses else '',
                            BUSYAPI_FILE_CONTROLS_MOCK_PARAMETERS='1' if args.mock_parameters else '',
                            BUSYAPI_FILE_CONTROLS_MOCK_SECURITY='1' if args.mock_security else '',
+                           BUSYAPI_FILE_CONTROLS_MOCK_SAMPLES='1' if args.mock_samples else '',
                            BUSYAPI_FILE_CONTROLS_NESTED_ITEMS='1' if args.nested_items else '',
                            XDG_CONFIG_HOME=f'{directory}/config', XDG_STATE_HOME=f'{directory}/state',
                            XDG_CACHE_HOME=f'{directory}/cache', LC_ALL='C.UTF-8')

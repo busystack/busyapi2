@@ -113,8 +113,25 @@ forge them. Security findings retain the captured source snapshot and ranges.
 Mock operations also use the canonical inventory and effective Path Item fields.
 Chained shared Path Items retain inherited parameters and exact operation examples;
 3.2 QUERY uses the actual QUERY method and native body/security rules. The pinned
-adapter's custom-method and generated-candidate limitations remain separately
+adapter's custom-method and nested-generation limitations remain separately
 tracked in the [support matrix](implementation/native-openapi-support.md).
+
+The native sample owner proves finite authored whole-value examples, defaults,
+enum values and modern const/examples values against the original captured
+schema before giving Prism a request-owned example view. Exact JSON body bytes
+retain source numeric tokens and literal payload keys. Static media examples
+keep priority; dynamic bodies choose proved constrained candidates. Status/media
+selection still follows the pinned Prism negotiator. Unspecified Swagger response
+media uses a JSON generator default without changing the document. Candidate/work
+limits and unsupported evaluation stay incomplete; this policy does not establish
+arbitrary nested schema generation. CLI readiness exposes `nativeGeneration`
+separately, and Core rejects an incompatible policy identity.
+
+This adapter was inspected against installed Prism **5.15.11** negotiator/mocker
+sources, http-spec **7.1.0** OAS2 response transformation, and the pinned MIT
+`@stoplight/json-schema-sampler` **0.3.0** traversal implementation. Its reference
+context and dynamic object cloning are not native semantic authorities. These
+packages, their locks and the packaged runtime remain unchanged.
 
 Mock parameter assertions also use the original captured schemas, with a separate
 `nativeParameterValidation` identity in `mock --json`. Query, path and cookie

@@ -106,6 +106,8 @@ Future<String> _run() async {
           Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_PARAMETERS'] == '1',
       mockSecurity =
           Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_SECURITY'] == '1',
+      mockSamples =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_SAMPLES'] == '1',
       headerCompositions =
           Platform.environment['BUSYAPI_NATIVE_HEADER_COMPOSITIONS'] == '1',
       nestedItems =
@@ -324,7 +326,32 @@ Future<String> _run() async {
           },
         })
       : '# retained shared security\r\nSecure: &secure\r\n  get:\r\n    summary: Captured 9007199254740992\r\n    security: [{Key: []}]\r\n    responses: {"204": {description: Empty}}\r\nPublic:\r\n  get:\r\n    security: [{}, {Key: []}]\r\n    responses: {"204": {description: Empty}}\r\n';
-  final mockSource = mockSecurity
+  final mockSampleSource =
+      '${json ? '' : '# retained native sample capture\r\n'}${jsonEncode({
+        declaration: version,
+        'info': {'title': 'Native sample capture 雪😀', 'version': '1'},
+        if (swagger) 'produces': ['application/json'],
+        'paths': {
+          '/data': {
+            'post': {
+              'responses': {
+                '200': {
+                  'description': 'Generated from the captured schema',
+                  if (swagger) 'schema': {r'$ref': 'model.$format#/Schema'} else 'content': {
+                      'application/json': {
+                        'schema': {r'$ref': 'model.$format#/Schema'},
+                      },
+                    },
+                },
+              },
+            },
+          },
+        },
+        'x-marker': 'EXACT',
+      }).replaceFirst('"EXACT"', '9007199254740992.00')}\r\n';
+  final mockSource = mockSamples
+      ? mockSampleSource
+      : mockSecurity
       ? mockSecurityRoot
       : mockParameters
       ? mockParameterSource
@@ -391,18 +418,22 @@ Future<String> _run() async {
       : nestedItems
       ? '# retained parameter\r\nSchema: &model\r\n  name: N\r\n  in: query\r\n  required: true\r\n  type: array\r\n  collectionFormat: csv\r\n  minItems: 2\r\n  maxItems: 2\r\n  items:\r\n    type: array\r\n    collectionFormat: pipes\r\n    minItems: 2\r\n    maxItems: 2\r\n    items: {type: integer, enum: [0, 9007199254740992.00]}\r\n'
       : '# retained parameter\r\nSchema: &model\r\n  name: N\r\n  in: query\r\n  required: true\r\n${swagger ? '  type: integer\r\n  enum: [9007199254740992.00]\r\n' : '  schema: {type: integer, enum: [9007199254740992.00]}\r\n'}';
-  final modelSource = mockSecurity
+  final modelSource = mockSamples
+      ? json
+            ? '{"Schema":{"type":"integer","default":9007199254740992.00}}'
+            : '# retained sample and numeric alias\r\nSchema: &model\r\n  type: integer\r\n  default: &number 9007199254740992.00\r\n  enum: [*number]\r\n'
+      : mockSecurity
       ? securityModel
       : mockParameters
       ? parameterModel
       : json
       ? '{"Schema":{"type":"integer","enum":[9007199254740992.00]}}'
       : '# retained model\r\nSchema: &model\r\n  type: integer\r\n  enum: [9007199254740992.00]\r\n';
-  if (mockResponses || mockParameters || mockSecurity) {
+  if (mockResponses || mockParameters || mockSecurity || mockSamples) {
     await modelFile.writeAsString(modelSource, flush: true);
   }
   final rootBytes = utf8.encode(
-        mockResponses || mockParameters || mockSecurity
+        mockResponses || mockParameters || mockSecurity || mockSamples
             ? '\ufeff$mockSource'
             : responseStatus
             ? '\ufeff$responseSource'
@@ -1458,7 +1489,7 @@ environments:
 
   WorkspaceScreenState? mockScreen;
   try {
-    if (mockResponses || mockParameters || mockSecurity) {
+    if (mockResponses || mockParameters || mockSecurity || mockSamples) {
       final screen =
           (_elements((w) => w is WorkspaceScreen).single as StatefulElement)
                   .state
@@ -1550,7 +1581,7 @@ environments:
         (w) =>
             w is BusyApiActionRow &&
             w.title ==
-                (mockParameters || mockSecurity
+                (mockParameters || mockSecurity || mockSamples
                     ? 'Start Mock'
                     : 'Start validation proxy') &&
             w.onTap != null,
@@ -1623,6 +1654,28 @@ environments:
             _expect(
               !jsonEncode(findings).contains('synthetic-private-value'),
               'native-mock-security-credential-isolation',
+            );
+          }
+        } else if (mockSamples) {
+          _expect(
+            run.nativeGeneration.name == 'busyapi-native-schema-samples' &&
+                run.nativeGeneration.version == '1',
+            'native-mock-sample-owner',
+          );
+          for (var index = 0; index < 2; index++) {
+            final request = await client.postUrl(run.baseUri.resolve('/data'));
+            final response = await request.close();
+            final text = await utf8.decoder.bind(response).join();
+            _expect(
+              response.statusCode == 200 &&
+                  text == '9007199254740993.00' &&
+                  response.contentLength == utf8.encode(text).length &&
+                  response.headers.value(
+                        'busyapi-response-validation-complete',
+                      ) ==
+                      'true' &&
+                  response.headers.value('sl-violations') == null,
+              'native-mock-generated-actual-bytes',
             );
           }
         } else if (mockParameters) {
@@ -1736,7 +1789,7 @@ environments:
         client.close(force: true);
       }
       _expect(
-        mockParameters || mockSecurity
+        mockParameters || mockSecurity || mockSamples
             ? mockReceived.isEmpty
             : mockReceived.length == 2 &&
                   mockReceived.every(
@@ -1794,7 +1847,9 @@ environments:
         'native-mock-noop-save-reopen',
       );
       stdout.writeln(
-        'BUSYAPI_NATIVE_MOCK_${mockSecurity
+        'BUSYAPI_NATIVE_MOCK_${mockSamples
+            ? 'SAMPLES'
+            : mockSecurity
             ? 'SECURITY'
             : mockParameters
             ? 'PARAMETERS'
@@ -1805,7 +1860,9 @@ environments:
           'BUSYAPI_NATIVE_MOCK_HEADER_COMPOSITIONS_PASS openapi=$version format=$format',
         );
       }
-      return 'mock-${mockSecurity
+      return 'mock-${mockSamples
+          ? 'samples'
+          : mockSecurity
           ? 'security'
           : mockParameters
           ? 'parameters'

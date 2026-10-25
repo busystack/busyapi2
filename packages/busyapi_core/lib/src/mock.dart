@@ -258,6 +258,7 @@ class MockRun {
     this.nativeResponseValidation,
     this.nativeParameterValidation,
     this.nativeSecurityValidation,
+    this.nativeGeneration,
     this._stderr,
   );
   final MockPlan plan;
@@ -270,6 +271,7 @@ class MockRun {
   final MockValidationIdentity nativeResponseValidation;
   final MockValidationIdentity nativeParameterValidation;
   final MockValidationIdentity nativeSecurityValidation;
+  final MockValidationIdentity nativeGeneration;
   final List<int> _stderr;
   bool _stopping = false;
   bool get outdated => plan.outdated;
@@ -388,6 +390,10 @@ class MockRun {
       message['nativeSecurityValidation'],
       expectedName: 'busyapi-native-security',
     );
+    final nativeGeneration = MockValidationIdentity._read(
+      message['nativeGeneration'],
+      expectedName: 'busyapi-native-schema-samples',
+    );
     if (message['event'] != 'ready' ||
         message['snapshot'] != plan.snapshot.identity ||
         message['tool'] != 'Prism' ||
@@ -399,6 +405,7 @@ class MockRun {
         nativeResponseValidation == null ||
         nativeParameterValidation == null ||
         nativeSecurityValidation == null ||
+        nativeGeneration == null ||
         nativeValidation.version != _schemaProducerVersion ||
         nativeResponseValidation.version != '3' ||
         nativeResponseValidation.configuration !=
@@ -407,6 +414,9 @@ class MockRun {
         nativeParameterValidation.configuration !=
             'parameter-wire-v3:${nativeValidation.configuration}' ||
         nativeSecurityValidation.version != '1' ||
+        nativeGeneration.version != '1' ||
+        nativeGeneration.configuration !=
+            'captured-schema-candidates-v1:${nativeValidation.configuration}' ||
         nativeSecurityValidation.configuration !=
             'security-wire-v1:${nativeValidation.configuration}' ||
         message['upstreamForwarding'] != (proxyTarget != null)) {
@@ -439,6 +449,7 @@ class MockRun {
       nativeResponseValidation,
       nativeParameterValidation,
       nativeSecurityValidation,
+      nativeGeneration,
       stderrBytes,
     );
   }

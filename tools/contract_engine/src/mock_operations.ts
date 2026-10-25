@@ -2,8 +2,9 @@ import {SourceError,segments} from './document';
 import {record} from './engine_worker_client';
 import {schemaLocation} from './mock_projection';
 import type {ReferenceGraph,OperationOccurrence} from './reference_graph';
+import {swaggerMedia} from './swagger_operation';
 
-export type MockOperationLocation={path:string;method:string;pointer:string};
+export type MockOperationLocation={path:string;method:string;pointer:string;defaultResponseMedia?:boolean};
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 
 /** Translate only physical locations proved by the existing bundle owner.
@@ -59,7 +60,10 @@ export class MockOperationProjection {
                 // graph. Values retain the bundle's repaired local references.
                 paths.set(operation.path,Object.fromEntries([...view.fields].map(([name,source])=>[name,this.value(document,this.locate(source.resource,source.pointer))])));
             }
-            operations.push({path:operation.path,method:operation.method,pointer:this.locate(operation.source.resource,operation.source.pointer)});
+            const media=this.graph.scopes.get(operation.source.resource+'#'+operation.source.pointer)?.family==='2.0'
+                ?swaggerMedia(this.graph,operation.source.resource,operation.source.pointer,'produces'):undefined;
+            operations.push({path:operation.path,method:operation.method,pointer:this.locate(operation.source.resource,operation.source.pointer),
+                ...(media?.length===1&&media[0]==='*/*'?{defaultResponseMedia:true}:{})});
         }
         return {document:{...document,paths:Object.fromEntries(paths)},operations};
     }

@@ -12,6 +12,7 @@ import {mockParameterProducer,validateMockParameters} from './mock_request_param
 import {schemaProducer} from './schema_evaluation';
 import {mockSecurityProducer,validateMockSecurity} from './mock_request_security';
 import {MockOperationProjection} from './mock_operations';
+import {MockSchemaSamples,mockSampleProducer} from './mock_schema_samples';
 export type {NativeMockCheck} from './mock_projection';
 
 export type MockCapture={root:string;snapshot:string;resources:Resource[]};
@@ -41,9 +42,11 @@ export class MockNativeValidation {
     private readonly plans=new Map<string,{operation:OperationOccurrence;description:ReturnType<typeof requestOperation>;body:BodyDeclaration|undefined}>();
     private producer?:{name:string;version:string;configuration:string};
     private operationProjection?:MockOperationProjection;
+    private readonly samples:MockSchemaSamples;
 
     constructor(private readonly capture:MockCapture) {
         this.context=createGraph(capture);
+        this.samples=new MockSchemaSamples(this.context.graph,(instances,signal)=>this.evaluateInstances(instances,signal),capture.snapshot);
         for(const operation of this.context.graph.operations())if(operation.role==='operation') {
             const method=operation.customMethod?operation.method:operation.method.toUpperCase(),key=JSON.stringify([operation.path,method]);
             if(this.operations.has(key))throw new SourceError('mock.operation.ambiguous','The captured mock route has multiple operation owners');
@@ -75,6 +78,7 @@ export class MockNativeValidation {
     get responseIdentity(){return this.producer&&{...mockResponseProducer,configuration:'response-wire-v3:'+this.producer.configuration};}
     get parameterIdentity(){return this.producer&&{...mockParameterProducer,configuration:'parameter-wire-v3:'+this.producer.configuration};}
     get securityIdentity(){return this.producer&&{...mockSecurityProducer,configuration:'security-wire-v1:'+this.producer.configuration};}
+    get generationIdentity(){return this.producer&&{...mockSampleProducer,configuration:'captured-schema-candidates-v1:'+this.producer.configuration};}
 
     projectedOperations(document:Record<string,unknown>) {
         if(!this.operationProjection)throw new SourceError('mock.validation.protocol','The captured operation projection was not prepared');
@@ -139,6 +143,16 @@ export class MockNativeValidation {
         return validateMockResponse(this.context.graph,description,description.operation.method,status,headers,bytes,instances=>this.evaluateInstances(instances,signal));
     }
 
+    generatedResponse(path:string,method:string,status:string,actual:string,dynamic:boolean,signal:AbortSignal):Promise<string|undefined> {
+        return this.samples.response(this.plan(path,method).description,status,actual,dynamic,signal);
+    }
+
+    generationFailure(path:string,method:string,code:string,message:string):SourceError {
+        const {operation}=this.plan(path,method),source=operation.source;
+        const range=this.context.docs.get(source.resource)!.dataNode(source.pointer)!.range;
+        return new SourceError(code,message,range,'unsupported',{resource:source.resource,pointer:source.pointer,range});
+    }
+
     async parameters(template:string,method:string,path:string,query:string,headers:Readonly<Record<string,string>>,signal:AbortSignal):Promise<NativeMockCheck> {
         const {description}=this.plan(template,method);
         return validateMockParameters(this.context.graph,description,template,path,query,headers,instances=>this.evaluateInstances(instances,signal));
@@ -168,7 +182,10 @@ export class MockNativeValidation {
         for(const value of result.runtimeFindings){if(!record(value)||typeof value.code!=='string'||typeof value.message!=='string')throw new SourceError('mock.validation.protocol','Native validation returned a malformed finding');findings.push(value);}
         for(const value of result.runtimeEvaluations){
             if(!record(value)||typeof value.complete!=='boolean'||typeof value.valid!=='boolean'||typeof value.subject!=='string'||typeof value.location!=='string')throw new SourceError('mock.validation.protocol','Native validation returned a malformed evaluation');
-            evaluations.push({subject:value.subject,location:value.location,complete:value.complete,valid:value.valid});
+            if(value.chosen!==undefined&&(typeof value.chosen!=='number'||!Number.isSafeInteger(value.chosen)||value.chosen<0||value.chosen>255))
+                throw new SourceError('mock.validation.protocol','Native validation returned an invalid selected-candidate index');
+            evaluations.push({subject:value.subject,location:value.location,complete:value.complete,valid:value.valid,
+                ...(typeof value.chosen==='number'?{chosen:value.chosen}:{})});
         }
         const complete=result.complete&&evaluations.length>0&&evaluations.every(value=>value.complete===true);
         return {complete,valid:complete&&evaluations.every(value=>value.valid===true),findings,evaluations};

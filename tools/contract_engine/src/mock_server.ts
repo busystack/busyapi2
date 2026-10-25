@@ -6,8 +6,8 @@ import {transformOas2Operation} from '@stoplight/http-spec/oas2/operation';
 import {transformOas3Operation} from '@stoplight/http-spec/oas3/operation';
 import {OPERATION_CONFIG} from '@stoplight/http-spec/oas';
 import { createLogger } from '@stoplight/prism-core';
-import { ContentExample, createInstance, ProblemJsonError } from '@stoplight/prism-http';
-import { DiagnosticSeverity, IMediaTypeContent } from '@stoplight/types';
+import { ContentExample, createInstance, ProblemJsonError, type IHttpOperationConfig } from '@stoplight/prism-http';
+import { DiagnosticSeverity, type IMediaTypeContent, type IHttpOperation } from '@stoplight/types';
 const {default:route}:typeof import('@stoplight/prism-http/dist/router')=require('@stoplight/prism-http/dist/router');
 import { findNodeAtLocation, Node, parseTree } from 'jsonc-parser';
 import pino from 'pino';
@@ -16,6 +16,7 @@ import {mockCapture,MockNativeValidation,type MockCapture,type NativeMockCheck} 
 import {record} from './engine_worker_client';
 import {segments,SourceError} from './document';
 import type {MockOperationLocation} from './mock_operations';
+import {MockGenerationAdapter,defaultSwaggerResponseMedia} from './mock_generation_adapter';
 
 const maximumInput = 64 * 1024 * 1024;
 const maximumRequestBody = 10 * 1024 * 1024;
@@ -294,10 +295,11 @@ async function main(): Promise<void> {
     const examples=exactExamples(documentText,tree,projected.operations);
     // The pinned collection enumerator ignores Path Item references and QUERY.
     // Its public per-operation API consumes the canonical captured inventory.
-    const operations=projected.operations.map(({path,method})=>{
+    const operations:IHttpOperation[]=projected.operations.map(({path,method,defaultResponseMedia})=>{
       const options={document:projected.document,name:path,method,config:OPERATION_CONFIG};
       const operation=declaration.specification.family==='2.0'?transformOas2Operation(options):transformOas3Operation(options);
-      return {...operation,path};
+      const located={...operation,path};
+      return defaultResponseMedia?defaultSwaggerResponseMedia(projected.document,located):located;
     });
     native.qualify(operations);
     if (operations.length === 0) throw new Error('mock input has no operations');
@@ -305,6 +307,7 @@ async function main(): Promise<void> {
       pino.destination({ dest: 2, sync: false }));
     const rawRequests = new WeakMap<object, Buffer | undefined>();
     const rawResponses = new WeakMap<object, Buffer>();
+    const generation=new MockGenerationAdapter(native);
     const signals=new WeakMap<object,AbortSignal>();
     const nativeChecks=new WeakMap<object,NativeMockCheck>();
     const nativeSecurityChecks=new WeakMap<object,NativeMockCheck>();
@@ -332,7 +335,7 @@ async function main(): Promise<void> {
       },
       mock: options => logger => {
         const result = mock(options)(logger);
-        if(result._tag==='Right' && !options.config.dynamic) {
+        if(result._tag==='Right') {
           const output=result.right, resource=options.resource;
           const responses=resource.responses;
           const declaration=responses.find(response=>response.code===String(output.statusCode))
@@ -354,7 +357,9 @@ async function main(): Promise<void> {
             if(selection._tag==='Left')throw new Error('Unable to recover the selected mock error example');
             projected=selection.right.bodyExample;
           }
-          const exact=declaration && exactBody(examples,resource.method,resource.path,declaration.code,content,projected);
+          const exact=generation.rawBody(content)??
+            (declaration&&(!options.config.dynamic||options.config.exampleKey!==undefined)
+              ?exactBody(examples,resource.method,resource.path,declaration.code,content,projected):undefined);
           if(exact!==undefined) {
             // Preserve lexemes only for the example Prism actually returned.
             // Its validation still sees the same projected value as these bytes.
@@ -418,8 +423,20 @@ async function main(): Promise<void> {
               !check.findings.some(finding=>['runtime.body.syntax','runtime.request.content-type'].includes(String(finding.code))))
             prismRequest.body=JSON.parse(captured.raw.toString('utf8'));
         }
-        const outcome = await prism.request(prismRequest, operations,
-        { ...baseConfig, mock: preferences })();
+        let requestOperations=operations;
+        let requestMock:IHttpOperationConfig=preferences;
+        if(!input.upstream&&selected._tag==='Right') {
+          const checked=nativeChecks.get(prismRequest),security=nativeSecurityChecks.get(prismRequest);
+          const diagnostics=[...(security?nativeDiagnostics(security):[]),...(checked?nativeDiagnostics(checked):[])];
+          const prepared=await generation.prepare(selected.right,
+            {...preferences,mediaTypes:headers.accept?.split(',')},diagnostics,
+            logger.child({}, {level:'silent'}),cancellation.signal);
+          if(cancellation.signal.aborted||reply.destroyed)return;
+          requestOperations=operations.map(value=>value===selected.right?prepared.operation:value);
+          requestMock=prepared.configuration;
+        }
+        const outcome = await prism.request(prismRequest, requestOperations,
+        { ...baseConfig, mock: requestMock })();
         if(cancellation.signal.aborted||reply.destroyed)return;
         if (outcome._tag === 'Left') {
           const error = outcome.left as Error & { status?: number; detail?: string;
@@ -441,6 +458,11 @@ async function main(): Promise<void> {
           mediaType && (mediaType === 'application/json' || mediaType.endsWith('+json'))
             ? JSON.stringify(result.output.body)
             : typeof result.output.body === 'string' ? result.output.body : JSON.stringify(result.output.body));
+        if(rawResponses.has(result.output)&&payload!==undefined)
+          for(const name of Object.keys(result.output.headers??{}))if(name.toLowerCase()==='content-length') {
+            const length=String(Buffer.byteLength(payload));
+            result.output.headers![name]=length;reply.setHeader(name,length);
+          }
         const responseCheck:NativeMockCheck=selected._tag==='Right'
           ?await native.response(selected.right.path,selected.right.method,result.output.statusCode,result.output.headers??{},Buffer.isBuffer(payload)?payload:Buffer.from(payload??'','utf8'),cancellation.signal)
           :{complete:false,valid:false,findings:[{code:'runtime.response.operation.unchecked',message:'The forwarded response has no captured operation owner',severity:'warning',kind:'unsupported',subject:'response-body',pointer:''}]};
@@ -467,9 +489,13 @@ async function main(): Promise<void> {
         send(reply, result.output.statusCode, payload);
       } catch (error) {
         if(reply.destroyed||reply.writableEnded)return;
-        const status = typeof error === 'object' && error !== null && 'status' in error ? Number(error.status) : 500;
+        const unsupported=error instanceof SourceError&&(error.kind==='unsupported'||error.code.startsWith('limit.'));
+        const status = unsupported?501:typeof error === 'object' && error !== null && 'status' in error ? Number(error.status) : 500;
+        reply.removeHeader('content-length');
+        reply.setHeader('busyapi-response-validation-complete','false');
         reply.setHeader('content-type', 'application/problem+json');
-        send(reply, status, JSON.stringify({ title: 'Mock request failed', status, detail: String(error) }));
+        send(reply, status, JSON.stringify({ title: 'Mock request failed', status, detail: String(error),complete:false,
+          ...(error instanceof SourceError?{findings:[{code:error.code,message:error.message,kind:error.kind,source:error.source,severity:unsupported?'warning':'error'}]}:{}) }));
       }
     });
     let closing = false;
@@ -494,7 +520,8 @@ async function main(): Promise<void> {
     write({ version: 1, event: 'ready', snapshot: input.snapshot, tool: 'Prism',
       toolVersion: '5.15.11', adapter: 'in-memory-http-spec-7.1.0', host: '127.0.0.1',
       port: address.port, operations: operations.length, nativeValidation:native.identity,
-      nativeResponseValidation:native.responseIdentity,nativeParameterValidation:native.parameterIdentity,nativeSecurityValidation:native.securityIdentity,upstreamForwarding: input.upstream !== undefined });
+      nativeResponseValidation:native.responseIdentity,nativeParameterValidation:native.parameterIdentity,nativeSecurityValidation:native.securityIdentity,
+      nativeGeneration:native.generationIdentity,upstreamForwarding: input.upstream !== undefined });
   } finally {
     if(!listening)await native.close();
   }

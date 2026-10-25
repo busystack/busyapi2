@@ -14,6 +14,9 @@ void main() {
     'parameter-version',
     'parameter-configuration',
     'security-version',
+    'generation-missing',
+    'generation-version',
+    'generation-configuration',
   ]) {
     test('native mock readiness rejects $mutation before returning a running session', () async {
       final temp = await Directory.systemTemp.createTemp(
@@ -53,6 +56,11 @@ void main() {
         'version': '1',
         'configuration': 'security-wire-v1:fixture-runtime',
       };
+      final generation = <String, String>{
+        'name': 'busyapi-native-schema-samples',
+        'version': '1',
+        'configuration': 'captured-schema-candidates-v1:fixture-runtime',
+      };
       switch (mutation) {
         case 'schema-version':
           schema['version'] = 'obsolete';
@@ -66,6 +74,10 @@ void main() {
           parameter['configuration'] = 'obsolete';
         case 'security-version':
           security['version'] = 'obsolete';
+        case 'generation-version':
+          generation['version'] = 'obsolete';
+        case 'generation-configuration':
+          generation['configuration'] = 'obsolete';
       }
       final ready = {
         'version': 1,
@@ -80,6 +92,7 @@ void main() {
         'nativeResponseValidation': response,
         'nativeParameterValidation': parameter,
         'nativeSecurityValidation': security,
+        if (mutation != 'generation-missing') 'nativeGeneration': generation,
         'upstreamForwarding': false,
       };
       final helper = File('${temp.path}/controlled-runtime.cjs');

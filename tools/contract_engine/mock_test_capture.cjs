@@ -58,6 +58,9 @@ async function startMock(t,input,{failure=false,helper=path.join(__dirname,'dist
   assert.equal(event.nativeSecurityValidation.name,'busyapi-native-security');
   assert.equal(event.nativeSecurityValidation.version,'1');
   assert.equal(event.nativeSecurityValidation.configuration,'security-wire-v1:'+event.nativeValidation.configuration);
+  assert.equal(event.nativeGeneration.name,'busyapi-native-schema-samples');
+  assert.equal(event.nativeGeneration.version,'1');
+  assert.equal(event.nativeGeneration.configuration,'captured-schema-candidates-v1:'+event.nativeValidation.configuration);
  }
  return event;
 }
