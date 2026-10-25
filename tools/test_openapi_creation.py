@@ -25,11 +25,7 @@ from native_focus import (
 VERSIONS = ('2.0', '3.0.4', '3.1.2', '3.2.1')
 
 
-def text_keys(value):
-    names = {'/': 'slash', '_': 'Shift_L+minus', '.': 'period',
-             '-': 'minus', ' ': 'space'}
-    return [('Shift_L+' + character.lower()) if 'A' <= character <= 'Z'
-            else names.get(character, character) for character in value]
+text_keys = app.text_keys
 
 
 def select_directory(native, process, destination, *, cancel=False):

@@ -34,6 +34,12 @@ for 2.0; choose native Reference, native HTML or Swagger UI. Renderer
 compatibility remains separate from native authoring support and current
 acceptance status in the [support matrix](implementation/native-openapi-support.md).
 
+`tools/test_openapi_application.py` defines native documentation workflows for
+the preset dialog and output review, including unsaved Design/Source buffers,
+cancellation, destination races, declared versions, exact numbers and source
+provenance. These checks are separate from external-renderer and distribution
+acceptance.
+
 OpenAPI 3.0 request-body declarations remain editable and inspectable on every
 method. Its consumption rule ignores them for GET, HEAD, DELETE, OPTIONS and
 TRACE; they neither force an outgoing body nor constrain an explicitly entered

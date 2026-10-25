@@ -13,6 +13,8 @@ qualification. Evidence contains only these synthetic files and owned windows.
 `--edit --mock-samples` also drives local mock preparation/start/stop and checks
 exact generated HTTP bodies both before Quit and after cold reopen.
 `--mock-methods` selects a case-sensitive 3.2 additional operation for that journey.
+`--documentation` reviews, cancels and publishes native HTML from an unsaved
+working copy, independently checks its source ranges, then restores saved input.
 """
 import argparse
 import ast
@@ -21,6 +23,7 @@ import http.client
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -204,6 +207,12 @@ def letters(text):
     names = {' ': 'space', '.': 'period', '-': 'minus'}
     return [names.get(character, character) for character in text]
 
+def text_keys(value):
+    names = {'/': 'slash', '_': 'Shift_L+minus', '.': 'period',
+             '-': 'minus', ' ': 'space'}
+    return [('Shift_L+' + character.lower()) if 'A' <= character <= 'Z'
+            else names.get(character, character) for character in value]
+
 def wait_tree(native, pid, predicate, label):
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
@@ -229,6 +238,92 @@ def quit_application(native, process):
     code = process.wait(timeout=15)
     assert code == 0, f'Production Quit failed: exit {code}'
     native.close()
+
+
+def prepare_documentation(native, process, destination):
+    mode(native, process.pid, 'Build documentation')
+    wait_tree(native, process.pid,
+        lambda nodes: contains(nodes, 'Documentation preset') and contains(nodes, 'Choose output folder'),
+        'Documentation preset did not appear')
+    keys(native, ['Tab'])
+    native.perform({'kind': 'click', 'scale': 1, 'point': [800, 426], 'viewport': [1280, 720]})
+    wait_tree(native, process.pid,
+        lambda nodes: field_matches(nodes, 'Output folder', editable=True, focused=True),
+        'Output destination did not own focus')
+    keys(native, ['Control_L+a'] + text_keys(str(destination)) + ['Return'])
+    nodes = wait_tree(native, process.pid,
+        lambda nodes: contains(nodes, 'Ready to review') or contains(nodes, 'Output did not complete'),
+        'Documentation preparation did not finish')
+    assert contains(nodes, 'Ready to review'), nodes
+    assert contains(nodes, 'unsaved working copy'), nodes
+    assert not destination.exists(), 'Preparation published before review'
+
+
+def documentation(native, process, file, baseline, version, evidence, case):
+    from native_documentation_artifacts import verify_documentation
+
+    destination = file.parent.parent / 'documentation'
+    native.perform({'kind': 'click', 'scale': 1, 'point': [700, 250], 'viewport': [1280, 720]})
+    wait_tree(native, process.pid,
+        lambda nodes: field_matches(nodes, 'Title', focused=True), 'Title did not own focus')
+    title = 'documented ' + version
+    keys(native, ['Control_L+a'] + text_keys(title) + ['Tab'])
+    wait_tree(native, process.pid,
+        lambda nodes: field_matches(nodes, 'Title', value=title), 'Unsaved title was not retained')
+    assert all(Path(name).read_bytes() == raw for name, raw in baseline.items())
+    prepare_documentation(native, process, destination)
+    native.perform({'kind': 'click', 'scale': 1, 'point': [598, 674], 'viewport': [1280, 720]})
+    wait_tree(native, process.pid,
+        lambda nodes: not contains(nodes, 'Ready to review') and not contains(nodes, 'Create documentation'),
+        'Documentation cancellation did not discard its captured output')
+    assert not destination.exists()
+    assert all(Path(name).read_bytes() == raw for name, raw in baseline.items())
+    prepare_documentation(native, process, destination)
+    destination.mkdir()
+    sentinel = destination / 'other-writer.txt'
+    sentinel.write_bytes(b'Preserve this destination race\r\n')
+    native.perform({'kind': 'click', 'scale': 1, 'point': [467, 674], 'viewport': [1280, 720]})
+    wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Output did not complete (output.exists)'),
+              'Changed documentation destination was not refused')
+    assert sorted(path.name for path in destination.iterdir()) == [sentinel.name]
+    assert sentinel.read_bytes() == b'Preserve this destination race\r\n'
+    assert all(Path(name).read_bytes() == raw for name, raw in baseline.items())
+    sentinel.unlink()
+    destination.rmdir()
+    prepare_documentation(native, process, destination)
+    native.perform({'kind': 'click', 'scale': 1, 'point': [467, 674], 'viewport': [1280, 720]})
+    wait_tree(native, process.pid,
+        lambda nodes: contains(nodes, 'Output created') or contains(nodes, 'Output did not complete'),
+        'Documentation publication did not finish')
+    assert contains(tree(process.pid, details=True), 'Output created')
+    assert all(Path(name).read_bytes() == raw for name, raw in baseline.items())
+    working = baseline[str(file)].replace(('edited ' + version).encode(), title.encode(), 1)
+    sources = {'./' + Path(name).name: working if name == str(file) else raw
+               for name, raw in baseline.items() if Path(name).name != 'busyapi.yaml'}
+    verification = verify_documentation(destination, sources, version, title)
+    preserved = evidence / (case + '-documentation')
+    shutil.copytree(destination, preserved, symlinks=True)
+    mode(native, process.pid, 'source')
+    wait_tree(native, process.pid,
+        lambda nodes: any(node['editable'] and title in (node['text'] or '') for node in nodes),
+        'Source did not retain the exported working copy')
+    native.perform({'kind': 'click', 'scale': 1, 'point': [650, 110], 'viewport': [1280, 720]})
+    wait_tree(native, process.pid,
+        lambda nodes: any(node['editable'] and node['focused'] for node in nodes),
+        'Source did not own focus after export')
+    keys(native, ['Control_L+z'])
+    wait_tree(native, process.pid,
+        lambda nodes: any(node['editable'] and 'edited ' + version in (node['text'] or '')
+                          and title not in (node['text'] or '') for node in nodes),
+        'One source undo did not restore the saved title after export')
+    mode(native, process.pid, 'design')
+    wait_tree(native, process.pid,
+        lambda nodes: design_values(nodes, 'edited ' + version, 'api-version2') and complete_problems(nodes),
+        'Design did not retain the restored source after export')
+    assert all(Path(name).read_bytes() == raw for name, raw in baseline.items())
+    return {'output': str(preserved), 'cancelledOutputAbsent': True, 'destinationRacePreserved': True,
+            'unsavedSnapshotPublished': True, 'sourcePreserved': True,
+            'oneOperationUndo': True, **verification}
 
 
 def click_control(native, pid, name):
@@ -397,6 +492,7 @@ def main():
     parser.add_argument('--mock-samples', action='store_true')
     parser.add_argument('--mock-methods', action='store_true')
     parser.add_argument('--mock-nested', action='store_true')
+    parser.add_argument('--documentation', action='store_true')
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1'])
@@ -410,6 +506,8 @@ def main():
         args.mock_samples = True
     if args.mock_samples and not args.edit:
         parser.error('--mock-samples requires --edit for the save/reopen journey')
+    if args.documentation and not args.edit:
+        parser.error('--documentation requires --edit for the save/reopen journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:
@@ -422,6 +520,7 @@ def main():
                 *(['--mock-samples'] if args.mock_samples else []),
                 *(['--mock-methods'] if args.mock_methods else []),
                 *(['--mock-nested'] if args.mock_nested else []),
+                *(['--documentation'] if args.documentation else []),
             ]
             return subprocess.run(
                 command, env=private_session_environment(environment, runtime),
@@ -457,6 +556,7 @@ def main():
             + ('-mock-samples' if args.mock_samples else '')
             + ('-methods' if args.mock_methods else '')
             + ('-nested' if args.mock_nested else '')
+            + ('-documentation' if args.documentation else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
@@ -485,6 +585,7 @@ def main():
             for name, raw in original.items()
         }
         expected_sources = dict(original)
+        documentation_result = None
         binary = ROOT / 'build/linux/x64/release/bundle/busyapi-desktop'
         log = evidence / (case + '.log')
         with log.open('w') as stream:
@@ -532,6 +633,10 @@ def main():
                 if args.edit:
                     edited, nodes = edit(native, process, file, fragment, original, args.version)
                     expected_sources[str(file)] = edited
+                    if args.documentation:
+                        documentation_result = documentation(
+                            native, process, file, expected_sources, args.version, evidence, case)
+                        nodes = tree(process.pid, details=True)
                     if args.mock_samples:
                         mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET', args.mock_nested)
                     quit_application(native, process)
@@ -571,6 +676,7 @@ def main():
                     'nativeMockSamples': args.mock_samples,
                     'nativeMockMethods': args.mock_methods,
                     'nativeMockNested': args.mock_nested,
+                    'nativeDocumentation': documentation_result,
                     'files': {
                         str(Path(name).relative_to(project_directory)):
                             hashlib.sha256(raw).hexdigest()
