@@ -1682,8 +1682,10 @@ class WorkspaceController extends ChangeNotifier {
   }
 
   Future<bool>? _flushing;
-  Future<bool> flush() async {
-    if (disposed) return false;
+  Future<bool> flush() => _flushPending();
+
+  Future<bool> _flushPending({bool acceptedSave = false}) async {
+    if (_disposed || (_shuttingDown && !acceptedSave)) return false;
     if (form != null || formApplying) {
       error = 'Apply or explicitly discard the captured dialog before leaving its source target.';
       notifyListeners();
@@ -1693,7 +1695,9 @@ class WorkspaceController extends ChangeNotifier {
     if (applying != null) {
       final completed = await applying;
       if (identical(_flushing, applying)) _flushing = null;
-      if (draft?.pending ?? false) return flush();
+      if (draft?.pending ?? false) {
+        return _flushPending(acceptedSave: acceptedSave);
+      }
       return completed;
     }
     _flushing = _flush();
@@ -2248,7 +2252,7 @@ class WorkspaceController extends ChangeNotifier {
           // must still evaluate its own current buffers and publication outcome.
         }
       }
-      if (disposed || !identical(project, owner) || navigation != _opening) {
+      if (_disposed || !identical(project, owner) || navigation != _opening) {
         throw CoreFailure(
           'save.owner',
           'Workspace changed before this save could start',
@@ -2270,14 +2274,16 @@ class WorkspaceController extends ChangeNotifier {
 
   Future<void> _saveBuffers({Set<String>? only}) async {
     final owner = project, navigation = _opening;
-    if (!await flush()) {
+    // Only saveBuffers can enter this method, after accepting and freezing its
+    // workspace/selection. Shutdown rejects new saves but drains these owners.
+    if (!await _flushPending(acceptedSave: true)) {
       throw CoreFailure(
         'draft.pending',
         'Pending fields must be corrected or discarded',
       );
     }
     final captured = project;
-    if (disposed ||
+    if (_disposed ||
         captured == null ||
         !identical(owner, captured) ||
         navigation != _opening) {
@@ -2482,11 +2488,11 @@ class WorkspaceController extends ChangeNotifier {
   Future<void> _closeOwnedWorkspace() async {
     _shuttingDown = true;
     _context++;
-    _opening++;
     _debounce?.cancel();
     _monitor?.cancel();
     try {
       await _saving;
+      _opening++;
       await persist();
       await persistView();
     } on Object {
