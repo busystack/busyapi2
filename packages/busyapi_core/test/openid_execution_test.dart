@@ -10,8 +10,7 @@ Future<({int code, String output, String error})> _cli(
   Directory directory,
   String reference,
 ) async {
-  final process = await Process.start(
-    '$testBundle/busyapi',
+  return runCliWithSecrets(
     [
       'test',
       directory.path,
@@ -19,30 +18,10 @@ Future<({int code, String output, String error})> _cli(
       'manual-token',
       '--environment',
       'manual',
-      '--secrets-stdin',
       '--json',
     ],
-    environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
-    includeParentEnvironment: false,
+    {reference: 'synthetic-access-token'},
   );
-  var exited = false;
-  final completion = process.exitCode.then((code) {
-    exited = true;
-    return code;
-  });
-  final output = process.stdout.transform(utf8.decoder).join();
-  final error = process.stderr.transform(utf8.decoder).join();
-  try {
-    process.stdin.write(jsonEncode({reference: 'synthetic-access-token'}));
-    await process.stdin.close();
-    final code = await completion.timeout(const Duration(seconds: 30));
-    return (code: code, output: await output, error: await error);
-  } finally {
-    if (!exited) {
-      process.kill();
-      await completion.timeout(const Duration(seconds: 5));
-    }
-  }
 }
 
 void main() {

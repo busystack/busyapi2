@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 
 import {createGraph, propose, Resource} from './engine';
-import {escape, SourceDocument, SourceError} from './document';
+import {escape, SourceDocument, SourceError,type Range} from './document';
 import {GraphTarget, ReferenceGraph, supportedSchemaDialect} from './reference_graph';
 import {decimal} from './exact_numbers';
 import {headerShapes} from './header_serialization';
@@ -149,7 +149,7 @@ export function planExecutionEnvironment(input:any) {
     changes:[{resource:source.id,before:source.text,after}],usages:[],checkedRoots:[input.root],from:target,to:{resource:source.id,pointer:'/environments/'+escape(input.name)}};
 }
 
-type Located = {resource:string;pointer:string;generation:number;range:number[]};
+type Located = {resource:string;pointer:string;generation:number;range:Range};
 
 /** Resolve explicit part choices against the captured graph. No file extension,
  * payload sniffing, environment or credential participates in this decision. */
@@ -399,7 +399,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   else if(!serverField || serverField.origin==='root' && docs.get(serverField.resource)!.dataNode(serverField.pointer)?.children.size===0)
     servers.push({url:'/',variables:{},base:graph.retrievals.get(graph.root),origin:'default'});
   const securityField=effectiveField('security',false)??(docs.get(graph.root)!.root.children.has('security')?{resource:graph.root,pointer:'/security',origin:'root'}:undefined);
-  const schemes:any={};
+  const schemes=new Map<string,Record<string,unknown>>();
   const requirements:any[]=[];
   if(securityField){
     const list=docs.get(securityField.resource)!.dataNode(securityField.pointer);
@@ -407,16 +407,21 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     for(const [index,requirement] of list.children){
       if(requirement.kind!=='object')throw new SourceError('request.security','A security requirement must be an object');
       const names=[...requirement.children.keys()];requirements.push({schemes:names,scopes:Object.fromEntries(names.map(name=>[name,requirement.value[name]])),source:location(securityField.resource,securityField.pointer+'/'+index)});
-      for(const name of names)if(!Object.hasOwn(schemes,name)){
-        const at=componentLocation('securitySchemes',family)!+'/'+escape(name),declared=docs.get(graph.root)!.dataNode(at);
-        if(!declared)throw new SourceError('request.security.scheme','A selected security requirement names an unavailable scheme');
-        const selected=follow({resource:graph.root,pointer:at,kind:'security'},'security'),v=selected.node.value;
-        schemes[name]={name,type:family==='2.0'&&v?.type==='basic'?'http':v?.type,description:v?.description,source:location(graph.root,at),definition:selected.source,
+      for(const name of names)if(!schemes.has(name)){
+        const occurrence=location(securityField.resource,securityField.pointer+'/'+index+'/'+escape(name));
+        const binding=edgeIndex.get(JSON.stringify([securityField.resource,securityField.pointer+'/'+index,name]));
+        if(binding?.connection!=='security'||binding.resolution!=='resolved')
+          throw new SourceError('request.security.scheme','A selected security requirement names an unresolved scheme',occurrence.range,undefined,occurrence);
+        const selected=follow({resource:binding.targetResource!,pointer:binding.targetPointer!,kind:'security'},'security'),v=selected.node.value;
+        // The graph owns entry-name precedence, relative URI bases and capture
+        // ownership (OAS 3.2 §§4.30,6.3). Do not repeat component-name lookup.
+        const source=binding.targetUri===undefined?location(binding.targetResource!,binding.targetPointer!):occurrence;
+        schemes.set(name,{name,type:family==='2.0'&&v?.type==='basic'?'http':v?.type,description:v?.description,source,definition:selected.source,
           ...(v?.type==='apiKey'?{in:v.in,parameterName:v.name}:{}),...(v?.type==='http'?{scheme:v.scheme,bearerFormat:v.bearerFormat}:{}),
           ...(family==='2.0'&&v?.type==='basic'?{scheme:'basic'}:{}),
           ...(v?.type==='openIdConnect'?{openIdConnectUrl:v.openIdConnectUrl}:{}),
           ...(v?.type==='oauth2'?{flows:family==='2.0'?{[({implicit:'implicit',password:'password',application:'clientCredentials',accessCode:'authorizationCode'} as Record<string,string>)[v.flow]]:{authorizationUrl:v.authorizationUrl,tokenUrl:v.tokenUrl,scopes:v.scopes,source:selected.source}}:oauthFlows(selected.resource,selected.pointer,v.flows,location)}:{}),
-          ...(v?.type==='mutualTLS'?{mutualTLS:true}:{})};
+          ...(v?.type==='mutualTLS'?{mutualTLS:true}:{})});
       }
     }
   }
@@ -451,7 +456,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method,customMethod:context.customMethod===true,path:context.path,
     operationId:typeof node.value.operationId==='string'?node.value.operationId:undefined,summary:typeof node.value.summary==='string'?node.value.summary:undefined,
     source:location(input.resource,input.pointer),occurrence:context.occurrence,pathItem:location(context.pathItem.resource,context.pathItem.pointer)},
-    servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes,anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,ignoredRequestBody,responses,
+    servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes:Object.fromEntries(schemes),anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,ignoredRequestBody,responses,
     producer:'busyapi-contract-engine',producerVersion:'0.1.0',complete:true};
 }
 

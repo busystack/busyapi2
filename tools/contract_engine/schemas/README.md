@@ -20,6 +20,14 @@ Unmodified OpenAPI JSON from the OpenAPI Initiative specification registry:
   Ajv structural stage. Source Schema Objects use the pinned evaluator's
   separate OAS 3.0 dialect, supplemented by normative rules and exact bounds;
   authored documents are never converted into modern JSON Schema.
+  The adapter enforces the component-name restriction from
+  [3.0.4 §4.7.7](https://spec.openapis.org/oas/v3.0.4.html#components-object)
+  with `propertyNames`, and retains each map's value schema through
+  `additionalProperties`. The informational artifact otherwise leaves unmatched
+  names open. This binding also avoids the ordinary-object evaluated-property
+  tracker in pinned Ajv 8.20.0 `patternProperties` under the packaged Node
+  `--disable-proto=throw` guard. The published file and its hash are unchanged;
+  `test_structural_component_names.cjs` qualifies all nine maps under that guard.
 - [3.1 schema, 2026-08-03](https://spec.openapis.org/oas/3.1/schema/2026-08-03),
   SHA-256 `59f106413cb48c31299f96f024c938d3628aed6cd02cd14bcfb2fcaae7a130b6`.
 - [3.2 schema, 2026-08-30](https://spec.openapis.org/oas/3.2/schema/2026-08-30),

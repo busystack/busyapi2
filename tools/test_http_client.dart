@@ -66,14 +66,25 @@ Future<void> exercise() async {
   );
   final swagger = version == '2.0';
   final openId = Platform.environment['BUSYAPI_NATIVE_HTTP_OPENID'] == '1';
+  final binding =
+      Platform.environment['BUSYAPI_NATIVE_HTTP_BINDING'] ?? 'named';
+  check(const ['named', 'prototype', 'uri'].contains(binding), 'binding-mode');
+  check(binding != 'uri' || version.startsWith('3.2.'), 'binding-family');
+  check(!openId || binding == 'named', 'binding-authentication');
+  final schemeName = binding == 'prototype'
+      ? '__proto__'
+      : binding == 'uri'
+      ? 'security.$format#/Alias'
+      : 'access';
+  final apiKey = swagger || binding != 'named';
   check(!swagger || !openId, 'openid-family');
-  final secretField = swagger
+  final secretField = apiKey
       ? 'secretRef'
       : openId
       ? 'accessTokenRef'
       : 'tokenRef';
   final evidencePrefix =
-      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}';
+      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}${binding == 'named' ? '' : '-$binding'}';
   final directory =
       Platform.environment['BUSYAPI_FILE_CONTROLS_DIRECTORY'] ?? '';
   check(
@@ -105,7 +116,7 @@ Future<void> exercise() async {
     );
     check(utf8.decode(bytes) == 'hello', 'example-wire');
     check(
-      swagger
+      apiKey
           ? request.headers.value('x-fixture-key') == 'fixture-token' &&
                 request.headers.value('authorization') == null
           : request.headers.value('authorization') == 'Bearer fixture-token',
@@ -126,6 +137,22 @@ Future<void> exercise() async {
   });
   final project = Directory('$directory/project')..createSync();
   final file = File('${project.path}/api.$format');
+  final declaration = apiKey
+      ? {'type': 'apiKey', 'in': 'header', 'name': 'X-Fixture-Key'}
+      : openId
+      ? {'type': 'openIdConnect', 'openIdConnectUrl': discoveryUrl}
+      : {'type': 'http', 'scheme': 'bearer'};
+  final fragment = File('${project.path}/security.$format');
+  final fragmentText = format == 'yaml'
+      ? '''# URI-owned authentication
+Alias: {\$ref: '#/Provider~1~0'}
+Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
+'''
+      : jsonEncode({
+          'Alias': {r'$ref': '#/Provider~1~0'},
+          'Provider/~': declaration,
+        });
+  if (binding == 'uri') fragment.writeAsStringSync(fragmentText);
   const schema = {
     'type': 'object',
     'required': ['id'],
@@ -137,7 +164,7 @@ Future<void> exercise() async {
     if (swagger) 'swagger': version else 'openapi': version,
     'info': {'title': 'Native HTTP client', 'version': '1'},
     'security': [
-      {'access': <String>[]},
+      {schemeName: <String>[]},
     ],
     if (swagger) ...{
       'host': '127.0.0.1:${endpoint.port}',
@@ -145,19 +172,13 @@ Future<void> exercise() async {
       'schemes': ['http'],
       'consumes': ['text/plain'],
       'produces': ['application/json'],
-      'securityDefinitions': {
-        'access': {'type': 'apiKey', 'in': 'header', 'name': 'X-Fixture-Key'},
-      },
+      'securityDefinitions': {schemeName: declaration},
     } else ...{
       'servers': [
         {'url': 'http://127.0.0.1:${endpoint.port}'},
       ],
       'components': {
-        'securitySchemes': {
-          'access': openId
-              ? {'type': 'openIdConnect', 'openIdConnectUrl': discoveryUrl}
-              : {'type': 'http', 'scheme': 'bearer'},
-        },
+        'securitySchemes': {if (binding != 'uri') schemeName: declaration},
       },
     },
     'paths': {
@@ -205,8 +226,8 @@ basePath: /
 schemes: [http]
 consumes: [text/plain]
 produces: [application/json]
-security: [{access: []}]
-securityDefinitions: {access: {type: apiKey, in: header, name: X-Fixture-Key}}
+security: [{${jsonEncode(schemeName)}: []}]
+securityDefinitions: {${jsonEncode(schemeName)}: ${jsonEncode(declaration)}}
 paths:
   /items:
     post:
@@ -217,8 +238,8 @@ paths:
       : '''openapi: $version
 info: {title: Native HTTP client, version: '1'}
 servers: [{url: 'http://127.0.0.1:${endpoint.port}'}]
-security: [{access: []}]
-components: {securitySchemes: {access: ${openId ? '{type: openIdConnect, openIdConnectUrl: "$discoveryUrl"}' : '{type: http, scheme: bearer}'}}}
+security: [{${jsonEncode(schemeName)}: []}]
+components: {securitySchemes: ${binding == 'uri' ? '{}' : '{${jsonEncode(schemeName)}: ${jsonEncode(declaration)}}'}}
 paths:
   /items:
     post:
@@ -334,7 +355,7 @@ paths:
       'authentication': {
         'alternative': 0,
         'schemes': {
-          'access': {secretField: reference},
+          schemeName: {secretField: reference},
         },
       },
     });
@@ -480,7 +501,7 @@ paths:
   final reference =
       run.plan!.configuration.environments['local']!.authentication['schemes']
           as Map;
-  final tokenReference = (reference['access'] as Map)[secretField] as String;
+  final tokenReference = (reference[schemeName] as Map)[secretField] as String;
   await waitFor(
     () => run.secrets.status(tokenReference)?.name == 'sessionOnly',
     'credential-session-submitted',
@@ -595,7 +616,13 @@ paths:
         ),
     'native-http-source-and-credential-isolation',
   );
+  if (binding == 'uri') {
+    check(
+      fragment.readAsStringSync() == fragmentText,
+      'native-uri-definition-preserved',
+    );
+  }
   stdout.writeln(
-    'BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format openId=$openId',
+    'BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format openId=$openId binding=$binding',
   );
 }

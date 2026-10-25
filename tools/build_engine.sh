@@ -65,6 +65,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_runtime_media.cjs"
 "$node_bin" "$engine_dir/test_large_schema_evaluation.cjs"
 "$node_bin" "$engine_dir/test_native30.cjs"
+"$node_bin" --disable-proto=throw "$engine_dir/test_structural_component_names.cjs"
 "$node_bin" "$engine_dir/test_native20.cjs"
 "$node_bin" "$engine_dir/test_native_families.cjs"
 "$esbuild_bin" "$engine_dir/src/migration.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/migration.cjs"

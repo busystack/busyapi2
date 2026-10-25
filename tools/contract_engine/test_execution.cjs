@@ -79,6 +79,45 @@ for(const cycle of [false,true])test(`unavailable Security Scheme reference cann
  const packet={root:id,snapshot:'unavailable-security',resources:[{id,text:JSON.stringify(value),generation:1}]};
  assert.throws(()=>requestOperation({...packet,resource:id,pointer:'/paths/~1items/get'}),error=>error.code===(cycle?'request.reference.cycle':'request.reference'));
 });
+for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const format of ['yaml','json'])test(`${version} ${format} valid security names retain ordinary own-property identity`,()=>{
+ const serialize=value=>format==='json'?JSON.stringify(value):require('yaml').stringify(value);
+ const root='file:///execution/security-names.'+format;
+ const names=['__proto__','constructor','toString'];
+ const definitions=Object.fromEntries(names.map((name,index)=>[name,{type:'apiKey',in:'header',name:'X-Key-'+index}]));
+ const value={...(version==='2.0'?{swagger:version}:{openapi:version}),info:{title:'Names',version:'1'},security:[Object.fromEntries(names.map(name=>[name,[]]))],paths:{'/items':{get:{responses:{204:{description:'Empty'}}}}},...(version==='2.0'?{securityDefinitions:definitions}:{components:{securitySchemes:definitions}})};
+ const text=serialize(value),packet={root,snapshot:'ordinary-security-names',resources:[{id:root,text,generation:1}]};
+ const checked=analyse(packet);assert.equal(checked.complete,true);assert.deepEqual(checked.findings,[]);
+ const plan=requestOperation({...packet,resource:root,pointer:'/paths/~1items/get'});
+ assert.deepEqual(Object.keys(plan.security.schemes),names);
+ for(const [index,name]of names.entries()){
+  assert.ok(Object.hasOwn(plan.security.schemes,name));
+  assert.equal(plan.security.schemes[name].parameterName,'X-Key-'+index);
+  assert.equal(JSON.parse(JSON.stringify(plan.security)).schemes[name].parameterName,'X-Key-'+index);
+ }
+ assert.equal(Object.getPrototypeOf(plan.security.schemes),Object.prototype);
+ assert.equal(packet.resources[0].text,text);
+});
+for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])test(`${version} ${format} URI security follows graph bindings and component-name precedence`,()=>{
+ const serialize=value=>format==='json'?JSON.stringify(value):require('yaml').stringify(value);
+ const root='file:///execution/security-uri/api.'+format,fragment='file:///execution/security-uri/Provider';
+ const uri='./Provider#/Alias';
+ const value={openapi:version,info:{title:'URI security',version:'1'},components:{securitySchemes:{Provider:{type:'apiKey',in:'header',name:'X-Local'}}},security:[{Provider:[]},{[uri]:['reader']},{'./Provider#/Other':[]}],paths:{'/items':{get:{responses:{204:{description:'Empty'}}}}}};
+ const resources=[{id:root,text:serialize(value),generation:1},{id:fragment,text:serialize({Alias:{$ref:'#/Remote~1~0'},'Remote/~':{type:'apiKey',in:'header',name:'X-Remote'},Other:{type:'http',scheme:'basic'}}),generation:2}];
+ const packet={root,snapshot:'uri-security',resources},checked=analyse(packet);
+ assert.equal(checked.complete,true);assert.deepEqual(checked.findings,[]);
+ const plan=requestOperation({...packet,resource:root,pointer:'/paths/~1items/get'});
+ assert.deepEqual(plan.security.requirements.map(value=>value.scopes),value.security);
+ assert.equal(plan.security.schemes.Provider.parameterName,'X-Local');
+ assert.equal(plan.security.schemes.Provider.source.resource,root);
+ assert.equal(plan.security.schemes.Provider.source.pointer,'/components/securitySchemes/Provider');
+ assert.equal(plan.security.schemes[uri].parameterName,'X-Remote');
+ assert.equal(plan.security.schemes[uri].definition.resource,fragment);
+ assert.equal(plan.security.schemes[uri].definition.pointer,'/Remote~1~0');
+ assert.equal(plan.security.schemes[uri].source.resource,root);
+ assert.equal(plan.security.schemes[uri].source.pointer,'/security/1/.~1Provider#~1Alias');
+ assert.equal(plan.security.schemes['./Provider#/Other'].scheme,'basic');
+ assert.deepEqual(resources.map(resource=>resource.text),[serialize(value),serialize({Alias:{$ref:'#/Remote~1~0'},'Remote/~':{type:'apiKey',in:'header',name:'X-Remote'},Other:{type:'http',scheme:'basic'}})]);
+});
 for(const version of ['3.0.4','3.1.2','3.2.1'])test(`explicit part media choices use captured ${version} encoding semantics`,()=>{
  const value={openapi:version,info:{title:'Part choices',version:'1'},paths:{'/form':{post:{requestBody:{content:{'multipart/form-data':{
    schema:{type:'object',properties:{metadata:{type:'string'},image:{type:'string'},default:{type:'string'}}},

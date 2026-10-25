@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -12,6 +13,36 @@ String get testBundle =>
     p.join(repositoryRoot, 'build/test-runtime');
 String get runtimeNode => p.join(testBundle, 'libexec/busyapi/node');
 String get runtimeHelper => p.join(testBundle, 'libexec/busyapi/engine.cjs');
+Future<({int code, String output, String error})> runCliWithSecrets(
+  List<String> arguments,
+  Map<String, String> secrets,
+) async {
+  final process = await Process.start(
+    '$testBundle/busyapi',
+    [...arguments, '--secrets-stdin'],
+    environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
+    includeParentEnvironment: false,
+  );
+  var exited = false;
+  final completion = process.exitCode.then((code) {
+    exited = true;
+    return code;
+  });
+  final output = process.stdout.transform(utf8.decoder).join();
+  final error = process.stderr.transform(utf8.decoder).join();
+  try {
+    process.stdin.write(jsonEncode(secrets));
+    await process.stdin.close();
+    final code = await completion.timeout(const Duration(seconds: 30));
+    return (code: code, output: await output, error: await error);
+  } finally {
+    if (!exited) {
+      process.kill();
+      await completion.timeout(const Duration(seconds: 5));
+    }
+  }
+}
+
 String coreTestPath(String name) =>
     p.join(repositoryRoot, 'packages/busyapi_core/test', name);
 

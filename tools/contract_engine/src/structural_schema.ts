@@ -45,6 +45,19 @@ function bindDraft4(value: any): any {
 }
 const bound30 = bindDraft4(schema30);
 bound30.$id = 'urn:busyapi:structural:3.0:2024-10-18';
+// OAS 3.0 §4.7.7 requires the component-name pattern. The informational
+// artifact leaves unmatched keys open. Bind name constraints separately from
+// value constraints, avoiding Ajv 8.20's ordinary-object pattern tracker under
+// Node's prototype guard. Only trusted schema assets are adapted here.
+for(const name of Object.keys(bound30.$defs.components.properties)) {
+    const map=bound30.$defs.components.properties[name];
+    const patterns=Object.keys(map.patternProperties??{});
+    if(map.type!=='object'||patterns.length!==1||Object.hasOwn(map,'additionalProperties'))
+        throw new Error('Unexpected pinned OpenAPI 3.0 component-map schema');
+    map.propertyNames={pattern:patterns[0]};
+    map.additionalProperties=map.patternProperties[patterns[0]];
+    delete map.patternProperties;
+}
 // OAS parameter/tag uniqueness is by semantic identity, not deep equality.
 // The canonical relationship checks enforce those stronger normative rules.
 // Ajv's deep-equality helper assumes Object.prototype methods, which canonical
