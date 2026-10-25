@@ -259,6 +259,7 @@ class MockRun {
     this.nativeParameterValidation,
     this.nativeSecurityValidation,
     this.nativeGeneration,
+    this.nativeOperationRouting,
     this._stderr,
   );
   final MockPlan plan;
@@ -272,6 +273,7 @@ class MockRun {
   final MockValidationIdentity nativeParameterValidation;
   final MockValidationIdentity nativeSecurityValidation;
   final MockValidationIdentity nativeGeneration;
+  final MockValidationIdentity nativeOperationRouting;
   final List<int> _stderr;
   bool _stopping = false;
   bool get outdated => plan.outdated;
@@ -394,6 +396,10 @@ class MockRun {
       message['nativeGeneration'],
       expectedName: 'busyapi-native-schema-samples',
     );
+    final nativeOperationRouting = MockValidationIdentity._read(
+      message['nativeOperationRouting'],
+      expectedName: 'busyapi-native-methods',
+    );
     if (message['event'] != 'ready' ||
         message['snapshot'] != plan.snapshot.identity ||
         message['tool'] != 'Prism' ||
@@ -406,6 +412,7 @@ class MockRun {
         nativeParameterValidation == null ||
         nativeSecurityValidation == null ||
         nativeGeneration == null ||
+        nativeOperationRouting == null ||
         nativeValidation.version != _schemaProducerVersion ||
         nativeResponseValidation.version != '3' ||
         nativeResponseValidation.configuration !=
@@ -417,6 +424,9 @@ class MockRun {
         nativeGeneration.version != '1' ||
         nativeGeneration.configuration !=
             'captured-schema-candidates-v1:${nativeValidation.configuration}' ||
+        nativeOperationRouting.version != '1' ||
+        nativeOperationRouting.configuration !=
+            'method-wire-v1:${nativeValidation.configuration}' ||
         nativeSecurityValidation.configuration !=
             'security-wire-v1:${nativeValidation.configuration}' ||
         message['upstreamForwarding'] != (proxyTarget != null)) {
@@ -450,6 +460,7 @@ class MockRun {
       nativeParameterValidation,
       nativeSecurityValidation,
       nativeGeneration,
+      nativeOperationRouting,
       stderrBytes,
     );
   }

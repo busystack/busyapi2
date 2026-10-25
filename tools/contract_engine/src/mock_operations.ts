@@ -4,8 +4,21 @@ import {schemaLocation} from './mock_projection';
 import type {ReferenceGraph,OperationOccurrence} from './reference_graph';
 import {swaggerMedia} from './swagger_operation';
 
-export type MockOperationLocation={path:string;method:string;pointer:string;defaultResponseMedia?:boolean};
+export type MockOperationLocation={path:string;method:string;wireMethod:string;pointer:string;customMethod?:boolean;customOperation?:Record<string,unknown>;defaultResponseMedia?:boolean};
+export const mockMethodProducer=Object.freeze({name:'busyapi-native-methods',version:'1'});
+export const mockWireMethod=(operation:Pick<OperationOccurrence,'method'|'customMethod'>):string=>
+    operation.customMethod?operation.method:operation.method.toUpperCase();
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
+
+/** The pinned per-operation translator reads a direct Path Item member. Give
+ * each additional operation its own private view, retaining original source
+ * ownership and case separately. No captured document is changed. */
+export function mockOperationDocument(document:Record<string,unknown>,operation:MockOperationLocation):Record<string,unknown> {
+    if(!operation.customOperation)return document;
+    const paths=document.paths,path=record(paths)?paths[operation.path]:undefined;
+    if(!record(paths)||!record(path))throw new SourceError('mock.projection.missing','The captured additional operation has no derived Path Item');
+    return {...document,paths:{...paths,[operation.path]:{...path,[operation.method]:operation.customOperation}}};
+}
 
 /** Translate only physical locations proved by the existing bundle owner.
  * This cannot resolve references, infer fields or choose schema semantics. */
@@ -52,7 +65,6 @@ export class MockOperationProjection {
         const paths=new Map<string,Record<string,unknown>>(),operations:MockOperationLocation[]=[];
         for(const operation of this.graph.operations()){
             if(operation.role!=='operation')continue;
-            if(operation.customMethod)this.unsupported(operation,'The pinned mock router cannot preserve this custom operation method');
             const view=this.graph.pathItem(operation.pathItem);
             if(!view.complete||!view.chainComplete)this.unsupported(operation,'The captured Path Item inheritance is incomplete');
             if(!paths.has(operation.path)){
@@ -62,7 +74,11 @@ export class MockOperationProjection {
             }
             const media=this.graph.scopes.get(operation.source.resource+'#'+operation.source.pointer)?.family==='2.0'
                 ?swaggerMedia(this.graph,operation.source.resource,operation.source.pointer,'produces'):undefined;
-            operations.push({path:operation.path,method:operation.method,pointer:this.locate(operation.source.resource,operation.source.pointer),
+            const pointer=this.locate(operation.source.resource,operation.source.pointer);
+            const customOperation=operation.customMethod?this.value(document,pointer):undefined;
+            if(operation.customMethod&&!record(customOperation))throw new SourceError('mock.projection.missing','The captured additional operation is not an object');
+            operations.push({path:operation.path,method:operation.method,wireMethod:mockWireMethod(operation),pointer,
+                ...(record(customOperation)?{customMethod:true,customOperation}:{}),
                 ...(media?.length===1&&media[0]==='*/*'?{defaultResponseMedia:true}:{})});
         }
         return {document:{...document,paths:Object.fromEntries(paths)},operations};

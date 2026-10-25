@@ -11,7 +11,8 @@ import {mockResponseProducer,validateMockResponse} from './mock_response_validat
 import {mockParameterProducer,validateMockParameters} from './mock_request_parameters';
 import {schemaProducer} from './schema_evaluation';
 import {mockSecurityProducer,validateMockSecurity} from './mock_request_security';
-import {MockOperationProjection} from './mock_operations';
+import {MockOperationProjection,mockWireMethod,mockMethodProducer} from './mock_operations';
+import {maximumMockMethodBytes} from './mock_method_transport';
 import {MockSchemaSamples,mockSampleProducer} from './mock_schema_samples';
 export type {NativeMockCheck} from './mock_projection';
 
@@ -48,7 +49,7 @@ export class MockNativeValidation {
         this.context=createGraph(capture);
         this.samples=new MockSchemaSamples(this.context.graph,(instances,signal)=>this.evaluateInstances(instances,signal),capture.snapshot);
         for(const operation of this.context.graph.operations())if(operation.role==='operation') {
-            const method=operation.customMethod?operation.method:operation.method.toUpperCase(),key=JSON.stringify([operation.path,method]);
+            const key=JSON.stringify([operation.path,mockWireMethod(operation)]);
             if(this.operations.has(key))throw new SourceError('mock.operation.ambiguous','The captured mock route has multiple operation owners');
             this.operations.set(key,operation);
         }
@@ -79,6 +80,7 @@ export class MockNativeValidation {
     get parameterIdentity(){return this.producer&&{...mockParameterProducer,configuration:'parameter-wire-v3:'+this.producer.configuration};}
     get securityIdentity(){return this.producer&&{...mockSecurityProducer,configuration:'security-wire-v1:'+this.producer.configuration};}
     get generationIdentity(){return this.producer&&{...mockSampleProducer,configuration:'captured-schema-candidates-v1:'+this.producer.configuration};}
+    get methodIdentity(){return this.producer&&{...mockMethodProducer,configuration:'method-wire-v1:'+this.producer.configuration};}
 
     projectedOperations(document:Record<string,unknown>) {
         if(!this.operationProjection)throw new SourceError('mock.validation.protocol','The captured operation projection was not prepared');
@@ -94,7 +96,7 @@ export class MockNativeValidation {
     }
 
     private plan(path:string,method:string) {
-        const key=JSON.stringify([path,method.toUpperCase()]);
+        const key=JSON.stringify([path,method]);
         const cached=this.plans.get(key);if(cached)return cached;
         const operation=this.operations.get(key);
         if(!operation)throw new SourceError('mock.operation.owner','The selected mock route has no captured native owner');
@@ -105,10 +107,15 @@ export class MockNativeValidation {
     }
 
     qualify(operations:readonly {path:string;method:string}[]):void {
-        const covered=new Set(operations.map(operation=>JSON.stringify([operation.path,operation.method.toUpperCase()])));
-        for(const [key,operation]of this.operations)if(operation.customMethod||!covered.has(key)) {
+        const covered=new Set(operations.map(operation=>JSON.stringify([operation.path,operation.method])));
+        for(const [key,operation]of this.operations)if(!covered.has(key)||mockWireMethod(operation).length>maximumMockMethodBytes||operation.customMethod&&operation.method==='CONNECT') {
             const source=operation.source,node=this.context.docs.get(source.resource)!.dataNode(source.pointer)!;
-            throw new SourceError('mock.operation.unsupported','The pinned mock router cannot represent this operation',node.range,'unsupported',{...source,range:node.range});
+            const limit=mockWireMethod(operation).length>maximumMockMethodBytes;
+            const tunnel=operation.customMethod&&operation.method==='CONNECT';
+            throw new SourceError(tunnel?'mock.method.tunnel':limit?'mock.method.limit':'mock.operation.unsupported',
+                tunnel?'CONNECT requires a tunnel-capable transport; this mock returns ordinary HTTP responses':
+                limit?'The declared method exceeds the mock HTTP parser\'s 16 KiB method budget':'The derived mock routes omit this captured operation',
+                node.range,'unsupported',{...source,range:node.range});
         }
     }
 
@@ -138,6 +145,10 @@ export class MockNativeValidation {
         return this.evaluate(bytes,actual,signal,schema,itemSchema,form);
     }
 
+    isAdditional(path:string,method:string):boolean {
+        return this.plan(path,method).operation.customMethod===true;
+    }
+
     async response(path:string,method:string,status:number,headers:unknown,bytes:Buffer,signal:AbortSignal):Promise<NativeMockCheck> {
         const {description}=this.plan(path,method);
         return validateMockResponse(this.context.graph,description,description.operation.method,status,headers,bytes,instances=>this.evaluateInstances(instances,signal));
@@ -148,9 +159,14 @@ export class MockNativeValidation {
     }
 
     generationFailure(path:string,method:string,code:string,message:string):SourceError {
+        const source=this.operationSource(path,method);
+        return new SourceError(code,message,source.range,'unsupported',source);
+    }
+
+    operationSource(path:string,method:string):SourceLocation {
         const {operation}=this.plan(path,method),source=operation.source;
         const range=this.context.docs.get(source.resource)!.dataNode(source.pointer)!.range;
-        return new SourceError(code,message,range,'unsupported',{resource:source.resource,pointer:source.pointer,range});
+        return {resource:source.resource,pointer:source.pointer,range};
     }
 
     async parameters(template:string,method:string,path:string,query:string,headers:Readonly<Record<string,string>>,signal:AbortSignal):Promise<NativeMockCheck> {

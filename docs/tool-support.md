@@ -112,9 +112,23 @@ forge them. Security findings retain the captured source snapshot and ranges.
 
 Mock operations also use the canonical inventory and effective Path Item fields.
 Chained shared Path Items retain inherited parameters and exact operation examples;
-3.2 QUERY uses the actual QUERY method and native body/security rules. The pinned
-adapter's custom-method and nested-generation limitations remain separately
-tracked in the [support matrix](implementation/native-openapi-support.md).
+3.2 QUERY uses the actual QUERY method and native body/security rules. Ordinary
+additional operations retain their declared method case, shared owners, native
+schema/security checks and exact examples. CLI readiness identifies
+`nativeOperationRouting` separately, and Core rejects a stale routing policy.
+Captures containing additional methods use one request per connection with a
+16 KiB method-token bound and five-second initial-token deadline; ordinary
+captures keep connection reuse. CONNECT requires tunnel-capable transport and
+receives a source-located startup blocker. Remaining tunnel and nested-generation
+work is tracked in the [support matrix](implementation/native-openapi-support.md).
+
+Additional-method validation proxies retain actual method/query/body bytes and
+separate received response bytes from the decoded native validation view. Gzip,
+zlib-wrapped deflate, Brotli and coding chains have bounded decoding; received
+compressed bytes are forwarded intact. Unknown coding and exhausted budgets
+remain incomplete; malformed coding is operational. These paths use the pinned
+Node HTTP client because Fetch normalizes some case-sensitive methods. No source
+document, declared specification version, dependency or runtime lock changes.
 
 The native sample owner proves finite authored whole-value examples, defaults,
 enum values and modern const/examples values against the original captured

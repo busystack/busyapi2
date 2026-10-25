@@ -12,6 +12,7 @@ exact Save, Quit and cold reopen. Other application workflows have separate
 qualification. Evidence contains only these synthetic files and owned windows.
 `--edit --mock-samples` also drives local mock preparation/start/stop and checks
 exact generated HTTP bodies both before Quit and after cold reopen.
+`--mock-methods` selects a case-sensitive 3.2 additional operation for that journey.
 """
 import argparse
 import ast
@@ -23,6 +24,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 from pathlib import Path
 
@@ -35,7 +37,7 @@ from native_focus import (
 )
 
 
-def fixture_sources(version, format, mock_samples=False):
+def fixture_sources(version, format, mock_samples=False, mock_methods=False):
     swagger = version == '2.0'
     schema = {
         'type': 'object',
@@ -65,6 +67,10 @@ def fixture_sources(version, format, mock_samples=False):
             'responses': {'200': response},
         }}},
     }
+    if mock_methods:
+        document['paths']['/items'] = {
+            'additionalOperations': document['paths']['/items'],
+        }
     model = {
         'Item': schema,
         'x-literal': {'$ref': 'literal', 'number': 'EXACT'},
@@ -85,6 +91,17 @@ def fixture_sources(version, format, mock_samples=False):
             "          content:\n            application/json:\n"
             "              schema:\n                $ref: './model.yaml#/Item'\n"
         )
+        operations = (
+            '    get:\n'
+            '      operationId: getItems\n'
+            '      summary: Inspect items\n'
+            '      responses:\n'
+            "        '200':\n"
+            '          description: Actual response\n'
+            + body
+        )
+        if mock_methods:
+            operations = '    additionalOperations:\n' + textwrap.indent(operations, '  ')
         source = (
             '# Retain source organization\n'
             f'{declaration}: "{version}"\n'
@@ -94,13 +111,7 @@ def fixture_sources(version, format, mock_samples=False):
             + server +
             'paths:\n'
             '  /items:\n'
-            '    get:\n'
-            '      operationId: getItems\n'
-            '      summary: Inspect items\n'
-            '      responses:\n'
-            "        '200':\n"
-            '          description: Actual response\n'
-            + body
+            + operations
         ).replace('\n', '\r\n')
         shared = (
             '# Retain shared model and alias ownership\n'
@@ -227,7 +238,7 @@ def click_control(native, pid, name):
                     'point': points[name]})
 
 
-def mock_samples(native, process, format):
+def mock_samples(native, process, format, method='GET'):
     mode(native, process.pid, 'Local mock')
     wait_tree(
         native, process.pid,
@@ -254,7 +265,7 @@ def mock_samples(native, process, format):
     try:
         for _ in range(2):
             native.ready()
-            connection.request('GET', '/items')
+            connection.request(method, '/items')
             response = connection.getresponse()
             body = response.read()
             assert response.status == 200, body
@@ -366,11 +377,16 @@ def main():
     parser.add_argument('--edit', action='store_true')
     parser.add_argument('--project', action='store_true')
     parser.add_argument('--mock-samples', action='store_true')
+    parser.add_argument('--mock-methods', action='store_true')
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
-    parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.1'])
+    parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1'])
     parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
     args = parser.parse_args()
+    if args.mock_methods:
+        if not args.version.startswith('3.2.'):
+            parser.error('--mock-methods requires an OpenAPI 3.2 root')
+        args.mock_samples = True
     if args.mock_samples and not args.edit:
         parser.error('--mock-samples requires --edit for the save/reopen journey')
     if not args.session:
@@ -383,6 +399,7 @@ def main():
                 *(['--edit'] if args.edit else []),
                 *(['--project'] if args.project else []),
                 *(['--mock-samples'] if args.mock_samples else []),
+                *(['--mock-methods'] if args.mock_methods else []),
             ]
             return subprocess.run(
                 command, env=private_session_environment(environment, runtime),
@@ -416,10 +433,11 @@ def main():
             + ('-project' if args.project else '-standalone')
             + ('-journey' if args.edit else '')
             + ('-mock-samples' if args.mock_samples else '')
+            + ('-methods' if args.mock_methods else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
-        source, shared = fixture_sources(args.version, args.format, args.mock_samples)
+        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods)
         file.write_bytes(source)
         fragment.write_bytes(shared)
         files = [file, fragment]
@@ -492,7 +510,7 @@ def main():
                     edited, nodes = edit(native, process, file, fragment, original, args.version)
                     expected_sources[str(file)] = edited
                     if args.mock_samples:
-                        mock_samples(native, process, args.format)
+                        mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET')
                     quit_application(native, process)
                     native = None
                     process = subprocess.Popen(
@@ -512,7 +530,7 @@ def main():
                         args.project or not (project_directory / 'busyapi.yaml').exists()
                     ), 'Standalone editing created a project wrapper'
                     if args.mock_samples:
-                        mock_samples(native, process, args.format)
+                        mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET')
                 window = native.ready()
                 width, height = native.dimensions(window)
                 pixels = Gdk.pixbuf_get_from_window(window, 0, 0, width, height)
@@ -528,6 +546,7 @@ def main():
                     ),
                     'complete': True, 'nodes': nodes,
                     'nativeMockSamples': args.mock_samples,
+                    'nativeMockMethods': args.mock_methods,
                     'files': {
                         str(Path(name).relative_to(project_directory)):
                             hashlib.sha256(raw).hexdigest()

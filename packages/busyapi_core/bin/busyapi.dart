@@ -761,6 +761,7 @@ Future<void> runBusyApi(
             'nativeParameterValidation': run.nativeParameterValidation.toJson(),
             'nativeSecurityValidation': run.nativeSecurityValidation.toJson(),
             'nativeGeneration': run.nativeGeneration.toJson(),
+            'nativeOperationRouting': run.nativeOperationRouting.toJson(),
             'adapter': 'in-memory-http-spec-7.1.0',
             'host': run.host,
             'port': run.port,

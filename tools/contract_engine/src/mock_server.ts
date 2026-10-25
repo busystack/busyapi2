@@ -16,6 +16,9 @@ import {mockCapture,MockNativeValidation,type MockCapture,type NativeMockCheck} 
 import {record} from './engine_worker_client';
 import {segments,SourceError} from './document';
 import type {MockOperationLocation} from './mock_operations';
+import {mockOperationDocument} from './mock_operations';
+import {MockMethodTransport} from './mock_method_transport';
+import {exactProxyResponse} from './mock_exact_proxy';
 import {MockGenerationAdapter,defaultSwaggerResponseMedia} from './mock_generation_adapter';
 
 const maximumInput = 64 * 1024 * 1024;
@@ -95,7 +98,7 @@ function propertyName(node: Node): string | undefined {
 
 function exactExamples(text: string, tree: Node,operations:readonly MockOperationLocation[]): ExactExample[] {
   const output: ExactExample[] = [];
-  for (const {path,method,pointer}of operations) {
+  for (const {path,wireMethod:method,pointer}of operations) {
       const responses = findNodeAtLocation(findNodeAtLocation(tree,segments(pointer)), ['responses']);
       for (const responseProperty of children(responses)) {
         const status = propertyName(responseProperty), response = responseProperty.children?.[1];
@@ -146,7 +149,9 @@ async function body(request: IncomingMessage): Promise<CapturedBody> {
 }
 
 function forwardPreservingBytes(rawRequests: WeakMap<object, Buffer | undefined>,
-  rawResponses: WeakMap<object, Buffer>,signals:WeakMap<object,AbortSignal>) {
+  rawResponses: WeakMap<object, Buffer>,signals:WeakMap<object,AbortSignal>,
+  additionalRequests:WeakSet<object>,rawSearches:WeakMap<object,string>,
+  decodedResponses:WeakMap<object,Buffer>,proxyFailures:WeakMap<object,SourceError>) {
   return ({ data: request, validations }: any, baseUrl: string) => (logger: any) => async () => {
     try {
       if (validations.length) {
@@ -156,10 +161,10 @@ function forwardPreservingBytes(rawRequests: WeakMap<object, Buffer | undefined>
       }
       const target = new URL(baseUrl), basePath = target.pathname.replace(/\/$/u, '');
       target.pathname = `${basePath}${request.url.path.startsWith('/') ? '' : '/'}${request.url.path}`;
-      target.search = '';
-      for (const [name, value] of Object.entries(request.url.query ?? {}))
-        for (const item of Array.isArray(value) ? value : [value]) target.searchParams.append(name, String(item));
-      const method = String(request.method).toUpperCase(), raw = rawRequests.get(request);
+      const search=rawSearches.get(request);
+      if(typeof search!=='string')throw new SourceError('mock.proxy.target','The proxy omitted its original captured query');
+      target.search = search;
+      const method = String(request.method), raw = rawRequests.get(request);
       if ((method === 'GET' || method === 'HEAD') && raw?.length) {
         const error = new Error('Validation proxy does not replay a GET/HEAD request body');
         Object.assign(error, { status: 422 });
@@ -171,30 +176,35 @@ function forwardPreservingBytes(rawRequests: WeakMap<object, Buffer | undefined>
       for (const [name, value] of Object.entries(request.headers ?? {}))
         if (!hop.has(name.toLowerCase()) && name.toLowerCase() !== 'accept-encoding') headers.append(name, String(value));
       headers.set('accept-encoding', 'identity');
-      const response = await fetch(target, {
-        method,
-        headers,
-        body: raw?.length ? raw : undefined,
-        redirect: 'manual',
-        signal:signals.get(request),
-      });
-      const chunks: Buffer[] = []; let length = 0;
-      if (response.body) {
-        const reader = response.body.getReader();
-        while (true) {
-          const next = await reader.read();
-          if (next.done) break;
-          length += next.value.length;
-          if (length > maximumUpstreamBody) {
-            await reader.cancel();
-            throw new Error('validation proxy upstream body exceeds 64 MiB');
+      let response:{status:number;headers:Headers},bytes:Buffer,wire:Buffer|undefined;
+      const additional=additionalRequests.has(request);
+      if(additional){
+        const received=await exactProxyResponse(target,method,headers,raw?.length?raw:undefined,maximumUpstreamBody,signals.get(request));
+        response=received;bytes=received.decoded;wire=received.wire;
+      }else{
+        const fetched = await fetch(target, {
+          method,headers,body:raw?.length?raw:undefined,redirect:'manual',signal:signals.get(request),
+        });
+        response=fetched;
+        const chunks: Buffer[] = []; let length = 0;
+        if (fetched.body) {
+          const reader = fetched.body.getReader();
+          while (true) {
+            const next = await reader.read();
+            if (next.done) break;
+            length += next.value.length;
+            if (length > maximumUpstreamBody) {
+              await reader.cancel();
+              throw new Error('validation proxy upstream body exceeds 64 MiB');
+            }
+            chunks.push(Buffer.from(next.value));
           }
-          chunks.push(Buffer.from(next.value));
         }
+        bytes=Buffer.concat(chunks);
       }
-      const bytes = Buffer.concat(chunks), responseHeaders: Record<string, string | string[]> = {};
+      const responseHeaders: Record<string, string | string[]> = {};
       for (const [name, value] of response.headers.entries())
-        if (!hop.has(name.toLowerCase()) && !['content-encoding','set-cookie'].includes(name.toLowerCase())) responseHeaders[name] = value;
+        if (!hop.has(name.toLowerCase()) && name.toLowerCase()!=='set-cookie' && (additional||name.toLowerCase()!=='content-encoding')) responseHeaders[name] = value;
       const cookies=response.headers.getSetCookie();
       if(cookies.length)responseHeaders['set-cookie']=cookies;
       const media = String(response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
@@ -206,10 +216,12 @@ function forwardPreservingBytes(rawRequests: WeakMap<object, Buffer | undefined>
       }
       else if (applicable&&media.startsWith('text/')) value = bytes.toString('utf8');
       const output = { statusCode: response.status, headers: responseHeaders, body: value };
-      rawResponses.set(output, bytes);
+      rawResponses.set(output, wire??bytes);
+      if(additional)decodedResponses.set(output,bytes);
       logger.info(`Validated one explicit upstream response with ${bytes.length} retained bytes`);
       return { _tag: 'Right', right: output };
     } catch (error) {
+      if(error instanceof SourceError)proxyFailures.set(request,error);
       return { _tag: 'Left', left: error instanceof Error ? error : new Error(String(error)) };
     }
   };
@@ -295,11 +307,13 @@ async function main(): Promise<void> {
     const examples=exactExamples(documentText,tree,projected.operations);
     // The pinned collection enumerator ignores Path Item references and QUERY.
     // Its public per-operation API consumes the canonical captured inventory.
-    const operations:IHttpOperation[]=projected.operations.map(({path,method,defaultResponseMedia})=>{
-      const options={document:projected.document,name:path,method,config:OPERATION_CONFIG};
+    const operations:IHttpOperation[]=projected.operations.map(location=>{
+      const {path,method,wireMethod,defaultResponseMedia}=location;
+      const options={document:mockOperationDocument(projected.document,location),name:path,method,config:OPERATION_CONFIG};
       const operation=declaration.specification.family==='2.0'?transformOas2Operation(options):transformOas3Operation(options);
       const located={...operation,path};
-      return defaultResponseMedia?defaultSwaggerResponseMedia(projected.document,located):located;
+      const media=defaultResponseMedia?defaultSwaggerResponseMedia(projected.document,located):located;
+      return {...media,method:wireMethod};
     });
     native.qualify(operations);
     if (operations.length === 0) throw new Error('mock input has no operations');
@@ -307,6 +321,10 @@ async function main(): Promise<void> {
       pino.destination({ dest: 2, sync: false }));
     const rawRequests = new WeakMap<object, Buffer | undefined>();
     const rawResponses = new WeakMap<object, Buffer>();
+    const decodedResponses = new WeakMap<object,Buffer>();
+    const rawSearches=new WeakMap<object,string>();
+    const additionalRequests=new WeakSet<object>();
+    const proxyFailures=new WeakMap<object,SourceError>();
     const generation=new MockGenerationAdapter(native);
     const signals=new WeakMap<object,AbortSignal>();
     const nativeChecks=new WeakMap<object,NativeMockCheck>();
@@ -369,13 +387,15 @@ async function main(): Promise<void> {
         }
         return result;
       },
-      ...(input.upstream ? { forward: forwardPreservingBytes(rawRequests, rawResponses,signals) as never } : {}) });
+      ...(input.upstream ? { forward: forwardPreservingBytes(rawRequests, rawResponses,signals,additionalRequests,rawSearches,decodedResponses,proxyFailures) as never } : {}) });
     const server = createServer(async (request, reply) => {
       reply.setHeader('busyapi-request-security-complete','false');
+      reply.setHeader('busyapi-response-validation-complete','false');
       const cancellation=new AbortController();
       request.once('aborted',()=>cancellation.abort());
       reply.once('close',()=>{if(!reply.writableEnded)cancellation.abort();});
       try {
+        request.method=methods.method(request);
         const url = new URL(request.url ?? '/', 'http://127.0.0.1');
         const preferences = preference(request, url);
         const query: Record<string, string | string[]> = Object.create(null);
@@ -396,12 +416,17 @@ async function main(): Promise<void> {
         }
         for(const [name,values]of rawFields)headers[name]=values.join(', ');
         const captured = await body(request);
-        const prismRequest = { method: (request.method ?? 'GET').toLowerCase() as never,
+        const prismRequest = { method: request.method as never,
           url: { path: url.pathname, query }, headers, body: captured.value };
         rawRequests.set(prismRequest, captured.raw);
+        rawSearches.set(prismRequest,url.search);
         signals.set(prismRequest,cancellation.signal);
-        const selected=route({resources:operations,input:prismRequest});
+        // The pinned router folds methods. Empty vendor-only methods exclude
+        // other capitalizations while preserving its path/405 diagnostics.
+        const routedOperations=operations.map(operation=>operation.method===request.method?operation:{...operation,method:''});
+        const selected=route({resources:routedOperations,input:prismRequest});
         if(selected._tag==='Right'){
+          if(native.isAdditional(selected.right.path,selected.right.method))additionalRequests.add(prismRequest);
           const securityCheck=native.security(selected.right.path,selected.right.method,url.search.slice(1),request.rawHeaders,cancellation.signal);
           nativeSecurityChecks.set(prismRequest,securityCheck);
           reply.setHeader('busyapi-request-security-complete',String(securityCheck.complete));
@@ -423,7 +448,7 @@ async function main(): Promise<void> {
               !check.findings.some(finding=>['runtime.body.syntax','runtime.request.content-type'].includes(String(finding.code))))
             prismRequest.body=JSON.parse(captured.raw.toString('utf8'));
         }
-        let requestOperations=operations;
+        let requestOperations=routedOperations;
         let requestMock:IHttpOperationConfig=preferences;
         if(!input.upstream&&selected._tag==='Right') {
           const checked=nativeChecks.get(prismRequest),security=nativeSecurityChecks.get(prismRequest);
@@ -432,7 +457,7 @@ async function main(): Promise<void> {
             {...preferences,mediaTypes:headers.accept?.split(',')},diagnostics,
             logger.child({}, {level:'silent'}),cancellation.signal);
           if(cancellation.signal.aborted||reply.destroyed)return;
-          requestOperations=operations.map(value=>value===selected.right?prepared.operation:value);
+          requestOperations=routedOperations.map(value=>value===selected.right?prepared.operation:value);
           requestMock=prepared.configuration;
         }
         const outcome = await prism.request(prismRequest, requestOperations,
@@ -445,8 +470,15 @@ async function main(): Promise<void> {
           for (const [name, value] of Object.entries(error.additional?.headers ?? {})) reply.setHeader(name, value);
           const checked=nativeChecks.get(prismRequest),security=nativeSecurityChecks.get(prismRequest);
           const findings=[...(security?[...nativeDiagnostics(security),...nativeDiagnostics(security,'warning')]:[]),...(checked?[...nativeDiagnostics(checked),...nativeDiagnostics(checked,'warning')]:[])];
+          const failure=proxyFailures.get(prismRequest);
+          const source=failure&&selected._tag==='Right'?native.operationSource(selected.right.path,selected.right.method):undefined;
+          if(failure)findings.push({severity:failure.kind==='unsupported'?DiagnosticSeverity.Warning:DiagnosticSeverity.Error,
+            code:failure.code,nativeCode:failure.code,message:failure.message,path:['response-body'],
+            ...(source?{nativeSource:{...source,snapshot:input.snapshot}}:{})});
           if(findings.length)reply.setHeader('sl-violations',violationHeader(findings.map(value=>violation(value,'request'))));
-          send(reply, error.status ?? 500, JSON.stringify(ProblemJsonError.toProblemJson(error)));
+          const status=failure?.kind==='unsupported'?501:error.status??500;
+          send(reply,status,JSON.stringify({...ProblemJsonError.toProblemJson(error),status,complete:false,
+            ...(failure?{findings:[{code:failure.code,kind:failure.kind??'operational',message:failure.message,source:source&&{...source,snapshot:input.snapshot}}]}:{})}));
           return;
         }
         const result = outcome.right;
@@ -464,7 +496,7 @@ async function main(): Promise<void> {
             result.output.headers![name]=length;reply.setHeader(name,length);
           }
         const responseCheck:NativeMockCheck=selected._tag==='Right'
-          ?await native.response(selected.right.path,selected.right.method,result.output.statusCode,result.output.headers??{},Buffer.isBuffer(payload)?payload:Buffer.from(payload??'','utf8'),cancellation.signal)
+          ?await native.response(selected.right.path,selected.right.method,result.output.statusCode,result.output.headers??{},decodedResponses.get(result.output)??(Buffer.isBuffer(payload)?payload:Buffer.from(payload??'','utf8')),cancellation.signal)
           :{complete:false,valid:false,findings:[{code:'runtime.response.operation.unchecked',message:'The forwarded response has no captured operation owner',severity:'warning',kind:'unsupported',subject:'response-body',pointer:''}]};
         if(cancellation.signal.aborted||reply.destroyed)return;
         const violations = [...result.validations.input.map(value => violation(value, 'request')),...notes,
@@ -498,10 +530,12 @@ async function main(): Promise<void> {
           ...(error instanceof SourceError?{findings:[{code:error.code,message:error.message,kind:error.kind,source:error.source,severity:unsupported?'warning':'error'}]}:{}) }));
       }
     });
+    const methods=new MockMethodTransport(server,projected.operations.some(operation=>operation.customMethod));
     let closing = false;
     const close = async (signal: string): Promise<void> => {
       if (closing) return;
       closing = true;
+      methods.close();
       server.closeAllConnections();
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
       await native.close();
@@ -521,7 +555,7 @@ async function main(): Promise<void> {
       toolVersion: '5.15.11', adapter: 'in-memory-http-spec-7.1.0', host: '127.0.0.1',
       port: address.port, operations: operations.length, nativeValidation:native.identity,
       nativeResponseValidation:native.responseIdentity,nativeParameterValidation:native.parameterIdentity,nativeSecurityValidation:native.securityIdentity,
-      nativeGeneration:native.generationIdentity,upstreamForwarding: input.upstream !== undefined });
+      nativeGeneration:native.generationIdentity,nativeOperationRouting:native.methodIdentity,upstreamForwarding: input.upstream !== undefined });
   } finally {
     if(!listening)await native.close();
   }
