@@ -10,12 +10,16 @@ Real XTest input retains the existing PID, focus, lock, pointer and GTK geometry
 checks. The editing journey verifies Design/Source/history, unsaved Reference,
 exact Save, Quit and cold reopen. Other application workflows have separate
 qualification. Evidence contains only these synthetic files and owned windows.
+`--edit --mock-samples` also drives local mock preparation/start/stop and checks
+exact generated HTTP bodies both before Quit and after cold reopen.
 """
 import argparse
 import ast
 import hashlib
+import http.client
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -31,13 +35,14 @@ from native_focus import (
 )
 
 
-def fixture_sources(version, format):
+def fixture_sources(version, format, mock_samples=False):
     swagger = version == '2.0'
     schema = {
         'type': 'object',
         'required': ['id'],
         'properties': {'id': {'type': 'integer'}},
         'additionalProperties': False,
+        **({'default': {'id': 'EXACT'}} if mock_samples else {}),
     }
     reference = {'$ref': './model.' + format + '#/Item'}
     response = {
@@ -105,6 +110,7 @@ def fixture_sources(version, format):
             '  properties:\n'
             '    id: {type: integer}\n'
             '  additionalProperties: false\n'
+            + ('  default: {id: 9007199254740993.00}\n' if mock_samples else '') +
             'Mirror: *item\n'
             'x-literal:\n'
             '  $ref: literal\n'
@@ -210,6 +216,63 @@ def quit_application(native, process):
     native.close()
 
 
+def click_control(native, pid, name):
+    nodes = tree(pid, details=True)
+    if sum(node['name'] == name for node in nodes) != 1:
+        raise RuntimeError('Owned accessibility tree did not expose one ' + name)
+    # The fixed viewport has a PID/GTK client-geometry proof in NativeInput.
+    # Child component extent RPCs are not needed to acquire coordinate authority.
+    points = {'Start Mock': [790, 556], 'Stop': [1236, 407]}
+    native.perform({'kind': 'click', 'scale': 1, 'viewport': [1280, 720],
+                    'point': points[name]})
+
+
+def mock_samples(native, process, format):
+    mode(native, process.pid, 'Local mock')
+    wait_tree(
+        native, process.pid,
+        lambda nodes: contains(nodes, 'Ready to start') and contains(nodes, 'Start Mock'),
+        'Native mock preparation did not expose its start control',
+    )
+    click_control(native, process.pid, 'Start Mock')
+
+    def ports(nodes):
+        return {
+            int(match.group(1))
+            for node in nodes
+            if (match := re.match(r'^http://127\.0\.0\.1:(\d+)(?=[/\s]|$)', node['name']))
+            and 1024 <= int(match.group(1)) <= 65535
+        }
+
+    nodes = wait_tree(
+        native, process.pid,
+        lambda nodes: len(ports(nodes)) == 1 and contains(nodes, 'Running'),
+        'Native mock did not expose one controlled loopback listener',
+    )
+    port = ports(nodes).pop()
+    connection = http.client.HTTPConnection('127.0.0.1', port, timeout=10)
+    try:
+        for _ in range(2):
+            native.ready()
+            connection.request('GET', '/items')
+            response = connection.getresponse()
+            body = response.read()
+            assert response.status == 200, body
+            expected = (b'{\n      "id": 9007199254740993.00\n    }'
+                        if format == 'json' else b'{"id":9007199254740993.00}')
+            assert body == expected, body
+            assert response.getheader('content-length') == str(len(body))
+            assert response.getheader('busyapi-response-validation-complete') == 'true'
+            assert json.loads(response.getheader('sl-violations') or '[]') == []
+    finally:
+        connection.close()
+    click_control(native, process.pid, 'Stop')
+    wait_tree(
+        native, process.pid, lambda nodes: contains(nodes, 'Stopped'),
+        'Native mock did not finish its explicit stop action',
+    )
+
+
 def edit(native, process, file, fragment, original, version):
     before = original[str(file)]
     shared = original[str(fragment)]
@@ -302,11 +365,14 @@ def main():
     parser.add_argument('--session', action='store_true')
     parser.add_argument('--edit', action='store_true')
     parser.add_argument('--project', action='store_true')
+    parser.add_argument('--mock-samples', action='store_true')
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.1'])
     parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
     args = parser.parse_args()
+    if args.mock_samples and not args.edit:
+        parser.error('--mock-samples requires --edit for the save/reopen journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:
@@ -316,6 +382,7 @@ def main():
                 '--evidence', str(args.evidence),
                 *(['--edit'] if args.edit else []),
                 *(['--project'] if args.project else []),
+                *(['--mock-samples'] if args.mock_samples else []),
             ]
             return subprocess.run(
                 command, env=private_session_environment(environment, runtime),
@@ -348,10 +415,11 @@ def main():
             args.version + '-' + args.format
             + ('-project' if args.project else '-standalone')
             + ('-journey' if args.edit else '')
+            + ('-mock-samples' if args.mock_samples else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
-        source, shared = fixture_sources(args.version, args.format)
+        source, shared = fixture_sources(args.version, args.format, args.mock_samples)
         file.write_bytes(source)
         fragment.write_bytes(shared)
         files = [file, fragment]
@@ -423,6 +491,8 @@ def main():
                 if args.edit:
                     edited, nodes = edit(native, process, file, fragment, original, args.version)
                     expected_sources[str(file)] = edited
+                    if args.mock_samples:
+                        mock_samples(native, process, args.format)
                     quit_application(native, process)
                     native = None
                     process = subprocess.Popen(
@@ -441,6 +511,8 @@ def main():
                     assert (
                         args.project or not (project_directory / 'busyapi.yaml').exists()
                     ), 'Standalone editing created a project wrapper'
+                    if args.mock_samples:
+                        mock_samples(native, process, args.format)
                 window = native.ready()
                 width, height = native.dimensions(window)
                 pixels = Gdk.pixbuf_get_from_window(window, 0, 0, width, height)
@@ -455,6 +527,7 @@ def main():
                         if args.edit else 'production-main-open-design-inspection-quit'
                     ),
                     'complete': True, 'nodes': nodes,
+                    'nativeMockSamples': args.mock_samples,
                     'files': {
                         str(Path(name).relative_to(project_directory)):
                             hashlib.sha256(raw).hexdigest()
