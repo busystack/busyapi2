@@ -53,6 +53,11 @@ Future<void> resize(Size size) async {
 Future<void> main(List<String> args) async {
   try {
     await exercise();
+    if (Platform.environment['BUSYAPI_NATIVE_HEADER_COMPOSITIONS'] == '1') {
+      stdout.writeln(
+        'BUSYAPI_NATIVE_HEADER_COMPOSITIONS_PASS version=${Platform.environment['BUSYAPI_FILE_CONTROLS_VERSION']} format=${Platform.environment['BUSYAPI_FILE_CONTROLS_FORMAT']}',
+      );
+    }
     stdout.writeln(
       Platform.environment['BUSYAPI_HTTP_INSPECT_ONLY'] == '1'
           ? 'BUSYAPI_FILE_CONTROLS_PASS HTTP-client native controller wire gzip headers narrow dark original-bytes AT-SPI (pointer/IME not qualified)'
@@ -77,6 +82,9 @@ Future<void> exercise() async {
     'fixture-version-format',
   );
   final swagger = version == '2.0';
+  final headerCompositions =
+      Platform.environment['BUSYAPI_NATIVE_HEADER_COMPOSITIONS'] == '1';
+  check(!headerCompositions || !swagger, 'header-composition-family');
   final modern = version.startsWith('3.1.') || version.startsWith('3.2.');
   final multiline = version.startsWith('3.2.');
   final cookies = Platform.environment['BUSYAPI_NATIVE_HTTP_COOKIES'] == '1';
@@ -182,7 +190,8 @@ Future<void> exercise() async {
     request.response.headers.noFolding('X-Values');
     request.response.headers.set('X-Values', [
       '0',
-      validHeaders ? '9007199254740993.000' : '9007199254740992',
+      (validHeaders ? '9007199254740993.000' : '9007199254740992') +
+          (headerCompositions ? ',false,x' : ''),
     ]);
     request.response.headers.set('X-Empty', '');
     request.response.headers.set('X-Flag', 'false');
@@ -244,7 +253,31 @@ Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
   final responseHeaders = {
     'X-Values': swagger
         ? {...exactHeader, 'collectionFormat': 'csv'}
-        : {'schema': exactHeader},
+        : {
+            'schema': headerCompositions
+                ? {
+                    ...exactHeader,
+                    'minItems': 4,
+                    'maxItems': 4,
+                    'items': {
+                      'anyOf': [
+                        {
+                          'type': 'integer',
+                          'enum': [0, '@exact-response-header'],
+                        },
+                        {
+                          'type': 'boolean',
+                          'enum': [false],
+                        },
+                        {
+                          'type': 'string',
+                          'enum': ['x'],
+                        },
+                      ],
+                    },
+                  }
+                : exactHeader,
+          },
     'X-Empty': swagger
         ? {
             'type': 'string',
@@ -676,7 +709,7 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
     'credential',
     editable: true,
   );
-  if (!emptyCredential)
+  if (!emptyCredential) {
     await keys([
       'f',
       'i',
@@ -692,6 +725,7 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
       'e',
       'n',
     ]);
+  }
   await waitFor(() {
     final entry =
         elements(
@@ -750,7 +784,7 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
             .where((header) => header.$1 == 'x-values')
             .map((header) => header.$2)
             .join('|') ==
-        '0|9007199254740993.000',
+        '0|9007199254740993.000${headerCompositions ? ',false,x' : ''}',
     'native-header-lines',
   );
   if (multiline) {

@@ -399,6 +399,13 @@ class MockRun {
         nativeResponseValidation == null ||
         nativeParameterValidation == null ||
         nativeSecurityValidation == null ||
+        nativeValidation.version != _schemaProducerVersion ||
+        nativeResponseValidation.version != '3' ||
+        nativeResponseValidation.configuration !=
+            'response-wire-v3:${nativeValidation.configuration}' ||
+        nativeParameterValidation.version != '2' ||
+        nativeParameterValidation.configuration !=
+            'parameter-wire-v2:${nativeValidation.configuration}' ||
         nativeSecurityValidation.version != '1' ||
         nativeSecurityValidation.configuration !=
             'security-wire-v1:${nativeValidation.configuration}' ||

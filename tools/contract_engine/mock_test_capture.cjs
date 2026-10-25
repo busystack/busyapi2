@@ -5,6 +5,7 @@ const path=require('node:path');
 const http=require('node:http');
 const assert=require('node:assert/strict');
 const {deriveBundle}=require('./dist/derived_bundle.cjs');
+const {schemaProducer}=require('./dist/schema_evaluation.cjs');
 
 function mockStart(document,options={},root='file:///mock-fixture/api.json') {
  const text=typeof document==='string'?document:JSON.stringify(document);
@@ -46,11 +47,11 @@ async function startMock(t,input,{failure=false,helper=path.join(__dirname,'dist
  const event=await ready;
  if(!failure){
   assert.equal(event.nativeValidation.name,'hyperjump+busyapi-exact');
-  assert.equal(typeof event.nativeValidation.version,'string');
-  assert.match(event.nativeValidation.configuration,/exact-cst/);
+  assert.equal(event.nativeValidation.version,schemaProducer.version);
+  assert.equal(event.nativeValidation.configuration,schemaProducer.configuration);
   assert.equal(event.nativeResponseValidation.name,'busyapi-native-response');
-  assert.equal(event.nativeResponseValidation.version,'2');
-  assert.match(event.nativeResponseValidation.configuration,/^response-wire-v2:/);
+  assert.equal(event.nativeResponseValidation.version,'3');
+  assert.equal(event.nativeResponseValidation.configuration,'response-wire-v3:'+schemaProducer.configuration);
   assert.equal(event.nativeParameterValidation.name,'busyapi-native-parameters');
   assert.equal(event.nativeParameterValidation.version,'2');
   assert.match(event.nativeParameterValidation.configuration,/^parameter-wire-v2:/);

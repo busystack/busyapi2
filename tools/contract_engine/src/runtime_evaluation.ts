@@ -43,12 +43,23 @@ function suppliedInstance(value:unknown):RuntimeInstance {
 /** The existing evaluator compiles captured schemas; this owner only maps
  * finite HTTP representations into their data instances and attributes results.
  * It has no acquisition, transport, credential or source-writing capability. */
-async function evaluateRuntimeValues(runtime:unknown,owner:Owner) {
+async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{omit:ReadonlySet<string>;representative:ReadonlySet<string>}) {
  if(!Array.isArray(runtime)||runtime.length>2048)throw new SourceError('limit.runtime.instances','Runtime conformance input exceeds 2048 instances');
  const evaluations:Finding[]=[],findings:Finding[]=[];
  let complete=true,instances=0,work=0,findingsLimited=false;
  const forms=new FormSemantics(owner.graph,new Map(owner.graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+ const diagnosed=new Set<string>();
  const add=(finding:Finding)=>{
+  // Alternative candidates are internal proofs, not separate user fields.
+  // Retain one representative failure per field; all candidate evaluations and
+  // unsupported/error states still contribute to their complete schema proof.
+  if(diagnostics&&typeof finding.location==='string'){
+   if(diagnostics.omit.has(finding.location))return;
+   if(diagnostics.representative.has(finding.location)){
+    if(diagnosed.has(finding.location))return;
+    diagnosed.add(finding.location);
+   }
+  }
   if(findings.length>=200){complete=false;findingsLimited=true;return;}
   findings.push({version:1,category:'runtime',producer:owner.producer.name,producerVersion:owner.producer.version,snapshot:owner.snapshot,...finding});
  };
@@ -140,15 +151,16 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner) {
 export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
  if(!Array.isArray(runtime)||!runtime.some(value=>value!==null&&typeof value==='object'&&(value.alternatives!==undefined||value.swaggerHeader!==undefined||value.header!==undefined)))return evaluateRuntimeValues(runtime,owner);
  if(runtime.length>2048)throw new SourceError('limit.runtime.instances','Runtime conformance input exceeds 2048 instances');
- const entries=runtime.map(suppliedInstance),expanded:RuntimeInstance[]=[],groups:({entry:RuntimeInstance;locations:string[]}|{entry:RuntimeInstance;failure:SourceError}|{entry:RuntimeInstance;unconstrained:true})[]=[];
+ const entries=runtime.map(suppliedInstance),expanded:RuntimeInstance[]=[],groups:({entry:RuntimeInstance;locations:string[];representationsComplete:boolean}|{entry:RuntimeInstance;failure:SourceError}|{entry:RuntimeInstance;unconstrained:true})[]=[];
  const decodeHeader=capturedRuntimeHeaders(owner.graph);
  for(const [index,supplied]of entries.entries()){
-  let entry=supplied;
+  let entry=supplied,representationsComplete=true;
   if(entry.header){
    try{
     const decoded=decodeHeader(entry.header);
     if(!decoded){groups.push({entry,unconstrained:true});continue;}
-    entry={...entry,...decoded,location:entry.location,header:undefined};
+    representationsComplete=decoded.complete;
+    entry={...entry,...decoded.instance,location:entry.location,header:undefined};
    }catch(error){
     if(!(error instanceof SourceError)||error.code==='runtime.instance')throw error;
     groups.push({entry,failure:error});continue;
@@ -176,9 +188,11 @@ export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
    const location=JSON.stringify(['native-runtime-alternative',index,choice]);
    expanded.push({...entry,text,location,alternatives:undefined});return location;
   });
-  groups.push({entry,locations});
+  groups.push({entry,locations,representationsComplete});
  }
- const result=await evaluateRuntimeValues(expanded,owner),evaluations:Finding[]=[],findings:Finding[]=[];
+ const alternateGroups=groups.filter((group):group is Extract<typeof group,{locations:string[]} >=>'locations' in group&&group.locations.length>1);
+ const diagnostics={omit:new Set(alternateGroups.flatMap(group=>group.locations.slice(1))),representative:new Set(alternateGroups.map(group=>group.locations[0]))};
+ const result=await evaluateRuntimeValues(expanded,owner,diagnostics),evaluations:Finding[]=[],findings:Finding[]=[];
  const byLocation=new Map<string,Finding[]>(),notes=new Map<string,Finding[]>();
  for(const value of result.evaluations){const location=String(value.location);byLocation.set(location,[...(byLocation.get(location)??[]),value]);}
  for(const finding of result.findings){
@@ -204,7 +218,7 @@ export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
   }
   const {locations}=group;
   const choices=locations.map(location=>({location,values:byLocation.get(location)??[]}));
-  if(entry.alternatives===undefined){
+  if(entry.alternatives===undefined&&group.representationsComplete){
    evaluations.push(...choices[0].values.map(value=>({...value,location:entry.location})));
    findings.push(...(notes.get(locations[0])??[]).map(value=>({...value,location:entry.location})));continue;
   }
@@ -212,12 +226,12 @@ export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
   if(proven){
    evaluations.push({...proven.values[0],location:entry.location,complete:true,valid:true,alternatives:choices.length,chosen:locations.indexOf(proven.location)});continue;
   }
-  const checked=choices.every(choice=>choice.values.length&&choice.values.every(value=>value.complete===true));
+  const checked=group.representationsComplete&&choices.every(choice=>choice.values.length&&choice.values.every(value=>value.complete===true));
   complete=complete&&checked;
   evaluations.push({subject:entry.subject,location:entry.location,pointer:'',complete:checked,valid:false,alternatives:choices.length,reason:checked?'incompatible-alternatives':'alternatives-incomplete'});
   findings.push(...(notes.get(locations[0])??[]).map(value=>({...value,location:entry.location})));
   if(!checked)findings.push({version:1,category:'runtime',producer:owner.producer.name,producerVersion:owner.producer.version,snapshot:owner.snapshot,
-   code:'runtime.schema.alternatives.unchecked',severity:'warning',subject:entry.subject,location:entry.location,pointer:'',
+   code:!group.representationsComplete&&entry.subject==='response-header'?'runtime.response.header.unchecked':'runtime.schema.alternatives.unchecked',severity:'warning',subject:entry.subject,location:entry.location,pointer:'',
    message:'The bounded wire interpretations could not be completely evaluated; no valid interpretation was proved.',
    ...(entry.schema?{schema:{...entry.schema,range:owner.graph.docs.get(entry.schema.resource)?.dataNode(entry.schema.pointer)?.range}}:{})});
  }

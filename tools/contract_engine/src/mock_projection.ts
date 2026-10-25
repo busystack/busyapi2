@@ -3,6 +3,7 @@ import {record} from './engine_worker_client';
 import {mediaTypeChoice,mediaTypes} from './media_types';
 import type {RuntimeFormTarget} from './runtime_form';
 import type {SwaggerHeaderTarget} from './swagger_wire';
+import type {RuntimeHeaderTarget} from './runtime_headers';
 
 export type SchemaLocation={resource:string;pointer:string};
 export type SourceLocation=SchemaLocation&{range:Range};
@@ -10,7 +11,7 @@ export type NativeMockCheck={complete:boolean;valid:boolean;findings:Record<stri
 export type NativeRuntimeEvaluation={subject:string;location:string;complete:boolean;valid:boolean};
 export type NativeRuntimeCheck=NativeMockCheck&{evaluations:NativeRuntimeEvaluation[]};
 export type NativeMedia={mediaType:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;formOwner?:RuntimeFormTarget};
-export type NativeRuntimeInstance={subject:string;location:string;text:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget};
+export type NativeRuntimeInstance={subject:string;location:string;text:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
 
 export const schemaLocation=(value:unknown):SchemaLocation|undefined=>record(value)&&typeof value.resource==='string'&&typeof value.pointer==='string'
     ?{resource:value.resource,pointer:value.pointer}:undefined;

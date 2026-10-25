@@ -195,16 +195,19 @@ test('response header representation failures and constraints have distinct outc
   'X-Required':{required:true,schema:{type:'string'}},
   'X-Number':{schema:{type:'number'}},
   'X-Union':{schema:{type:['string','number']}},
+  'X-Nested':{schema:{type:'array',items:{type:'array',items:{type:'integer'}}}},
   'X-Opaque':{content:{'application/vnd.busyapi-opaque':{}}},
  };
  const target=await upstream(t,(req,res)=>{
-  res.setHeader('content-type','application/json');res.setHeader('x-number','not-a-number');res.setHeader('x-union','0');res.setHeader('x-opaque','unconstrained');res.end('0');
+  res.setHeader('content-type','application/json');res.setHeader('x-number','not-a-number');res.setHeader('x-union','0');res.setHeader('x-nested','0,1');res.setHeader('x-opaque','unconstrained');res.end('0');
  });
  const {port}=await startMock(t,mockStart(contract('3.2.1',{type:'integer'},headers),{upstream:target}));
  const response=await request(port,'/data'),findings=violations(response);
  for(const code of ['runtime.response.header.required','runtime.response.header.serialization','runtime.response.header.unchecked'])assert.ok(findings.some(finding=>finding.code===code),JSON.stringify(findings));
  assert.equal(response.headers['busyapi-response-validation-complete'],'false');
  assert.ok(!findings.some(finding=>finding.location.includes('X-Opaque')));
+ assert.ok(!findings.some(finding=>finding.location.includes('X-Union')),'The primitive union has a complete native schema proof');
+ assert.ok(findings.some(finding=>finding.location.includes('X-Nested')&&finding.code==='runtime.response.header.unchecked'),'Undefined nested collection serialization remains explicit');
 });
 
 for(const version of ['3.0.4','2.0','3.1.2','3.2.1'])test(`${version} a default mock response does not admit invalid HTTP status codes`,{timeout:20000},async t=>{

@@ -2,15 +2,13 @@ import {SourceError} from './document';
 import {record} from './engine_worker_client';
 import {mediaTypes} from './media_types';
 import {runtimeMediaKind} from './runtime_media';
-import {headerShapes} from './header_serialization';
 import {permitsMemberName,responseStatusNamePolicy} from './member_names';
 import {isNativeFamily} from './specification';
-import {decodeRuntimeHeader} from './runtime_headers';
 import type {ReferenceGraph} from './reference_graph';
 import {nativeMedia,selectNativeMedia,sourceLocation,type NativeMockCheck,type NativeRuntimeInstance,type SourceLocation} from './mock_projection';
 
 type Evaluate=(instances:NativeRuntimeInstance[])=>Promise<NativeMockCheck>;
-export const mockResponseProducer=Object.freeze({name:'busyapi-native-response',version:'2'});
+export const mockResponseProducer=Object.freeze({name:'busyapi-native-response',version:'3'});
 
 /** The response's actual bytes, status and header fields are checked under the
  * same captured operation as request preparation. Prism owns generation and
@@ -53,7 +51,6 @@ export async function validateMockResponse(graph:ReferenceGraph,plan:unknown,met
         if(instances.length>=2048){issue('runtime.response.limit','Response validation exceeds 2048 captured instances',instance.subject,instance.location,source,'warning');return;}
         instances.push(instance);sources.set(JSON.stringify([instance.subject,instance.location]),source);
     };
-    const shapeFor=headerShapes(graph);
     for(const header of declaration.headers){
         if(!record(header)||typeof header.name!=='string'||typeof header.required!=='boolean')
             throw new SourceError('mock.validation.protocol','A native response header is malformed');
@@ -61,11 +58,9 @@ export async function validateMockResponse(graph:ReferenceGraph,plan:unknown,met
         if(!source)throw new SourceError('mock.validation.protocol','A native response header omitted its source');
         const values=received.get(header.name.toLowerCase());
         if(!values?.length){if(header.required)issue('runtime.response.header.required','A required response header is absent','response-header',header.name,source);continue;}
-        try{const instance=decodeRuntimeHeader(shapeFor,header,values);if(instance)add(instance,source);}
-        catch(error){
-            if(!(error instanceof SourceError))throw error;
-            issue(error.code,error.message,'response-header',header.name,source,error.kind==='unsupported'||error.code.startsWith('limit.')?'warning':'error');
-        }
+        const occurrence=sourceLocation(header.source);
+        if(!occurrence)throw new SourceError('mock.validation.protocol','A native response header omitted its captured occurrence');
+        add({subject:'response-header',location:header.name,text:'',header:{resource:occurrence.resource,pointer:occurrence.pointer,name:header.name,values}},source);
     }
     const permitted=method!=='HEAD'&&status>=200&&![204,205,304].includes(status);
     if(!permitted&&bytes.length)issue('runtime.response.body.forbidden','This method and status do not permit response content','response-body','body',source);

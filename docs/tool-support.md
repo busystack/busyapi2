@@ -67,7 +67,15 @@ codec. Core submits the actual separate field lines with their captured source
 occurrence; header references and schema dialects retain their original owners.
 OpenAPI 3.2 content-based `Set-Cookie` values use LF between complete field lines,
 preserving commas within each cookie. Supported boolean schemas retain their
-assertions. Ambiguous or unimplemented wire representations remain incomplete.
+assertions. Simple-style scalar and collection compositions are checked against
+the whole original schema using bounded wire interpretations. Decimal values
+retain their exact text; booleans and null use their literal JSON spellings.
+A completely checked valid interpretation proves conformance. If no valid
+interpretation is proved and enumeration or evaluation is incomplete, the check
+remains incomplete. Nested collection forms without defined serialization also
+remain incomplete. This conversion policy follows the implementation-defined
+guidance in [OpenAPI 3.2 §4.24.4.2](https://spec.openapis.org/oas/v3.2.1.html#non-json-data)
+and Appendix B; it does not change the authored schema or response bytes.
 
 Mock security declarations use the captured native operation and graph-resolved
 schemes, reported separately as `nativeSecurityValidation` in `mock --json`.

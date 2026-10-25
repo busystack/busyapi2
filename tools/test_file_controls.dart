@@ -106,6 +106,8 @@ Future<String> _run() async {
           Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_PARAMETERS'] == '1',
       mockSecurity =
           Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_SECURITY'] == '1',
+      headerCompositions =
+          Platform.environment['BUSYAPI_NATIVE_HEADER_COMPOSITIONS'] == '1',
       nestedItems =
           Platform.environment['BUSYAPI_FILE_CONTROLS_NESTED_ITEMS'] == '1';
   _expect(
@@ -132,6 +134,10 @@ Future<String> _run() async {
   _expect(
     !nestedItems || swagger && (mockResponses || mockParameters),
     'fixture-nested-items-mode',
+  );
+  _expect(
+    !headerCompositions || !swagger && mockResponses,
+    'fixture-header-compositions-mode',
   );
   _expect(
     ['', 'empty', 'unicode'].contains(memberNames) &&
@@ -232,14 +238,20 @@ Future<String> _run() async {
     mockReceived.add((request.method, request.uri.path, bytes));
     final valid = request.uri.queryParameters.containsKey('valid');
     request.response.headers.contentType = ContentType.json;
-    request.response.headers.set(
-      'x-exact',
-      nestedItems
-          ? numericWire(valid)
-          : valid
-          ? '9007199254740993.000'
-          : '9007199254740992',
-    );
+    if (headerCompositions) {
+      request.response.headers.noFolding('x-exact');
+      request.response.headers.add('x-exact', '0,${number(valid)}.000');
+      request.response.headers.add('x-exact', 'false,x');
+    } else {
+      request.response.headers.set(
+        'x-exact',
+        nestedItems
+            ? numericWire(valid)
+            : valid
+            ? '9007199254740993.000'
+            : '9007199254740992',
+      );
+    }
     request.response.write(valid ? '9007199254740993.000' : '9007199254740992');
     await request.response.close();
   });
@@ -328,10 +340,30 @@ Future<String> _run() async {
                     'description': 'Actual response',
                     'headers': {
                       'X-Exact': swagger ? numericSchema() : {
-                              'schema': {
-                                'type': 'integer',
-                                'enum': ['EXACT'],
-                              },
+                              'schema': headerCompositions ? {
+                                      'type': 'array',
+                                      'minItems': 4,
+                                      'maxItems': 4,
+                                      'items': {
+                                        'anyOf': [
+                                          {
+                                            'type': 'integer',
+                                            'enum': [0, 'EXACT'],
+                                          },
+                                          {
+                                            'type': 'boolean',
+                                            'enum': [false],
+                                          },
+                                          {
+                                            'type': 'string',
+                                            'enum': ['x'],
+                                          },
+                                        ],
+                                      },
+                                    } : {
+                                      'type': 'integer',
+                                      'enum': ['EXACT'],
+                                    },
                             },
                     },
                     if (swagger) 'schema': {r'$ref': 'model.$format#/Schema'} else 'content': {
@@ -1676,6 +1708,14 @@ environments:
                 'native-mock-nested-header-wire',
               );
             }
+            if (headerCompositions) {
+              // The pinned proxy joins repeated field lines with comma + OWS.
+              _expect(
+                response.headers['x-exact']?.join(',') ==
+                    '0,${number(valid)}.000, false,x',
+                'native-mock-composed-header-wire',
+              );
+            }
             for (final subject in ['response-body', 'response-header']) {
               _expect(
                 valid
@@ -1760,6 +1800,11 @@ environments:
             ? 'PARAMETERS'
             : 'RESPONSES'}_PASS openapi=$version format=$format source=unsaved-root-and-model controls=prepare-start-stop validation=exact-captured history=one-undo save=reopen nested-items=$nestedItems',
       );
+      if (headerCompositions) {
+        stdout.writeln(
+          'BUSYAPI_NATIVE_MOCK_HEADER_COMPOSITIONS_PASS openapi=$version format=$format',
+        );
+      }
       return 'mock-${mockSecurity
           ? 'security'
           : mockParameters

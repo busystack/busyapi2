@@ -11,7 +11,12 @@ const _cookieLines = [
   'foo=bar',
 ];
 
-(String, String) _sources(String version, String format, int port) {
+(String, String) _sources(
+  String version,
+  String format,
+  int port, {
+  bool compositions = false,
+}) {
   final swagger = version == '2.0';
   final modern = version.startsWith('3.1.') || version.startsWith('3.2.');
   final sequential = version.startsWith('3.2.');
@@ -27,7 +32,67 @@ const _cookieLines = [
   final headers = {
     'X-Values': swagger
         ? {...exact, 'collectionFormat': 'csv'}
-        : {'schema': exact},
+        : {
+            'schema': compositions
+                ? {
+                    ...exact,
+                    'minItems': 4,
+                    'maxItems': 4,
+                    'items': {
+                      'anyOf': [
+                        {
+                          'type': 'integer',
+                          'enum': [0, 'EXACT'],
+                        },
+                        {
+                          'type': 'boolean',
+                          'enum': [false],
+                        },
+                        {
+                          'type': 'string',
+                          'enum': ['x'],
+                        },
+                      ],
+                    },
+                  }
+                : exact,
+          },
+    if (compositions) ...{
+      'X-Object': {
+        'explode': true,
+        'schema': {
+          'type': 'object',
+          'required': ['a', 'b'],
+          'properties': {
+            'a': {'type': 'integer'},
+            'b': {
+              'anyOf': [
+                {
+                  'type': 'integer',
+                  'enum': [0],
+                },
+                {'type': 'boolean'},
+              ],
+            },
+          },
+          'additionalProperties': false,
+        },
+      },
+      'X-Null': {
+        'schema': modern
+            ? {'type': 'null'}
+            : {
+                'type': 'string',
+                'nullable': true,
+                'enum': [null],
+              },
+      },
+      'X-Annotation': {
+        'schema': {
+          'x-data': {r'$ref': 'literal'},
+        },
+      },
+    },
     'X-Empty': swagger
         ? {
             'type': 'string',
@@ -114,10 +179,27 @@ const _cookieLines = [
 }
 
 void main() {
-  for (final version in ['3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1']) {
+  final cases = [
+    for (final version in ['3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1'])
+      (version, false),
+    for (final version in [
+      '3.0.0',
+      '3.0.1',
+      '3.0.2',
+      '3.0.3',
+      '3.0.4',
+      '3.1.0',
+      '3.1.1',
+      '3.1.2',
+      '3.2.0',
+      '3.2.1',
+    ])
+      (version, true),
+  ];
+  for (final (version, compositions) in cases) {
     for (final format in ['yaml', 'json']) {
       test(
-        '$version $format direct, captured cases and installed CLI share native header semantics',
+        '$version $format ${compositions ? 'composed' : 'native'} direct, captured cases and installed CLI share header semantics',
         () async {
           final directory = await Directory.systemTemp.createTemp(
             'busyapi-header-wire-',
@@ -140,8 +222,17 @@ void main() {
             request.response.headers.noFolding('X-Values');
             request.response.headers.set('X-Values', [
               '0',
-              valid ? '9007199254740993.000' : '9007199254740992',
+              (valid ? '9007199254740993.000' : '9007199254740992') +
+                  (compositions ? ',false,x' : ''),
             ]);
+            if (compositions) {
+              request.response.headers.set(
+                'X-Object',
+                valid ? 'a=0,b=false' : 'a=0,b=1',
+              );
+              request.response.headers.set('X-Null', 'null');
+              request.response.headers.set('X-Annotation', 'literal');
+            }
             request.response.headers.set('X-Empty', '');
             request.response.headers.set('X-Flag', 'false');
             if (modern) {
@@ -160,7 +251,12 @@ void main() {
             }
             await request.response.close();
           });
-          final sources = _sources(version, format, server.port);
+          final sources = _sources(
+            version,
+            format,
+            server.port,
+            compositions: compositions,
+          );
           final file = File('${directory.path}/api.$format')
             ..writeAsStringSync(sources.$1);
           final fragment = File('${directory.path}/responses.$format')
@@ -232,7 +328,7 @@ void main() {
             good.response.headers
                 .where((header) => header.$1 == 'x-values')
                 .map((header) => header.$2),
-            ['0', '9007199254740993.000'],
+            ['0', '9007199254740993.000${compositions ? ',false,x' : ''}'],
           );
           if (sequential)
             expect(
@@ -252,6 +348,7 @@ void main() {
           expect(bad.conforming, false);
           for (final name in [
             'X-Values',
+            if (compositions) 'X-Object',
             if (modern) 'X-Reject',
             if (sequential) ...['Set-Cookie', 'X-Items'],
           ]) {
