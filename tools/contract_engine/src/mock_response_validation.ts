@@ -5,7 +5,7 @@ import {runtimeMediaKind} from './runtime_media';
 import {headerShapes} from './header_serialization';
 import {permitsMemberName,responseStatusNamePolicy} from './member_names';
 import {isNativeFamily} from './specification';
-import {decodeRuntimeHeader} from './mock_response_headers';
+import {decodeRuntimeHeader} from './runtime_headers';
 import type {ReferenceGraph} from './reference_graph';
 import {nativeMedia,selectNativeMedia,sourceLocation,type NativeMockCheck,type NativeRuntimeInstance,type SourceLocation} from './mock_projection';
 

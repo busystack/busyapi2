@@ -62,6 +62,13 @@ owner is reported separately as `nativeResponseValidation` in `mock --json`.
 incomplete response checks while retaining forwarded bytes. Malformed applicable
 JSON retains the existing HTTP 500 proxy policy.
 
+Direct requests, saved contract cases and mocks share the engine's response-header
+codec. Core submits the actual separate field lines with their captured source
+occurrence; header references and schema dialects retain their original owners.
+OpenAPI 3.2 content-based `Set-Cookie` values use LF between complete field lines,
+preserving commas within each cookie. Supported boolean schemas retain their
+assertions. Ambiguous or unimplemented wire representations remain incomplete.
+
 Mock security declarations use the captured native operation and graph-resolved
 schemes, reported separately as `nativeSecurityValidation` in `mock --json`.
 Alternatives use OR; schemes within one requirement use AND. An anonymous

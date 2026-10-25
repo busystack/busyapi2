@@ -1,5 +1,14 @@
 import {GraphScope} from './reference_graph';
 
+/** Known annotations cannot constrain a value. Dialect support is checked by
+ * the caller before using this to omit a schema assertion. */
+export function annotationOnlySchema(value:unknown):boolean {
+ return value===true||value!==null&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([key,item])=>
+  key==='default'||key==='examples'&&Array.isArray(item)||
+  ['title','description','$comment','format'].includes(key)&&typeof item==='string'||
+  ['deprecated','readOnly','writeOnly'].includes(key)&&typeof item==='boolean');
+}
+
 /** Physical containment does not erase an embedded resource's own dialect. */
 export function schemaRoots(scopes:Iterable<GraphScope>) {
  const all=[...scopes].filter(scope=>scope.kind==='schema');

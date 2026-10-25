@@ -764,6 +764,25 @@ class RuntimeFormTarget {
   };
 }
 
+/// Actual field lines and their captured response-header occurrence. The
+/// contract engine owns reference following, family rules and representation.
+class RuntimeHeaderTarget {
+  RuntimeHeaderTarget({
+    required this.resource,
+    required this.pointer,
+    required this.name,
+    required List<String> values,
+  }) : values = List.unmodifiable(values);
+  final String resource, pointer, name;
+  final List<String> values;
+  Map<String, Object?> toJson() => {
+    'resource': resource,
+    'pointer': pointer,
+    'name': name,
+    'values': List<String>.of(values, growable: false),
+  };
+}
+
 class RuntimeSwaggerHeaderTarget {
   RuntimeSwaggerHeaderTarget({
     required this.resource,
@@ -795,6 +814,7 @@ class RuntimeSchemaInstance {
     this.form,
     this.alternatives = const [],
     this.swaggerHeader,
+    this.header,
   });
   final String subject, location, text;
   final String? schemaResource, schemaPointer;
@@ -803,6 +823,7 @@ class RuntimeSchemaInstance {
   final RuntimeFormTarget? form;
   final List<String> alternatives;
   final RuntimeSwaggerHeaderTarget? swaggerHeader;
+  final RuntimeHeaderTarget? header;
   Map<String, Object?> toJson() => {
     'subject': subject,
     'location': location,
@@ -820,6 +841,7 @@ class RuntimeSchemaInstance {
     if (alternatives.isNotEmpty)
       'alternatives': List<String>.of(alternatives, growable: false),
     if (swaggerHeader != null) 'swaggerHeader': swaggerHeader!.toJson(),
+    if (header != null) 'header': header!.toJson(),
   };
 }
 

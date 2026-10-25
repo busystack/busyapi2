@@ -77,6 +77,8 @@ Future<void> exercise() async {
     'fixture-version-format',
   );
   final swagger = version == '2.0';
+  final modern = version.startsWith('3.1.') || version.startsWith('3.2.');
+  final multiline = version.startsWith('3.2.');
   final cookies = Platform.environment['BUSYAPI_NATIVE_HTTP_COOKIES'] == '1';
   final openId = Platform.environment['BUSYAPI_NATIVE_HTTP_OPENID'] == '1';
   final binding =
@@ -122,6 +124,11 @@ Future<void> exercise() async {
   final responseBytes = gzip.encode(
     utf8.encode('{"id":9007199254740993,"message":"native response"}'),
   );
+  const responseCookies = [
+    'lang=en-US; Expires=Wed, 09 Jun 2021 10:18:14 GMT',
+    'foo=bar',
+  ];
+  var validHeaders = true;
   endpoint.listen((request) async {
     final bytes = await request.fold<List<int>>([], (a, b) => a..addAll(b));
     check(
@@ -148,6 +155,23 @@ Future<void> exercise() async {
     );
     request.response.headers.contentType = ContentType.json;
     request.response.headers.set('content-encoding', 'gzip');
+    request.response.headers.noFolding('X-Values');
+    request.response.headers.set('X-Values', [
+      '0',
+      validHeaders ? '9007199254740993.000' : '9007199254740992',
+    ]);
+    request.response.headers.set('X-Empty', '');
+    request.response.headers.set('X-Flag', 'false');
+    if (modern) {
+      request.response.headers.set('X-Any', 'literal,false');
+      if (!validHeaders) request.response.headers.set('X-Reject', 'anything');
+    }
+    if (multiline) {
+      request.response.headers.set(
+        'Set-Cookie',
+        validHeaders ? responseCookies : [responseCookies.first, 'foo=wrong'],
+      );
+    }
     for (var i = 0; i < 150; i++) {
       request.response.headers.add('X-Fixture-$i', 'retained-$i');
     }
@@ -180,6 +204,57 @@ Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
       'id': {'type': 'integer', 'minimum': '@exact-minimum'},
     },
   };
+  final exactHeader = {
+    'type': 'array',
+    'minItems': 2,
+    'maxItems': 2,
+    'items': {
+      'type': 'integer',
+      'enum': [0, '@exact-response-header'],
+    },
+  };
+  final responseHeaders = {
+    'X-Values': swagger
+        ? {...exactHeader, 'collectionFormat': 'csv'}
+        : {'schema': exactHeader},
+    'X-Empty': swagger
+        ? {
+            'type': 'string',
+            'enum': [''],
+          }
+        : {
+            'schema': {
+              'type': 'string',
+              'enum': [''],
+            },
+          },
+    'X-Flag': swagger
+        ? {
+            'type': 'boolean',
+            'enum': [false],
+          }
+        : {
+            'schema': {
+              'type': 'boolean',
+              'enum': [false],
+            },
+          },
+    if (modern) 'X-Any': {'schema': true},
+    if (modern) 'X-Reject': {'schema': false},
+    if (multiline)
+      'Set-Cookie': {
+        'content': {
+          'text/plain': {
+            'schema': {
+              'type': 'string',
+              'enum': [responseCookies.join('\n')],
+            },
+          },
+        },
+      },
+  };
+  final responseHeaderYaml = jsonEncode(responseHeaders)
+      .replaceAll('"@exact-response-header"', '9007199254740993.00');
   final cookieParameters = <Map<String, Object?>>[
     {
       'name': 'Colors',
@@ -283,6 +358,7 @@ Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
           'responses': {
             '200': {
               'description': 'OK',
+              'headers': responseHeaders,
               if (swagger)
                 'schema': schema
               else
@@ -310,7 +386,7 @@ paths:
     post:
       parameters: [{name: payload, in: body, required: true, schema: {type: string}}]
       responses:
-        '200': {description: OK, schema: {type: object, required: [id], properties: {id: {type: integer, minimum: 9007199254740993}}}}
+        '200': {description: OK, headers: $responseHeaderYaml, schema: {type: object, required: [id], properties: {id: {type: integer, minimum: 9007199254740993}}}}
 '''
       : '''openapi: $version
 info: {title: Native HTTP client, version: '1'}
@@ -324,12 +400,13 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
         required: true
         content: {text/plain: {schema: {}, example: hello}}
       responses:
-        '200': {description: OK, content: {application/json: {schema: {type: object, required: [id], properties: {id: {type: integer, minimum: 9007199254740993}}}}}}
+        '200': {description: OK, headers: $responseHeaderYaml, content: {application/json: {schema: {type: object, required: [id], properties: {id: {type: integer, minimum: 9007199254740993}}}}}}
 ''';
   final original = format == 'yaml'
       ? yaml
       : jsonEncode(contract)
-            .replaceFirst('"@exact-minimum"', '9007199254740993');
+            .replaceFirst('"@exact-minimum"', '9007199254740993')
+            .replaceAll('"@exact-response-header"', '9007199254740993.00');
   file.writeAsStringSync(original);
   await application.main([file.path]);
   WorkspaceController? owner;
@@ -617,6 +694,67 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
   await observed.future.timeout(const Duration(seconds: 15));
   await waitFor(() => run.result != null && !run.busy, 'request-result');
   check(run.result!.conforming, 'conformance');
+  check(
+    run.result!.response.headers
+            .where((header) => header.$1 == 'x-values')
+            .map((header) => header.$2)
+            .join('|') ==
+        '0|9007199254740993.000',
+    'native-header-lines',
+  );
+  if (multiline) {
+    check(
+      run.result!.response.headers
+              .where((header) => header.$1 == 'set-cookie')
+              .map((header) => header.$2)
+              .join('\n') ==
+          responseCookies.join('\n'),
+      'native-header-cookie-lines',
+    );
+  }
+  final firstResponse = run.result;
+  validHeaders = false;
+  await keys(['Control_L+Return']);
+  await waitFor(
+    () =>
+        run.result != null &&
+        !run.busy &&
+        !identical(run.result, firstResponse),
+    'native-invalid-header-result',
+  );
+  check(
+    run.result!.received.complete &&
+        !run.result!.received.valid &&
+        !run.result!.conforming,
+    'native-header-refused',
+  );
+  for (final name in [
+    'X-Values',
+    if (modern) 'X-Reject',
+    if (multiline) 'Set-Cookie',
+  ]) {
+    check(
+      run.result!.received.findings.any((finding) {
+        final source = finding['schema'];
+        return finding['code'] == 'runtime.schema.incompatible' &&
+            finding['location'] == name &&
+            source is Map &&
+            source['resource'] == file.uri.toString();
+      }),
+      'native-header-finding-$name',
+    );
+  }
+  final invalidResponse = run.result;
+  validHeaders = true;
+  await keys(['Control_L+Return']);
+  await waitFor(
+    () =>
+        run.result != null &&
+        !run.busy &&
+        !identical(run.result, invalidResponse),
+    'native-recovered-header-result',
+  );
+  check(run.result!.conforming, 'native-header-recovered');
   check(run.result!.response.headers.length > 150, 'retained-header-total');
   final export = File('$directory/entity.bin');
   await run.result!.response.export(export.path);
@@ -712,6 +850,9 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
       'native-uri-definition-preserved',
     );
   }
+  stdout.writeln(
+    'BUSYAPI_NATIVE_HTTP_HEADERS_PASS version=$version format=$format wire=separate-lines schema=exact-and-boolean retries=invalid-recovered source=unchanged',
+  );
   stdout.writeln(
     'BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format openId=$openId binding=$binding cookies=$cookies',
   );

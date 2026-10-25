@@ -15,6 +15,7 @@ import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type 
 import {evaluateSchemas} from './schema_evaluation';
 import {runtimeMediaDescription} from './runtime_media';
 import {ignoresRequestBody} from './operation_semantics';
+import {annotationOnlySchema} from './schema_boundaries';
 
 const maximumItems = 2048;
 
@@ -338,12 +339,8 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     ...(Object.hasOwn(value??{},'example')?[example(resource,pointer,value,level)]:[]),
     ...[...(docs.get(resource)!.dataNode(pointer+'/examples')?.children.keys()??[])].map(name=>example(resource,pointer,value,level,name)),
   ].filter(value=>value!==undefined);
-  const annotationOnly=(value:any)=>value===true || value && typeof value==='object' && !Array.isArray(value) && Object.entries(value).every(([key,item])=>
-    key==='default' || key==='examples' && Array.isArray(item) ||
-    ['title','description','$comment','format'].includes(key) && typeof item==='string' ||
-    ['deprecated','readOnly','writeOnly'].includes(key) && typeof item==='boolean');
   const schema=(resource:string,pointer:string,value:any)=>Object.hasOwn(value??{},'schema')
-    ?{...location(resource,pointer+'/schema'),kind:'schema',unconstrained:supportedSchemaDialect(graph.scope(resource,pointer+'/schema'))&&annotationOnly(value.schema)}
+    ?{...location(resource,pointer+'/schema'),kind:'schema',unconstrained:supportedSchemaDialect(graph.scope(resource,pointer+'/schema'))&&annotationOnlySchema(value.schema)}
     :undefined;
   const media=(resource:string,pointer:string,value:any)=>{
     if(!value||typeof value!=='object'||Array.isArray(value))return [];

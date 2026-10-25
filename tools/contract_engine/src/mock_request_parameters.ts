@@ -3,7 +3,7 @@ import {record} from './engine_worker_client';
 import {FormSemantics,type FormShape} from './form_semantics';
 import type {ReferenceGraph} from './reference_graph';
 import {runtimeMediaKind} from './runtime_media';
-import {nativeHeaderParts} from './mock_response_headers';
+import {nativeHeaderParts} from './runtime_headers';
 import {swaggerWireShape,swaggerWireValues,type SwaggerWireShape} from './swagger_wire';
 import {nativeMedia,schemaLocation,sourceLocation,type NativeMockCheck,type NativeRuntimeCheck,type NativeRuntimeInstance,type SourceLocation} from './mock_projection';
 

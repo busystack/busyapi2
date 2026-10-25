@@ -10,7 +10,6 @@ import 'package:path/path.dart' as p;
 
 import 'model.dart';
 import 'content_selection.dart';
-import 'header_serialization.dart';
 import 'swagger_serialization.dart';
 import 'form_serialization.dart';
 import 'form_media_types.dart';
@@ -3992,131 +3991,44 @@ class ContractRequestExecutor {
         );
       }
       if (name.toLowerCase() == 'content-type' || values == null) continue;
-      if (header['family'] == '2.0') {
-        final schema = header['schema'];
-        if (schema is Map && schema['unconstrained'] != true) {
-          if (values.fold<int>(
-                0,
-                (bytes, value) => bytes + utf8.encode(value).length,
-              ) >
-              _evaluationLimit) {
-            checksComplete = false;
-            findings.add(
-              _finding(
-                'runtime.response.header.limit',
-                'warning',
-                'The header representation exceeds the bounded evaluation input.',
-                location: name,
-              ),
-            );
-          } else {
-            instances.add(
-              RuntimeSchemaInstance(
-                subject: 'response-header',
-                location: name,
-                text: values.join(','),
-                schemaResource: schema['resource'] as String,
-                schemaPointer: schema['pointer'] as String,
-                swaggerHeader: RuntimeSwaggerHeaderTarget(
-                  resource: schema['resource'] as String,
-                  pointer: schema['pointer'] as String,
-                  name: name,
-                  values: values,
-                ),
-              ),
-            );
-          }
-        }
-        continue;
-      }
-      final headerMedia = (header['content'] as List? ?? const [])
-          .whereType<Map>()
-          .toList();
-      if (headerMedia.length == 1 &&
-          (_nativeMedia(headerMedia.single) ||
-              _formMedia(headerMedia.single['mediaType'] as String?)) &&
-          values.length == 1) {
-        if (utf8.encode(values.single).length > _evaluationLimit) {
-          checksComplete = false;
-          findings.add(
-            _finding(
-              'runtime.response.header.limit',
-              'warning',
-              'The header representation exceeds the bounded evaluation input.',
-              location: name,
-            ),
-          );
-        } else {
-          instances.add(
-            _mediaInstance(
-              headerMedia.single,
-              subject: 'response-header',
-              location: name,
-              text: values.single,
-              mediaType: headerMedia.single['mediaType'] as String,
-            ),
-          );
-        }
-        continue;
-      }
-      if ((header['content'] as List? ?? const []).whereType<Map>().any(
-        (media) => media['itemSchema'] is Map,
-      )) {
+      final bytes = values.fold<int>(
+        values.length - 1,
+        (bytes, value) => bytes + utf8.encode(value).length,
+      );
+      if (bytes > _evaluationLimit) {
         checksComplete = false;
         findings.add(
           _finding(
-            'runtime.response.header.items.unchecked',
-            'information',
-            'Sequential header itemSchema evaluation is unsupported; item constraints were not evaluated.',
+            'runtime.response.header.limit',
+            'warning',
+            'The header representation exceeds the bounded evaluation input.',
             location: name,
           ),
+        );
+        continue;
+      }
+      final source = header['source'];
+      if (source is! Map ||
+          source['resource'] is! String ||
+          source['pointer'] is! String) {
+        throw CoreFailure(
+          'runtime.protocol',
+          'The captured response header omitted its source occurrence',
         );
       }
-      try {
-        final decoded = decodeDeclaredHeader(header, values);
-        if (decoded != null) {
-          if (utf8.encode(decoded.$2).length > _evaluationLimit) {
-            checksComplete = false;
-            findings.add(
-              _finding(
-                'runtime.response.header.limit',
-                'warning',
-                'The header representation exceeds the bounded evaluation input.',
-                location: name,
-              ),
-            );
-            continue;
-          }
-          instances.add(
-            RuntimeSchemaInstance(
-              subject: 'response-header',
-              location: name,
-              text: decoded.$2,
-              schemaResource: decoded.$1?['resource'] as String?,
-              schemaPointer: decoded.$1?['pointer'] as String?,
-            ),
-          );
-        }
-      } on UnsupportedError {
-        checksComplete = false;
-        findings.add(
-          _finding(
-            'runtime.response.header.unchecked',
-            'information',
-            'The declared header representation could not be interpreted unambiguously; its schema check was not performed.',
-            location: name,
+      instances.add(
+        RuntimeSchemaInstance(
+          subject: 'response-header',
+          location: name,
+          text: '',
+          header: RuntimeHeaderTarget(
+            resource: source['resource'] as String,
+            pointer: source['pointer'] as String,
+            name: name,
+            values: values,
           ),
-        );
-      } on FormatException {
-        findings.add(
-          _finding(
-            'runtime.response.header.serialization',
-            'error',
-            'The received header does not use the declared scalar or collection representation.',
-            location: name,
-          ),
-        );
-      }
+        ),
+      );
     }
     final contentType = receivedHeaders['content-type']?.first;
     final media = selectDeclaredMedia(

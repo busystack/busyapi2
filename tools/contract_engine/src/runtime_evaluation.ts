@@ -11,9 +11,10 @@ import {decodeRuntimeMedia} from './runtime_media';
 import {decodeRuntimeForm,type RuntimeFormTarget,type RuntimeFormData} from './runtime_form';
 import {swaggerWireShape,swaggerWireValues,type SwaggerHeaderTarget} from './swagger_wire';
 import {headerValueParts} from './header_values';
+import {capturedRuntimeHeaders,type RuntimeHeaderTarget} from './runtime_headers';
 
 type SchemaLocation={resource:string;pointer:string};
-type RuntimeInstance={text:string;subject:string;location:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget};
+type RuntimeInstance={text:string;subject:string;location:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
 type Finding=Record<string,unknown>;
 type Owner={snapshot:string;graph:ReferenceGraph;scopes:ReadonlyMap<string,SchemaEvaluationScope>;
  exact:ReturnType<typeof createExactNumericAdapter>;compile:(scope:SchemaEvaluationScope)=>Promise<CompiledSchema|undefined>;
@@ -33,7 +34,8 @@ function suppliedInstance(value:unknown):RuntimeInstance {
   item.mediaBase64!==undefined&&typeof item.mediaBase64!=='boolean'||item.mediaBase64===true&&item.mediaType===undefined||
   item.alternatives!==undefined&&(!Array.isArray(item.alternatives)||item.alternatives.length>255||!item.alternatives.every(text=>typeof text==='string'&&text.length<=64*1024*1024)||
    item.mediaType!==undefined||item.itemSchema!==undefined||item.form!==undefined||item.mediaBase64===true)||
-  item.swaggerHeader!==undefined&&(!header(item.swaggerHeader)||item.subject!=='response-header'||item.alternatives!==undefined||item.mediaType!==undefined||item.itemSchema!==undefined||item.form!==undefined||item.mediaBase64===true))
+  item.swaggerHeader!==undefined&&(!header(item.swaggerHeader)||item.subject!=='response-header'||item.alternatives!==undefined||item.mediaType!==undefined||item.itemSchema!==undefined||item.form!==undefined||item.mediaBase64===true)||
+  item.header!==undefined&&(!header(item.header)||item.subject!=='response-header'||item.text!==''||item.schema!==undefined||item.swaggerHeader!==undefined||item.alternatives!==undefined||item.mediaType!==undefined||item.itemSchema!==undefined||item.form!==undefined||item.mediaBase64===true))
   throw new SourceError('runtime.instance','Runtime conformance requires bounded text, media, subject, location and schema identities');
  return item as RuntimeInstance;
 }
@@ -136,11 +138,22 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner) {
  * or a union of independent fields, and discarded candidates cannot leak their
  * findings into a successful proof. Media framing remains a single assertion. */
 export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
- if(!Array.isArray(runtime)||!runtime.some(value=>value!==null&&typeof value==='object'&&(value.alternatives!==undefined||value.swaggerHeader!==undefined)))return evaluateRuntimeValues(runtime,owner);
+ if(!Array.isArray(runtime)||!runtime.some(value=>value!==null&&typeof value==='object'&&(value.alternatives!==undefined||value.swaggerHeader!==undefined||value.header!==undefined)))return evaluateRuntimeValues(runtime,owner);
  if(runtime.length>2048)throw new SourceError('limit.runtime.instances','Runtime conformance input exceeds 2048 instances');
- const entries=runtime.map(suppliedInstance),expanded:RuntimeInstance[]=[],groups:({entry:RuntimeInstance;locations:string[]}|{entry:RuntimeInstance;failure:SourceError})[]=[];
+ const entries=runtime.map(suppliedInstance),expanded:RuntimeInstance[]=[],groups:({entry:RuntimeInstance;locations:string[]}|{entry:RuntimeInstance;failure:SourceError}|{entry:RuntimeInstance;unconstrained:true})[]=[];
+ const decodeHeader=capturedRuntimeHeaders(owner.graph);
  for(const [index,supplied]of entries.entries()){
   let entry=supplied;
+  if(entry.header){
+   try{
+    const decoded=decodeHeader(entry.header);
+    if(!decoded){groups.push({entry,unconstrained:true});continue;}
+    entry={...entry,...decoded,location:entry.location,header:undefined};
+   }catch(error){
+    if(!(error instanceof SourceError)||error.code==='runtime.instance')throw error;
+    groups.push({entry,failure:error});continue;
+   }
+  }
   if(entry.swaggerHeader){
    const header=entry.swaggerHeader,scope=owner.scopes.get(header.resource+'#'+header.pointer);
    if(scope?.family!=='2.0'||scope.objectKind!=='header'||entry.schema&&(entry.schema.resource!==header.resource||entry.schema.pointer!==header.pointer))
@@ -175,11 +188,14 @@ export async function evaluateRuntimeInstances(runtime:unknown,owner:Owner) {
  let complete=result.complete;
  for(const group of groups){
   const {entry}=group;
+  if('unconstrained' in group){
+   evaluations.push({subject:entry.subject,location:entry.location,pointer:'',complete:true,valid:true,representation:'unconstrained-header'});continue;
+  }
   if('failure' in group){
    const failure=group.failure,unsupported=failure.kind==='unsupported'||failure.code.startsWith('limit.')||failure.code==='mock.validation.protocol';
-   const header=entry.swaggerHeader!==undefined;
+   const header=entry.swaggerHeader!==undefined||entry.header!==undefined;
    if(unsupported)complete=false;
-   const target=entry.swaggerHeader??entry.schema;
+   const target=entry.header??entry.swaggerHeader??entry.schema;
    evaluations.push({subject:entry.subject,location:entry.location,pointer:'',complete:!unsupported,valid:false,reason:unsupported?'unsupported-representation':header?'invalid-header':'incompatible-alternatives'});
    findings.push({version:1,category:'runtime',producer:owner.producer.name,producerVersion:owner.producer.version,snapshot:owner.snapshot,
     code:header?(unsupported?'runtime.response.header.unchecked':'runtime.response.header.serialization'):'runtime.schema.alternatives.unchecked',severity:unsupported?'warning':'error',...(unsupported?{kind:'unsupported'}:{}),

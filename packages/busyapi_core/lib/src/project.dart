@@ -35,6 +35,10 @@ part 'resource_package.dart';
 part 'generation.dart';
 part 'migration.dart';
 
+// Semantic revisions are part of captured evaluator ownership, alongside the
+// wire protocol and snapshot identity.
+const _schemaProducerVersion = '1.18.0+14';
+
 // Keep native-isolate IO wakeups bounded without serializing every resource.
 // Each batch finishes (including failures) before access can be released.
 Future<void> _resourceBatch<T>(
@@ -302,7 +306,8 @@ Map<String, dynamic> _mergeSchemaEvaluation(
         'schema': {
           'complete': evaluated?['complete'] == true,
           'producer': evaluated?['producer'] ?? 'hyperjump+busyapi-exact',
-          'producerVersion': evaluated?['producerVersion'] ?? '1.18.0+13',
+          'producerVersion':
+              evaluated?['producerVersion'] ?? _schemaProducerVersion,
           if (evaluated != null) ...{
             'configuration': evaluated['configuration'],
             'coverage': evaluated['coverage'],
@@ -1660,7 +1665,7 @@ class BusyProject {
         result['snapshot'] == snapshot.identity &&
         result['root'] == snapshot.root &&
         result['producer'] == 'hyperjump+busyapi-exact' &&
-        result['producerVersion'] == '1.18.0+13' &&
+        result['producerVersion'] == _schemaProducerVersion &&
         result['complete'] is bool &&
         result['configuration'] is String &&
         result['coverage'] is Map &&

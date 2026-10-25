@@ -23,6 +23,7 @@ export function headerShapes(graph:ReferenceGraph) {
     const scope=graph.scopes.get(target.resource+'#'+target.pointer);
     if(!scope||!supportedSchemaDialect(scope))return;
     const value=graph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
+    if(value===false)return {type:'never'};
     if(!value||typeof value!=='object'||Array.isArray(value)||value.$dynamicRef!==undefined)return;
     active.add(key);
     try {
@@ -37,6 +38,7 @@ export function headerShapes(graph:ReferenceGraph) {
         const child=shape({...target,pointer:target.pointer+'/allOf/'+i},depth+1);
         if(child)constraints.push(child);
       }
+      if(constraints.some(item=>item.type==='never'))return {type:'never'};
       let type=typeof value.type==='string'?value.type:undefined;
       if(Array.isArray(value.type)&&value.type.length===1)type=value.type[0];
       const constrainedTypes=new Set([...(type?[type]:[]),...constraints.map(item=>item.type)]);
