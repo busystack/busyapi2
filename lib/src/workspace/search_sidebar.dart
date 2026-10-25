@@ -213,7 +213,27 @@ class BusyApiSearchSidebarState extends State<BusyApiSearchSidebar> {
             icon: BusyApiGlyphs.keyboard,
             shortcut: command.shortcut?.label,
             activate: () async {
+              final selection = (
+                s.focusRequest,
+                s.workspace.project,
+                s.workspace.root,
+                s.workspace.active,
+              );
               s.close();
+              // Settle the retained search field's focus boundary before a
+              // command can present a modal in the same Navigator.
+              await WidgetsBinding.instance.endOfFrame;
+              if (!mounted ||
+                  s.active ||
+                  selection !=
+                      (
+                        s.focusRequest,
+                        s.workspace.project,
+                        s.workspace.root,
+                        s.workspace.active,
+                      )) {
+                return;
+              }
               await widget.registry.execute(command.id);
             },
           ),
