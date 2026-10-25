@@ -45,5 +45,12 @@ Comments and organization are retained where the mappings permit; restructuring
 is visible in the review. Explicit schema/document identities can still require
 their captured mappings.
 
+Untouched YAML anchors and aliases retain their authored spelling and shared
+values. An unchanged canonical reference can retain its spelling when the
+copied resources and reviewed identity mappings prove the same target. A change
+that would edit, copy or replace shared YAML syntax needs an ownership-preserving
+mapping; otherwise the review identifies the original field and blocks publication.
+This also applies to shared version declarations and anchored empty destinations.
+
 See the [native support matrix](implementation/native-openapi-support.md) for
 verified workflows and remaining conversion limitations.

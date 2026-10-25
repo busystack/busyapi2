@@ -15,6 +15,9 @@ exact generated HTTP bodies both before Quit and after cold reopen.
 `--mock-methods` selects a case-sensitive 3.2 additional operation for that journey.
 `--documentation` reviews, cancels and publishes native HTML from an unsaved
 working copy, independently checks its source ranges, then restores saved input.
+`--migrate-target VERSION` separately reviews and publishes a
+migrated copy, checks a destination race and reopens the target before returning
+to the original source. JSON targets additionally reopen without a manifest.
 """
 import argparse
 import ast
@@ -150,14 +153,19 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
 
 def tree(pid, details=False):
     desktop = Atspi.get_desktop(0)
-    queue = [
-        (desktop.get_child_at_index(index), 0)
-        for index in range(desktop.get_child_count())
-        if desktop.get_child_at_index(index).get_process_id() == pid
-    ]
+    queue = []
+    for index in range(desktop.get_child_count()):
+        child = desktop.get_child_at_index(index)
+        if child is not None and child.get_process_id() == pid:
+            queue.append((child, 0))
     result = []
     while queue:
         node, depth = queue.pop(0)
+        # AT-SPI may remove an accessible between child enumeration and lookup.
+        # Missing children contribute no controls; bounded callers still require
+        # the actual owned control and fail if it never becomes available.
+        if node is None:
+            continue
         if len(result) >= 2048 or depth > 32:
             raise RuntimeError('Owned accessibility inspection exceeded its bound')
         name = node.get_name()[:512]
@@ -524,6 +532,7 @@ def main():
     parser.add_argument('--documentation', action='store_true')
     parser.add_argument('--schema-definitions', action='store_true')
     parser.add_argument('--operations', action='store_true')
+    parser.add_argument('--migrate-target', choices=['2.0', '3.0.4', '3.1.2', '3.2.1'])
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1'])
@@ -543,6 +552,9 @@ def main():
         parser.error('--schema-definitions requires --edit and a modern OpenAPI family')
     if args.operations and not args.edit:
         parser.error('--operations requires --edit for the save/reopen journey')
+    if args.migrate_target and (not args.edit or args.operations or args.schema_definitions
+                               or args.documentation or args.mock_samples):
+        parser.error('--migrate-target requires --edit and its dedicated migration journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:
@@ -558,6 +570,7 @@ def main():
                 *(['--documentation'] if args.documentation else []),
                 *(['--schema-definitions'] if args.schema_definitions else []),
                 *(['--operations'] if args.operations else []),
+                *(['--migrate-target', args.migrate_target] if args.migrate_target else []),
             ]
             return subprocess.run(
                 command, env=private_session_environment(environment, runtime),
@@ -596,6 +609,7 @@ def main():
             + ('-documentation' if args.documentation else '')
             + ('-schema-definitions' if args.schema_definitions else '')
             + ('-operations' if args.operations else '')
+            + ('-migrate-' + args.migrate_target if args.migrate_target else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
@@ -627,6 +641,7 @@ def main():
         documentation_result = None
         schema_definition_result = None
         operation_result = None
+        migration_result = None
         binary = ROOT / 'build/linux/x64/release/bundle/busyapi-desktop'
         log = evidence / (case + '.log')
         with log.open('w') as stream:
@@ -674,6 +689,11 @@ def main():
                 if args.edit:
                     edited, nodes = edit(native, process, file, fragment, original, args.version)
                     expected_sources[str(file)] = edited
+                    if args.migrate_target:
+                        from native_migration import migrate
+                        migration_result = migrate(native, process, file, fragment,
+                            expected_sources, args.version, args.migrate_target, evidence, case)
+                        nodes = tree(process.pid, details=True)
                     if args.operations:
                         from native_operation_maintenance import maintain_operation
                         changed, operation_result = maintain_operation(
@@ -694,6 +714,33 @@ def main():
                         mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET', args.mock_nested)
                     quit_application(native, process)
                     native = None
+                    if migration_result is not None:
+                        from native_migration import inspect_copy
+                        target_directory = Path(migration_result['outputDirectory'])
+                        target_startup = target_directory
+                        if args.format == 'json':
+                            target_directory = directory / 'standalone-migrated'
+                            target_directory.mkdir()
+                            source_directory = Path(migration_result['outputDirectory'])
+                            for name in [migration_result['entry'], 'resources']:
+                                source = source_directory / name
+                                if source.is_dir():
+                                    shutil.copytree(source, target_directory / name)
+                                else:
+                                    shutil.copyfile(source, target_directory / name)
+                            target_startup = target_directory / migration_result['entry']
+                            assert not (target_directory / 'busyapi.yaml').exists()
+                        copied = {path: path.read_bytes() for path in target_directory.rglob('*') if path.is_file()}
+                        process = subprocess.Popen([str(binary), str(target_startup)], stdout=stream,
+                            stderr=subprocess.STDOUT, env=env)
+                        native = NativeInput(process.pid)
+                        wait_for_initial_focus(native.ready, timeout=8)
+                        inspect_copy(native, process, args.version, args.migrate_target)
+                        assert all(path.read_bytes() == raw for path, raw in copied.items())
+                        quit_application(native, process)
+                        native = None
+                        assert all(path.read_bytes() == raw for path, raw in copied.items())
+                        migration_result['targetReopened'] = True
                     process = subprocess.Popen(
                         [str(binary), str(startup)], stdout=stream,
                         stderr=subprocess.STDOUT, env=env,
@@ -732,6 +779,7 @@ def main():
                     'nativeDocumentation': documentation_result,
                     'nativeSchemaDefinitions': schema_definition_result,
                     'nativeOperations': operation_result,
+                    'nativeMigration': migration_result,
                     'files': {
                         str(Path(name).relative_to(project_directory)):
                             hashlib.sha256(raw).hexdigest()

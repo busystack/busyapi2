@@ -28,20 +28,45 @@ export class MigrationSource {
         return true;
     }
     private update(text:string){this.doc=new SourceDocument(text,this.original.id);if(this.doc.issues.length)throw new SourceError('migration.syntax','The planned CST change is ambiguous');}
+    /** Report a rejected physical edit through its surviving source owner,
+     * including a copied occurrence's original resource. */
+    private located<T>(pointer:string,action:()=>T):T {
+        try{return action();}catch(error){
+            if(error instanceof SourceError&&!error.source){
+                let at=[...this.doc.nodes.values()].find(node=>
+                    [node.range,node.keyRange].some(range=>range?.[0]===error.range[0]&&range?.[1]===error.range[1]))?.pointer??pointer;
+                let location:MigrationLocation|undefined;
+                while(true){
+                    const own=[...this.origins].find(([,values])=>values.has(at));
+                    const foreign=[...this.foreignOrigins].find(([,values])=>values.has(at));
+                    if(own){location={resource:this.original.id,pointer:own[0]};break;}
+                    if(foreign){const split=foreign[0].indexOf('#');location={resource:foreign[0].slice(0,split),pointer:foreign[0].slice(split+1)};break;}
+                    if(!at)break;at=at.slice(0,at.lastIndexOf('/'));
+                }
+                error.source={...location??{resource:this.original.id,pointer},range:error.range};
+            }
+            throw error;
+        }
+    }
     ensure(pointer:string):void {
         if(this.doc.nodes.has(pointer))return;
         const parts=segments(pointer);parts.pop();const parent=parts.length?'/'+parts.map(escape).join('/'):'';
         this.ensure(parent);
         const owner=this.doc.node(parent);
         if(this.doc.format==='yaml'&&owner.flow&&!owner.children.size&&this.blockParent(parent)){
+            this.located(parent,()=>this.doc.assertUnshared(parent));
             const inline=this.doc.text.slice(this.doc.lineStart(owner.range[0]),owner.range[0]).trim()!=='';
             this.update(this.doc.replace(...owner.range,(inline?this.doc.newline+' '.repeat(this.doc.indent(owner.range[0])+2):'')+JSON.stringify(segments(pointer).at(-1)!)+': {}'));
         }
         else this.update(this.doc.set(pointer,{}));
     }
     set(pointer:string,value:unknown):void {
+        const current=this.doc.nodes.get(pointer);
+        // An identical primitive needs no physical edit, even when authored
+        // through an alias. Numbers require exact lexemes and are excluded.
+        if(current&&(value===null||typeof value==='string'||typeof value==='boolean')&&current.value===value)return;
         const parts=segments(pointer);parts.pop();this.ensure(parts.length?'/'+parts.map(escape).join('/'):'');
-        this.update(this.doc.set(pointer,value));
+        this.located(pointer,()=>this.update(this.doc.set(pointer,value)));
     }
     exact(pointer:string,text:string):void{this.set(pointer,new RawJsonValue(text));}
     remove(pointer:string,retire=true):void {
@@ -59,7 +84,7 @@ export class MigrationSource {
             }
         }
         const parts=segments(pointer),name=parts.pop()!,parent=parts.length?'/'+parts.map(escape).join('/'):'',array=this.doc.node(parent).kind==='array';
-        let removed=this.doc.remove(pointer);
+        let removed=this.located(pointer,()=>this.doc.remove(pointer));
         if(comment!==undefined&&commentAt!==undefined)removed=removed.slice(0,commentAt)+comment+removed.slice(commentAt);
         this.update(removed);
         for(const values of this.originSets())for(const at of [...values]){
@@ -71,13 +96,14 @@ export class MigrationSource {
         const node=this.doc.node(pointer),parts=segments(pointer);parts.pop();
         const to=(parts.length?'/'+parts.map(escape).join('/'):'')+'/'+escape(name);
         if(this.doc.nodes.has(to))throw new SourceError('migration.collision','A mapped field already exists at '+to,node.range);
-        if(node.shared||node.keyShared||!node.keyRange)throw new SourceError('migration.shared','This key has shared or ambiguous ownership',node.range);
+        if(node.shared||node.keyShared||!node.keyRange)this.located(pointer,()=>{throw new SourceError('migration.shared','This key has shared or ambiguous ownership',node.range);});
         this.update(this.doc.replace(...node.keyRange,this.doc.emit(name,undefined,true)));
         for(const values of this.originSets())for(const at of [...values])if(inside(at,pointer)){values.delete(at);values.add(to+at.slice(pointer.length));}
         return to;
     }
     copy(source:MigrationSource,from:string,to:string):void {
-        const before=source.doc,node=before.node(from);before.assertSafe(from);
+        const before=source.doc,node=before.node(from);
+        source.located(from,()=>{before.assertSafe(from);before.assertUnshared(from,true);});
         const copied=[...[...source.origins].map(([origin,values])=>({origin:source.original.id+'#'+origin,values})),...[...source.foreignOrigins].map(([origin,values])=>({origin,values}))]
             .flatMap(({origin,values})=>[...values].filter(at=>inside(at,from)).map(at=>({origin,pointer:to+at.slice(from.length)})));
         const parts=segments(to),name=parts.pop()!,parent=parts.length?'/'+parts.map(escape).join('/'):'',expected=before.dataJson(from),identity=migrationValueIdentity(before,from);
@@ -93,6 +119,7 @@ export class MigrationSource {
             const inline=this.doc.text.slice(this.doc.lineStart(owner.range[0]),owner.range[0]).trim()!=='';
             const depth=this.doc.indent(owner.range[0]),entryIndent=depth+(owner.flow&&inline?2:0);
             if(owner.flow&&owner.children.size===0){
+                this.located(parent,()=>this.doc.assertUnshared(parent));
                 const text=JSON.stringify(name)+':'+this.doc.newline+' '.repeat(entryIndent+2)+local.replaceAll(this.doc.newline,this.doc.newline+' '.repeat(entryIndent+2));
                 this.update(this.doc.replace(...owner.range,(inline?this.doc.newline+' '.repeat(entryIndent):'')+text));
             }else{

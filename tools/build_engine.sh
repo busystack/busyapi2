@@ -78,6 +78,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_native_families.cjs"
 "$esbuild_bin" "$engine_dir/src/migration.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/migration.cjs"
 "$node_bin" "$engine_dir/test_migration.cjs"
+"$node_bin" "$engine_dir/test_migration_yaml_ownership.cjs"
 "$node_bin" "$engine_dir/test_migration_swagger_media.cjs"
 "$node_bin" "$engine_dir/test_operation_body_semantics.cjs"
 "$node_bin" "$engine_dir/test_execution.cjs"

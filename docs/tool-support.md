@@ -319,6 +319,13 @@ hierarchies receive precise source-located conversion blockers. See the
 [migration guide](migration.md) and native support matrix for qualified directions
 and remaining mappings.
 
+Migration preserves untouched YAML anchors and aliases, including exact numeric
+payloads and unchanged canonical reference/identity strings. Static locator
+retention is proved against the mapped graph and the delivered cold-reopen
+identity map. Changes to shared syntax remain source-located blockers, including
+patch-only declarations and empty anchored destinations. These cases use migration
+producer **3**; Core rejects previous producer responses before publication.
+
 Contract-case JSON reports include `dispatched` and `operationalFailure`. Coverage
 counts operation occurrences handed to the HTTP transport; refused preparation
 remains untested. The retained `executedOperations` field counts these dispatched

@@ -225,7 +225,7 @@ void main() {
             MigrationStatus.faithfullyConvertible,
             reason: '${review.result}',
           );
-          expect(review.result['producerVersion'], '2');
+          expect(review.result['producerVersion'], '3');
           expect(review.unsaved, isTrue);
           expect(review.changes, hasLength(5));
           expect(await Directory(review.destination).exists(), isFalse);
@@ -269,7 +269,7 @@ void main() {
           final report = jsonDecode(cliReview.stdout as String) as Map;
           expect(report['status'], 'faithfully-convertible');
           expect(report['published'], false);
-          expect(report['producerVersion'], '2');
+          expect(report['producerVersion'], '3');
           expect(await Directory(cliDestination).exists(), isFalse);
           final applied = await command([
             '--apply',
