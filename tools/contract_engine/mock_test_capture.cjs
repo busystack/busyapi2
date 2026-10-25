@@ -48,6 +48,9 @@ async function startMock(t,input,{failure=false}={}) {
   assert.equal(event.nativeValidation.name,'hyperjump+busyapi-exact');
   assert.equal(typeof event.nativeValidation.version,'string');
   assert.match(event.nativeValidation.configuration,/exact-cst/);
+  assert.equal(event.nativeResponseValidation.name,'busyapi-native-response');
+  assert.equal(event.nativeResponseValidation.version,'1');
+  assert.match(event.nativeResponseValidation.configuration,/^response-wire-v1:/);
  }
  return event;
 }

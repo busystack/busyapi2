@@ -172,22 +172,22 @@ class MockPlan {
 class MockValidationIdentity {
   const MockValidationIdentity._(this.name, this.version, this.configuration);
   final String name, version, configuration;
-  static MockValidationIdentity? _read(Object? value) {
+  static MockValidationIdentity? _read(
+    Object? value, {
+    required String expectedName,
+  }) {
     if (value
         case {
-          'name': 'hyperjump+busyapi-exact',
+          'name': String name,
           'version': String version,
           'configuration': String configuration,
         }
-        when version.isNotEmpty &&
+        when name == expectedName &&
+            version.isNotEmpty &&
             version.length <= 128 &&
             configuration.isNotEmpty &&
             configuration.length <= 16384) {
-      return MockValidationIdentity._(
-        'hyperjump+busyapi-exact',
-        version,
-        configuration,
-      );
+      return MockValidationIdentity._(name, version, configuration);
     }
     return null;
   }
@@ -255,6 +255,7 @@ class MockRun {
     this.operations,
     this.upstreamForwarding,
     this.nativeValidation,
+    this.nativeResponseValidation,
     this._stderr,
   );
   final MockPlan plan;
@@ -264,6 +265,7 @@ class MockRun {
   final int port, operations;
   final bool upstreamForwarding;
   final MockValidationIdentity nativeValidation;
+  final MockValidationIdentity nativeResponseValidation;
   final List<int> _stderr;
   bool _stopping = false;
   bool get outdated => plan.outdated;
@@ -368,6 +370,11 @@ class MockRun {
     }
     final nativeValidation = MockValidationIdentity._read(
       message['nativeValidation'],
+      expectedName: 'hyperjump+busyapi-exact',
+    );
+    final nativeResponseValidation = MockValidationIdentity._read(
+      message['nativeResponseValidation'],
+      expectedName: 'busyapi-native-response',
     );
     if (message['event'] != 'ready' ||
         message['snapshot'] != plan.snapshot.identity ||
@@ -377,6 +384,7 @@ class MockRun {
         message['port'] is! int ||
         message['operations'] is! int ||
         nativeValidation == null ||
+        nativeResponseValidation == null ||
         message['upstreamForwarding'] != (proxyTarget != null)) {
       _terminateMock(process, grouped);
       await lines.cancel();
@@ -404,6 +412,7 @@ class MockRun {
       message['operations'] as int,
       message['upstreamForwarding'] as bool,
       nativeValidation,
+      nativeResponseValidation,
       stderrBytes,
     );
   }

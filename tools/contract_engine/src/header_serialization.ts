@@ -50,7 +50,7 @@ export function headerShapes(graph:ReferenceGraph) {
         result.items=value.items!==undefined?shape({...target,pointer:target.pointer+'/items'},depth+1):constraints.find(item=>item.items)?.items;
       }
       if(type==='object') {
-        result.properties=Object.assign({},...constraints.map(item=>item.properties??{}));
+        result.properties=Object.assign(Object.create(null),...constraints.map(item=>item.properties??{}));
         for(const name of Object.keys(value.properties??{}))result.properties![name]=shape({...target,pointer:target.pointer+'/properties/'+escape(name)},depth+1)??result.properties![name];
         result.additionalProperties=value.additionalProperties!==undefined?shape({...target,pointer:target.pointer+'/additionalProperties'},depth+1):constraints.find(item=>item.additionalProperties)?.additionalProperties;
       }

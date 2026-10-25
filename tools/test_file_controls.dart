@@ -58,6 +58,19 @@ List<Element> _elements(bool Function(Widget) matches) {
   return found;
 }
 
+bool _interactiveElement(Element element) {
+  var interactive = true;
+  element.visitAncestorElements((ancestor) {
+    final widget = ancestor.widget;
+    if (widget is Offstage && widget.offstage ||
+        widget is IgnorePointer && widget.ignoring) {
+      interactive = false;
+    }
+    return interactive;
+  });
+  return interactive;
+}
+
 Future<void> _wait(bool Function() ready, String code) async {
   final clock = Stopwatch()..start();
   while (!ready()) {
@@ -86,7 +99,9 @@ Future<String> _run() async {
       memberNames =
           Platform.environment['BUSYAPI_FILE_CONTROLS_MEMBER_NAMES'] ?? '',
       responseStatus =
-          Platform.environment['BUSYAPI_FILE_CONTROLS_RESPONSE_STATUS'] == '1';
+          Platform.environment['BUSYAPI_FILE_CONTROLS_RESPONSE_STATUS'] == '1',
+      mockResponses =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_RESPONSES'] == '1';
   _expect(
     ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
         ['yaml', 'json'].contains(format),
@@ -170,8 +185,65 @@ Future<String> _run() async {
         },
         'x-literal': {r'$ref': '#/paths/~1items/get/responses/201', 'number': 'EXACT'},
       }).replaceFirst('"EXACT"', '9007199254740993.00')}\r\n';
+  final mockUpstream = mockResponses
+      ? await HttpServer.bind(InternetAddress.loopbackIPv4, 0)
+      : null;
+  final mockReceived = <(String, String, List<int>)>[];
+  mockUpstream?.listen((request) async {
+    final bytes = await request.fold<List<int>>([], (a, b) => a..addAll(b));
+    mockReceived.add((request.method, request.uri.path, bytes));
+    final valid = request.uri.queryParameters.containsKey('valid');
+    request.response.headers.contentType = ContentType.json;
+    request.response.headers.set(
+      'x-exact',
+      valid ? '9007199254740993.000' : '9007199254740992',
+    );
+    request.response.write(valid ? '9007199254740993.000' : '9007199254740992');
+    await request.response.close();
+  });
+  final mockSource =
+      '${json ? '' : '# retained mock source\r\n'}${jsonEncode({
+        declaration: version,
+        'info': {'title': 'Native response capture 雪😀', 'version': '1'},
+        if (swagger) 'produces': ['application/json'],
+        'paths': {
+          '/data': {
+            'post': {
+              'responses': {
+                '200': {
+                  'description': 'Actual response',
+                  'headers': {
+                    'X-Exact': swagger ? {
+                            'type': 'integer',
+                            'enum': ['EXACT'],
+                          } : {
+                            'schema': {
+                              'type': 'integer',
+                              'enum': ['EXACT'],
+                            },
+                          },
+                  },
+                  if (swagger) 'schema': {r'$ref': 'model.$format#/Schema'} else 'content': {
+                      'application/json': {
+                        'schema': {r'$ref': 'model.$format#/Schema'},
+                      },
+                    },
+                },
+              },
+            },
+          },
+        },
+        'x-literal': {r'$ref': 'literal', 'number': 0},
+      }).replaceFirst('"EXACT"', '9007199254740992.00')}\r\n';
+  final modelFile = File('${sourceDirectory.path}/model.$format');
+  final modelSource = json
+      ? '{"Schema":{"type":"integer","enum":[9007199254740992.00]}}'
+      : '# retained model\r\nSchema: &model\r\n  type: integer\r\n  enum: [9007199254740992.00]\r\n';
+  if (mockResponses) await modelFile.writeAsString(modelSource, flush: true);
   final rootBytes = utf8.encode(
-        responseStatus
+        mockResponses
+            ? '\ufeff$mockSource'
+            : responseStatus
             ? '\ufeff$responseSource'
             : maintenance.isNotEmpty || selection.isNotEmpty
             ? '\ufeff$securitySource'
@@ -201,6 +273,13 @@ environments:
 ''';
   if (maintenance.isNotEmpty || selection.isNotEmpty) {
     await manifest.writeAsString(configuration, flush: true);
+  }
+  if (mockUpstream != null) {
+    await manifest.writeAsString(
+      'version: 1\nroots: [{name: api, path: api.$format}]\n'
+      'mock: {proxyTarget: http://127.0.0.1:${mockUpstream.port}}\n',
+      flush: true,
+    );
   }
   final externalSecurity = File('${sourceDirectory.path}/security.json');
   const externalSecuritySource =
@@ -262,14 +341,19 @@ environments:
     String code, {
     bool editable = false,
     bool designOnly = false,
+    bool Function(Element)? eligible,
   }) async {
     List<Element> mountedCandidates() => _elements(matches)
         .where(
           (element) =>
-              !designOnly ||
-              element.findAncestorWidgetOfExactType<Designer>() != null &&
-                  element.findAncestorWidgetOfExactType<AuthoredSchemaTree>() ==
-                      null,
+              (eligible?.call(element) ?? true) &&
+              (!designOnly ||
+                  element.findAncestorWidgetOfExactType<Designer>() != null &&
+                      element
+                              .findAncestorWidgetOfExactType<
+                                AuthoredSchemaTree
+                              >() ==
+                          null),
         )
         .toList();
     try {
@@ -496,19 +580,11 @@ environments:
   }
 
   Future<void> headerMenu(String tooltip, String label) async {
-    await _wait(
-      () =>
-          _elements(
-            (w) =>
-                w is BusyApiHeaderPopupMenuButton<String> &&
-                w.tooltip == tooltip,
-          ).length ==
-          1,
-      'native-header-menu-unique',
-    );
-    final element = _elements(
+    List<Element> menus() => _elements(
       (w) => w is BusyApiHeaderPopupMenuButton<String> && w.tooltip == tooltip,
-    ).single;
+    ).where(_interactiveElement).toList();
+    await _wait(() => menus().length == 1, 'native-header-menu-unique');
+    final element = menus().single;
     final menu = element.widget as BusyApiHeaderPopupMenuButton<String>;
     final entries = (await menu.itemBuilder(element))
         .whereType<BusyApiPopupMenuItem<String>>()
@@ -519,6 +595,7 @@ environments:
     await click(
       (w) => w is BusyApiHeaderPopupMenuButton<String> && w.tooltip == tooltip,
       'native-header-menu',
+      eligible: _interactiveElement,
     );
     await send({'kind': 'menu-ready'});
     await keys(['Home', for (var i = 0; i < index; i++) 'Down', 'Return']);
@@ -1218,7 +1295,202 @@ environments:
     );
   }
 
+  WorkspaceScreenState? mockScreen;
   try {
+    if (mockResponses) {
+      final screen =
+          (_elements((w) => w is WorkspaceScreen).single as StatefulElement)
+                  .state
+              as WorkspaceScreenState;
+      mockScreen = screen;
+      Future<void> sourceFile(File file) async {
+        await controller.selectObject({
+          'root': controller.root,
+          'resource': file.uri.toString(),
+          'pointer': file == root ? '/info' : '/Schema',
+          'range': [0, 0],
+        });
+        controller.setMode('Source');
+        await controller.analyse();
+        await _wait(
+          () =>
+              _elements(
+                (w) =>
+                    w is SourceEditor &&
+                    identical(w.buffer, controller.buffer) &&
+                    (w.isCurrent?.call() ?? true),
+              ).length ==
+              1,
+          'native-mock-source-owner',
+        );
+        await WidgetsBinding.instance.endOfFrame;
+      }
+
+      Future<void> changeNumber(File file) async {
+        await sourceFile(file);
+        await click(
+          (w) =>
+              w is SourceEditor &&
+              identical(w.buffer, controller.buffer) &&
+              (w.isCurrent?.call() ?? true),
+          'native-mock-source-entry',
+          editable: true,
+        );
+        final before = controller.buffer!.text;
+        const number = '9007199254740992';
+        final at = before.indexOf(number);
+        _expect(
+          at >= 0 && before.indexOf(number, at + 1) < 0,
+          'native-mock-number-owner',
+        );
+        final source =
+            _elements(
+                  (w) =>
+                      w is SourceEditor &&
+                      identical(w.buffer, controller.buffer) &&
+                      (w.isCurrent?.call() ?? true),
+                ).single
+                as StatefulElement;
+        (source.state as SourceEditorState).reveal(at + number.length);
+        await _wait(
+          () => identical(
+            FocusManager.instance.primaryFocus?.context
+                ?.findAncestorStateOfType<SourceEditorState>(),
+            source.state,
+          ),
+          'native-mock-source-focus',
+        );
+        await WidgetsBinding.instance.endOfFrame;
+        await keys(['Shift_L+Left', '3']);
+        await _wait(
+          () =>
+              controller.buffer!.text ==
+              before.replaceFirst(number, '9007199254740993'),
+          file == root
+              ? 'native-mock-source-number-root'
+              : 'native-mock-source-number-model',
+        );
+      }
+
+      await changeNumber(root);
+      final workingRoot = project.store.get(root.uri.toString()).bytes();
+      await changeNumber(modelFile);
+      final workingModel = project.store.get(modelFile.uri.toString()).bytes();
+      await headerMenu('BusyAPI', 'Local mock');
+      await _wait(
+        () => screen.mockRun.phase == 'ready',
+        'native-mock-prepared',
+      );
+      await click(
+        (w) =>
+            w is BusyApiActionRow &&
+            w.title == 'Start validation proxy' &&
+            w.onTap != null,
+        'native-mock-start-proxy',
+        eligible: _interactiveElement,
+      );
+      await _wait(
+        () => screen.mockRun.phase == 'running',
+        'native-mock-running',
+      );
+      final run = screen.mockRun.run!;
+      _expect(run.upstreamForwarding, 'native-mock-explicit-proxy');
+      final client = HttpClient();
+      try {
+        for (final valid in [true, false]) {
+          final request = await client.postUrl(
+            run.baseUri.resolve(valid ? '/data?valid' : '/data'),
+          );
+          final response = await request.close();
+          final text = await utf8.decoder.bind(response).join();
+          final findings = jsonDecode(
+            response.headers.value('sl-violations') ?? '[]',
+          ) as List;
+          _expect(
+            response.statusCode == 200 &&
+                text == (valid ? '9007199254740993.000' : '9007199254740992') &&
+                response.headers.value(
+                      'busyapi-response-validation-complete',
+                    ) ==
+                    'true',
+            'native-mock-actual-response',
+          );
+          for (final subject in ['response-body', 'response-header']) {
+            _expect(
+              valid
+                  ? findings.isEmpty
+                  : findings.whereType<Map>().any(
+                      (finding) =>
+                          finding['code'] == 'runtime.schema.incompatible' &&
+                          (finding['location'] as List).contains(subject) &&
+                          finding['source']['resource'] == root.uri.toString(),
+                    ),
+              'native-mock-captured-response-check',
+            );
+          }
+        }
+      } finally {
+        client.close(force: true);
+      }
+      _expect(
+        mockReceived.length == 2 &&
+            mockReceived.every(
+              (value) =>
+                  value.$1 == 'POST' && value.$2 == '/data' && value.$3.isEmpty,
+            ),
+        'native-mock-forwarded-request',
+      );
+      _expect(
+        listEquals(root.readAsBytesSync(), rootBytes) &&
+            modelFile.readAsStringSync() == modelSource &&
+            listEquals(
+              project.store.get(root.uri.toString()).bytes(),
+              workingRoot,
+            ) &&
+            listEquals(
+              project.store.get(modelFile.uri.toString()).bytes(),
+              workingModel,
+            ),
+        'native-mock-unsaved-source-preserved',
+      );
+      await click(
+        (w) => w is BusyApiCompactIconButton && w.tooltip == 'Stop',
+        'native-mock-stop',
+      );
+      await _wait(
+        () => screen.mockRun.run == null && screen.mockRun.phase == 'stopped',
+        'native-mock-stopped',
+      );
+      for (final file in [modelFile, root]) {
+        await sourceFile(file);
+        await keys(['Control_L+z']);
+        await _wait(
+          () => !project.store.get(file.uri.toString()).dirty,
+          'native-mock-source-one-undo',
+        );
+      }
+      _expect(
+        run.outdated &&
+            listEquals(
+              project.store.get(root.uri.toString()).bytes(),
+              rootBytes,
+            ) &&
+            project.store.get(modelFile.uri.toString()).text == modelSource,
+        'native-mock-capture-retained-and-restored',
+      );
+      await keys(['Control_L+s']);
+      await controller.open(root.path);
+      _expect(
+        listEquals(controller.buffer!.bytes(), rootBytes) &&
+            modelFile.readAsStringSync() == modelSource &&
+            listEquals(unused.readAsBytesSync(), unusedBytes),
+        'native-mock-noop-save-reopen',
+      );
+      stdout.writeln(
+        'BUSYAPI_NATIVE_MOCK_RESPONSES_PASS openapi=$version format=$format source=unsaved-root-and-model controls=prepare-proxy-stop response=status-headers-bytes validation=exact-captured history=one-undo save=reopen',
+      );
+      return 'mock-responses=native openapi=$version format=$format';
+    }
     if (responseStatus) {
       const pointer = '/paths/~1items/get/responses/201';
       if (swagger) {
@@ -2321,8 +2593,11 @@ environments:
       );
     }
   } finally {
+    mockScreen?.mockRun.cancel();
+    await mockScreen?.mockRun.stop();
     GestureBinding.instance.pointerRouter.removeGlobalRoute(observePointer);
     await input.cancel();
+    await mockUpstream?.close(force: true);
   }
   return 'creation=reviewed deletion=native-menu history=one-step publication=save-only original-bytes=exact openapi=$version format=$format';
 }

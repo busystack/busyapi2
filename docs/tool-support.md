@@ -46,9 +46,15 @@ validation result when proxy errors are disabled. Native findings retain source
 coordinates, and diagnostic headers preserve Unicode as valid bounded JSON.
 `mock --json` identifies the native validator separately from Prism. Named
 URL-encoded and multipart bodies use the same native decoder as request/response
-checks. Advanced multipart representations and the remaining Prism
-parameter/response roles still need native qualification; these passing body
-cases do not establish complete mock coverage.
+checks. Mock response assertions now use the same captured native evaluator for
+status, selected media, body data and supported header representations. Response
+checks preserve exact numeric tokens and 3.2 Set-Cookie field lines. The response
+owner is reported separately as `nativeResponseValidation` in `mock --json`.
+`busyapi-response-validation-complete: false` and located `sl-violations` identify
+incomplete response checks while retaining forwarded bytes. Malformed applicable
+JSON retains the existing HTTP 500 proxy policy. Advanced multipart, parameter,
+security and additional-operation routing qualification remains tracked in the
+[support matrix](implementation/native-openapi-support.md).
 For 3.0, `required` properties marked readOnly/writeOnly use the request/response
 direction rules. In 3.1/3.2 those keywords remain annotations: native schema
 evaluation retains `required` assertions and does not strip fields or add optional

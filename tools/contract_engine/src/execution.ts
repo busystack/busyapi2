@@ -6,6 +6,7 @@ import {GraphTarget, ReferenceGraph, supportedSchemaDialect} from './reference_g
 import {decimal} from './exact_numbers';
 import {headerShapes} from './header_serialization';
 import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
+import {responseStatusNamePolicy} from './member_names';
 import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './swagger_operation';
 import {componentLocation} from './authoring';
 import {FormSemantics} from './form_semantics';
@@ -456,7 +457,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method,customMethod:context.customMethod===true,path:context.path,
     operationId:typeof node.value.operationId==='string'?node.value.operationId:undefined,summary:typeof node.value.summary==='string'?node.value.summary:undefined,
     source:location(input.resource,input.pointer),occurrence:context.occurrence,pathItem:location(context.pathItem.resource,context.pathItem.pointer)},
-    servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes:Object.fromEntries(schemes),anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,ignoredRequestBody,responses,
+    servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes:Object.fromEntries(schemes),anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,ignoredRequestBody,responses,responseStatusNamePolicy:responseStatusNamePolicy(family),
     producer:'busyapi-contract-engine',producerVersion:'0.1.0',complete:true};
 }
 

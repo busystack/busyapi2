@@ -205,7 +205,10 @@ function forwardPreservingBytes(rawRequests: WeakMap<object, Buffer | undefined>
       const media = String(response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
       const applicable=method!=='HEAD'&&response.status>=200&&![204,205,304].includes(response.status);
       let value: unknown = applicable?bytes:undefined;
-      if (applicable&&(media === 'application/json' || media.endsWith('+json'))) value = JSON.parse(bytes.toString('utf8'));
+      if (applicable&&(media === 'application/json' || media.endsWith('+json'))) {
+        try{value=JSON.parse(bytes.toString('utf8'));}
+        catch(error){if(!(error instanceof SyntaxError))throw error;}
+      }
       else if (applicable&&media.startsWith('text/')) value = bytes.toString('utf8');
       const output = { statusCode: response.status, headers: responseHeaders, body: value };
       rawResponses.set(output, bytes);
@@ -259,8 +262,10 @@ function violation(value: { path?: string[]; severity: number; code?: string | n
     code: value.code === undefined ? undefined : String(value.code), message: value.message,...(value.nativeSource!==undefined?{source:value.nativeSource}:value.source!==undefined?{source:value.source}:{}) };
 }
 
-function nativeDiagnostics(checked:NativeMockCheck,severity:'error'|'warning'='error') {
-  return checked.findings.filter(finding=>finding.severity===severity).map(finding=>({severity:severity==='error'?DiagnosticSeverity.Error:DiagnosticSeverity.Warning,code:severity==='error'?422:String(finding.code),message:finding.code+': '+finding.message,path:['body',...segments(typeof finding.pointer==='string'?finding.pointer:'')],...(record(finding.source)?{nativeSource:finding.source}:record(finding.schema)?{nativeSource:finding.schema}:{})}));
+function nativeDiagnostics(checked:NativeMockCheck,severity:'error'|'warning'='error',response=false) {
+  return checked.findings.filter(finding=>finding.severity===severity).map(finding=>({severity:severity==='error'?DiagnosticSeverity.Error:DiagnosticSeverity.Warning,code:severity==='error'&&!response?422:String(finding.code),message:finding.code+': '+finding.message,
+    path:[response&&typeof finding.subject==='string'?finding.subject:'body',...(response&&finding.subject==='response-header'&&typeof finding.location==='string'?[finding.location]:[]),...segments(typeof finding.pointer==='string'?finding.pointer:'')],
+    ...(record(finding.source)?{nativeSource:finding.source}:record(finding.schema)?{nativeSource:finding.schema}:{})}));
 }
 
 function violationHeader(values:ReturnType<typeof violation>[]):string {
@@ -300,7 +305,7 @@ async function main(): Promise<void> {
     const rawResponses = new WeakMap<object, Buffer>();
     const signals=new WeakMap<object,AbortSignal>();
     const nativeChecks=new WeakMap<object,NativeMockCheck>();
-    const commonConfig = { checkSecurity: true, validateRequest: true, validateResponse: true,
+    const commonConfig = { checkSecurity: true, validateRequest: true, validateResponse: false,
       mock: { dynamic: false }, upstreamProxy: undefined, errors: input.errors !== false };
     const baseConfig = input.upstream
       ? { ...commonConfig, isProxy: true as const, upstream: new URL(input.upstream) }
@@ -411,17 +416,36 @@ async function main(): Promise<void> {
         }
         const result = outcome.right;
         const checked=nativeChecks.get(prismRequest),notes=checked?nativeDiagnostics(checked,'warning').map(value=>violation(value,'request')):[];
-        const violations = [...result.validations.input.map(value => violation(value, 'request')),
-          ...result.validations.output.map(value => violation(value, 'response')),...notes];
-        if (violations.length) reply.setHeader('sl-violations', violationHeader(violations));
-        for (const [name, value] of Object.entries(result.output.headers ?? {})) reply.setHeader(name, value);
+        for (const [name, value] of Object.entries(result.output.headers ?? {}))
+          if(!['sl-violations','busyapi-response-validation-complete'].includes(name.toLowerCase()))reply.setHeader(name, value);
         const mediaType = String(reply.getHeader('content-type') ?? '').split(';')[0].trim().toLowerCase() || undefined;
         const payload = rawResponses.get(result.output) ?? (result.output.body === undefined ? undefined :
           mediaType && (mediaType === 'application/json' || mediaType.endsWith('+json'))
             ? JSON.stringify(result.output.body)
             : typeof result.output.body === 'string' ? result.output.body : JSON.stringify(result.output.body));
+        const responseCheck:NativeMockCheck=selected._tag==='Right'
+          ?await native.response(selected.right.path,selected.right.method,result.output.statusCode,result.output.headers??{},Buffer.isBuffer(payload)?payload:Buffer.from(payload??'','utf8'),cancellation.signal)
+          :{complete:false,valid:false,findings:[{code:'runtime.response.operation.unchecked',message:'The forwarded response has no captured operation owner',severity:'warning',kind:'unsupported',subject:'response-body',pointer:''}]};
+        if(cancellation.signal.aborted||reply.destroyed)return;
+        const violations = [...result.validations.input.map(value => violation(value, 'request')),...notes,
+          ...nativeDiagnostics(responseCheck,'error',true).map(value=>violation(value,'response')),
+          ...nativeDiagnostics(responseCheck,'warning',true).map(value=>violation(value,'response'))];
+        reply.setHeader('busyapi-response-validation-complete',String(responseCheck.complete));
+        if (violations.length) reply.setHeader('sl-violations', violationHeader(violations));
+        // Preserve the established proxy error policy for malformed applicable
+        // JSON. Native diagnostics still describe the actual upstream content.
+        if(input.upstream&&mediaType&&(mediaType==='application/json'||mediaType.endsWith('+json'))&&
+            responseCheck.findings.some(finding=>finding.subject==='response-body'&&finding.code==='runtime.body.syntax')){
+          reply.removeHeader('content-length');
+          reply.setHeader('content-type','application/problem+json');
+          send(reply,500,JSON.stringify({title:'The upstream response is not valid JSON',status:500,
+            upstreamStatus:result.output.statusCode,complete:responseCheck.complete,valid:false,
+            receivedBytes:Buffer.byteLength(payload??''),findings:responseCheck.findings}));
+          return;
+        }
         process.stderr.write(`${JSON.stringify({ event: 'request', method: request.method,
-          path: url.pathname, status: result.output.statusCode, violations: violations.length })}\n`);
+          path: url.pathname, status: result.output.statusCode, violations: violations.length,
+          nativeResponseValidation:{complete:responseCheck.complete,valid:responseCheck.valid} })}\n`);
         send(reply, result.output.statusCode, payload);
       } catch (error) {
         if(reply.destroyed||reply.writableEnded)return;
@@ -451,7 +475,8 @@ async function main(): Promise<void> {
     listening=true;
     write({ version: 1, event: 'ready', snapshot: input.snapshot, tool: 'Prism',
       toolVersion: '5.15.11', adapter: 'in-memory-http-spec-7.1.0', host: '127.0.0.1',
-      port: address.port, operations: operations.length, nativeValidation:native.identity, upstreamForwarding: input.upstream !== undefined });
+      port: address.port, operations: operations.length, nativeValidation:native.identity,
+      nativeResponseValidation:native.responseIdentity,upstreamForwarding: input.upstream !== undefined });
   } finally {
     if(!listening)await native.close();
   }

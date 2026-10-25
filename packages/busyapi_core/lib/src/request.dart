@@ -3829,6 +3829,29 @@ class ContractRequestExecutor {
         ),
       );
     }
+    if (!plan.responseStatusNamePolicy.allows(response.status.toString())) {
+      findings.add({
+        ..._finding(
+          'runtime.response.status.invalid',
+          'error',
+          'HTTP ${response.status} is outside the captured HTTP status-code range.',
+          location: 'status',
+        ),
+        'source': plan.operation['source'],
+      });
+      return ContractConformance(
+        complete: response.receiptComplete,
+        valid: false,
+        findings: List.unmodifiable(findings),
+        producer: 'busyapi-runtime',
+        producerVersion: '1',
+        coverage: {
+          'status': 'checked',
+          'headers': 'not-evaluated-invalid-status',
+          'body': 'not-evaluated-invalid-status',
+        },
+      );
+    }
     final responses = (plan.result['responses'] as List).cast<Map>();
     Map? declaration = responses
         .where((item) => item['status'] == '${response.status}')

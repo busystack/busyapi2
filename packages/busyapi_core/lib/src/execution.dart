@@ -307,7 +307,10 @@ class OperationRequestPlan {
     this.result,
     this.saved,
     this._revision,
-  ) : ignoredRequestBody = IgnoredRequestBody.parse(
+  ) : responseStatusNamePolicy = MemberNamePolicy.fromJson(
+        result['responseStatusNamePolicy'],
+      ),
+      ignoredRequestBody = IgnoredRequestBody.parse(
         result['ignoredRequestBody'],
       );
   final BusyProject _owner;
@@ -315,6 +318,7 @@ class OperationRequestPlan {
   final ExecutionConfiguration configuration;
   final Map<String, dynamic> result;
   final IgnoredRequestBody? ignoredRequestBody;
+  final MemberNamePolicy responseStatusNamePolicy;
   final bool saved;
   final int _revision;
   bool _closed = false;
@@ -871,7 +875,8 @@ extension RequestPlanning on BusyProject {
         result['servers'] is! List ||
         result['parameters'] is! List ||
         result['security'] is! Map ||
-        result['responses'] is! List) {
+        result['responses'] is! List ||
+        result['responseStatusNamePolicy'] is! Map) {
       throw CoreFailure(
         'request.protocol',
         'The contract worker returned an unrelated or malformed request plan',

@@ -1,27 +1,17 @@
 import {createGraph,type Resource} from './engine';
 import {requestOperation} from './execution';
-import {SourceError,limits,type Range} from './document';
+import {SourceError,limits} from './document';
 import {EngineWorkerClient,record} from './engine_worker_client';
-import {mediaTypeChoice,mediaTypes} from './media_types';
+import {mediaTypes} from './media_types';
 import {runtimeMediaKind} from './runtime_media';
 import type {RuntimeFormTarget} from './runtime_form';
 import type {OperationOccurrence} from './reference_graph';
+import {nativeMedia,selectNativeMedia,schemaLocation,sourceLocation,type SchemaLocation,type SourceLocation,type NativeMedia,type NativeRuntimeInstance,type NativeMockCheck} from './mock_projection';
+import {mockResponseProducer,validateMockResponse} from './mock_response_validation';
+export type {NativeMockCheck} from './mock_projection';
 
 export type MockCapture={root:string;snapshot:string;resources:Resource[]};
-export type NativeMockCheck={complete:boolean;valid:boolean;findings:Record<string,unknown>[]};
-type SchemaLocation={resource:string;pointer:string};
-type SourceLocation=SchemaLocation&{range:Range};
-type NativeMedia={mediaType:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;formOwner?:RuntimeFormTarget};
 type BodyDeclaration={required:boolean;source:SourceLocation;content:NativeMedia[]};
-const schemaLocation=(value:unknown):SchemaLocation|undefined=>record(value)&&typeof value.resource==='string'&&typeof value.pointer==='string'
-    ?{resource:value.resource,pointer:value.pointer}:undefined;
-function sourceLocation(value:unknown):SourceLocation|undefined {
-    const source=schemaLocation(value);
-    if(!source||!record(value)||!Array.isArray(value.range)||value.range.length!==2)return;
-    const [start,end]=value.range;
-    if(typeof start!=='number'||typeof end!=='number'||!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<start)return;
-    return {...source,range:[start,end]};
-}
 
 export function mockCapture(value:unknown):MockCapture {
     if(!record(value)||typeof value.root!=='string'||typeof value.snapshot!=='string'||!/^[a-f0-9]{64}$/.test(value.snapshot)||!Array.isArray(value.resources)||!value.resources.length||value.resources.length>limits.resources)
@@ -44,7 +34,7 @@ export class MockNativeValidation {
     private readonly client=new EngineWorkerClient();
     private readonly context:ReturnType<typeof createGraph>;
     private readonly operations=new Map<string,OperationOccurrence>();
-    private readonly plans=new Map<string,BodyDeclaration|undefined>();
+    private readonly plans=new Map<string,{operation:OperationOccurrence;description:ReturnType<typeof requestOperation>;body:BodyDeclaration|undefined}>();
     private producer?:{name:string;version:string;configuration:string};
 
     constructor(private readonly capture:MockCapture) {
@@ -75,21 +65,25 @@ export class MockNativeValidation {
     }
 
     get identity(){return this.producer;}
+    get responseIdentity(){return this.producer&&{...mockResponseProducer,configuration:'response-wire-v1:'+this.producer.configuration};}
 
     private declaration(value:unknown,operation:OperationOccurrence):BodyDeclaration|undefined {
         if(value===undefined)return;
         if(!record(value)||typeof value.required!=='boolean'||!Array.isArray(value.content))throw new SourceError('mock.validation.protocol','The native body projection is malformed');
         const source=sourceLocation(value.source);if(!source)throw new SourceError('mock.validation.protocol','The native body projection omitted its source');
-        const content=value.content.map((media:unknown):NativeMedia=>{
-            if(!record(media)||typeof media.mediaType!=='string')throw new SourceError('mock.validation.protocol','The native media projection is malformed');
-            const schema=schemaLocation(media.schema),itemSchema=schemaLocation(media.itemSchema);
-            if(media.schema!==undefined&&!schema||media.itemSchema!==undefined&&!itemSchema)
-                throw new SourceError('mock.validation.protocol','The native media projection omitted a schema identity');
-            const formOwner=schemaLocation(media.definition??media.source);
-            return {mediaType:media.mediaType,schema:record(media.schema)&&media.schema.unconstrained===true?undefined:schema,itemSchema,
-                ...(formOwner?{formOwner:{...formOwner,...(media.swaggerForm!==undefined?{occurrence:operation.occurrence}:{})}}:{})};
-        });
+        const content=nativeMedia(value.content,operation.occurrence);
         return {required:value.required,source,content};
+    }
+
+    private plan(path:string,method:string) {
+        const key=JSON.stringify([path,method.toUpperCase()]);
+        const cached=this.plans.get(key);if(cached)return cached;
+        const operation=this.operations.get(key);
+        if(!operation)throw new SourceError('mock.operation.owner','The selected mock route has no captured native owner');
+        const description=requestOperation({...this.capture,resource:operation.source.resource,pointer:operation.source.pointer,occurrence:operation.occurrence},this.context);
+        const plan={operation,description,body:this.declaration(description.requestBody,operation)};
+        if(this.plans.size>=128)this.plans.clear();
+        this.plans.set(key,plan);return plan;
     }
 
     qualify(operations:readonly {path:string;method:string}[]):void {
@@ -101,14 +95,7 @@ export class MockNativeValidation {
     }
 
     async body(path:string,method:string,bytes:Buffer,contentType:string|undefined,present:boolean,signal:AbortSignal):Promise<NativeMockCheck> {
-        const key=JSON.stringify([path,method.toUpperCase()]),operation=this.operations.get(key);
-        if(!operation)throw new SourceError('mock.operation.owner','The selected mock route has no captured native owner');
-        if(!this.plans.has(key)){
-            const plan=requestOperation({...this.capture,resource:operation.source.resource,pointer:operation.source.pointer,occurrence:operation.occurrence},this.context);
-            if(this.plans.size>=128)this.plans.clear();
-            this.plans.set(key,this.declaration(plan.requestBody,operation));
-        }
-        const declaration=this.plans.get(key);
+        const {operation,body:declaration}=this.plan(path,method);
         const source=declaration?.source??{resource:operation.source.resource,pointer:operation.source.pointer,range:this.context.docs.get(operation.source.resource)!.dataNode(operation.source.pointer)!.range};
         const invalid=(code:string,message:string):NativeMockCheck=>({complete:true,valid:false,findings:[{code,message,pointer:'',severity:'error',subject:'request-body',source}]});
         if(!present)return declaration?.required?invalid('runtime.request.body.required','The captured operation requires a request body'):{complete:true,valid:true,findings:[]};
@@ -125,28 +112,27 @@ export class MockNativeValidation {
         // HTTP media framing still applies, as for schema-free outgoing JSON.
         if(!declaration)return runtimeMediaKind(actual)==='opaque'?{complete:true,valid:true,findings:[]}:
             this.evaluate(bytes,actual,signal);
-        const matches=declaration.content.filter(media=>{
-            try{mediaTypeChoice(media.mediaType,actual);return true;}
-            catch(error){if(error instanceof SourceError&&error.code==='request.form.content-type')return false;throw error;}
-        }).map(media=>{
-            const types=mediaTypes(media.mediaType);
-            if(types.length!==1)throw new SourceError('mock.content-type','A content map key must contain one media type or range');
-            const type=types[0];return {media,rank:(type.type==='*'?0:2)+(type.subtype==='*'?0:1),parameters:type.parameters.size};
-        }).sort((a,b)=>b.rank-a.rank||b.parameters-a.parameters);
-        if(!matches.length)return invalid('runtime.request.content-type','The request Content-Type does not match the captured operation');
-        if(matches.length>1&&matches[0].rank===matches[1].rank&&matches[0].parameters===matches[1].parameters)
-            throw new SourceError('mock.content-type.ambiguous','Equally specific content declarations need an explicit interpretation',[0,0],'unsupported');
-        const media=matches[0].media;
+        const media=selectNativeMedia(declaration.content,actual);
+        if(!media)return invalid('runtime.request.content-type','The request Content-Type does not match the captured operation');
         const {schema,itemSchema}=media;
         const form=['application/x-www-form-urlencoded','multipart/form-data'].includes(parsed[0].type+'/'+parsed[0].subtype)?media.formOwner:undefined;
         if(!schema&&!itemSchema&&!form&&runtimeMediaKind(actual)==='opaque')return {complete:true,valid:true,findings:[]};
         return this.evaluate(bytes,actual,signal,schema,itemSchema,form);
     }
 
+    async response(path:string,method:string,status:number,headers:unknown,bytes:Buffer,signal:AbortSignal):Promise<NativeMockCheck> {
+        const {description}=this.plan(path,method);
+        return validateMockResponse(this.context.graph,description,description.operation.method,status,headers,bytes,instances=>this.evaluateInstances(instances,signal));
+    }
+
     private async evaluate(bytes:Buffer,actual:string,signal:AbortSignal,schema?:SchemaLocation,itemSchema?:SchemaLocation,form?:RuntimeFormTarget):Promise<NativeMockCheck> {
-        const result=await this.client.request('evaluateSchemas',{...this.capture,runtimeInstances:[{
+        return this.evaluateInstances([{
             subject:'request-body',location:actual,text:bytes.toString('base64'),mediaType:actual,mediaBase64:true,
-            ...(schema?{schema}:{}),...(itemSchema?{itemSchema}:{}),...(form?{form}:{})}]},signal);
+            ...(schema?{schema}:{}),...(itemSchema?{itemSchema}:{}),...(form?{form}:{})}],signal);
+    }
+
+    private async evaluateInstances(runtimeInstances:NativeRuntimeInstance[],signal:AbortSignal):Promise<NativeMockCheck> {
+        const result=await this.client.request('evaluateSchemas',{...this.capture,runtimeInstances},signal);
         if(result.snapshot!==this.capture.snapshot||typeof result.complete!=='boolean'||!Array.isArray(result.runtimeEvaluations)||!Array.isArray(result.runtimeFindings))
             throw new SourceError('mock.validation.protocol','Native validation returned an unrelated runtime result');
         const evaluations=result.runtimeEvaluations,findings:Record<string,unknown>[]=[];
