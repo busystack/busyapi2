@@ -14,7 +14,7 @@ import {restrictedSchemaIssues} from './restricted_schema';
 import {securityRequirementIssues,securityRequirementValueRule} from './security_requirements';
 import {formMediaIssues} from './form_semantics';
 import {mediaTypeIssues} from './media_validation';
-import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer} from './member_names';
+import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
 const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions };
@@ -265,7 +265,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
         if(issue.incomplete)complete=false;
         diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,issue.range,issue.severity??'error');
     }
-    for (const issue of [...authoringRelationships(graph), ...restrictedSchemaIssues(graph), ...securityRequirementIssues(graph), ...mediaTypeIssues(graph), ...formMediaIssues(graph)]) {
+    for (const issue of [...authoringRelationships(graph), ...restrictedSchemaIssues(graph), ...securityRequirementIssues(graph), ...mediaTypeIssues(graph), ...formMediaIssues(graph),...responseStatusIssues(graph)]) {
         if(issue.incomplete)complete=false;
         diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,undefined,issue.severity??'error');
     }
@@ -386,6 +386,7 @@ export function inspect(input: any) {
         ...(memberPolicy?{memberNamePolicy:memberPolicy}:{}),
         ...(componentPolicy?{componentNamePolicy:componentPolicy}:{}),
         componentDefinition,
+        ...(scope.kind==='response'&&parentScope?.kind==='response-map'?{responseStatusNamePolicy:responseStatusNamePolicy(family)}:{}),
         value: Object.fromEntries(fields.filter(f => f.present && Object.hasOwn(f, 'value')).map(f => [f.name, f.value])),
         boolean: scope.kind==='schema'&&typeof node.value === 'boolean' ? node.value : undefined,
         ...(operationContext?{operationContext}:{}),

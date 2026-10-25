@@ -84,7 +84,9 @@ Future<String> _run() async {
           Platform.environment['BUSYAPI_FILE_CONTROLS_SECURITY_SELECTION'] ??
           '',
       memberNames =
-          Platform.environment['BUSYAPI_FILE_CONTROLS_MEMBER_NAMES'] ?? '';
+          Platform.environment['BUSYAPI_FILE_CONTROLS_MEMBER_NAMES'] ?? '',
+      responseStatus =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_RESPONSE_STATUS'] == '1';
   _expect(
     ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
         ['yaml', 'json'].contains(format),
@@ -146,8 +148,32 @@ Future<String> _run() async {
           },
         'x-example': {r'$ref': 'literal', 'large': '__exact__'},
       }).replaceAll('"__exact__"', '9007199254740993.00')}\r\n';
+  final responseSource =
+      '${json ? '' : '# retained response source\r\n'}${jsonEncode({
+        declaration: version,
+        'info': {'title': 'Native responses 雪😀', 'version': '1'},
+        'paths': {
+          '/items': {
+            'get': {
+              'responses': {
+                '201': {'description': 'Kept response'},
+              },
+            },
+          },
+          '/consumer': {
+            'get': {
+              'responses': {
+                '200': {r'$ref': '#/paths/~1items/get/responses/201'},
+              },
+            },
+          },
+        },
+        'x-literal': {r'$ref': '#/paths/~1items/get/responses/201', 'number': 'EXACT'},
+      }).replaceFirst('"EXACT"', '9007199254740993.00')}\r\n';
   final rootBytes = utf8.encode(
-        maintenance.isNotEmpty || selection.isNotEmpty
+        responseStatus
+            ? '\ufeff$responseSource'
+            : maintenance.isNotEmpty || selection.isNotEmpty
             ? '\ufeff$securitySource'
             : json
             ? '\ufeff{\r\n "$declaration":"$version","info":{"title":"Native 雪😀","version":"1"},\n'
@@ -1193,6 +1219,126 @@ environments:
   }
 
   try {
+    if (responseStatus) {
+      const pointer = '/paths/~1items/get/responses/201';
+      if (swagger) {
+        await route(pointer);
+        await row('Rename response status…');
+        await entry('Status', '2XX', dialog: true);
+        await button('Apply');
+        await _wait(
+          () => _elements(
+            (w) =>
+                w is Text &&
+                w.data == 'Use default or a status code from 100 to 599.',
+          ).isNotEmpty,
+          'native-status-family-guidance',
+        );
+        _expect(
+          listEquals(project.store.get(root.uri.toString()).bytes(), rootBytes),
+          'native-status-invalid-retained-source',
+        );
+        await button('Cancel');
+        await _wait(
+          () => _elements((w) => w is BusyApiDialogShell).isEmpty,
+          'native-status-invalid-cancel',
+        );
+      }
+      for (final accept in [false, true]) {
+        await route(pointer);
+        await row('Rename response status…');
+        await entry('Status', '202', dialog: true);
+        await button('Apply');
+        await _wait(
+          () =>
+              _elements((w) => w is Text && w.data == 'Review refactoring')
+                  .isNotEmpty,
+          'native-status-review',
+        );
+        _expect(
+          listEquals(root.readAsBytesSync(), rootBytes) &&
+              listEquals(
+                project.store.get(root.uri.toString()).bytes(),
+                rootBytes,
+              ),
+          'native-status-review-originals',
+        );
+        await button(accept ? 'Apply' : 'Cancel');
+        await _wait(
+          () =>
+              _elements((w) => w is Text && w.data == 'Review refactoring')
+                  .isEmpty,
+          'native-status-review-close',
+        );
+      }
+      await _wait(
+        () =>
+            !controller.checking &&
+            !controller.formApplying &&
+            controller.selectedPointer == '/paths/~1items/get/responses/202',
+        'native-status-selection',
+      );
+      final accepted = project.store.get(root.uri.toString()).bytes(),
+          text = project.store.get(root.uri.toString()).text;
+      final data = jsonDecode(
+        text.replaceFirst('# retained response source\r\n', ''),
+      ) as Map;
+      _expect(
+        (data['paths']['/items']['get']['responses'] as Map).containsKey(
+              '202',
+            ) &&
+            !(data['paths']['/items']['get']['responses'] as Map).containsKey(
+              '201',
+            ) &&
+            data['paths']['/consumer']['get']['responses']['200'][r'$ref'] ==
+                '#/paths/~1items/get/responses/202' &&
+            data['x-literal'][r'$ref'] == '#/paths/~1items/get/responses/201' &&
+            text.contains('9007199254740993.00'),
+        'native-status-semantic-repair',
+      );
+      await keys(['Control_L+z']);
+      await _wait(
+        () => listEquals(
+          project.store.get(root.uri.toString()).bytes(),
+          rootBytes,
+        ),
+        'native-status-one-undo',
+      );
+      await keys(['Control_L+Shift_L+z']);
+      await _wait(
+        () => listEquals(
+          project.store.get(root.uri.toString()).bytes(),
+          accepted,
+        ),
+        'native-status-one-redo',
+      );
+      await keys(['Control_L+s']);
+      await _wait(
+        () =>
+            listEquals(root.readAsBytesSync(), accepted) &&
+            !project.store.get(root.uri.toString()).dirty,
+        'native-status-selected-save',
+      );
+      _expect(
+        listEquals(unused.readAsBytesSync(), unusedBytes),
+        'native-status-unrelated-source',
+      );
+      await controller.open(root.path);
+      _expect(
+        listEquals(controller.buffer!.bytes(), accepted),
+        'native-status-reopen',
+      );
+      await keys(['Control_L+s']);
+      await controller.shutdown();
+      _expect(
+        listEquals(root.readAsBytesSync(), accepted),
+        'native-status-noop-save',
+      );
+      stdout.writeln(
+        'BUSYAPI_NATIVE_RESPONSE_STATUS_PASS openapi=$version format=$format review=references cancel=unchanged history=one-step source=exact',
+      );
+      return 'response-status=reviewed openapi=$version format=$format';
+    }
     if (selection.isNotEmpty) {
       final rootId = root.uri.toString();
       final stages = [

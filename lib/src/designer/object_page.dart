@@ -592,13 +592,25 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                     item['sharedTarget'] == true ||
                     c.selectedOccurrence?.startsWith('definition:') == true)
                   Text(l.sharedDefinition),
+                if (item['responseStatusNamePolicy'] != null)
+                  BusyApiActionRow(
+                    title: l.renameResponseStatus,
+                    onTap: c.scopeSafe(item)
+                        ? () => run(
+                            () => _renameObjectMember(
+                              context,
+                              c,
+                              item,
+                              kind: _ObjectRenameKind.responseStatus,
+                            ),
+                          )
+                        : null,
+                  ),
                 if (item['componentDefinition'] == true)
                   BusyApiActionRow(
                     title: l.renameComponent,
                     onTap: c.scopeSafe(item)
-                        ? () => run(
-                            () => _renameObjectComponent(context, c, item),
-                          )
+                        ? () => run(() => _renameObjectMember(context, c, item))
                         : null,
                   ),
                 if (item['componentFamily'] is String &&
@@ -642,11 +654,11 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                     title: l.renameProperty,
                     onTap: c.scopeSafe(item)
                         ? () => run(
-                            () => _renameObjectComponent(
+                            () => _renameObjectMember(
                               context,
                               c,
                               item,
-                              property: true,
+                              kind: _ObjectRenameKind.property,
                             ),
                           )
                         : null,
@@ -1425,13 +1437,15 @@ Future<void> _addObjectEntry(
           kind == 'server-array' && (v['url'] as String).isEmpty) {
         return l.objectNameRequired;
       }
-      final name = v['emptyName'] == true ? '' : v['name'] as String;
-      if (namePolicy != null && !namePolicy.allows(name)) {
-        return name.length > namePolicy.maxLength
-            ? l.memberNameTooLong
-            : kind == 'response-map'
-            ? l.responseStatusInvalid
-            : l.componentNameInvalid;
+      if (namePolicy != null && !array) {
+        final name = v['emptyName'] == true ? '' : v['name'] as String;
+        if (!namePolicy.allows(name)) {
+          return name.length > namePolicy.maxLength
+              ? l.memberNameTooLong
+              : kind == 'response-map'
+              ? _responseStatusNameFailure(context, namePolicy)
+              : l.componentNameInvalid;
+        }
       }
       return null;
     },
@@ -1520,19 +1534,34 @@ Future<void> _addObjectExtension(
   );
 }
 
-Future<void> _renameObjectComponent(
+enum _ObjectRenameKind { component, property, responseStatus }
+
+String _responseStatusNameFailure(
+  BuildContext context,
+  MemberNamePolicy policy,
+) => policy.allows('2XX')
+    ? context.l10n.responseStatusInvalid
+    : context.l10n.responseStatusCodeInvalid;
+
+Future<void> _renameObjectMember(
   BuildContext context,
   WorkspaceController c,
   Map<String, dynamic> item, {
-  bool property = false,
+  _ObjectRenameKind kind = _ObjectRenameKind.component,
 }) async {
   final prepared = await _prepareObjectAction(context, c, item);
   if (prepared == null || !context.mounted) return;
   item = prepared;
   final owner = c.project!, l = context.l10n;
-  final namePolicy = property
-      ? null
-      : MemberNamePolicy.fromJson(item['componentNamePolicy']);
+  final namePolicy = switch (kind) {
+    _ObjectRenameKind.property => null,
+    _ObjectRenameKind.component => MemberNamePolicy.fromJson(
+      item['componentNamePolicy'],
+    ),
+    _ObjectRenameKind.responseStatus => MemberNamePolicy.fromJson(
+      item['responseStatusNamePolicy'],
+    ),
+  };
   RefactoringPlan? plan;
   final name = (item['pointer'] as String)
       .split('/')
@@ -1541,29 +1570,55 @@ Future<void> _renameObjectComponent(
       .replaceAll('~0', '~');
   final result = await editForm(
     context,
-    property ? l.renameProperty : l.renameComponent,
-    [FormFieldSpec('name', l.name)],
+    switch (kind) {
+      _ObjectRenameKind.property => l.renameProperty,
+      _ObjectRenameKind.component => l.renameComponent,
+      _ObjectRenameKind.responseStatus => l.renameResponseStatus,
+    },
+    [
+      FormFieldSpec(
+        'name',
+        kind == _ObjectRenameKind.responseStatus ? l.status : l.name,
+      ),
+    ],
     {'name': name},
     controller: c,
     target: item,
-    kind: property ? 'object.renameProperty' : 'object.rename',
+    kind: switch (kind) {
+      _ObjectRenameKind.property => 'object.renameProperty',
+      _ObjectRenameKind.component => 'object.rename',
+      _ObjectRenameKind.responseStatus => 'object.renameResponse',
+    },
     waitForDismissal: true,
     validate: (value) => namePolicy == null || namePolicy.allows(value['name'])
         ? null
         : (value['name'] as String).length > namePolicy.maxLength
         ? l.memberNameTooLong
+        : kind == _ObjectRenameKind.responseStatus
+        ? _responseStatusNameFailure(context, namePolicy)
         : l.componentNameInvalid,
     onApply: (value) async {
       try {
-        final rename = property
-            ? owner.planPropertyRename
-            : owner.planComponentRename;
-        plan = await rename({
+        final target = <String, dynamic>{
           'resource': item['resource'],
           'generation': item['generation'],
           'pointer': item['pointer'],
           'range': item['range'],
-        }, value['name']);
+        };
+        plan = await switch (kind) {
+          _ObjectRenameKind.property => owner.planPropertyRename(
+            target,
+            value['name'],
+          ),
+          _ObjectRenameKind.component => owner.planComponentRename(
+            target,
+            value['name'],
+          ),
+          _ObjectRenameKind.responseStatus => owner.planResponseRename(
+            target,
+            value['name'],
+          ),
+        };
       } on CoreFailure catch (failure) {
         throw CoreFailure(
           failure.code,

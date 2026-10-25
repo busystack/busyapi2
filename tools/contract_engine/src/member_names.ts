@@ -1,7 +1,7 @@
 import {componentFamily,componentLocation} from './authoring';
 import {referenceKinds} from './contexts';
-import {segments} from './document';
-import type {GraphScope,ReferenceGraph} from './reference_graph';
+import {escape,segments} from './document';
+import type {GraphIssue,GraphScope,ReferenceGraph} from './reference_graph';
 import {isNativeFamily} from './specification';
 
 export type MemberNamePolicy=Readonly<{allowEmpty:boolean;maxLength:number;pattern?:string}>;
@@ -17,6 +17,20 @@ export const componentNamePolicy=(family:string):MemberNamePolicy|undefined=>
     isNativeFamily(family)?family==='2.0'?swaggerNames:componentNames:undefined;
 export const responseStatusNamePolicy=(family:string):MemberNamePolicy|undefined=>
     isNativeFamily(family)?family==='2.0'?swaggerStatuses:modernStatuses:undefined;
+
+/** The published Swagger structural artifact accepts any three digits. HTTP
+ * permits codes 100–599 (RFC 9110 §15); 3.x artifacts already enforce this.
+ * Named reusable responses and extension/example payloads are different maps. */
+export function responseStatusIssues(graph:ReferenceGraph):GraphIssue[] {
+    const issues:GraphIssue[]=[];
+    for(const scope of graph.scopes.values()){
+        if(scope.family!=='2.0'||scope.kind!=='response-map')continue;
+        for(const name of graph.docs.get(scope.resource)!.dataNode(scope.pointer)?.children.keys()??[])
+            if(/^[0-9]{3}$/.test(name)&&!permitsMemberName(responseStatusNamePolicy(scope.family),name))
+                issues.push({...scope,pointer:scope.pointer+'/'+escape(name),code:'response.status.invalid',message:'An HTTP response status code must be between 100 and 599'});
+    }
+    return issues;
+}
 
 export function permitsMemberName(policy:MemberNamePolicy|undefined,value:unknown):value is string {
     return !!policy&&typeof value==='string'&&value.length<=policy.maxLength&&

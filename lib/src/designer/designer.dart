@@ -1854,10 +1854,23 @@ Future<void> resumeCapturedForm(
         );
       case 'object.rename':
         if (!context.mounted) return;
-        await _renameObjectComponent(context, c, item);
+        await _renameObjectMember(context, c, item);
       case 'object.renameProperty':
         if (!context.mounted) return;
-        await _renameObjectComponent(context, c, item, property: true);
+        await _renameObjectMember(
+          context,
+          c,
+          item,
+          kind: _ObjectRenameKind.property,
+        );
+      case 'object.renameResponse':
+        if (!context.mounted) return;
+        await _renameObjectMember(
+          context,
+          c,
+          item,
+          kind: _ObjectRenameKind.responseStatus,
+        );
       case 'object.extract':
         if (!context.mounted) return;
         await _extractObjectComponent(context, c, item);

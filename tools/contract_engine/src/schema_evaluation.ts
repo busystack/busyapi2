@@ -28,7 +28,7 @@ export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+10',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',
  'exact-cst-v4','canonical-graph-addresses','runtime-media-v2','form-context-v1',
- 'reference-family-v1','reference-position-v1','media-description-v1','component-names-v1','security-bindings-v1',
+ 'reference-family-v1','reference-position-v1','media-description-v1','component-names-v1','security-bindings-v1','response-status-v1',
 ].join(':')};
 let configured=false,running=false;
 const standardIds=new Set<string>(),reservedIds=new Set<string>(),standardMetas=new Map<string,any>();

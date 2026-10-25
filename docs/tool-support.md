@@ -388,6 +388,12 @@ name syntax. Rename and extraction repair captured references through the graph.
 An extraction's semantic name and separately reviewed filename are independent;
 names containing path characters receive an editable safe filename suggestion.
 
+Operation responses offer **Rename response status…** with reviewed reference
+repairs, Undo/Redo and the document family's status rules. Swagger 2.0 accepts
+`default` or codes 100–599; OpenAPI 3.x also accepts uppercase ranges such as
+`2XX`. Invalid numeric codes produce source-located findings. Reusable response
+names and status-looking keys inside example payloads keep their own rules.
+
 Security-scheme rename and file moves use captured graph bindings to repair
 requirement names and 3.2 URI keys. Reviewed changes include exact aliases of
 configured environment credential references; old bindings remain available for
