@@ -19,6 +19,14 @@ Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
 reference rules.
 
+Security Requirement arrays contain OAuth/OpenID scopes or, in OpenAPI 3.1 and
+3.2, role names for other security schemes. Swagger 2.0 and OpenAPI 3.0 require
+empty arrays for non-OAuth schemes. Native editing and selection retain authored
+roles; 3.1 uses named bindings, while 3.2 also permits URI bindings. A migration
+to an older family reports a source-located blocker when it cannot preserve role
+requirements. Role names are not exchanged in-band and do not verify a caller's
+identity. See [OAS 3.1.2 §4.8.30](https://spec.openapis.org/oas/v3.1.2.html#security-requirement-object).
+
 Swagger UI **5.33.2** with client **3.38.2** has adapters for all four families.
 Redoc CE **3.0.1** supports native 3.0/3.1/3.2 display input but internally
 converts Swagger 2.0 even with `skipBundle`. BusyAPI therefore rejects Redoc

@@ -137,7 +137,7 @@ test('security and Example Object relationships use the selected family',()=>{
   for(const version of ['3.0.4','3.1.2','3.2.1']) {
     const api=contract(version,{type:'string'});api.security=[{Key:['role']}];
     const input=capture(api),result=analyse(input);
-    assert.equal(result.findings.some(f=>f.code==='security.scopes.empty'),version!=='3.2.1');
+    assert.equal(result.findings.some(f=>f.code==='security.scopes.empty'),version==='3.0.4');
     api.security=[{Key:[]}];api.components.examples={Value:{value:0,externalValue:'example.json'}};
     assert(analyse(capture(api)).findings.some(f=>f.code==='example.representations.exclusive'));
     if(version==='3.2.1') {

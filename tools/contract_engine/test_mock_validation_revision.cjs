@@ -4,12 +4,13 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {mockStart,startMock}=require('./mock_test_capture.cjs');
+const {schemaProducer}=require('./dist/schema_evaluation.cjs');
 
 test('a mock cannot report readiness with an unrelated native evaluation revision',{timeout:20000},async t=>{
  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'busyapi-mock-revision-'));
  t.after(()=>fs.rm(directory,{recursive:true,force:true}));
  const engine=await fs.readFile(path.join(__dirname,'dist/engine.cjs'),'utf8');
- const marker='name: "hyperjump+busyapi-exact", version: "1.18.0+12"';
+ const marker=`name: ${JSON.stringify(schemaProducer.name)}, version: ${JSON.stringify(schemaProducer.version)}`;
  assert.equal(engine.split(marker).length,2,'The controlled engine fixture must select exactly its schema producer identity');
  await fs.writeFile(path.join(directory,'engine.cjs'),engine.replace(marker,'name: "hyperjump+busyapi-exact", version: "obsolete-wire-evaluator"'));
  const helper=path.join(directory,'mock-server.cjs');

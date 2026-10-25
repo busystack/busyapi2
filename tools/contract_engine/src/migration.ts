@@ -16,6 +16,7 @@ import {hasRelativeMarkdownLinks} from './markdown_links';
 import {migrationRequestSignatures} from './migration_invariants';
 import {migrateEncodings} from './migration_encoding';
 import {checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
+import {checkSecurityRequirementTarget} from './migration_security';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
@@ -69,6 +70,7 @@ export async function planMigration(input:MigrationInput) {
     };
     await validate(resources,input.root);
     if(!problems.length)checkRequestBodyTarget(initial,resources,target.family,issue);
+    if(!problems.length)checkSecurityRequirementTarget(initial.graph,target.family,issue);
     for(const doc of original.values())for(const node of doc.nodes.values())if(node.shared||node.keyShared){issue({resource:doc.id,pointer:node.pointer},'migration.source.shared','Shared YAML nodes require an ownership-preserving migration mapping before this plan can be published','implementation');break;}
     const order=[...nativeFamilies],start=order.indexOf(from.family),finish=order.indexOf(target.family);
     const route=start<=finish?order.slice(start,finish+1):target.family==='2.0'?[from.family,target.family]:order.slice(finish,start+1).reverse();

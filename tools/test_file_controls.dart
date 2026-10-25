@@ -151,13 +151,17 @@ Future<String> _run() async {
   final binding = maintenance == 'uri'
       ? '#/components/securitySchemes/Old'
       : originalName;
+  final roleNames =
+      selection.isNotEmpty && const ['3.1.2', '3.2.1'].contains(version)
+      ? ['operator', '雪']
+      : <String>[];
   final securitySource =
       '${json ? '' : '# retained security source\r\n'}${jsonEncode({
         declaration: version,
         'info': {'title': 'Native security 雪😀', 'version': '1'},
         'paths': <String, Object?>{},
         'security': [
-          {binding: <String>[]},
+          {binding: roleNames},
         ],
         if (swagger) 'securityDefinitions': {
             originalName: {'type': 'apiKey', 'in': 'header', 'name': 'X-Key'},
@@ -1786,6 +1790,15 @@ environments:
       for (final stage in stages) {
         final before = project.store.get(rootId).bytes();
         for (final accept in [false, true]) {
+          if (roleNames.isNotEmpty && stage.pointer == '/security/0/Old') {
+            await route('/security/0');
+            await _wait(
+              () =>
+                  _elements((w) => w is Text && w.data == 'Required roles: 2')
+                      .isNotEmpty,
+              'security-selection-role-label',
+            );
+          }
           await route(stage.pointer);
           await row(stage.action);
           await _wait(
@@ -1887,6 +1900,15 @@ environments:
         'security-selection-actual-structure',
       );
       _expect(
+        listEquals(
+          (security[0][selection == 'uri' ? 'security.json#/Remote' : 'New']
+                  as List)
+              .cast<String>(),
+          roleNames,
+        ),
+        'security-selection-roles-preserved',
+      );
+      _expect(
         text.contains('9007199254740993.00') &&
             manifest.readAsStringSync() == configuration &&
             (!externalSecurity.existsSync() ||
@@ -1917,7 +1939,7 @@ environments:
         'security-selection-noop-save',
       );
       stdout.writeln(
-        'BUSYAPI_NATIVE_SECURITY_SELECTION_PASS binding=$selection openapi=$version format=$format cancel=unchanged history=one-step source=exact publication=selected-file',
+        'BUSYAPI_NATIVE_SECURITY_SELECTION_PASS binding=$selection openapi=$version format=$format cancel=unchanged history=one-step source=exact publication=selected-file roles=${roleNames.length}',
       );
       return 'security-selection=$selection openapi=$version format=$format';
     }

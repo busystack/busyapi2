@@ -1,5 +1,6 @@
 import {GraphIssue, GraphReference, GraphTarget, ReferenceGraph} from './reference_graph';
 import {escape} from './document';
+import {modernFamily} from './specification';
 
 /** Resolve only the Reference Objects allowed at a Security Scheme position.
  * Shared by list constraints and native binding choices. */
@@ -19,7 +20,7 @@ export function securityRequirementDefinition(graph:ReferenceGraph,target:GraphT
 }
 
 export function securityRequirementValuesAllowed(family:string,type:unknown,count:number):boolean {
-    return count===0||family==='3.2'||type==='oauth2'||family!=='2.0'&&type==='openIdConnect';
+    return count===0||modernFamily(family)||type==='oauth2'||family!=='2.0'&&type==='openIdConnect';
 }
 
 export function securityRequirementValueRule(graph:ReferenceGraph,reference:Pick<GraphReference,'family'|'resolution'|'targetResource'|'targetPointer'>):'scopes'|'roles'|'empty'|'unresolved' {

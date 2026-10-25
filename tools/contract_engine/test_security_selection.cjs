@@ -56,7 +56,7 @@ for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const format of ['yaml'
   const page=referenceChoices({...input,resource:input.root,pointer,keyword:'security',query:''});
   assert(page.entries.some(entry=>entry.value==='OAuth'));
   const target=page.entries.find(entry=>entry.value==='Local');
-  assert.equal(Boolean(target),version.startsWith('3.2.'));
+  assert.equal(Boolean(target),/^3\.[12]\./.test(version));
   if(target){
    const plan=planChoice(input,page,target),resources=apply(input,plan),changed={...input,resources},doc=createGraph(changed).docs.get(input.root);
    assert.deepEqual(JSON.parse(doc.dataJson('/security/0/Local')),['read','雪']);
@@ -66,7 +66,7 @@ for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const format of ['yaml'
    assert.equal(plan.edits.length,1);assert.equal(plan.edits[0].expected,'OAuth');assert.equal(plan.edits[0].replacement,'Local');
   }
   const empty=fixture(version,format),rule=inspect({...empty,resource:empty.root,pointer:'/security/0/Local'});
-  assert.equal(rule.securityBinding.kind,version.startsWith('3.2.')?'roles':'empty');
+  assert.equal(rule.securityBinding.kind,/^3\.[12]\./.test(version)?'roles':'empty');
   assert.equal(rule.capabilities.securityRequirementUris,version.startsWith('3.2.'));
  });
  test(`security selector refuses arbitrary payloads and stale captures ${version} ${format}`,()=>{

@@ -35,6 +35,7 @@ void main() {
     }
   });
   for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1']) {
+    final roles = version == '3.1.2' || version == '3.2.1';
     for (final format in ['yaml', 'json']) {
       for (final mode in [
         'name',
@@ -72,7 +73,7 @@ void main() {
                 },
               'security': [
                 {
-                  'Old': version == '3.2.1' ? ['operator'] : <String>[],
+                  'Old': roles ? ['operator'] : <String>[],
                 },
               ],
               'x-exact': 'EXACT',
@@ -178,7 +179,7 @@ void main() {
                 await c.selectObject({
                   'root': c.root,
                   'resource': c.root,
-                  'pointer': pointer,
+                  'pointer': mode == 'name' && roles ? '/security/0' : pointer,
                 });
               });
               await tester.pumpWidget(
@@ -206,6 +207,13 @@ void main() {
                   ),
                 ),
               );
+              if (mode == 'name' && roles) {
+                await ready(
+                  () => find.text('Required roles: 1').evaluate().isNotEmpty,
+                );
+                expect(find.text('Required roles: 1'), findsOneWidget);
+                await tap(find.widgetWithText(BusyApiActionRow, 'Old'));
+              }
               await ready(
                 () =>
                     c.selectedPointer == pointer &&
@@ -220,13 +228,16 @@ void main() {
                         .evaluate()
                         .isNotEmpty,
               );
-              if (mode == 'name' && version != '3.2.1') {
+              if (mode == 'name' && !roles) {
                 expect(
                   find.text(
                     'This security scheme requires an empty scope list.',
                   ),
                   findsOneWidget,
                 );
+                expect(find.text('Add security scheme by URI…'), findsNothing);
+              }
+              if (version == '3.1.2') {
                 expect(find.text('Add security scheme by URI…'), findsNothing);
               }
               await review();
@@ -272,7 +283,7 @@ void main() {
               } else {
                 expect(security, [
                   {
-                    binding: version == '3.2.1' ? ['operator'] : [],
+                    binding: roles ? ['operator'] : [],
                   },
                 ]);
                 expect(

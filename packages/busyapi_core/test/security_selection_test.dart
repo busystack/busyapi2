@@ -119,6 +119,7 @@ void main() {
     );
   }
   for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1']) {
+    final roles = version == '3.1.2' || version == '3.2.1';
     for (final format in ['yaml', 'json']) {
       for (final uri in [false, if (version == '3.2.1') true]) {
         test(
@@ -182,7 +183,7 @@ void main() {
               },
               'security': [
                 {
-                  'Old': version == '3.2.1' ? ['operator', '雪'] : <String>[],
+                  'Old': roles ? ['operator', '雪'] : <String>[],
                 },
               ],
               'x-number': 'EXACT',
@@ -249,7 +250,7 @@ tests:
               )['security'],
               [
                 {
-                  binding: version == '3.2.1' ? ['operator', '雪'] : [],
+                  binding: roles ? ['operator', '雪'] : [],
                 },
               ],
             );
