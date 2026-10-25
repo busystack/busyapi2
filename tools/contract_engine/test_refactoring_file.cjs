@@ -59,6 +59,16 @@ test('external example usages retain shared-root attribution and unavailable URI
  assert(invalid.blockers.some(value=>value.code==='file.delete.analysis'&&value.resource===shared&&value.pointer==='/externalValue'));
 });
 function apply(input,plan){return input.resources.map(r=>{let text=r.text;for(const e of plan.edits.filter(e=>e.buffer===r.id).sort((a,b)=>b.start-a.start)){assert.equal(text.slice(e.start,e.end),e.expected);text=text.slice(0,e.start)+e.replacement+text.slice(e.end);}return {...r,text,id:r.id===plan.file.source?plan.file.destination:r.id,...(r.id===plan.file.source&&plan.file.retainedIdentity?{aliases:[plan.file.retainedIdentity]}:{})};});}
+for(const version of ['3.2.0','3.2.1'])for(const configured of [false,true])test(`security relocation does not configure unrelated URI bindings ${version} configured=${configured}`,()=>{
+ const root='file:///project/api.json',scheme='file:///project/security.json',other='file:///project/other/api.json',otherScheme='file:///project/other/deep/new.json',destination='file:///project/deep/new.json';
+ const api=value=>JSON.stringify({openapi:version,info:{title:'Separate roots',version:'1'},paths:{},security:[{[value]:['reader']}]});
+ const resources=[{id:root,generation:1,text:api('security.json#/Key')},{id:scheme,generation:2,text:JSON.stringify({Key:{type:'apiKey',in:'header',name:'X-First'}})},
+  {id:other,generation:3,text:api('deep/new.json#/Key')},{id:otherScheme,generation:4,text:JSON.stringify({Key:{type:'apiKey',in:'header',name:'X-Other'}})}];
+ const manifest={id:'file:///project/busyapi.yaml',generation:1,identity:'config',text:'version: 1\nroots: [{name: api, path: api.json}, {name: other, path: other/api.json}]\nenvironments:\n  manual:\n    authentication:\n      schemes:\n        "security.json#/Key": {secretRef: captured-reference}\n'+(configured?'        "deep/new.json#/Key": {secretRef: captured-reference}\n':'')};
+ const input={snapshot:'separate-uri-security',resources,contexts:[{root,resources:[root,scheme]},{root:other,resources:[other,otherScheme]}],target:{resource:scheme,generation:2},destinationResource:destination,manifest};
+ if(configured)assert(!planFileMove(input).changes.some(change=>change.resource===manifest.id));
+ else assert.throws(()=>planFileMove(input),error=>error.code==='refactor.configuration.ambiguous'&&error.source?.resource===manifest.id);
+});
 function capture(version,json,rootMove=false){
  const ext=json?'json':'yaml',root='file:///project/root.'+ext,models='file:///project/models.'+ext;
  const data={openapi:version,info:{title:'Move',version:'1'},paths:{},components:{schemas:{Model:{$ref:'models.'+ext+'#/a~1b'},Again:{$ref:'models.'+ext+'#/a~01b'}}}};
@@ -67,6 +77,71 @@ function capture(version,json,rootMove=false){
  const encode=d=>json?JSON.stringify(d,null,2):YAML.stringify(d),resources=[{id:root,generation:1,text:encode(data)},{id:models,generation:2,text:encode(values)}];
  return {snapshot:'captured',resources,contexts:[{root,resources:[root,models]}],target:{resource:rootMove?root:models,generation:rootMove?1:2},destinationResource:'file:///project/moved/new%20'+ext+'.'+ext};
 }
+for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(const moved of ['root','fragment','scheme'])for(const shared of [false,true])for(const configured of [false,true])test(`file move preserves URI security keys ${version} ${format} moved=${moved} shared=${shared} configured=${configured}`,()=>{
+ const root='file:///project/api.'+format,other='file:///project/other.'+format,fragment='file:///project/part.'+format,scheme='file:///project/security.'+format;
+ const locator='security.'+format+'#/Key~1~0';
+ const api={openapi:version,info:{title:'Security file move 雪',version:'1'},paths:{'/items':{$ref:'part.'+format+'#/Path'}},
+  components:{securitySchemes:{Local:{type:'apiKey',in:'header',name:'X-Local'},Alias:{$ref:locator}}},security:[{Local:[],[locator]:['reader']}],
+  'x-payload':{[locator]:['reader']},'x-number':'__exact__'};
+ const part={Path:{get:{security:[{Local:[],[locator]:['reader']}],responses:{204:{description:'Empty'}}}},'x-payload':{[locator]:['reader']}};
+ const encode=value=>(format==='json'?JSON.stringify(value,null,2):'# retained ownership\r\n'+YAML.stringify(value).replaceAll('\n','\r\n')).replaceAll(format==='json'?'"__exact__"':'__exact__','9007199254740993.00');
+ const resources=[{id:root,generation:1,text:encode(api)},{id:fragment,generation:2,text:encode(part)},{id:scheme,generation:3,text:encode({'Key/~':{type:'apiKey',in:'header',name:'X-Remote'}})},
+  ...(shared?[{id:other,generation:4,text:encode(api)}]:[])];
+ const source={root,fragment,scheme}[moved],destination='file:///project/deep/moved.'+format;
+ const contexts=[{root,resources:[root,fragment,scheme]},...(shared?[{root:other,resources:[other,fragment,scheme]}]:[])];
+ const manifest=configured?{id:'file:///project/busyapi.yaml',generation:8,identity:'configuration',text:`version: 1\n# persistent environment\nroots: [{name: api, path: api.${format}}${shared?`, {name: other, path: other.${format}}`:''}]\nenvironments:\n  manual:\n    authentication:\n      schemes:\n        Local: {secretRef: local-reference}\n        ${JSON.stringify(locator)}: {secretRef: remote-reference} # retained\nx-number: 9007199254740993.00\n`}:undefined;
+ const input={snapshot:'security-file-move',resources,contexts,target:{resource:source,generation:resources.find(resource=>resource.id===source).generation},destinationResource:destination,...(manifest?{manifest}:{})};
+ const original=resources.map(resource=>resource.text),before=contexts.map(context=>createGraph({root:context.root,resources:resources.filter(resource=>context.resources.includes(resource.id))}));
+ for(const context of before)assert.equal(context.graph.issues.length,0,JSON.stringify(context.graph.issues));
+ const plan=planFileMove(input),afterResources=apply(input,plan),move=id=>id===source?destination:id;
+ for(let index=0;index<contexts.length;index++){
+  const context=contexts[index],after=createGraph({root:move(context.root),resources:afterResources.filter(resource=>context.resources.map(move).includes(resource.id))});
+  assert.equal(after.graph.issues.length,0,JSON.stringify(after.graph.issues));
+  for(const old of before[index].graph.references){
+   const matching=after.graph.references.filter(ref=>ref.resource===move(old.resource)&&ref.pointer===old.pointer&&ref.connection===old.connection&&ref.targetResource===move(old.targetResource)&&ref.targetPointer===old.targetPointer);
+   assert(matching.length>0,JSON.stringify(old));
+   if(old.connection==='security')for(const ref of matching)assert.equal(after.docs.get(ref.resource).dataJson(ref.pointer+'/'+ref.keyword.replaceAll('~','~0').replaceAll('/','~1')),before[index].docs.get(old.resource).dataJson(old.pointer+'/'+old.keyword.replaceAll('~','~0').replaceAll('/','~1')));
+  }
+  for(const id of [context.root,fragment])assert.equal(after.docs.get(move(id)).dataJson('/x-payload'),before[index].docs.get(id).dataJson('/x-payload'));
+  assert.equal(after.docs.get(move(context.root)).dataJson('/x-number'),'9007199254740993.00');
+  if(manifest){
+   const configuration=new SourceDocument(plan.changes.find(change=>change.resource===manifest.id)?.after??manifest.text,manifest.id);
+   for(const ref of after.graph.references.filter(ref=>ref.connection==='security'))assert.equal(configuration.dataNode('/environments/manual/authentication/schemes/'+ref.value.replaceAll('~','~0').replaceAll('/','~1')+'/secretRef').value,ref.value==='Local'?'local-reference':'remote-reference');
+   assert.equal(configuration.dataJson('/x-number'),'9007199254740993.00');assert(configuration.text.includes(`${JSON.stringify(locator)}: {secretRef: remote-reference} # retained`));
+  }
+ }
+ assert.deepEqual(resources.map(resource=>resource.text),original);
+ if(format==='yaml')for(const resource of afterResources){assert(resource.text.startsWith('# retained ownership\r\n'));assert(!/(?<!\r)\n/.test(resource.text));}
+ assert(plan.usages.some(use=>use.resource===fragment&&use.connection==='security'));
+});
+for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(const duplicate of [false,true])test(`file move proves security URI name precedence and distinct role bindings ${version} ${format} duplicate=${duplicate}`,()=>{
+ const root='file:///project/api.'+format,scheme='file:///project/security.'+format,destination='file:///project/moved.'+format;
+ const uri='./security.'+format,requirements={[uri]:['reader'],...(duplicate?{['security.'+format+'#']:['writer']}:{})};
+ const value={openapi:version,info:{title:'URI precedence',version:'1'},paths:{},components:{securitySchemes:{['moved.'+format]:{type:'apiKey',in:'header',name:'X-Shadow'}}},security:[requirements]};
+ const encode=value=>format==='json'?JSON.stringify(value):YAML.stringify(value);
+ const resources=[{id:root,generation:1,text:encode(value)},{id:scheme,generation:2,text:encode({type:'apiKey',in:'header',name:'X-Remote'})}];
+ const input={snapshot:'uri-precedence',resources,contexts:[{root,resources:[root,scheme]}],target:{resource:scheme,generation:2},destinationResource:destination};
+ const original=resources.map(resource=>resource.text),plan=planFileMove(input),after=createGraph({root,resources:apply(input,plan)});
+ assert.equal(after.graph.issues.length,0,JSON.stringify(after.graph.issues));
+ const bindings=after.graph.references.filter(ref=>ref.connection==='security');
+ assert.equal(bindings.length,duplicate?2:1);
+ for(const ref of bindings){assert.equal(ref.targetResource,destination);assert.equal(ref.targetPointer,'');assert.notEqual(ref.value,'moved.'+format);}
+ assert.deepEqual([...after.docs.get(root).dataNode('/security/0').children.values()].map(node=>node.value),Object.values(requirements));
+ assert.equal(after.docs.get(root).dataNode('/components/securitySchemes/moved.'+format+'/name').value,'X-Shadow');
+ assert.deepEqual(resources.map(resource=>resource.text),original);
+});
+for(const version of ['3.0.4','3.1.2','3.2.1'])for(const format of ['yaml','json'])test(`file move retains discriminator name bindings ${version} ${format}`,()=>{
+ const root='file:///project/api.'+format,destination='file:///project/deep/moved.'+format;
+ const value={openapi:version,info:{title:'Named discriminator',version:'1'},paths:{},components:{schemas:{
+  Base:{type:'object',required:['kind'],properties:{kind:{type:'string'}},discriminator:{propertyName:'kind',mapping:{cat:'Cat'}}},Cat:{allOf:[{$ref:'#/components/schemas/Base'},{type:'object',properties:{name:{type:'string'}}}]}}}};
+ const text=format==='json'?JSON.stringify(value):YAML.stringify(value),resources=[{id:root,text,generation:1}];
+ const input={snapshot:'named-discriminator',resources,contexts:[{root,resources:[root]}],target:{resource:root,generation:1},destinationResource:destination};
+ const after=createGraph({root:destination,resources:apply(input,planFileMove(input))});
+ assert.equal(after.graph.issues.length,0,JSON.stringify(after.graph.issues));
+ assert.equal(after.docs.get(destination).dataNode('/components/schemas/Base/discriminator/mapping/cat').value,'Cat');
+ assert.equal(after.graph.references.find(ref=>ref.connection==='discriminator').targetResource,destination);
+ assert.equal(resources[0].text,text);
+});
 for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`file move repairs typed external example locators and preserves opaque fragment spelling ${version} ${json?'JSON':'YAML'}`,()=>{
  const ext=json?'json':'yaml',root='file:///project/root.'+ext,model='file:///project/model.'+ext,destination='file:///project/deep/new.'+ext;
  const data={openapi:version,info:{title:'Data consumers',version:'1'},paths:{},components:{schemas:{Value:{$ref:'model.'+ext}},examples:{Serialized:{externalValue:'model.'+ext+'#opaque%7E%2Fdata'},Literal:{value:{externalValue:'model.'+ext}},Ignored:{$ref:'#/components/examples/Literal',externalValue:'model.'+ext}}}};

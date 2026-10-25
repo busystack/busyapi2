@@ -1,14 +1,15 @@
 import {posix} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
-import {createGraph,Resource} from './engine';
+import {createGraph,propose,Resource} from './engine';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {documentUriFields,documentUriOccurrences} from './authoring';
-import {documentUriBase,GraphScope,resolveUri} from './reference_graph';
+import {documentUriBase,GraphScope,implicitNameReference,resolveUri,type GraphReference} from './reference_graph';
 import {referenceValue} from './reference_choices';
 import {coldGraph} from './reference_selection';
 import {editsFor} from './refactoring_copy';
 import {serverTemplate} from './derived_bundle';
+import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
 
 const same=(a:any,b:any)=>a?.resource===b?.resource&&a?.pointer===b?.pointer;
 
@@ -228,14 +229,36 @@ export function planFileMove(input:any) {
  const retained=retain&&destination!==source.id?[...retrievals][0]:undefined;
  if(retained&&!manifest)throw new SourceError('file.move.mapping.manifest','Retaining a URI context requires an existing project manifest; no manifest was created');
  const outputs=new Map<string,string>(),changes=new Map<string,any>(),usages=new Map<string,any>();
+ const repairedKeys=new Map<string,string>();
+ const securityBindings:SecurityBindingChange[]=[];
+ const referenceKey=(ref:GraphReference)=>JSON.stringify([ref.resource,ref.pointer,ref.keyword]);
+ const currentKeyword=(ref:GraphReference)=>repairedKeys.get(referenceKey(ref))??ref.keyword;
+ const currentPointer=(resource:string,pointer:string)=>{
+  let at=pointer;
+  while(at){
+   const parent=at.slice(0,at.lastIndexOf('/')),name=segments(at).at(-1)!;
+   const next=repairedKeys.get(JSON.stringify([resource,parent,name]));
+   if(next!==undefined)return parent+'/'+escape(next)+pointer.slice(at.length);
+   at=parent;
+  }
+  return pointer;
+ };
  let count=0,cost=0,revision=0;
- const set=(id:string,pointer:string,value:string,reason:string)=>{
-  const doc=new SourceDocument(outputs.get(id)??resources.find(r=>r.id===id)!.text,id);
-  if(doc.node(pointer).value===value)return;
+ const set=(id:string,pointer:string,value:string,reason:string,rename=false)=>{
+  const resource=resources.find(r=>r.id===id)!,doc=new SourceDocument(outputs.get(id)??resource.text,id);
+  if(rename?segments(pointer).at(-1)===value:doc.node(pointer).value===value)return;
   const literalOwner=graphs.find(g=>g.graph.literalContainer(id,pointer)!==undefined);
   if(literalOwner)throw new SourceError('file.move.literal.ownership','A required file-move repair also changes literal data; retain the original URI context or resolve the dual source ownership explicitly',literalOwner.docs.get(id)?.dataNode(pointer)?.range);
   if(++count>512||(cost+=doc.text.length*2)>128*1024*1024)throw new SourceError('limit.refactor.file','The file-move edit review exceeds its bounded budget');
-  doc.assertSafe(pointer);outputs.set(id,doc.set(pointer,value));revision++;
+  doc.assertSafe(pointer);
+  if(rename){
+   // A Security Requirement URI is a member name, with its scope/role array
+   // untouched. Reuse the canonical CST writer and its collision/alias guards.
+   const result=propose({snapshot:input.snapshot,resources:[{...resource,text:doc.text}],target:{resource:id,generation:resource.generation,pointer:''},actions:[{kind:'rename',pointer,name:value}]});
+   let text=doc.text;for(const edit of [...result.edits].reverse())text=text.slice(0,edit.start)+edit.replacement+text.slice(edit.end);
+   outputs.set(id,text);
+  }else outputs.set(id,doc.set(pointer,value));
+  revision++;
   changes.set(id+'#'+pointer,{resource:id,pointer,reason});
  };
  const current=()=>resources.map(r=>({...r,id:move(r.id),text:outputs.get(r.id)??r.text,...(retained&&r.id===source.id?{aliases:[retained]}:{})}));
@@ -245,7 +268,7 @@ export function planFileMove(input:any) {
  const rebuild=(g:typeof graphs[number],seed=true)=>{
   if(cached?.owner===g&&cached.seed===seed&&cached.revision===revision)return cached.result;
   const result=createGraph({root:move(g.context.root),resources:current().filter(r=>g.context.resources.map(move).includes(r.id)),
-   ...(seed?{occurrences:[...g.graph.scopes.values()].map(at=>({resource:move(at.resource),pointer:at.pointer,kind:at.kind}))}:{})});
+   ...(seed?{occurrences:[...g.graph.scopes.values()].map(at=>({resource:move(at.resource),pointer:currentPointer(at.resource,at.pointer),kind:at.kind}))}:{})});
   cached={owner:g,seed,revision,result};return result;
  };
  if(destination!==source.id) {
@@ -318,13 +341,13 @@ export function planFileMove(input:any) {
   const repairs=new Map<string,string>();
   for(const g of graphs)for(const ref of g.graph.references) {
    if(ref.resolution!=='resolved')throw new SourceError('refactor.graph','Every reviewed semantic connection must resolve');
-   const after=rebuild(g),from=after.graph.scopes.get(move(ref.resource)+'#'+ref.pointer)!,to=after.graph.scopes.get(move(ref.targetResource!)+'#'+ref.targetPointer)!;
-   const now=after.graph.references.find(r=>same(r,from)&&r.keyword===ref.keyword);
+   const after=rebuild(g),from=after.graph.scopes.get(move(ref.resource)+'#'+currentPointer(ref.resource,ref.pointer))!,to=after.graph.scopes.get(move(ref.targetResource!)+'#'+currentPointer(ref.targetResource!,ref.targetPointer!))!;
+   const now=after.graph.references.find(r=>same(r,from)&&r.keyword===currentKeyword(ref));
    let value=now?.value??ref.value;
    // A physical locator must survive cold acquisition as well as a warm graph.
    // Declared canonical identities stay unchanged; only the known old retrieval
    // locator changes. Preserve the exact authored fragment spelling.
-   if(!ref.connection||ref.connection==='operationRef'||ref.connection==='discriminator') {
+   if(ref.connection!=='operationId'&&!implicitNameReference(ref)) {
     const old=resolveUri(ref.value,ref.base),physical=new URL(source.id);
     const hash=old.hash;old.hash='';
     if(!retained&&old.href===physical.href&&!(ref.resource===source.id&&ref.value.startsWith('#')&&now?.resolution==='resolved'&&same({resource:now.targetResource,pointer:now.targetPointer},to))) {
@@ -336,16 +359,25 @@ export function planFileMove(input:any) {
     else if(!same({resource:now?.targetResource,pointer:now?.targetPointer},to)||now?.resolution!=='resolved')value=referenceValue(after.graph,from,to,ref.keyword)??'';
    }
    if(!value)throw new SourceError('file.move.address','A connection has no proven address after the move');
-   if(ref.connection==='security'||ref.connection==='operationId') {
+   if(implicitNameReference(ref)||ref.connection==='operationId') {
     if(now?.resolution!=='resolved'||!same({resource:now.targetResource,pointer:now.targetPointer},to))throw new SourceError('file.move.implicit','Moving the file would change an implicit connection');
    }else {
-    const proof=after.graph.resolveReference(value,from,ref.keyword);
+    let proof=after.graph.resolveConnection({...ref,...from,kind:ref.kind,value});
+    const relocating=value!==currentKeyword(ref)||proof.resolution!=='resolved'||!same({resource:proof.targetResource,pointer:proof.targetPointer},to);
+    const occupied=ref.connection==='security'&&relocating?new Set([...new SourceDocument(outputs.get(ref.resource)??g.docs.get(ref.resource)!.text,ref.resource).node(ref.pointer).children.keys()].filter(name=>name!==currentKeyword(ref))):undefined;
+    if(occupied?.has(value)||proof.resolution!=='resolved'||!same({resource:proof.targetResource,pointer:proof.targetPointer},to)){
+     const alternative=referenceValue(after.graph,{...from,kind:ref.kind},to,ref.keyword,occupied);
+     if(alternative!==undefined){value=alternative;proof=after.graph.resolveConnection({...ref,...from,kind:ref.kind,value});}
+    }
     if(proof.resolution!=='resolved'||!same({resource:proof.targetResource,pointer:proof.targetPointer},to))throw new SourceError('file.move.address','A repaired locator does not retain its exact captured target at '+ref.pointer+' ('+proof.resolution+')');
    }
    const key=ref.resource+'#'+ref.pointer+'/'+escape(ref.keyword),previous=repairs.get(key);
    if(previous!==undefined&&previous!==value)throw new SourceError('refactor.context.ambiguous','Configured roots require conflicting repairs of one physical occurrence');
    repairs.set(key,value);
-   if(value!==ref.value)set(ref.resource,ref.pointer+'/'+escape(ref.keyword),value,'reference-locator');
+   if(value!==ref.value){
+    set(ref.resource,ref.pointer+'/'+escape(currentKeyword(ref)),value,'reference-locator',ref.connection==='security');
+    if(ref.connection==='security')repairedKeys.set(referenceKey(ref),value);
+   }
    if(ref.resource===source.id||ref.targetResource===source.id||value!==ref.value) {
     const usage=usages.get(key)??{resource:ref.resource,pointer:ref.pointer+'/'+escape(ref.keyword),connection:ref.connection??ref.keyword,target:{resource:ref.targetResource,pointer:ref.targetPointer},roots:[]};
     if(!usage.roots.includes(g.context.root))usage.roots.push(g.context.root);usages.set(key,usage);
@@ -357,10 +389,11 @@ export function planFileMove(input:any) {
    const after=rebuild(g,false).graph,cold=coldGraph(move(g.context.root),current());
    if(after.issues.length||cold.issues.length)throw new SourceError('file.move.retrieval','The moved project would not resolve after reopening from its configured roots');
    for(const old of g.graph.references)for(const graph of [after,cold]) {
-    const now=graph.references.find(r=>r.resource===move(old.resource)&&r.pointer===old.pointer&&r.keyword===old.keyword);
-    if(now?.resolution!=='resolved'||now.targetResource!==move(old.targetResource!)||now.targetPointer!==old.targetPointer||
+    const now=graph.references.find(r=>r.resource===move(old.resource)&&r.pointer===currentPointer(old.resource,old.pointer)&&r.keyword===currentKeyword(old));
+    if(now?.resolution!=='resolved'||now.targetResource!==move(old.targetResource!)||now.targetPointer!==currentPointer(old.targetResource!,old.targetPointer!)||
       old.dynamic&&JSON.stringify(old.dynamic.candidates.map(c=>[move(c.resource),c.pointer]).sort())!==JSON.stringify(now.dynamic?.candidates.map(c=>[c.resource,c.pointer]).sort()))
      throw new SourceError('file.move.target','The moved graph does not preserve every captured target and dynamic navigation context');
+    if(manifest&&graph===after&&old.connection==='security')securityBindings.push({root:g.context.root,before:old,after:now});
    }
   }
  }
@@ -389,6 +422,17 @@ export function planFileMove(input:any) {
    doc=new SourceDocument(doc.nodes.has('/resourceMappings')?doc.set('/resourceMappings/'+escape(name),path):doc.set('/resourceMappings',{[name]:path}),manifest.id);
   }
   if(doc.text!==manifest.text)outputs.set(manifest.id,doc.text);
+ }
+ if(manifest){
+  const configuration=securityConfigurationCopies({...manifest,text:outputs.get(manifest.id)??manifest.text},securityBindings);
+  if(configuration?.actions.length){
+   if(resources.some(resource=>resource.id===manifest.id))throw new SourceError('refactor.configuration.ownership','Project configuration cannot also be an edited API graph resource');
+   const result=propose({snapshot:input.snapshot,resources:[configuration.source],target:{resource:manifest.id,generation:manifest.generation,pointer:''},actions:configuration.actions});
+   let text=configuration.source.text;for(const edit of [...result.edits].reverse())text=text.slice(0,edit.start)+edit.replacement+text.slice(edit.end);
+   outputs.set(manifest.id,text);
+   for(const usage of configuration.usages)usages.set(JSON.stringify([usage.resource,usage.pointer,usage.target.resource,usage.target.pointer]),usage);
+  }
+  if(Buffer.byteLength(outputs.get(manifest.id)??manifest.text,'utf8')>65536)throw new SourceError('limit.refactor.configuration','The repaired project configuration would exceed 64 KiB',[0,manifest.text.length],'unsupported',{resource:manifest.id,pointer:'',range:[0,manifest.text.length]});
  }
  const all=manifest?[...resources,manifest]:resources,edits=editsFor(all,outputs),from={resource:source.id,pointer:''},to={resource:destination,pointer:''};
  const data={version:1,kind:'file-move',snapshot:input.snapshot,checkedRoots:input.contexts.map((c:any)=>c.root),from,to,edits,

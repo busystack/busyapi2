@@ -2286,10 +2286,12 @@ class WorkspaceController extends ChangeNotifier {
         'Workspace changed while preparing this save',
       );
     }
-    final chosen = captured.store.fileBuffers
-        .where(
-          (b) =>
-              (b.present || b.dirty) && (only == null || only.contains(b.id)),
+    final chosen = captured
+        .publicationBuffersFor(
+          captured.store.fileBuffers.where(
+            (b) =>
+                (b.present || b.dirty) && (only == null || only.contains(b.id)),
+          ),
         )
         .toList();
     final generations = {for (final b in chosen) b.id: b.generation};

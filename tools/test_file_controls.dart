@@ -23,10 +23,7 @@ import 'package:flutter/services.dart';
 Future<void> main(List<String> arguments) async {
   try {
     final identity = await _run();
-    stdout.writeln(
-      'BUSYAPI_FILE_CONTROLS_PASS creation=reviewed deletion=native-menu '
-      'history=one-step publication=save-only original-bytes=exact $identity',
-    );
+    stdout.writeln('BUSYAPI_FILE_CONTROLS_PASS $identity');
     exit(0);
   } on Object catch (error, stack) {
     // No authored values, environment or private filesystem paths in logs.
@@ -79,11 +76,18 @@ Future<String> _run() async {
   );
   final version =
           Platform.environment['BUSYAPI_FILE_CONTROLS_VERSION'] ?? '3.2.1',
-      format = Platform.environment['BUSYAPI_FILE_CONTROLS_FORMAT'] ?? 'yaml';
+      format = Platform.environment['BUSYAPI_FILE_CONTROLS_FORMAT'] ?? 'yaml',
+      maintenance =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_SECURITY'] ?? '';
   _expect(
     ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
         ['yaml', 'json'].contains(format),
     'fixture-version-format',
+  );
+  _expect(
+    ['', 'named', 'uri'].contains(maintenance) &&
+        (maintenance != 'uri' || version.startsWith('3.2.')),
+    'fixture-security-mode',
   );
   final swagger = version == '2.0',
       declaration = swagger ? 'swagger' : 'openapi',
@@ -100,8 +104,30 @@ Future<String> _run() async {
     !root.existsSync() && !unused.existsSync() && !created.existsSync(),
     'fixture-collision',
   );
+  final binding = maintenance == 'uri'
+      ? '#/components/securitySchemes/Old'
+      : 'Old';
+  final securitySource =
+      '${json ? '' : '# retained security source\r\n'}${jsonEncode({
+        declaration: version,
+        'info': {'title': 'Native security 雪😀', 'version': '1'},
+        'paths': <String, Object?>{},
+        'security': [
+          {binding: <String>[]},
+        ],
+        if (swagger) 'securityDefinitions': {
+            'Old': {'type': 'apiKey', 'in': 'header', 'name': 'X-Key'},
+          } else 'components': {
+            'securitySchemes': {
+              'Old': {'type': 'apiKey', 'in': 'header', 'name': 'X-Key'},
+            },
+          },
+        'x-example': {r'$ref': 'literal', 'large': '__exact__'},
+      }).replaceAll('"__exact__"', '9007199254740993.00')}\r\n';
   final rootBytes = utf8.encode(
-        json
+        maintenance.isNotEmpty
+            ? '\ufeff$securitySource'
+            : json
             ? '\ufeff{\r\n "$declaration":"$version","info":{"title":"Native 雪😀","version":"1"},\n'
                   ' "paths":{},"x-example":{"\$ref":"literal","large":9007199254740993.00}}'
             : '\ufeff$declaration: ${swagger ? "'2.0'" : version}\r\ninfo: {title: "Native 雪😀", version: "1"}\n'
@@ -114,6 +140,20 @@ Future<String> _run() async {
       );
   await root.writeAsBytes(rootBytes, flush: true);
   await unused.writeAsBytes(unusedBytes, flush: true);
+  final manifest = File('${sourceDirectory.path}/busyapi.yaml');
+  final configuration =
+      '''version: 1
+# retained environment settings
+roots: [{name: api, path: api.$format}]
+environments:
+  manual:
+    authentication:
+      schemes:
+        ${jsonEncode(binding)}: {secretRef: '11111111-1111-4111-8111-111111111111'} # retained reference
+''';
+  if (maintenance.isNotEmpty) {
+    await manifest.writeAsString(configuration, flush: true);
+  }
   await application.main([sourceDirectory.path]);
   WorkspaceController? owner;
   await _wait(() {
@@ -1120,6 +1160,111 @@ Future<String> _run() async {
   }
 
   try {
+    if (maintenance.isNotEmpty) {
+      final configId = manifest.uri.toString(), rootId = root.uri.toString();
+      final pointer =
+          '${swagger ? '/securityDefinitions' : '/components/securitySchemes'}/Old';
+      for (final accept in [false, true]) {
+        await route(pointer);
+        await row('Rename component');
+        await entry('Name', '__proto__', dialog: true);
+        await button('Apply');
+        await _wait(
+          () =>
+              _elements((w) => w is Text && w.data == 'Review refactoring')
+                  .isNotEmpty,
+          'native-security-review',
+        );
+        _expect(
+          listEquals(root.readAsBytesSync(), rootBytes) &&
+              manifest.readAsStringSync() == configuration &&
+              listEquals(project.store.get(rootId).bytes(), rootBytes),
+          'native-security-originals-before-review',
+        );
+        await _wait(
+          () => _elements(
+            (w) => w is BusyApiGroupedList && w.title == 'busyapi.yaml',
+          ).isNotEmpty,
+          'native-security-configuration-reviewed',
+        );
+        await button(accept ? 'Apply' : 'Cancel');
+        await _wait(
+          () =>
+              _elements((w) => w is Text && w.data == 'Review refactoring')
+                  .isEmpty,
+          'native-security-review-closed',
+        );
+        if (!accept) {
+          _expect(
+            listEquals(project.store.get(rootId).bytes(), rootBytes),
+            'native-security-cancel',
+          );
+        }
+      }
+      await _wait(
+        () =>
+            !controller.checking &&
+            !controller.formApplying &&
+            project.store.get(rootId).text.contains('__proto__'),
+        'native-security-accepted',
+      );
+      final accepted = project.store.get(rootId).bytes(),
+          acceptedConfiguration = project.store.get(configId).text;
+      _expect(
+        acceptedConfiguration.contains(
+              maintenance == 'uri'
+                  ? '#/components/securitySchemes/__proto__'
+                  : '__proto__',
+            ) &&
+            acceptedConfiguration.contains('# retained reference') &&
+            project.store.get(rootId).text.contains('9007199254740993.00'),
+        'native-security-bindings-and-exact-source',
+      );
+      await keys(['Control_L+z']);
+      await _wait(
+        () =>
+            listEquals(project.store.get(rootId).bytes(), rootBytes) &&
+            project.store.get(configId).text == configuration,
+        'native-security-one-undo',
+      );
+      await keys(['Control_L+Shift_L+z']);
+      await _wait(
+        () =>
+            listEquals(project.store.get(rootId).bytes(), accepted) &&
+            project.store.get(configId).text == acceptedConfiguration,
+        'native-security-one-redo',
+      );
+      if (json) await controller.openProjectConfiguration();
+      await keys(['Control_L+s']);
+      await _wait(
+        () =>
+            listEquals(root.readAsBytesSync(), accepted) &&
+            manifest.readAsStringSync() == acceptedConfiguration &&
+            !project.store.get(rootId).dirty &&
+            !project.store.get(configId).dirty,
+        'native-security-selected-file-publication',
+      );
+      _expect(
+        listEquals(unused.readAsBytesSync(), unusedBytes),
+        'native-security-unrelated-source',
+      );
+      await controller.open(root.path);
+      _expect(
+        listEquals(controller.buffer!.bytes(), accepted),
+        'native-security-reopen',
+      );
+      await keys(['Control_L+s']);
+      await controller.shutdown();
+      _expect(
+        listEquals(root.readAsBytesSync(), accepted) &&
+            manifest.readAsStringSync() == acceptedConfiguration,
+        'native-security-noop-save',
+      );
+      stdout.writeln(
+        'BUSYAPI_NATIVE_SECURITY_MAINTENANCE_PASS binding=$maintenance openapi=$version format=$format review=two-sources cancel=unchanged history=one-step publication=selected-file exact-source=preserved',
+      );
+      return 'security=reviewed history=one-step publication=selected-file original-bytes=exact openapi=$version format=$format binding=$maintenance';
+    }
     await headerMenu('Sidebar view', 'Files');
     for (final accept in [false, true]) {
       await headerMenu('Sidebar view', 'New source file…');
@@ -1820,5 +1965,5 @@ Future<String> _run() async {
     GestureBinding.instance.pointerRouter.removeGlobalRoute(observePointer);
     await input.cancel();
   }
-  return 'openapi=$version format=$format';
+  return 'creation=reviewed deletion=native-menu history=one-step publication=save-only original-bytes=exact openapi=$version format=$format';
 }

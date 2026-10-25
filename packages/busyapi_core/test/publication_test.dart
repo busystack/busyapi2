@@ -8,6 +8,67 @@ import 'package:busyapi_core/busyapi_core.dart';
 import 'package:test/test.dart';
 
 void main() {
+  for (final phase in ['before-first', 'after-first']) {
+    test('linked save retains an Undo checkpoint during publication $phase', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'busyapi-linked-undo-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      const rootText =
+          "openapi: 3.2.1\ninfo: {title: Linked publication, version: '1'}\npaths: {/items: {\$ref: 'part.yaml#/Path'}}\ncomponents: {responses: {Old: {description: Empty}}}\n";
+      const partText =
+          "Path: {get: {responses: {'200': {\$ref: 'api.yaml#/components/responses/Old'}}}}\n";
+      final source = File('${directory.path}/api.yaml')
+        ..writeAsStringSync(rootText);
+      final part = File('${directory.path}/part.yaml')
+        ..writeAsStringSync(partText);
+      final engine = EngineProcess(
+        executable: runtimeNode,
+        helper: runtimeHelper,
+      );
+      addTearDown(engine.close);
+      final project = await BusyProject.open(source.path, engine);
+      addTearDown(project.close);
+      final root = source.uri.toString();
+      final buffer = await project.buffer(root);
+      await project.applyRefactoring(
+        await project.planComponentRename({
+          'resource': root,
+          'generation': buffer.generation,
+          'pointer': '/components/responses/Old',
+        }, 'Renamed'),
+      );
+      final accepted = {
+        for (final b in project.store.buffers.values) b.id: b.text,
+      };
+      var paused = false;
+      Future<void> undo() async {
+        if (paused) return;
+        paused = true;
+        project.store.undo();
+        expect(project.store.get(root).text, rootText);
+        expect(project.store.get(part.uri.toString()).text, partText);
+        await RecoveryStore('${directory.path}/drafts')
+            .persistFileMoves(project.recoveryOwner);
+      }
+
+      final publications = PublicationStore(
+        '${directory.path}/publication',
+        beforeCheckpoint: phase == 'before-first' ? undo : null,
+        afterPublish: phase == 'after-first' ? (_) => undo() : null,
+      );
+      expect((await publications.save(project, [buffer])).complete, true);
+      expect(paused, true);
+      expect(source.readAsStringSync(), accepted[root]);
+      expect(part.readAsStringSync(), accepted[part.uri.toString()]);
+      expect(buffer.text, rootText);
+      expect(project.store.get(part.uri.toString()).text, partText);
+      expect((await publications.save(project, [buffer])).complete, true);
+      expect(source.readAsStringSync(), rootText);
+      expect(part.readAsStringSync(), partText);
+      expect((await project.check(root))['status'], 'complete');
+    });
+  }
   test('streamed publication cleans partial output and never replaces a destination', () async {
     final temp = await Directory.systemTemp.createTemp(
       'busyapi-stream-export-',

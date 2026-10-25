@@ -2,12 +2,27 @@ import 'package:busyapi_core/busyapi_core.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../../l10n/generated/app_localizations.dart';
 import '../app/busyapi_design.dart';
 import '../app/review_viewport.dart';
 import '../app/busyapi_dialogs.dart';
 import '../app/localization.dart';
 import 'project_search.dart' show BusyApiChangeContext, BusyApiReviewPages;
 import 'workspace_controller.dart';
+
+String refactoringFailureMessage(
+  AppLocalizations l,
+  String code,
+) => switch (code) {
+  'refactor.configuration.collision' => l.securityRefactoringSettingsConflict,
+  'refactor.configuration.ambiguous' => l.securityRefactoringSettingsAmbiguous,
+  'refactor.configuration.syntax' || 'refactor.configuration.authentication' =>
+    l.securityRefactoringConfigurationInvalid,
+  'refactor.configuration.ownership' =>
+    l.securityRefactoringConfigurationShared,
+  'limit.refactor.configuration' => l.securityRefactoringConfigurationLimit,
+  _ => l.refactoringFailed(code),
+};
 
 Future<void> showRefactoringReview(
   BuildContext context,
@@ -79,7 +94,7 @@ class _RefactoringReviewState extends State<_RefactoringReview> {
         applied = code == 'refactor.applied.recovery';
         error = applied
             ? context.l10n.refactoringRecoveryFailed
-            : context.l10n.refactoringFailed(code);
+            : refactoringFailureMessage(context.l10n, code);
       });
     } finally {
       if (current) setState(() => applying = false);

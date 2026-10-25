@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { createGraph, propose, Resource } from './engine';
 import { escape, segments, SourceError } from './document';
 import { GraphReference, resolveUri } from './reference_graph';
+import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
 
 /** Semantic plans operate on each entry description's namespace separately.
  * Physical edits are coalesced only after every occurrence agrees. There is no
@@ -220,18 +221,29 @@ export function planRename(input: any) {
     }
     // Re-resolve *all* established consumers, including unchanged occurrences
     // shared by several entry descriptions. A partial repair is not a rename.
+    const securityBindings:SecurityBindingChange[]=[];
     for (const {context, graph} of graphs) {
         const after = createGraph({root: context.root, resources: resources.filter(r => context.resources.includes(r.id)).map(r => outputs.has(r.id) ? {...r, text: outputs.get(r.id)!} : r)}).graph;
         if (after.issues.length) throw new SourceError('refactor.proof', 'The derived snapshot introduces an unresolved or ambiguous semantic connection');
         for (const ref of graph.references) {
             const pointer = transition(ref.resource, ref.pointer);
-            const keyword = !property && ref.connection === 'security' && affected(ref) && ref.value === oldName ? input.name : ref.keyword;
+            const keyword = !property && ref.connection === 'security' && affected(ref) ? repaired(ref,graph) : ref.keyword;
             const next = after.references.find(r => r.resource === ref.resource && r.pointer === pointer && r.keyword === keyword);
             if (!next || next.resolution !== ref.resolution || next.targetResource !== ref.targetResource || next.targetPointer !== transition(ref.targetResource!, ref.targetPointer!) || next.base !== ref.base || JSON.stringify(next.dynamic?.candidates.map(t => [t.resource, t.pointer]).sort()) !== JSON.stringify(ref.dynamic?.candidates.map(t => [t.resource, transition(t.resource, t.pointer)]).sort()))
                 throw new SourceError('refactor.proof', 'A semantic consumer would change meaning in one of the configured roots');
+            if(input.configuration&&ref.connection==='security')securityBindings.push({root:context.root,before:ref,after:next});
         }
     }
     const changes = [...outputs].map(([id, text]) => ({resource: id, before: resources.find(r => r.id === id)!.text, after: text}));
+    const configuration=securityConfigurationCopies(input.configuration,securityBindings);
+    if(configuration?.actions.length){
+        if(resources.some(resource=>resource.id===configuration.source.id))throw new SourceError('refactor.configuration.ownership','Project configuration cannot also be an edited API graph resource');
+        const result=propose({...input,resources:[configuration.source],target:{resource:configuration.source.id,generation:configuration.source.generation,pointer:''},actions:configuration.actions});
+        let text=configuration.source.text;for(const edit of [...result.edits].reverse())text=text.slice(0,edit.start)+edit.replacement+text.slice(edit.end);
+        if(Buffer.byteLength(text,'utf8')>65536)throw new SourceError('limit.refactor.configuration','The repaired project configuration would exceed 64 KiB',[0,configuration.source.text.length],'unsupported',{resource:configuration.source.id,pointer:'',range:[0,configuration.source.text.length]});
+        edits.push(...result.edits);changes.push({resource:configuration.source.id,before:configuration.source.text,after:text});
+        for(const usage of configuration.usages)usages.set(JSON.stringify([usage.resource,usage.pointer,usage.target.resource,usage.target.pointer]),usage);
+    }
     return {version: 1, snapshot: input.snapshot, identity: createHash('sha256').update(JSON.stringify({snapshot: input.snapshot, target: input.target, name: input.name, edits})).digest('hex'), edits, changes, usages: [...usages.values()], from: input.target, to: {...input.target, pointer: transition(source.id, oldPointer)}, transitions:[...moves].sort((a,b)=>b.from.length-a.from.length), ...(property?{kind:'property-rename',preservedNameConstraints:[...warnings]}:{}), checkedRoots: input.contexts.map((c: any) => c.root), externalConsumers: 'Only the supplied configured-root graph is known; consumers outside this project are not rewritten.'};
 }
 

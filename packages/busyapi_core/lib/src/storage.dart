@@ -842,17 +842,16 @@ class RecoveryStore {
     FormSession? form,
   }) async {
     final id = _filesId(project.boundary);
-    if (!project.store.fileBuffers.any(
-      (b) => b.hasFileIntent || b.pendingFilePublication,
-    )) {
+    bool grouped() =>
+        project.store.fileBuffers.any(
+          (b) => b.hasFileIntent || b.pendingFilePublication,
+        ) ||
+        project.store.publicationGroups.isNotEmpty;
+    if (!grouped()) {
       if (!_fileGroups.containsKey(id)) return false;
       final transition = Object();
       _fileGroups[id] = transition;
-      bool current() =>
-          identical(_fileGroups[id], transition) &&
-          !project.store.fileBuffers.any(
-            (b) => b.hasFileIntent || b.pendingFilePublication,
-          );
+      bool current() => identical(_fileGroups[id], transition) && !grouped();
       // Keep the group until every replacement record is durable. A failed
       // write or a newer transition leaves the preceding checkpoint intact.
       for (final b in project.store.fileBuffers.toList()) {
@@ -867,7 +866,11 @@ class RecoveryStore {
       if (current()) _fileGroups.remove(id);
       return false;
     }
-    final selected = project.store.fileBuffers.where((b) => b.dirty).toList();
+    final groups = project.store.publicationGroups;
+    final coupled = groups.expand((group) => group).toSet();
+    final selected = project.store.fileBuffers
+        .where((b) => b.dirty || coupled.contains(b))
+        .toList();
     final payload = <String, Object?>{
       'version': 2,
       'kind': 'file-workspace',
@@ -877,6 +880,10 @@ class RecoveryStore {
       'id': id,
       'path': project.location,
       'boundary': project.boundary,
+      if (groups.isNotEmpty)
+        'publicationGroups': [
+          for (final group in groups) [for (final buffer in group) buffer.id],
+        ],
       'buffers': [
         for (final b in selected)
           {
@@ -949,10 +956,15 @@ class RecoveryStore {
       for (final value in record['buffers'] as List)
         Map<String, dynamic>.from(value as Map),
     ];
+    final groups = decodePublicationGroups(record['publicationGroups'], {
+      for (final entry in entries)
+        if (entry['id'] case final String id) id,
+    });
     // Publication recovery may already have restored this same frozen working
     // copy. Do not overwrite or falsely conflict its owned published baselines.
     final identicalSnapshot = project.matches(entries);
     if (!identicalSnapshot) await project.restore(entries);
+    project.store.restorePublicationGroups(groups);
     if (!await persistFileMoves(project, draft: draft, form: form)) {
       for (final e in entries) {
         final b = project.store.fileBuffer(e['id'] as String);

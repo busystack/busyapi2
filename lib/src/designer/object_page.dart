@@ -1477,7 +1477,12 @@ Future<void> _renameObjectComponent(
           'range': item['range'],
         }, value['name']);
       } on CoreFailure catch (failure) {
-        throw l.refactoringFailed(failure.code);
+        throw CoreFailure(
+          failure.code,
+          refactoringFailureMessage(l, failure.code),
+          kind: failure.kind,
+          source: failure.source,
+        );
       }
     },
   );

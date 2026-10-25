@@ -428,6 +428,34 @@ class _BufferPathState {
   final bool present;
 }
 
+List<List<String>> decodePublicationGroups(Object? value, Set<String> allowed) {
+  if (value == null) return const [];
+  if (value is! List || value.length > 256 || allowed.length > 512) {
+    throw CoreFailure(
+      'recovery.groups',
+      'Invalid publication dependency groups',
+    );
+  }
+  final groups = <List<String>>[], used = <String>{};
+  for (final group in value) {
+    if (group is! List ||
+        group.length < 2 ||
+        group.length > 512 ||
+        group.any((id) => id is! String || !allowed.contains(id)) ||
+        group.toSet().length != group.length ||
+        group.any(used.contains)) {
+      throw CoreFailure(
+        'recovery.groups',
+        'Publication dependencies require distinct captured source identities',
+      );
+    }
+    final ids = List<String>.from(group);
+    groups.add(ids);
+    used.addAll(ids);
+  }
+  return groups;
+}
+
 class _History {
   _History(
     this.before,
@@ -437,12 +465,14 @@ class _History {
     this.buffers,
     this.beforePaths,
     this.afterPaths,
+    this.coupledPublication,
   );
   final Map<String, String> before, after;
   final String label;
   final List<SemanticTransition> transitions;
   final Map<String, DocumentBuffer> buffers;
   final Map<DocumentBuffer, _BufferPathState> beforePaths, afterPaths;
+  final bool coupledPublication;
 }
 
 class BufferStore {
@@ -459,6 +489,76 @@ class BufferStore {
 
   bool ownsFileBuffer(DocumentBuffer buffer) =>
       identical(buffers[buffer.id], buffer) || _absent.contains(buffer);
+
+  final Map<DocumentBuffer, Set<DocumentBuffer>> _publicationGroups = {};
+
+  void _prunePublicationGroups() {
+    final groups = _publicationGroups.values.toSet();
+    _publicationGroups.clear();
+    for (final group in groups) {
+      final members = group.where(ownsFileBuffer).toSet();
+      if (members.length < 2 ||
+          !members.any(
+            (buffer) => buffer.dirty || buffer.pendingFilePublication,
+          )) {
+        continue;
+      }
+      for (final buffer in members) {
+        _publicationGroups[buffer] = members;
+      }
+    }
+  }
+
+  /// Required repairs in one reviewed source transaction publish together.
+  /// Buffer identities survive path changes and remain separate from labels.
+  Set<DocumentBuffer> publicationBuffersFor(Iterable<DocumentBuffer> selected) {
+    _prunePublicationGroups();
+    final result = selected.toSet();
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final buffer in result.toList()) {
+        final before = result.length;
+        result.addAll(_publicationGroups[buffer] ?? const {});
+        changed |= before != result.length;
+      }
+    }
+    return result;
+  }
+
+  void _couplePublicationBuffers(Iterable<DocumentBuffer> participants) {
+    final members = publicationBuffersFor(participants)
+        .where(
+          (buffer) => buffer.id.startsWith('file:') && ownsFileBuffer(buffer),
+        )
+        .toSet();
+    if (members.length < 2) return;
+    for (final buffer in members) {
+      _publicationGroups[buffer] = members;
+    }
+  }
+
+  List<Set<DocumentBuffer>> get publicationGroups {
+    _prunePublicationGroups();
+    return List.unmodifiable(
+      _publicationGroups.values.toSet().map(Set<DocumentBuffer>.unmodifiable),
+    );
+  }
+
+  void restorePublicationGroups(List<List<String>> groups) {
+    final members = [
+      for (final group in groups) [for (final id in group) fileBuffer(id)],
+    ];
+    retainPublicationGroups(members);
+  }
+
+  /// Receipts retain live owners even if Undo made the group temporarily clean
+  /// before a frozen save published. File identities may have moved meanwhile.
+  void retainPublicationGroups(Iterable<Iterable<DocumentBuffer>> groups) {
+    for (final group in groups) {
+      _couplePublicationBuffers(group);
+    }
+  }
 
   bool isVirtuallyAbsent(String id) =>
       !buffers.containsKey(id) && _absentIdentities.containsKey(id);
@@ -533,6 +633,7 @@ class BufferStore {
     List<BufferPathEdit> paths = const [],
     List<BufferCreation> creations = const [],
     List<BufferPresenceEdit> presences = const [],
+    bool coupledPublication = false,
   }) {
     if (edits.isEmpty &&
         paths.isEmpty &&
@@ -869,6 +970,7 @@ class BufferStore {
       bound,
       beforePaths,
       afterPaths,
+      coupledPublication,
     );
     _undo.add(history);
     for (final buffer in history.buffers.values) {
@@ -890,6 +992,7 @@ class BufferStore {
     }
     _redo.clear();
     _pruneAbsent();
+    if (coupledPublication) _couplePublicationBuffers(bound.values);
     onCommitted?.call(Set.unmodifiable(bound.values));
   }
 
@@ -941,6 +1044,7 @@ class BufferStore {
     _undo.removeLast();
     _restoreHistory(h.before, h.buffers, h.beforePaths);
     _redo.add(h);
+    if (h.coupledPublication) _couplePublicationBuffers(h.buffers.values);
     onCommitted?.call(Set.unmodifiable(h.buffers.values));
     return [
       for (final transition in h.transitions.reversed) transition.reversed,
@@ -955,6 +1059,7 @@ class BufferStore {
     _redo.removeLast();
     _restoreHistory(h.after, h.buffers, h.afterPaths);
     _undo.add(h);
+    if (h.coupledPublication) _couplePublicationBuffers(h.buffers.values);
     onCommitted?.call(Set.unmodifiable(h.buffers.values));
     return h.transitions;
   }

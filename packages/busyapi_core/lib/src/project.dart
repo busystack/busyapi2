@@ -2963,6 +2963,10 @@ class BusyProject {
           },
       ],
       'target': target,
+      if (method == 'planRename' &&
+          snapshots.isNotEmpty &&
+          snapshots.first.configuration.isNotEmpty)
+        'configuration': snapshots.first.configuration.single,
       ...arguments,
     }, requestId: requestId);
     active();
@@ -3033,6 +3037,7 @@ class BusyProject {
       );
     store.apply(
       plan.edits,
+      coupledPublication: true,
       paths: plan is FileMovePlan ? [plan.pathEdit] : const [],
       creations: plan is FileCreationPlan ? [plan.creation] : const [],
       presences: plan is FileDeletionPlan ? [plan.presence] : const [],

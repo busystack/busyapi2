@@ -35,6 +35,12 @@ export type GraphReference = GraphScope & {
     candidateTargets?: GraphTarget[];
 };
 
+/** Resolved name bindings have no URI target. In particular, a security
+ * connection can instead be a 3.2 URI; its map-key syntax does not make it an
+ * implicit name (OAS 3.2 §4.30). The graph's namespace lookup decides this. */
+export const implicitNameReference=(reference:Pick<GraphReference,'connection'|'targetUri'>):boolean=>
+    (reference.connection==='security'||reference.connection==='discriminator')&&reference.targetUri===undefined;
+
 /** An address for an already established schema occurrence. This is not
  * resolution or acquisition; both pointer escaping and resource ownership
  * come from the canonical graph. */
@@ -166,7 +172,7 @@ export class ReferenceGraph {
             const before = this.indexed.size;
             for (let i = 0; i < this.pending.length; i++) {
                 const ref = this.pending[i];
-                const resolved = this.resolveEdge(ref);
+                const resolved = this.resolveConnection(ref);
                 Object.assign(ref, resolved);
                 if (ref.targetResource !== undefined && ref.targetPointer !== undefined && ref.resolution === 'resolved') {
                     const scope = this.scope(ref.targetResource, ref.targetPointer);
@@ -180,7 +186,7 @@ export class ReferenceGraph {
         // an earlier edge. Re-resolve all edges against the complete index.
         for (const ref of this.references) {
             delete ref.targetResource; delete ref.targetPointer; delete ref.targetFamily; delete ref.dynamic;
-            Object.assign(ref, this.resolveEdge(ref));
+            Object.assign(ref, this.resolveConnection(ref));
             if (ref.resolution !== 'resolved') {
                 const code = ref.resolution === 'unavailable' ? 'reference.unavailable' :
                     ref.resolution === 'ambiguous' ? 'reference.ambiguous' :
@@ -349,7 +355,9 @@ export class ReferenceGraph {
         return this.scopes.get(key(resource, at))!;
     }
 
-    private resolveEdge(ref: GraphReference): Partial<GraphReference> {
+    /** Prove a proposed connection using the same namespace/URI rules as
+     * captured edges. This grants no acquisition or source-edit permission. */
+    resolveConnection(ref: GraphScope & Pick<GraphReference,'connection'|'keyword'|'value'>): Partial<GraphReference> {
         if (ref.connection === 'operationId') {
             const targets = [...this.scopes.values()].filter(scope => scope.kind === 'operation' && this.docs.get(scope.resource)?.dataNode(scope.pointer)?.value?.operationId === ref.value);
             if (targets.length !== 1) return {resolution: targets.length ? 'ambiguous' : 'missing', candidateTargets: targets, candidateResources: [...new Set(targets.map(t => t.resource))]};

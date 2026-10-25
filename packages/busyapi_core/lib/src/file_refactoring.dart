@@ -409,6 +409,15 @@ extension FileRefactoring on BusyProject {
     return result;
   }
 
+  Set<DocumentBuffer> publicationBuffersFor(Iterable<DocumentBuffer> selected) {
+    var result = store.publicationBuffersFor(selected);
+    while (true) {
+      final next = store.publicationBuffersFor(fileMoveBuffersFor(result));
+      if (next.length == result.length && next.containsAll(result)) return next;
+      result = next;
+    }
+  }
+
   void finishFilePublication(Iterable<DocumentBuffer> moved) {
     for (final b in moved) {
       b.pendingFilePublication = false;

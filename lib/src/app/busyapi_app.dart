@@ -966,7 +966,8 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
             ),
           ],
           children: [
-            if (record['version'] == 2) Text(context.l10n.fileMoveRecovery),
+            if (record['version'] == 2 || record['publicationGroups'] != null)
+              Text(context.l10n.fileMoveRecovery),
             for (final entry in record['outcomes'])
               Text('${entry['path']} · ${entry['outcome']}'),
           ],
@@ -1017,7 +1018,11 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
             children: [
               Text(context.l10n.fileMoveRecovery),
               for (final b in record['buffers'] as List)
-                Text('${b['sourcePath']} → ${b['path']}'),
+                Text(
+                  b['sourcePath'] == b['path']
+                      ? '${b['path']}'
+                      : '${b['sourcePath']} → ${b['path']}',
+                ),
             ],
           ),
         );

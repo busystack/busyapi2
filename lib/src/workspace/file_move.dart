@@ -70,7 +70,9 @@ Future<void> showFileMove(
           failure.code,
           failure.code == 'file.move.literal.ownership'
               ? l.refactoringLiteralOwnershipBlocked
-              : l.refactoringFailed(failure.code),
+              : refactoringFailureMessage(l, failure.code),
+          kind: failure.kind,
+          source: failure.source,
         );
       }
     },

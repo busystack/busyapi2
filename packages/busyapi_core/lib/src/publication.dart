@@ -43,7 +43,15 @@ class PublicationStore {
     Iterable<DocumentBuffer> buffers, {
     PublicationBoundary? beforePublish,
   }) async {
-    final selected = buffers.toList();
+    final selected = project.publicationBuffersFor(buffers).toList();
+    final groupOwners = [
+      for (final group in project.store.publicationGroups)
+        if (group.any(selected.contains)) group,
+    ];
+    final groups = [
+      for (final group in groupOwners) [for (final buffer in group) buffer.id],
+    ];
+    final coupled = groups.isNotEmpty;
     // A virtual path/presence transaction can run while disk publication is
     // pending. The captured object owns its receipt, even after its map key moves.
     final owners = {for (final buffer in selected) buffer.id: buffer};
@@ -60,9 +68,9 @@ class PublicationStore {
         project.fileMoveBuffersFor(selected).any((b) => b.hasFileIntent))
       return _saveFileMoves(project, selected, beforePublish: beforePublish);
     final clean = selected.where((b) => !b.dirty).toList();
-    final plan = <Map<String, Object?>>[
+    final captured = <Map<String, Object?>>[
       for (final b in selected)
-        if (b.dirty)
+        if (b.dirty || coupled)
           {
             'id': b.id,
             'path': b.path,
@@ -76,8 +84,14 @@ class PublicationStore {
             'blocked': b.externalConflict,
           },
     ];
+    final plan = captured.where((entry) => owners[entry['id']]!.dirty).toList();
+    final requiredIds = groups.expand((group) => group).toSet();
+    final dependencies = captured
+        .where((entry) => requiredIds.contains(entry['id']))
+        .toList();
     final cleanFailures = <String, String>{};
     for (final b in clean) {
+      if (coupled) continue;
       await project.refreshDisk(b);
       if (b.externalConflict) {
         cleanFailures[b.id] =
@@ -92,6 +106,55 @@ class PublicationStore {
         'Publication intent exceeds the private state budget',
       );
     }
+    if (coupled) {
+      // A published peer still owns the reviewed meaning of an outstanding
+      // repair. Do not reload a changed clean peer and silently accept it.
+      String? failure;
+      for (final entry in captured) {
+        try {
+          final path = entry['path'] as String;
+          if (entry['blocked'] == true ||
+              await contentIdentityAsync(
+                    await project.accessFor(path).read(path),
+                  ) !=
+                  entry['expected']) {
+            failure = 'A required source changed; resolve its external conflict before publishing the linked transaction';
+            break;
+          }
+        } on CoreFailure catch (error) {
+          failure = '${error.code}: ${error.message}';
+          break;
+        } on FileSystemException {
+          failure = 'A required source is unavailable; no linked source was published';
+          break;
+        }
+      }
+      if (failure != null) {
+        return PublicationBatchResult([], {
+          for (final entry in captured) entry['id'] as String: failure,
+        }, []);
+      }
+    }
+    final intent = {
+      'version': 1,
+      'owner': owner,
+      'pid': pid,
+      'processIdentity': processIdentity(pid),
+      'project': project.location,
+      'boundary': project.access.boundary,
+      'planned': plan,
+      if (coupled) ...{
+        'publicationGroups': groups,
+        'publicationDependencies': dependencies,
+      },
+    };
+    final intentBytes = utf8.encode(jsonEncode(intent)).length;
+    if (intentBytes > 128 * 1024 * 1024) {
+      throw CoreFailure(
+        'publication.limit',
+        'Linked publication intent exceeds its recoverable state budget',
+      );
+    }
     await Directory(directory).create(recursive: true);
     privatePermissions(directory, 448);
     final entries = Directory(directory)
@@ -100,8 +163,7 @@ class PublicationStore {
         .where((f) => f.path.endsWith('.json'))
         .toList();
     if (entries.length >= 64 ||
-        entries.fold<int>(0, (n, f) => n + f.lengthSync()) +
-                utf8.encode(jsonEncode(plan)).length >
+        entries.fold<int>(0, (n, f) => n + f.lengthSync()) + intentBytes >
             256 * 1024 * 1024) {
       throw CoreFailure(
         'publication.limit',
@@ -115,17 +177,13 @@ class PublicationStore {
     final published = <String>[], failed = <String, String>{...cleanFailures};
     Future<void> checkpoint() async {
       await beforeCheckpoint?.call();
-      await writePrivateJson(journal, {
-        'version': 1,
-        'owner': owner,
-        'pid': pid,
-        'processIdentity': processIdentity(pid),
-        'project': project.location,
-        'boundary': project.access.boundary,
-        'planned': plan,
-        'published': published,
-        'failed': failed,
-      });
+      final record = {...intent, 'published': published, 'failed': failed};
+      if (utf8.encode(jsonEncode(record)).length > 128 * 1024 * 1024)
+        throw CoreFailure(
+          'publication.limit',
+          'The publication checkpoint exceeds its recoverable state budget',
+        );
+      await writePrivateJson(journal, record);
     }
 
     // Failure here leaves every project file untouched.
@@ -166,6 +224,7 @@ class PublicationStore {
           project.resourceFingerprints[b.id] = b.diskIdentity;
           b.externalConflict = false;
         }
+        project.store.retainPublicationGroups(groupOwners);
         published.add(id);
         await afterPublish?.call(id);
         await checkpoint();
@@ -196,6 +255,51 @@ class PublicationStore {
       notAttempted,
       journal: failed.isEmpty ? null : journal,
     );
+  }
+
+  Future<Map<String, dynamic>> _inspectSource(
+    BusyProject project,
+    Map<String, dynamic> entry,
+  ) async {
+    final text = entry['text'];
+    if (entry['path'] is! String ||
+        entry['id'] != Uri.file(entry['path'] as String).toString() ||
+        text is! String ||
+        text.length > resourceByteLimit ||
+        entry['baseline'] is! String ||
+        entry['expected'] is! String ||
+        entry['generation'] is! int ||
+        entry['mode'] is! int ||
+        entry['hasBom'] is! bool ||
+        entry['identity'] !=
+            contentIdentity(
+              checkedResourceBytes([
+                if (entry['hasBom'] == true) ...[239, 187, 191],
+                ...utf8.encode(text),
+              ]),
+            )) {
+      throw const FormatException('Unsafe publication intent');
+    }
+    String? actual;
+    try {
+      actual = contentIdentity(
+        await project
+            .accessFor(entry['path'] as String)
+            .read(entry['path'] as String),
+      );
+    } on Object {
+      /* Missing or inaccessible is an explicit outcome. */
+    }
+    return {
+      ...entry,
+      'outcome': actual == entry['identity']
+          ? 'published'
+          : actual == entry['expected']
+          ? 'not-published'
+          : actual == null
+          ? 'unavailable'
+          : 'conflict',
+    };
   }
 
   /// Startup inspection never replays writes. Current bytes identify a completed
@@ -241,31 +345,50 @@ class PublicationStore {
         }
         final outcomes = <Map<String, dynamic>>[];
         for (final raw in record['planned'] as List) {
-          final e = Map<String, dynamic>.from(raw as Map);
-          if (e['id'] != Uri.file(e['path'] as String).toString() ||
-              e['text'] is! String ||
-              (e['text'] as String).length > 16 * 1024 * 1024) {
-            throw const FormatException('Unsafe publication intent');
+          outcomes.add(
+            await _inspectSource(
+              project,
+              Map<String, dynamic>.from(raw as Map),
+            ),
+          );
+        }
+        final dependencies = <String, Map<String, dynamic>>{};
+        if (record['publicationGroups'] != null) {
+          final values = record['publicationDependencies'];
+          if (values is! List || values.length > 512)
+            throw const FormatException('Invalid publication dependencies');
+          for (final raw in values) {
+            final entry = Map<String, dynamic>.from(raw as Map);
+            final id = entry['id'] as String;
+            if (dependencies.containsKey(id))
+              throw const FormatException('Duplicate publication dependency');
+            dependencies[id] = await _inspectSource(project, entry);
           }
-          // Only already approved project resources are read.
-          String? actual;
-          try {
-            actual = contentIdentity(
-              await project
-                  .accessFor(e['path'] as String)
-                  .read(e['path'] as String),
-            );
-          } on Object {
-            /* Missing or inaccessible is an explicit outcome. */
+        }
+        final groups = decodePublicationGroups(
+          record['publicationGroups'],
+          dependencies.keys.toSet(),
+        );
+        for (final entry in outcomes) {
+          for (final group in groups) {
+            if (group.contains(entry['id'])) {
+              final dependency = dependencies[entry['id']]!;
+              if (entry.keys
+                  .where((key) => key != 'outcome')
+                  .any((key) => entry[key] != dependency[key]))
+                throw const FormatException(
+                  'Mismatched publication dependency',
+                );
+              entry['publicationGroup'] = group;
+              entry['publicationPeers'] = [
+                for (final id in group)
+                  {
+                    ...dependencies[id]!,
+                    'sourcePath': dependencies[id]!['path'],
+                  },
+              ];
+            }
           }
-          e['outcome'] = actual == e['identity']
-              ? 'published'
-              : actual == e['expected']
-              ? 'not-published'
-              : actual == null
-              ? 'unavailable'
-              : 'conflict';
-          outcomes.add(e);
         }
         results.add({...record, 'recordPath': file.path, 'outcomes': outcomes});
       } on Object {
@@ -292,6 +415,41 @@ class PublicationStore {
 
   /// Explicit recovery restores an owned buffer, never publishes project files.
   Future<void> recover(BusyProject project, Map<String, dynamic> entry) async {
+    final rawGroup = entry['publicationGroup'];
+    final groups = decodePublicationGroups(
+      rawGroup == null ? null : [rawGroup],
+      {
+        if (rawGroup is List)
+          for (final id in rawGroup)
+            if (id is String) id,
+      },
+    );
+    if (groups.isNotEmpty) {
+      if (!groups.single.contains(entry['id']))
+        throw CoreFailure(
+          'recovery.groups',
+          'The recovered source is outside its publication group',
+        );
+      final values = entry['publicationPeers'];
+      if (values is! List || values.length != groups.single.length)
+        throw CoreFailure(
+          'recovery.groups',
+          'A linked recovery requires its captured source peers',
+        );
+      final peers = [
+        for (final value in values) Map<String, dynamic>.from(value as Map),
+      ];
+      if (peers.map((peer) => peer['id']).toSet().length != peers.length ||
+          peers.any((peer) => !groups.single.contains(peer['id'])))
+        throw CoreFailure(
+          'recovery.groups',
+          'Linked recovery peers do not match the captured dependency group',
+        );
+      if (!project.matchesRecoveredFileSnapshot(peers))
+        await project.restoreFileSnapshot(peers);
+      project.store.restorePublicationGroups(groups);
+      return;
+    }
     final b = await project.buffer(
       entry['id'] as String,
       recovery: {...entry, 'diskIdentity': entry['expected']},
@@ -316,6 +474,7 @@ class PublicationStore {
       b.baseline = entry['text'] as String;
       b.diskIdentity = current!;
     }
+    project.store.restorePublicationGroups(groups);
   }
 }
 

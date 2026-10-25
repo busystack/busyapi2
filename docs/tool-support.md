@@ -370,6 +370,20 @@ declaration requires selection against the new capture while retaining entered
 drafts. Provider metadata retrieval and sign-in remain separately unqualified;
 ordinary opening, preparation and manual-token execution make no discovery request.
 
+Security-scheme rename and file moves use captured graph bindings to repair
+requirement names and 3.2 URI keys. Reviewed changes include exact aliases of
+configured environment credential references; old bindings remain available for
+other consumers. Different settings at the destination binding block the plan.
+A new alias that would also configure an unchanged binding is refused; resolve
+the environment settings explicitly or choose another spelling before retrying.
+No credentials are read during refactoring. Required source/configuration repairs
+save and recover together when either file is selected; unrelated working files
+retain their independent save scope. Publication retains per-file receipts and
+external-change checks, including a published peer of an outstanding repair.
+This does not make multi-file filesystem replacement globally atomic. See the
+[support matrix](implementation/native-openapi-support.md) for qualification
+and outstanding native URI-authoring, copy/inline and migration coverage.
+
 Desktop persistence uses libsecret **0.21.4** through a BusyAPI-owned native channel and schema. The strict Snap exposes `password-manager-service` but does not assume it is connected; locked, missing, declined, and disconnected paths remain visible session-only operation with no file fallback. `network` and `network-bind` are limited to deliberate request/mock/OAuth/Git execution. Document navigation and messages retain the independent WebKit resource/network denials described above.
 
 Swagger 2.0 native-family implementation and qualification are tracked with

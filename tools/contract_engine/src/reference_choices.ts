@@ -11,7 +11,7 @@ const same=(a:{resource:string;pointer:string},b:{resource:string;pointer:string
 /** Address construction is not resolution. Every proposed spelling must be
  * proved by the canonical graph, including embedded ids and retrieval aliases.
  * Completion and native choices use this same operation. */
-export function referenceValue(graph:ReferenceGraph,from:GraphScope,to:GraphScope,keyword='$ref'):string|undefined {
+export function referenceValue(graph:ReferenceGraph,from:GraphScope,to:GraphScope,keyword='$ref',excluded?:ReadonlySet<string>):string|undefined {
  if(to.kind==='schema'&&!supportedSchemaDialect(to))return;
  let target:URL,suffix:string;
  try {
@@ -32,7 +32,12 @@ export function referenceValue(graph:ReferenceGraph,from:GraphScope,to:GraphScop
     let path=posix.relative(posix.dirname(source.pathname),target.pathname)||posix.basename(target.pathname);
     if(target.pathname.endsWith('/'))path=(path||'.')+'/';
     if(path.split('/')[0].includes(':'))path='./'+path;
-    attempts.push(path+target.search+end);
+    let relative=path+target.search+end;
+    // Distinct Security Requirement bindings can address the same target.
+    // Keep their arrays separate when a relocation needs new member names;
+    // redundant dot segments retain URI meaning (RFC 3986 §5.2.4).
+    while(excluded?.has(relative)&&relative.length+2<=65536)relative='./'+relative;
+    attempts.push(relative);
    }
    attempts.push(target.href+end);
   };
@@ -49,6 +54,7 @@ export function referenceValue(graph:ReferenceGraph,from:GraphScope,to:GraphScop
    append(resolveUri(to.resource,to.resource),keyword==='$dynamicRef'?'#'+encodeURIComponent(suffix):fragment(to.pointer));
   append(target,keyword==='$dynamicRef'?'#'+encodeURIComponent(suffix):fragment(suffix));
   for(const value of attempts) {
+   if(excluded?.has(value))continue;
    const result=graph.resolveReference(value,from,keyword);
    if(result.resolution==='resolved'&&to.resource===result.targetResource&&to.pointer===result.targetPointer)return value;
   }
