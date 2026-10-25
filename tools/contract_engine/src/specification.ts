@@ -1,15 +1,17 @@
 /** Document declarations and schema dialects are separate identities. OAS
  * patch versions share their minor family's rules (OAS §Versions). */
 export type SpecificationFamily = '2.0' | '3.0' | '3.1' | '3.2';
+export type SpecificationCapabilities = Readonly<{
+    modernSchema: boolean; webhooks: boolean; reusablePathItems: boolean;
+    additionalOperations: boolean; referenceAnnotations: boolean;
+    securityRequirementUris: boolean;
+}>;
 export type Specification = Readonly<{
     family: SpecificationFamily;
     declaredVersion: string;
     declaration: 'openapi' | 'swagger';
     schemaDialect: string;
-    capabilities: Readonly<{
-        modernSchema: boolean; webhooks: boolean; reusablePathItems: boolean;
-        additionalOperations: boolean; referenceAnnotations: boolean;
-    }>;
+    capabilities: SpecificationCapabilities;
 }>;
 export type SpecificationDeclaration =
     {status: 'supported'; specification: Specification} |
@@ -20,6 +22,15 @@ export const isNativeFamily = (family: string): family is SpecificationFamily =>
 export const restrictedSchemaDialect = 'https://spec.openapis.org/oas/3.0/dialect';
 export const swaggerSchemaDialect = 'urn:busyapi:schema-dialect:swagger-2.0';
 export const modernFamily = (family: string): boolean => family === '3.1' || family === '3.2';
+const familyCapabilities = (family: SpecificationFamily): SpecificationCapabilities => Object.freeze({
+    modernSchema: modernFamily(family), webhooks: modernFamily(family), reusablePathItems: modernFamily(family),
+    additionalOperations: family === '3.2', referenceAnnotations: modernFamily(family), securityRequirementUris: family === '3.2',
+});
+const capabilities:Readonly<Record<SpecificationFamily,SpecificationCapabilities>>=Object.freeze({
+    '2.0':familyCapabilities('2.0'),'3.0':familyCapabilities('3.0'),
+    '3.1':familyCapabilities('3.1'),'3.2':familyCapabilities('3.2'),
+});
+export const capabilitiesFor = (family:SpecificationFamily):SpecificationCapabilities => capabilities[family];
 export const defaultSchemaDialect = (family: string): string => family === '2.0' ? swaggerSchemaDialect : family === '3.0'
     ? restrictedSchemaDialect : `https://spec.openapis.org/oas/${family}/dialect/base`;
 
@@ -30,7 +41,7 @@ export function specificationDeclaration(value: unknown): SpecificationDeclarati
     if (Object.hasOwn(data, 'swagger')) {
         if (data.swagger !== '2.0') return {status: typeof data.swagger === 'string' ? 'unsupported' : 'malformed', code: typeof data.swagger === 'string' ? 'version.unsupported' : 'version.malformed', pointer: '/swagger', message: 'swagger must declare the supported string version "2.0"'};
         return {status: 'supported', specification: Object.freeze({family: '2.0', declaredVersion: '2.0', declaration: 'swagger', schemaDialect: swaggerSchemaDialect,
-            capabilities: Object.freeze({modernSchema: false, webhooks: false, reusablePathItems: false, additionalOperations: false, referenceAnnotations: false})})};
+            capabilities: capabilitiesFor('2.0')})};
     }
     if (!Object.hasOwn(data, 'openapi')) return {status: 'missing', code: 'version.missing', pointer: '', message: 'Declare openapi or swagger; info.version identifies the API, not its specification'};
     if (typeof data.openapi !== 'string' || !/^\d+\.\d+\.\d+$/.test(data.openapi))
@@ -41,6 +52,6 @@ export function specificationDeclaration(value: unknown): SpecificationDeclarati
     return {status: 'supported', specification: Object.freeze({
         family, declaredVersion: data.openapi, declaration: 'openapi',
         schemaDialect: modernFamily(family) && typeof data.jsonSchemaDialect === 'string' ? data.jsonSchemaDialect : defaultSchemaDialect(family),
-        capabilities: Object.freeze({modernSchema: modernFamily(family), webhooks: modernFamily(family), reusablePathItems: modernFamily(family), additionalOperations: family === '3.2', referenceAnnotations: modernFamily(family)}),
+        capabilities: capabilitiesFor(family),
     })};
 }

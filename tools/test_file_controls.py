@@ -347,11 +347,12 @@ def main():
     parser.add_argument('--format', choices=['yaml', 'json'], default='yaml')
     parser.add_argument('--authoring', action='store_true', help='Also exercise native metadata, schemas, recursion/composition, OAuth/security requirements, parameters, headers/media/examples/links and webhook/callback controls')
     parser.add_argument('--security-maintenance', choices=['named', 'uri'], help='Exercise reviewed security rename, linked configuration, history and selected-file publication')
+    parser.add_argument('--security-selection', choices=['named', 'uri'], help='Exercise reviewed native security selection, cancellation, history and publication')
     parser.add_argument('--session', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.security_maintenance and args.authoring:
+    if sum(bool(value) for value in [args.security_maintenance, args.security_selection, args.authoring]) > 1:
         parser.error('Choose one native workflow per run')
-    if args.security_maintenance == 'uri' and not args.openapi.startswith('3.2.'):
+    if (args.security_maintenance == 'uri' or args.security_selection == 'uri') and not args.openapi.startswith('3.2.'):
         parser.error('URI Security Requirements require OpenAPI 3.2')
     executable = args.test_executable.resolve(strict=True)
     if not args.session:
@@ -362,6 +363,7 @@ def main():
                 str(executable), '--session', '--openapi', args.openapi, '--format', args.format,
                 *(['--authoring'] if args.authoring else []),
                 *(['--security-maintenance', args.security_maintenance] if args.security_maintenance else []),
+                *(['--security-selection', args.security_selection] if args.security_selection else []),
             ], env=private_session_environment(environment, runtime), timeout=900 if args.authoring else 210).returncode
     # Give GTK a valid private accessibility bus without modifying the desktop
     # root property. Screen-lock checks still use the original desktop bus.
@@ -385,6 +387,7 @@ def main():
                            BUSYAPI_FILE_CONTROLS_VERSION=args.openapi, BUSYAPI_FILE_CONTROLS_FORMAT=args.format,
                            BUSYAPI_FILE_CONTROLS_AUTHORING='1' if args.authoring else '0',
                            BUSYAPI_FILE_CONTROLS_SECURITY=args.security_maintenance or '',
+                           BUSYAPI_FILE_CONTROLS_SECURITY_SELECTION=args.security_selection or '',
                            XDG_CONFIG_HOME=f'{directory}/config', XDG_STATE_HOME=f'{directory}/state',
                            XDG_CACHE_HOME=f'{directory}/cache', LC_ALL='C.UTF-8')
         process = subprocess.Popen([str(executable)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,

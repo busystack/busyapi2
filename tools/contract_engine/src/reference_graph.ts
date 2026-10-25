@@ -1,7 +1,7 @@
 import { children, isReferenceObject, referenceKinds, supportsReference } from './contexts';
 import { SourceDocument, SourceError, escape, limits } from './document';
 import {resolveIri} from '@hyperjump/uri';
-import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, swaggerSchemaDialect, isNativeFamily, Specification} from './specification';
+import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, swaggerSchemaDialect, isNativeFamily, capabilitiesFor, Specification} from './specification';
 
 export const knownDialects = new Set([
     restrictedSchemaDialect,
@@ -370,7 +370,7 @@ export class ReferenceGraph {
             const group = ref.connection === 'security' ? 'securitySchemes' : 'schemas';
             const pointer = (this.family==='2.0'?ref.connection==='security'?'/securityDefinitions':'/definitions':'/components/'+group) + '/' + escape(ref.value);
             if (this.docs.get(this.root)?.dataNode(pointer)) return {resolution: 'resolved', targetResource: this.root, targetPointer: pointer};
-            if (ref.connection === 'security' && ref.family !== '3.2') return {resolution: 'missing', targetResource: this.root, targetPointer: pointer};
+            if (ref.connection === 'security' && (!isNativeFamily(ref.family) || !capabilitiesFor(ref.family).securityRequirementUris)) return {resolution: 'missing', targetResource: this.root, targetPointer: pointer};
         }
         return this.resolveReference(ref.value, ref, ref.keyword);
     }

@@ -1,5 +1,35 @@
-import {GraphIssue, GraphTarget, ReferenceGraph} from './reference_graph';
+import {GraphIssue, GraphReference, GraphTarget, ReferenceGraph} from './reference_graph';
 import {escape} from './document';
+
+/** Resolve only the Reference Objects allowed at a Security Scheme position.
+ * Shared by list constraints and native binding choices. */
+export function securityRequirementDefinition(graph:ReferenceGraph,target:GraphTarget):GraphTarget|undefined {
+    const seen=new Set<string>();
+    while(true){
+        const at=target.resource+'#'+target.pointer;
+        if(seen.has(at)||seen.size>=128)return;
+        seen.add(at);
+        const scope=graph.scopes.get(at),node=graph.docs.get(target.resource)?.dataNode(target.pointer);
+        if(!scope||node?.kind!=='object')return;
+        if(!graph.referenceObject(node.value,scope))return target;
+        const resolved=graph.resolveReference(node.value.$ref,scope);
+        if(resolved.resolution!=='resolved'||resolved.targetResource===undefined||resolved.targetPointer===undefined)return;
+        target={resource:resolved.targetResource,pointer:resolved.targetPointer,kind:'security'};
+    }
+}
+
+export function securityRequirementValuesAllowed(family:string,type:unknown,count:number):boolean {
+    return count===0||family==='3.2'||type==='oauth2'||family!=='2.0'&&type==='openIdConnect';
+}
+
+export function securityRequirementValueRule(graph:ReferenceGraph,reference:Pick<GraphReference,'family'|'resolution'|'targetResource'|'targetPointer'>):'scopes'|'roles'|'empty'|'unresolved' {
+    if(reference.resolution!=='resolved'||reference.targetResource===undefined||reference.targetPointer===undefined)return 'unresolved';
+    const target=securityRequirementDefinition(graph,{resource:reference.targetResource,pointer:reference.targetPointer,kind:'security'});
+    const type=target?graph.docs.get(target.resource)!.dataNode(target.pointer)?.value?.type:undefined;
+    if(typeof type!=='string')return 'unresolved';
+    if(type==='oauth2'||reference.family!=='2.0'&&type==='openIdConnect')return 'scopes';
+    return securityRequirementValuesAllowed(reference.family,type,1)?'roles':'empty';
+}
 
 /** Security Requirement semantics are not expressible by the structural map
  * schema: scope/role meaning depends on the graph-resolved Security Scheme
@@ -15,18 +45,7 @@ export function securityRequirementIssues(graph: ReferenceGraph): GraphIssue[] {
         if (reference.connection !== 'security' || reference.resolution !== 'resolved') continue;
         const identity = reference.targetResource + '#' + reference.targetPointer;
         if (!definitions.has(identity)) {
-            let target: GraphTarget | undefined = {resource: reference.targetResource!, pointer: reference.targetPointer!, kind: 'security'};
-            const seen = new Set<string>();
-            while (target) {
-                const at = target.resource + '#' + target.pointer;
-                if (seen.has(at) || seen.size >= 128) {target = undefined; break;}
-                seen.add(at);
-                const value = graph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
-                if (typeof value?.$ref !== 'string') break;
-                const resolved = graph.resolveReference(value.$ref, graph.scope(target.resource, target.pointer));
-                target = resolved.resolution === 'resolved' ? {resource: resolved.targetResource!, pointer: resolved.targetPointer!, kind: 'security'} : undefined;
-            }
-            definitions.set(identity, target);
+            definitions.set(identity, securityRequirementDefinition(graph,{resource: reference.targetResource!, pointer: reference.targetPointer!, kind: 'security'}));
         }
         const target = definitions.get(identity);
         if (!target) continue;
@@ -34,7 +53,7 @@ export function securityRequirementIssues(graph: ReferenceGraph): GraphIssue[] {
         const pointer = reference.pointer + '/' + escape(reference.keyword);
         const scopes = graph.docs.get(reference.resource)!.dataNode(pointer);
         if (scopes?.kind !== 'array') continue;
-        if (reference.family !== '3.2' && value?.type !== 'oauth2' && value?.type !== 'openIdConnect' && scopes.children.size > 0)
+        if (!securityRequirementValuesAllowed(reference.family,value?.type,scopes.children.size))
             issues.push({...reference, pointer, code: 'security.scopes.empty', message: 'This specification requires an empty scope array for a non-OAuth security scheme'});
         if (value?.type === 'oauth2' && value.flows && typeof value.flows === 'object') {
             const available = new Set(Object.values(value.flows).flatMap((flow: any) => Object.keys(flow?.scopes ?? {})));

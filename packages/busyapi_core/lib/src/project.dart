@@ -384,6 +384,8 @@ class BundleOutput {
   }
 }
 
+enum SecurityBindingForm { name, uri }
+
 /// Typed choices from one immutable, approved graph. A pointer alone is never
 /// a definition identity, and selecting a row does not edit its definition.
 class ReferenceChoicePage {
@@ -1936,6 +1938,7 @@ class BusyProject {
     String resource,
     String pointer, {
     String keyword = r'$ref',
+    SecurityBindingForm? bindingForm,
     String query = '',
     int offset = 0,
     String? requestId,
@@ -1959,6 +1962,7 @@ class BusyProject {
       'resource': resource,
       'pointer': pointer,
       'keyword': keyword,
+      if (bindingForm != null) 'bindingForm': bindingForm.name,
       'query': query,
       'offset': offset,
     }, requestId: requestId);
@@ -1998,7 +2002,11 @@ class BusyProject {
         result['resource'] != resource ||
         result['pointer'] != pointer ||
         result['keyword'] != keyword ||
+        result['bindingForm'] != bindingForm?.name ||
         result['kind'] is! String ||
+        result['targetKind'] is! String ||
+        (result['targetKind'] as String).isEmpty ||
+        (result['targetKind'] as String).length > 64 ||
         result['complete'] is! bool ||
         !validLocation(result) ||
         count is! int ||
@@ -2019,8 +2027,14 @@ class BusyProject {
               (entry['label'] as String).length <= 512 &&
               entry['value'] is String &&
               (entry['value'] as String).length <= 65536 &&
-              entry['kind'] ==
-                  (keyword == 'operationRef' ? 'operation' : result['kind']) &&
+              entry['kind'] == result['targetKind'] &&
+              (keyword == 'security'
+                  ? SecurityBindingForm.values.any(
+                          (form) => form.name == entry['bindingForm'],
+                        ) &&
+                        (bindingForm == null ||
+                            entry['bindingForm'] == bindingForm.name)
+                  : entry['bindingForm'] == null) &&
               const [
                 'component',
                 'schema-resource',
@@ -2064,7 +2078,13 @@ class BusyProject {
       page._capture(page.result),
       {
         'keyword': page.result['keyword'],
-        'choice': page._capture(choice['target'] as Map),
+        'choice': {
+          ...page._capture(choice['target'] as Map),
+          if (page.result['keyword'] == 'security') ...{
+            'bindingForm': choice['bindingForm'],
+            'value': choice['value'],
+          },
+        },
       },
       expectedSnapshot: page._snapshot,
       requestId: requestId,

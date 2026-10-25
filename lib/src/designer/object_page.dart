@@ -449,6 +449,13 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
         );
       }
       final kind = item['kind'] as String;
+      final binding = item['securityBinding'] == null
+          ? null
+          : SecurityBindingInspection.fromJson(item['securityBinding']);
+      final uriBindings =
+          item['capabilities'] != null &&
+          SpecificationCapabilities.fromJson(item['capabilities'])
+              .securityRequirementUris;
       final fields = (item['fields'] as List).cast<Map<String, dynamic>>();
       final entries = (item['entries'] as List).cast<Map<String, dynamic>>();
       final schema = kind == 'schema';
@@ -676,7 +683,7 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                       for (final entry in entries)
                         BusyApiActionRow(
                           title: entry['name'] as String,
-                          subtitle: l.securityScopes(entry['count'] as int),
+                          subtitle: _securityValuesLabel(context, entry),
                           onTap: () => run(() => c.selectObject(entry)),
                         ),
                       BusyApiActionRow(
@@ -692,7 +699,35 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                               )
                             : null,
                       ),
+                      if (uriBindings)
+                        BusyApiActionRow(
+                          title: l.addSecuritySchemeByUri,
+                          onTap: c.scopeSafe(item)
+                              ? () => run(
+                                  () => _chooseSecurityBinding(
+                                    context,
+                                    c,
+                                    item,
+                                    bindingForm: SecurityBindingForm.uri,
+                                  ),
+                                )
+                              : null,
+                        ),
                     ],
+                  ),
+                ],
+                if (binding != null) ...[
+                  if (binding.kind == SecurityRequirementValueKind.empty)
+                    Text(l.securityScopesEmpty),
+                  if (binding.kind == SecurityRequirementValueKind.unresolved)
+                    Text(l.securityBindingUnresolved),
+                  BusyApiActionRow(
+                    title: l.changeSecurityBinding,
+                    onTap: c.scopeSafe(item)
+                        ? () => run(
+                            () => _chooseSecurityBinding(context, c, item),
+                          )
+                        : null,
                   ),
                 ],
                 for (final ref in item['references'] as List)
@@ -898,7 +933,8 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                             ? l.addSecurityAlternative
                             : l.addObjectEntry,
                         leading: const Icon(BusyApiGlyphs.add),
-                        onTap: c.scopeSafe(item)
+                        onTap:
+                            c.scopeSafe(item) && (binding?.allowsValues ?? true)
                             ? () => run(
                                 () => kind == 'security-array'
                                     ? _addSecurityScheme(
@@ -911,6 +947,20 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                               )
                             : null,
                       ),
+                      if (kind == 'security-array' && uriBindings)
+                        BusyApiActionRow(
+                          title: l.addSecuritySchemeByUri,
+                          onTap: c.scopeSafe(item)
+                              ? () => run(
+                                  () => _chooseSecurityBinding(
+                                    context,
+                                    c,
+                                    item,
+                                    bindingForm: SecurityBindingForm.uri,
+                                  ),
+                                )
+                              : null,
+                        ),
                       if (kind == 'security-array')
                         BusyApiActionRow(
                           title: l.addAnonymousAlternative,
@@ -1069,6 +1119,46 @@ Future<void> _changeSchemaTypes(
     await c.mutate(item, [
       {'kind': 'set', 'pointer': pointer, 'value': next},
     ]);
+  }
+}
+
+String _securityValuesLabel(BuildContext context, Map<String, dynamic> entry) {
+  final l = context.l10n, value = entry['securityBinding'];
+  if (value == null) return l.securityBindingUnresolved;
+  return switch (SecurityBindingInspection.fromJson(value).kind) {
+    SecurityRequirementValueKind.scopes => l.securityScopes(
+      entry['count'] as int,
+    ),
+    SecurityRequirementValueKind.roles => l.securityRoles(
+      entry['count'] as int,
+    ),
+    SecurityRequirementValueKind.empty => l.securityScopesEmpty,
+    SecurityRequirementValueKind.unresolved => l.securityBindingUnresolved,
+  };
+}
+
+Future<void> _chooseSecurityBinding(
+  BuildContext context,
+  WorkspaceController c,
+  Map<String, dynamic> item, {
+  SecurityBindingForm? bindingForm,
+}) async {
+  final prepared = await _prepareObjectAction(context, c, item),
+      owner = c.project;
+  if (prepared == null || owner == null || !context.mounted) return;
+  final plan = await showReferencePicker(
+    context,
+    c,
+    owner,
+    prepared,
+    'security',
+    bindingForm: bindingForm,
+  );
+  if (plan != null &&
+      context.mounted &&
+      !c.disposed &&
+      identical(c.project, owner)) {
+    await showRefactoringReview(context, c, owner, plan);
   }
 }
 

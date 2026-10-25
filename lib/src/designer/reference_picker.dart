@@ -21,14 +21,16 @@ Future<RefactoringPlan?> showReferencePicker(
   WorkspaceController controller,
   BusyProject owner,
   Map<String, dynamic> occurrence,
-  String keyword,
-) => showBusyApiModalDialog<RefactoringPlan>(
+  String keyword, {
+  SecurityBindingForm? bindingForm,
+}) => showBusyApiModalDialog<RefactoringPlan>(
   context: context,
   builder: (_) => _ReferencePicker(
     controller: controller,
     owner: owner,
     occurrence: occurrence,
     keyword: keyword,
+    bindingForm: bindingForm,
   ),
 );
 
@@ -38,11 +40,13 @@ class _ReferencePicker extends StatefulWidget {
     required this.owner,
     required this.occurrence,
     required this.keyword,
+    this.bindingForm,
   });
   final WorkspaceController controller;
   final BusyProject owner;
   final Map<String, dynamic> occurrence;
   final String keyword;
+  final SecurityBindingForm? bindingForm;
   @override
   State<_ReferencePicker> createState() => _ReferencePickerState();
 }
@@ -128,6 +132,7 @@ class _ReferencePickerState extends State<_ReferencePicker> {
         widget.occurrence['resource'],
         widget.occurrence['pointer'],
         keyword: widget.keyword,
+        bindingForm: widget.bindingForm,
         query: text,
         offset: offset,
         requestId: '$prefix$token',
@@ -224,7 +229,11 @@ class _ReferencePickerState extends State<_ReferencePicker> {
           ),
         ],
         children: [
-          Text(l.referenceChoiceExplanation),
+          Text(
+            widget.keyword == 'security'
+                ? l.securityBindingChoiceExplanation
+                : l.referenceChoiceExplanation,
+          ),
           Text(
             contractIdentityLabel(
               '${p.relative(Uri.parse(widget.occurrence['resource']).toFilePath(), from: widget.owner.access.boundary)}#${widget.occurrence['pointer']} · ${widget.keyword}',
@@ -294,6 +303,22 @@ class _ReferencePickerState extends State<_ReferencePicker> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (entry['bindingForm'] != null)
+                        Text(
+                          entry['bindingForm'] == 'uri'
+                              ? l.securityUriBinding(
+                                  contractIdentityLabel(
+                                    entry['value'] as String,
+                                  ),
+                                )
+                              : l.securityNamedBinding(
+                                  contractIdentityLabel(
+                                    entry['value'] as String,
+                                  ),
+                                ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       Text(
                         '${entry['reference'] == true ? '${l.referenceOccurrence} · ' : ''}$role',
                         maxLines: 2,

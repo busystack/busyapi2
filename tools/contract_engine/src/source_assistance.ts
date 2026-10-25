@@ -2,7 +2,7 @@ import { analyse, createGraph, Resource } from './engine';
 import { fieldsForScope } from './authoring';
 import { escape, segments, SourceDocument, SourceError } from './document';
 import { GraphReference, supportedSchemaDialect } from './reference_graph';
-import { referenceValue } from './reference_choices';
+import { referenceValue, securityBindings, securitySelectionScope } from './reference_choices';
 import {isNativeFamily} from './specification';
 const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '2.0' ? '2.0' : family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
 function located(input: any, doc: SourceDocument, pointer: string, extra: any = {}) {
@@ -77,6 +77,8 @@ export function assistSource(input: any) {
     const result: any = { version: 1, snapshot: input.snapshot, root: input.root, resource: doc.id, generation: resource.generation, caret, pointer, kind: scope.kind,
         help: { name: field?.name ?? name, kind: customKeyword ? 'custom-keyword' : field ? parentScope.kind : exact?.kind ?? 'data', type: schemaDialectKnown ? field?.type ?? exact?.kind ?? node.kind : 'unknown', authored: true, ...(field ? {required: field.required === true, blockedBy: field.blockedBy, prohibited: field.prohibited === true} : {}), dialect: scope.dialect, dialectKnown: schemaDialectKnown, ...(schemaDialectKnown && (field || exact) ? { standard: standard(family, field ? parentScope.kind : scope.kind) } : {}), ...(field?.effectiveDefault !== undefined ? { effectiveDefault: field.effectiveDefault } : {}) },
         definition, resolution: reference?.resolution, dynamic: reference?.dynamic, candidates: reference?.candidateTargets?.map(target=>located(input,docs.get(target.resource)!,target.pointer,{kind:target.kind})), completions: [] };
+    if(keyNode&&parentContext?.kind==='security-requirement')
+        result.help={...result.help,kind:'security-requirement',type:'array',standard:standard(family,'security-requirement')};
     if (input.action === 'definition' || input.action === 'help')
         return result;
     if (input.action === 'usages') {
@@ -130,19 +132,25 @@ export function assistSource(input: any) {
     // Key completion is confined to a mapping in a known authored object. The
     // engine produces separators/indentation through its existing CST writer.
     let container = keyNode ? parent : node, containerPointer = keyNode ? parentPointer : pointer;
-    if (container?.kind !== 'object' || container.shared || !doc.syntaxSafe(containerPointer))
+    if (container?.kind !== 'object' || container.shared || keyNode?.shared || keyNode?.keyShared || !doc.syntaxSafe(containerPointer))
         return result;
     const context = graph.scopes.get(doc.id + '#' + containerPointer);
     if (!context || context.kind.endsWith('-map') || context.kind.endsWith('-array'))
         return result;
     if (!keyNode && doc.format === 'yaml' && !container.flow && !/^\s*$/.test(doc.text.slice(Math.max(container.range[0] + 1, doc.text.lastIndexOf('\n', caret - 1) + 1), caret)))
         return result;
-    const descriptions = fieldsForScope(graph,context,container.value);
+    let descriptions = fieldsForScope(graph,context,container.value);
     let prefix = '';
     if (keyNode) {
         const raw=doc.text.slice(keyNode.keyRange![0],caret);
         try {prefix=raw.startsWith('"')?JSON.parse(raw.endsWith('"')&&raw.length>1?raw:raw+'"'):raw.startsWith("'")?raw.slice(1).replace(/'$/, '').replaceAll("''", "'"):raw;}
         catch {return result;}
+    }
+    if(context.kind==='security-requirement'){
+        const selected=keyNode?graph.scopes.get(doc.id+'#'+keyNode.pointer):context;
+        const selection=selected?securitySelectionScope(graph,selected):undefined;
+        if(!selection)return result;
+        descriptions=securityBindings(graph,selection,{prefix}).map(binding=>({name:binding.value,type:'array',target:located(input,docs.get(binding.target.resource)!,binding.target.pointer)}));
     }
     for (const candidate of descriptions) {
         if (Object.hasOwn(container.value, candidate.name) || !candidate.name.startsWith(prefix) || candidate.prohibited || candidate.blockedBy?.length)
@@ -150,7 +158,7 @@ export function assistSource(input: any) {
         if (keyNode) {
             const range=keyNode.keyRange!, expected=doc.text.slice(...range);
             const replacement=expected.startsWith("'")?"'"+candidate.name.replaceAll("'","''")+"'":expected.startsWith('"')||doc.format==='json'?JSON.stringify(candidate.name):doc.emit(candidate.name);
-            result.completions.push({label:candidate.name,type:candidate.type,standard:standard(family,context.kind),edits:[{buffer:doc.id,generation:resource.generation,start:range[0],end:range[1],expected,replacement}],selection:[range[0]+replacement.length,range[0]+replacement.length]});
+            result.completions.push({label:candidate.name,type:candidate.type,standard:standard(family,context.kind),...(candidate.target?{target:candidate.target}:{}),edits:[{buffer:doc.id,generation:resource.generation,start:range[0],end:range[1],expected,replacement}],selection:[range[0]+replacement.length,range[0]+replacement.length]});
             continue;
         }
         const choices = candidate.options ?? (candidate.type === 'boolean' ? [true, false] : [candidate.type === 'string' ? '' : candidate.type === 'array' ? [] : candidate.type === 'object' || candidate.type === 'schema' ? {} : candidate.type === 'number' || candidate.type === 'integer' ? 0 : null]);
@@ -159,7 +167,7 @@ export function assistSource(input: any) {
             if (!insert)
                 continue;
             const replacement = insert;
-            result.completions.push({ label: candidate.name + (candidate.options || candidate.type === 'boolean' ? ' = ' + JSON.stringify(value) : ''), type: candidate.type, standard: standard(family, context.kind), edits: [{ buffer: doc.id, generation: resource.generation, start: caret, end: caret, expected: '', replacement }], selection: [caret + replacement.length, caret + replacement.length] });
+            result.completions.push({ label: candidate.name + (candidate.options || candidate.type === 'boolean' ? ' = ' + JSON.stringify(value) : ''), type: candidate.type, standard: standard(family, context.kind), ...(candidate.target?{target:candidate.target}:{}), edits: [{ buffer: doc.id, generation: resource.generation, start: caret, end: caret, expected: '', replacement }], selection: [caret + replacement.length, caret + replacement.length] });
         }
     }
     return result;

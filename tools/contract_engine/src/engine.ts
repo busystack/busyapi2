@@ -4,14 +4,14 @@ import { ReferenceGraph, supportedSchemaDialect } from './reference_graph';
 import { fieldsFor, fieldsForScope, removableField, allowsExtensions, componentFamily, componentLocation } from './authoring';
 import { SourceDocument, SourceError, RawJsonValue, escape, segments, limits } from './document';
 import {structuralEvaluator as ajv, structuralValidators as validators, structuralRevisions, structuralSchema} from './structural_schema';
-import {specificationDeclaration, isNativeFamily, modernFamily} from './specification';
+import {specificationDeclaration, isNativeFamily, modernFamily, capabilitiesFor} from './specification';
 import {securityDesign, safeFinding} from './security_design';
 import {schemaRoots,nestedSchemaBoundaries,schemaMetaView} from './schema_boundaries';
 import {setDataSource} from './data_edit';
 import {ParameterSemantics} from './parameter_semantics';
 import {authoringRelationships} from './authoring_relationships';
 import {restrictedSchemaIssues} from './restricted_schema';
-import {securityRequirementIssues} from './security_requirements';
+import {securityRequirementIssues,securityRequirementValueRule} from './security_requirements';
 import {formMediaIssues} from './form_semantics';
 import {mediaTypeIssues} from './media_validation';
 export const engineVersion = '0.1.0';
@@ -338,11 +338,17 @@ export function inspect(input: any) {
     const offset = Math.min(Math.max(0, Number.isInteger(input.offset) ? input.offset : 0), Math.max(0, (Math.ceil(node.children.size / 50) - 1) * 50));
     const ownerPointer = scope.kind === 'schema-map' && node.pointer.endsWith('/properties') ? node.pointer.slice(0, -'/properties'.length) : undefined;
     const ownerSchema = ownerPointer === undefined ? undefined : doc.node(ownerPointer);
+    const securityBinding=(pointer:string,name:string)=>{
+        const reference=graph.references.find(ref=>ref.resource===doc.id&&ref.pointer===pointer&&ref.keyword===name&&ref.connection==='security');
+        return reference?{name:reference.value,kind:securityRequirementValueRule(graph,reference)}:undefined;
+    };
+    const binding=parentScope?.kind==='security-requirement'&&scope.kind==='string-array'?securityBinding(parentPointer,last!):undefined;
     const entries = [...node.children].slice(offset, offset + 50).map(([name, child]) => ({name,
         ...located(child, graph.scopes.get(doc.id + '#' + child.pointer)?.kind ?? 'data'),
         ...(typeof child.value !== 'object' && String(child.value).length <= 240 ? {value: child.value} : {}),
         ...(child.range[1] - child.range[0] <= 16384 ? {raw: doc.dataJson(child.pointer)} : {}),
-        ...(ownerSchema ? {required: Array.isArray(ownerSchema.value.required) && ownerSchema.value.required.includes(name)} : {}), count: child.children.size}));
+        ...(ownerSchema ? {required: Array.isArray(ownerSchema.value.required) && ownerSchema.value.required.includes(name)} : {}),
+        ...(scope.kind==='security-requirement'?{securityBinding:securityBinding(node.pointer,name)}:{}), count: child.children.size}));
     const references = graph.references.filter(ref => ref.resource === doc.id && ref.pointer === node.pointer).map(ref => ({...ref,
         ...(ref.resolution === 'resolved' ? {target: {root: input.root, resource: ref.targetResource, pointer: ref.targetPointer,
             generation: input.resources.find((r: Resource) => r.id === ref.targetResource)?.generation, ...docs.get(ref.targetResource!)!.dataLocation(ref.targetPointer!)}} : {})}));
@@ -371,8 +377,9 @@ export function inspect(input: any) {
         }
     }
     const sharedTarget=!!componentFamily(scope.kind,family)&&graph.references.some(ref=>ref.resolution==='resolved'&&ref.targetResource===doc.id&&ref.targetPointer===node.pointer);
-    return {version: 1, snapshot: input.snapshot, family, customSchemaKeywords: modernFamily(family), ...located(node, scope.kind), sharedTarget, componentDestination: graph.specifications.get(doc.id)?.family===family, componentDestinations, ...(componentFamily(scope.kind,family)?{componentFamily:componentFamily(scope.kind,family)}:{}), ...(schemaTreeRoot!==undefined?{schemaTreeRoot}:{}), removable, allowsExtensions: allowsExtensions(scope.kind, family, node.value, segments(node.pointer).at(-1),graph.allowsReference(scope)), fields, entries, offset, count: node.children.size, references,
+    return {version: 1, snapshot: input.snapshot, family, ...(isNativeFamily(family)?{capabilities:capabilitiesFor(family)}:{}), customSchemaKeywords: modernFamily(family), ...located(node, scope.kind), sharedTarget, componentDestination: graph.specifications.get(doc.id)?.family===family, componentDestinations, ...(componentFamily(scope.kind,family)?{componentFamily:componentFamily(scope.kind,family)}:{}), ...(schemaTreeRoot!==undefined?{schemaTreeRoot}:{}), removable, allowsExtensions: allowsExtensions(scope.kind, family, node.value, segments(node.pointer).at(-1),graph.allowsReference(scope)), fields, entries, offset, count: node.children.size, references,
         ...(ownerSchema ? {ownerSchema: located(ownerSchema, 'schema')} : {}),
+        ...(binding?{securityBinding:binding}:{}),
         value: Object.fromEntries(fields.filter(f => f.present && Object.hasOwn(f, 'value')).map(f => [f.name, f.value])),
         boolean: scope.kind==='schema'&&typeof node.value === 'boolean' ? node.value : undefined,
         ...(operationContext?{operationContext}:{}),

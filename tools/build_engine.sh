@@ -85,6 +85,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_schema_tree.cjs"
 "$node_bin" "$engine_dir/test_reference_choices.cjs"
 "$node_bin" "$engine_dir/test_reference_selection.cjs"
+"$node_bin" "$engine_dir/test_security_selection.cjs"
 "$node_bin" "$engine_dir/test_dispatcher.cjs"
 "$node_bin" "$engine_dir/test_engine_worker_client.cjs"
 "$esbuild_bin" "$engine_dir/src/governance.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/governance.cjs"

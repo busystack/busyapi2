@@ -48,6 +48,72 @@ class CoreFailure implements Exception {
 
 enum SpecificationFamily { swagger20, openapi30, openapi31, openapi32 }
 
+enum SecurityRequirementValueKind { scopes, roles, empty, unresolved }
+
+class SecurityBindingInspection {
+  const SecurityBindingInspection._(this.name, this.kind);
+  factory SecurityBindingInspection.fromJson(Object? value) {
+    if (value case {'name': String name, 'kind': String kind}) {
+      for (final candidate in SecurityRequirementValueKind.values) {
+        if (candidate.name == kind)
+          return SecurityBindingInspection._(name, candidate);
+      }
+    }
+    throw CoreFailure(
+      'engine.security-binding',
+      'The engine returned an incomplete security binding context',
+    );
+  }
+  final String name;
+  final SecurityRequirementValueKind kind;
+  bool get allowsValues =>
+      kind == SecurityRequirementValueKind.scopes ||
+      kind == SecurityRequirementValueKind.roles;
+}
+
+/// Feature choices belong to the engine's captured specification context.
+class SpecificationCapabilities {
+  const SpecificationCapabilities._(
+    this.modernSchema,
+    this.webhooks,
+    this.reusablePathItems,
+    this.additionalOperations,
+    this.referenceAnnotations,
+    this.securityRequirementUris,
+  );
+
+  factory SpecificationCapabilities.fromJson(Object? value) {
+    if (value case {
+      'modernSchema': bool modern,
+      'webhooks': bool webhooks,
+      'reusablePathItems': bool pathItems,
+      'additionalOperations': bool additional,
+      'referenceAnnotations': bool annotations,
+      'securityRequirementUris': bool securityUris,
+    }) {
+      return SpecificationCapabilities._(
+        modern,
+        webhooks,
+        pathItems,
+        additional,
+        annotations,
+        securityUris,
+      );
+    }
+    throw CoreFailure(
+      'engine.specification',
+      'The engine returned incomplete specification capabilities',
+    );
+  }
+
+  final bool modernSchema,
+      webhooks,
+      reusablePathItems,
+      additionalOperations,
+      referenceAnnotations,
+      securityRequirementUris;
+}
+
 /// Captured engine semantics. The API's info.version is deliberately absent.
 /// Presentation consumes capabilities instead of interpreting version strings.
 class SpecificationContext {
@@ -55,11 +121,7 @@ class SpecificationContext {
     this.family,
     this.declaredVersion,
     this.schemaDialect,
-    this.modernSchema,
-    this.webhooks,
-    this.reusablePathItems,
-    this.additionalOperations,
-    this.referenceAnnotations,
+    this.capabilities,
   );
 
   factory SpecificationContext.fromJson(Object? value) {
@@ -67,13 +129,7 @@ class SpecificationContext {
       'family': String family,
       'declaredVersion': String version,
       'schemaDialect': String dialect,
-      'capabilities': {
-        'modernSchema': bool modern,
-        'webhooks': bool webhooks,
-        'reusablePathItems': bool pathItems,
-        'additionalOperations': bool additional,
-        'referenceAnnotations': bool annotations,
-      },
+      'capabilities': final capabilities,
     }) {
       final selected = switch (family) {
         '2.0' => SpecificationFamily.swagger20,
@@ -89,11 +145,7 @@ class SpecificationContext {
         selected,
         version,
         dialect,
-        modern,
-        webhooks,
-        pathItems,
-        additional,
-        annotations,
+        SpecificationCapabilities.fromJson(capabilities),
       );
     }
     throw CoreFailure(
@@ -104,11 +156,13 @@ class SpecificationContext {
 
   final SpecificationFamily family;
   final String declaredVersion, schemaDialect;
-  final bool modernSchema,
-      webhooks,
-      reusablePathItems,
-      additionalOperations,
-      referenceAnnotations;
+  final SpecificationCapabilities capabilities;
+  bool get modernSchema => capabilities.modernSchema;
+  bool get webhooks => capabilities.webhooks;
+  bool get reusablePathItems => capabilities.reusablePathItems;
+  bool get additionalOperations => capabilities.additionalOperations;
+  bool get referenceAnnotations => capabilities.referenceAnnotations;
+  bool get securityRequirementUris => capabilities.securityRequirementUris;
 }
 
 /// UTF-16 code units, half-open ranges. BOM excluded, raw line endings retained.

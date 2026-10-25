@@ -370,6 +370,16 @@ declaration requires selection against the new capture while retaining entered
 drafts. Provider metadata retrieval and sign-in remain separately unqualified;
 ordinary opening, preparation and manual-token execution make no discovery request.
 
+In Design, select a requirement's scope or role list and use **Change security
+binding…** to review a different scheme. The existing list is retained; choices
+exclude schemes that cannot represent it. Named bindings work in every supported
+family. OpenAPI 3.2 also offers **Add security scheme by URI…** on alternative and
+combined requirement lists, using already approved resources. Source key completion
+offers the same proved names and applicable URIs. Lists carry OAuth/OpenID scopes;
+other schemes require empty lists before 3.2, which can carry roles. An intentional binding change
+requires its own authentication configuration and does not copy credentials or
+environment settings. Definition rename remains a separate action.
+
 Security-scheme rename and file moves use captured graph bindings to repair
 requirement names and 3.2 URI keys. Reviewed changes include exact aliases of
 configured environment credential references; old bindings remain available for
@@ -382,7 +392,7 @@ retain their independent save scope. Publication retains per-file receipts and
 external-change checks, including a published peer of an outstanding repair.
 This does not make multi-file filesystem replacement globally atomic. See the
 [support matrix](implementation/native-openapi-support.md) for qualification
-and outstanding native URI-authoring, copy/inline and migration coverage.
+and outstanding URI copy/inline and migration coverage.
 
 Desktop persistence uses libsecret **0.21.4** through a BusyAPI-owned native channel and schema. The strict Snap exposes `password-manager-service` but does not assume it is connected; locked, missing, declined, and disconnected paths remain visible session-only operation with no file fallback. `network` and `network-bind` are limited to deliberate request/mock/OAuth/Git execution. Document navigation and messages retain the independent WebKit resource/network denials described above.
 

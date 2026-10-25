@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:busyapi/main.dart' as application;
 import 'package:busyapi/src/app/busyapi_app.dart';
 import 'package:busyapi/src/app/busyapi_design.dart';
+import 'package:busyapi/src/app/busyapi_search_field.dart';
 import 'package:busyapi/src/designer/form_value_editor.dart';
 import 'package:busyapi/src/designer/designer.dart';
 import 'package:busyapi/src/designer/schema_tree.dart';
@@ -78,7 +79,10 @@ Future<String> _run() async {
           Platform.environment['BUSYAPI_FILE_CONTROLS_VERSION'] ?? '3.2.1',
       format = Platform.environment['BUSYAPI_FILE_CONTROLS_FORMAT'] ?? 'yaml',
       maintenance =
-          Platform.environment['BUSYAPI_FILE_CONTROLS_SECURITY'] ?? '';
+          Platform.environment['BUSYAPI_FILE_CONTROLS_SECURITY'] ?? '',
+      selection =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_SECURITY_SELECTION'] ??
+          '';
   _expect(
     ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
         ['yaml', 'json'].contains(format),
@@ -88,6 +92,12 @@ Future<String> _run() async {
     ['', 'named', 'uri'].contains(maintenance) &&
         (maintenance != 'uri' || version.startsWith('3.2.')),
     'fixture-security-mode',
+  );
+  _expect(
+    ['', 'named', 'uri'].contains(selection) &&
+        (selection != 'uri' || version.startsWith('3.2.')) &&
+        (selection.isEmpty || maintenance.isEmpty),
+    'fixture-security-selection-mode',
   );
   final swagger = version == '2.0',
       declaration = swagger ? 'swagger' : 'openapi',
@@ -117,15 +127,18 @@ Future<String> _run() async {
         ],
         if (swagger) 'securityDefinitions': {
             'Old': {'type': 'apiKey', 'in': 'header', 'name': 'X-Key'},
+            if (selection.isNotEmpty) 'New': {'type': 'apiKey', 'in': 'header', 'name': 'X-New'},
           } else 'components': {
             'securitySchemes': {
               'Old': {'type': 'apiKey', 'in': 'header', 'name': 'X-Key'},
+              if (selection.isNotEmpty) 'New': {'type': 'apiKey', 'in': 'header', 'name': 'X-New'},
+              if (selection == 'uri') 'Remote': {r'$ref': 'security.json#/Remote'},
             },
           },
         'x-example': {r'$ref': 'literal', 'large': '__exact__'},
       }).replaceAll('"__exact__"', '9007199254740993.00')}\r\n';
   final rootBytes = utf8.encode(
-        maintenance.isNotEmpty
+        maintenance.isNotEmpty || selection.isNotEmpty
             ? '\ufeff$securitySource'
             : json
             ? '\ufeff{\r\n "$declaration":"$version","info":{"title":"Native 雪😀","version":"1"},\n'
@@ -151,8 +164,14 @@ environments:
       schemes:
         ${jsonEncode(binding)}: {secretRef: '11111111-1111-4111-8111-111111111111'} # retained reference
 ''';
-  if (maintenance.isNotEmpty) {
+  if (maintenance.isNotEmpty || selection.isNotEmpty) {
     await manifest.writeAsString(configuration, flush: true);
+  }
+  final externalSecurity = File('${sourceDirectory.path}/security.json');
+  const externalSecuritySource =
+      '{"Remote":{"type":"apiKey","in":"header","name":"X-Remote"}}';
+  if (selection == 'uri') {
+    await externalSecurity.writeAsString(externalSecuritySource, flush: true);
   }
   await application.main([sourceDirectory.path]);
   WorkspaceController? owner;
@@ -1160,6 +1179,165 @@ environments:
   }
 
   try {
+    if (selection.isNotEmpty) {
+      final rootId = root.uri.toString();
+      final stages = [
+        (
+          pointer: '/security/0/Old',
+          action: 'Change security binding…',
+          value: selection == 'uri' ? 'security.json#/Remote' : 'New',
+        ),
+        if (selection == 'uri') ...[
+          (
+            pointer: '/security',
+            action: 'Add security scheme by URI…',
+            value: '#/components/securitySchemes/New',
+          ),
+          (
+            pointer: '/security/0',
+            action: 'Add security scheme by URI…',
+            value: '#/components/securitySchemes/Old',
+          ),
+        ],
+      ];
+      for (final stage in stages) {
+        final before = project.store.get(rootId).bytes();
+        for (final accept in [false, true]) {
+          await route(stage.pointer);
+          await row(stage.action);
+          await _wait(
+            () =>
+                _elements(
+                  (w) =>
+                      w is BusyApiSearchField &&
+                      w.hintText == 'Search compatible definitions',
+                ).length ==
+                1,
+            'security-selection-search',
+          );
+          await click(
+            (w) =>
+                w is BusyApiSearchField &&
+                w.hintText == 'Search compatible definitions',
+            'security-selection-search-field',
+            editable: true,
+          );
+          final query = stage.value.endsWith('/Remote')
+              ? 'Remote'
+              : stage.value.endsWith('/Old')
+              ? 'Old'
+              : 'New';
+          await keys([
+            'Control_L+a',
+            for (final character in query.split('')) character,
+          ]);
+          final label =
+              '${selection == 'uri' ? 'URI' : 'Named'} binding: ${stage.value}';
+          await _wait(
+            () => _elements((w) => w is Text && w.data == label).length == 1,
+            'security-selection-loaded',
+          );
+          await click(
+            (w) => w is Text && w.data == label,
+            'security-selection-target',
+          );
+          await _wait(
+            () => _elements(
+              (w) => w is Text && w.data == 'Review reference change',
+            ).isNotEmpty,
+            'security-selection-review',
+          );
+          _expect(
+            listEquals(project.store.get(rootId).bytes(), before) &&
+                listEquals(root.readAsBytesSync(), rootBytes) &&
+                manifest.readAsStringSync() == configuration,
+            'security-selection-review-unpublished',
+          );
+          await button(accept ? 'Apply' : 'Cancel');
+          await _wait(
+            () => _elements(
+              (w) => w is Text && w.data == 'Review reference change',
+            ).isEmpty,
+            'security-selection-review-close',
+          );
+          if (!accept) {
+            _expect(
+              listEquals(project.store.get(rootId).bytes(), before),
+              'security-selection-cancel',
+            );
+          }
+        }
+        await _wait(
+          () =>
+              !controller.checking &&
+              !controller.formApplying &&
+              !listEquals(project.store.get(rootId).bytes(), before),
+          'security-selection-accepted',
+        );
+        final accepted = project.store.get(rootId).bytes();
+        await keys(['Control_L+z']);
+        await _wait(
+          () => listEquals(project.store.get(rootId).bytes(), before),
+          'security-selection-one-undo',
+        );
+        await keys(['Control_L+Shift_L+z']);
+        await _wait(
+          () => listEquals(project.store.get(rootId).bytes(), accepted),
+          'security-selection-one-redo',
+        );
+      }
+      final accepted = project.store.get(rootId).bytes(),
+          text = project.store.get(rootId).text;
+      final data = jsonDecode(
+        text.replaceFirst('# retained security source\r\n', ''),
+      ) as Map;
+      final security = data['security'] as List;
+      _expect(
+        selection == 'uri'
+            ? security.length == 2 &&
+                  security[0]['security.json#/Remote'] is List &&
+                  security[0]['#/components/securitySchemes/Old'] is List &&
+                  security[1]['#/components/securitySchemes/New'] is List
+            : security.length == 1 &&
+                  security[0]['New'] is List &&
+                  !security[0].containsKey('Old'),
+        'security-selection-actual-structure',
+      );
+      _expect(
+        text.contains('9007199254740993.00') &&
+            manifest.readAsStringSync() == configuration &&
+            (!externalSecurity.existsSync() ||
+                externalSecurity.readAsStringSync() == externalSecuritySource),
+        'security-selection-preserved-owners',
+      );
+      await keys(['Control_L+s']);
+      await _wait(
+        () =>
+            listEquals(root.readAsBytesSync(), accepted) &&
+            !project.store.get(rootId).dirty,
+        'security-selection-selected-save',
+      );
+      _expect(
+        listEquals(unused.readAsBytesSync(), unusedBytes),
+        'security-selection-unrelated-source',
+      );
+      await controller.open(root.path);
+      _expect(
+        listEquals(controller.buffer!.bytes(), accepted),
+        'security-selection-reopen',
+      );
+      await keys(['Control_L+s']);
+      await controller.shutdown();
+      _expect(
+        listEquals(root.readAsBytesSync(), accepted) &&
+            manifest.readAsStringSync() == configuration,
+        'security-selection-noop-save',
+      );
+      stdout.writeln(
+        'BUSYAPI_NATIVE_SECURITY_SELECTION_PASS binding=$selection openapi=$version format=$format cancel=unchanged history=one-step source=exact publication=selected-file',
+      );
+      return 'security-selection=$selection openapi=$version format=$format';
+    }
     if (maintenance.isNotEmpty) {
       final configId = manifest.uri.toString(), rootId = root.uri.toString();
       final pointer =
