@@ -2,8 +2,9 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { isDeepStrictEqual } from 'node:util';
 // The pinned component exports a CommonJS default; use that exact public component.
 const { default: mock, createInvalidInputResponse }:typeof import('@stoplight/prism-http/dist/mocker') = require('@stoplight/prism-http/dist/mocker');
-import {transformOas2Operations} from '@stoplight/http-spec/oas2/operation';
-import { transformOas3Operations } from '@stoplight/http-spec/oas3/operation';
+import {transformOas2Operation} from '@stoplight/http-spec/oas2/operation';
+import {transformOas3Operation} from '@stoplight/http-spec/oas3/operation';
+import {OPERATION_CONFIG} from '@stoplight/http-spec/oas';
 import { createLogger } from '@stoplight/prism-core';
 import { ContentExample, createInstance, ProblemJsonError } from '@stoplight/prism-http';
 import { DiagnosticSeverity, IMediaTypeContent } from '@stoplight/types';
@@ -14,6 +15,7 @@ import {specificationDeclaration} from './specification';
 import {mockCapture,MockNativeValidation,type MockCapture,type NativeMockCheck} from './mock_native_validation';
 import {record} from './engine_worker_client';
 import {segments,SourceError} from './document';
+import type {MockOperationLocation} from './mock_operations';
 
 const maximumInput = 64 * 1024 * 1024;
 const maximumRequestBody = 10 * 1024 * 1024;
@@ -90,16 +92,10 @@ function propertyName(node: Node): string | undefined {
     : undefined;
 }
 
-function exactExamples(text: string, tree: Node): ExactExample[] {
+function exactExamples(text: string, tree: Node,operations:readonly MockOperationLocation[]): ExactExample[] {
   const output: ExactExample[] = [];
-  const paths = findNodeAtLocation(tree, ['paths']);
-  for (const pathProperty of children(paths)) {
-    const path = propertyName(pathProperty), pathItem = pathProperty.children?.[1];
-    if (!path || !pathItem) continue;
-    for (const operationProperty of children(pathItem)) {
-      const method = propertyName(operationProperty)?.toLowerCase();
-      if (!method || !['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace', 'query'].includes(method)) continue;
-      const responses = findNodeAtLocation(operationProperty.children?.[1], ['responses']);
+  for (const {path,method,pointer}of operations) {
+      const responses = findNodeAtLocation(findNodeAtLocation(tree,segments(pointer)), ['responses']);
       for (const responseProperty of children(responses)) {
         const status = propertyName(responseProperty), response = responseProperty.children?.[1];
         if (!status || !response) continue;
@@ -128,7 +124,6 @@ function exactExamples(text: string, tree: Node): ExactExample[] {
           }
         }
       }
-    }
   }
   return output;
 }
@@ -262,8 +257,9 @@ function violation(value: { path?: string[]; severity: number; code?: string | n
 }
 
 function nativeDiagnostics(checked:NativeMockCheck,severity:'error'|'warning'='error',response=false) {
-  return checked.findings.filter(finding=>finding.severity===severity).map(finding=>({severity:severity==='error'?DiagnosticSeverity.Error:DiagnosticSeverity.Warning,code:severity==='error'&&!response?422:String(finding.code),nativeCode:String(finding.code),message:finding.code+': '+finding.message,
-    path:[(response||finding.subject==='request-parameter')&&typeof finding.subject==='string'?finding.subject:'body',...((response&&finding.subject==='response-header'||finding.subject==='request-parameter')&&typeof finding.location==='string'?[finding.location]:[]),...segments(typeof finding.pointer==='string'?finding.pointer:'')],
+  return checked.findings.filter(finding=>finding.severity===severity).map(finding=>({severity:severity==='error'?DiagnosticSeverity.Error:DiagnosticSeverity.Warning,code:severity==='error'&&!response?(finding.subject==='request-security'?401:422):String(finding.code),nativeCode:String(finding.code),message:finding.code+': '+finding.message,
+    path:[(response||finding.subject==='request-parameter'||finding.subject==='request-security')&&typeof finding.subject==='string'?finding.subject:'body',...((response&&finding.subject==='response-header'||finding.subject==='request-parameter'||finding.subject==='request-security')&&typeof finding.location==='string'?[finding.location]:[]),...segments(typeof finding.pointer==='string'?finding.pointer:'')],
+    ...(Array.isArray(finding.tags)&&finding.tags.every(tag=>typeof tag==='string')?{tags:finding.tags}:{}),
     ...(record(finding.source)?{nativeSource:finding.source}:record(finding.schema)?{nativeSource:finding.schema}:{})}));
 }
 
@@ -287,7 +283,6 @@ async function main(): Promise<void> {
     const documentText=await native.prepare(input.derived);
     const tree = parseTree(documentText);
     if (!tree) throw new Error('mock input is not strict derived JSON');
-    const examples = exactExamples(documentText, tree);
     const document:unknown = JSON.parse(documentText);
     if(!record(document))throw new SourceError('mock.capture','The captured root is not an object');
     const declaration=specificationDeclaration(document);
@@ -295,7 +290,15 @@ async function main(): Promise<void> {
       throw new Error('mock input must be a supported OpenAPI document');
     // This qualified in-memory path never asks Prism's path loader to reinterpret
     // a literal Example Object `$ref` property as a filesystem dependency.
-    const operations = declaration.specification.family==='2.0'?transformOas2Operations(document):transformOas3Operations(document);
+    const projected=native.projectedOperations(document);
+    const examples=exactExamples(documentText,tree,projected.operations);
+    // The pinned collection enumerator ignores Path Item references and QUERY.
+    // Its public per-operation API consumes the canonical captured inventory.
+    const operations=projected.operations.map(({path,method})=>{
+      const options={document:projected.document,name:path,method,config:OPERATION_CONFIG};
+      const operation=declaration.specification.family==='2.0'?transformOas2Operation(options):transformOas3Operation(options);
+      return {...operation,path};
+    });
     native.qualify(operations);
     if (operations.length === 0) throw new Error('mock input has no operations');
     const logger = createLogger('BusyAPIMock', { level: 'warn', base: undefined },
@@ -304,19 +307,27 @@ async function main(): Promise<void> {
     const rawResponses = new WeakMap<object, Buffer>();
     const signals=new WeakMap<object,AbortSignal>();
     const nativeChecks=new WeakMap<object,NativeMockCheck>();
+    const nativeSecurityChecks=new WeakMap<object,NativeMockCheck>();
     const commonConfig = { checkSecurity: true, validateRequest: true, validateResponse: false,
       mock: { dynamic: false }, upstreamProxy: undefined, errors: input.errors !== false };
     const baseConfig = input.upstream
       ? { ...commonConfig, isProxy: true as const, upstream: new URL(input.upstream) }
       : { ...commonConfig, isProxy: false as const };
     const prism = createInstance(baseConfig, { logger,
+      validateSecurity: options=>{
+        const checked=nativeSecurityChecks.get(options.element);
+        if(!checked||!checked.complete)throw new Error('Native security validation did not complete before Prism dispatch');
+        const [first,...rest]=nativeDiagnostics(checked);
+        if(!checked.valid&&!first)throw new Error('Native security validation omitted its findings');
+        return checked.valid?{_tag:'Right',right:options.element}:{_tag:'Left',left:[first,...rest]};
+      },
       validateInput: options=>{
         const checked=nativeChecks.get(options.element);
         if(!checked||!checked.complete)throw new Error('Native request validation did not complete before Prism input validation');
         const diagnostics=nativeDiagnostics(checked),[first,...rest]=diagnostics;
         if(!checked.valid&&!first)throw new Error('Native request validation omitted its invalid-input findings');
-        // Prism still owns routing, security and response negotiation. All
-        // parameter and body schema assertions use the captured native graph.
+        // Prism owns routing and response negotiation. Input assertions and
+        // security declarations use the original captured native graph.
         return checked.valid?{_tag:'Right',right:options.element}:{_tag:'Left',left:[first,...rest]};
       },
       mock: options => logger => {
@@ -355,6 +366,7 @@ async function main(): Promise<void> {
       },
       ...(input.upstream ? { forward: forwardPreservingBytes(rawRequests, rawResponses,signals) as never } : {}) });
     const server = createServer(async (request, reply) => {
+      reply.setHeader('busyapi-request-security-complete','false');
       const cancellation=new AbortController();
       request.once('aborted',()=>cancellation.abort());
       reply.once('close',()=>{if(!reply.writableEnded)cancellation.abort();});
@@ -385,13 +397,16 @@ async function main(): Promise<void> {
         signals.set(prismRequest,cancellation.signal);
         const selected=route({resources:operations,input:prismRequest});
         if(selected._tag==='Right'){
+          const securityCheck=native.security(selected.right.path,selected.right.method,url.search.slice(1),request.rawHeaders,cancellation.signal);
+          nativeSecurityChecks.set(prismRequest,securityCheck);
+          reply.setHeader('busyapi-request-security-complete',String(securityCheck.complete));
           const bodyCheck=await native.body(selected.right.path,selected.right.method,captured.raw??Buffer.alloc(0),headers['content-type'],(captured.raw?.length??0)>0||headers['content-type']!==undefined,cancellation.signal);
           const parameterCheck=await native.parameters(selected.right.path,selected.right.method,url.pathname,url.search.slice(1),headers,cancellation.signal);
           const check={complete:bodyCheck.complete&&parameterCheck.complete,valid:bodyCheck.valid&&parameterCheck.valid,findings:[...bodyCheck.findings,...parameterCheck.findings]};
-          if(!check.complete){
+          if(!check.complete||!securityCheck.complete){
             if(reply.destroyed)return;
             reply.setHeader('content-type','application/problem+json');
-            send(reply,501,JSON.stringify({type:'urn:busyapi:native-validation-incomplete',title:'Native request validation did not complete',status:501,complete:false,findings:check.findings}));
+            send(reply,501,JSON.stringify({type:'urn:busyapi:native-validation-incomplete',title:'Native request validation did not complete',status:501,complete:false,findings:[...securityCheck.findings,...check.findings]}));
             return;
           }
           nativeChecks.set(prismRequest,check);
@@ -410,17 +425,17 @@ async function main(): Promise<void> {
           const error = outcome.left as Error & { status?: number; detail?: string;
             additional?: { headers?: Record<string, string> } };
           reply.setHeader('content-type', 'application/problem+json');
-          const checked=nativeChecks.get(prismRequest);
-          if(checked&&(!checked.valid||checked.findings.some(finding=>finding.severity==='warning')))
-            reply.setHeader('sl-violations',violationHeader([...nativeDiagnostics(checked),...nativeDiagnostics(checked,'warning')].map(value=>violation(value,'request'))));
           for (const [name, value] of Object.entries(error.additional?.headers ?? {})) reply.setHeader(name, value);
+          const checked=nativeChecks.get(prismRequest),security=nativeSecurityChecks.get(prismRequest);
+          const findings=[...(security?[...nativeDiagnostics(security),...nativeDiagnostics(security,'warning')]:[]),...(checked?[...nativeDiagnostics(checked),...nativeDiagnostics(checked,'warning')]:[])];
+          if(findings.length)reply.setHeader('sl-violations',violationHeader(findings.map(value=>violation(value,'request'))));
           send(reply, error.status ?? 500, JSON.stringify(ProblemJsonError.toProblemJson(error)));
           return;
         }
         const result = outcome.right;
         const checked=nativeChecks.get(prismRequest),notes=checked?nativeDiagnostics(checked,'warning').map(value=>violation(value,'request')):[];
         for (const [name, value] of Object.entries(result.output.headers ?? {}))
-          if(!['sl-violations','busyapi-response-validation-complete'].includes(name.toLowerCase()))reply.setHeader(name, value);
+          if(!['sl-violations','busyapi-response-validation-complete','busyapi-request-security-complete'].includes(name.toLowerCase()))reply.setHeader(name, value);
         const mediaType = String(reply.getHeader('content-type') ?? '').split(';')[0].trim().toLowerCase() || undefined;
         const payload = rawResponses.get(result.output) ?? (result.output.body === undefined ? undefined :
           mediaType && (mediaType === 'application/json' || mediaType.endsWith('+json'))
@@ -479,7 +494,7 @@ async function main(): Promise<void> {
     write({ version: 1, event: 'ready', snapshot: input.snapshot, tool: 'Prism',
       toolVersion: '5.15.11', adapter: 'in-memory-http-spec-7.1.0', host: '127.0.0.1',
       port: address.port, operations: operations.length, nativeValidation:native.identity,
-      nativeResponseValidation:native.responseIdentity,nativeParameterValidation:native.parameterIdentity,upstreamForwarding: input.upstream !== undefined });
+      nativeResponseValidation:native.responseIdentity,nativeParameterValidation:native.parameterIdentity,nativeSecurityValidation:native.securityIdentity,upstreamForwarding: input.upstream !== undefined });
   } finally {
     if(!listening)await native.close();
   }

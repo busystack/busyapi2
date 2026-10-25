@@ -62,6 +62,33 @@ owner is reported separately as `nativeResponseValidation` in `mock --json`.
 incomplete response checks while retaining forwarded bytes. Malformed applicable
 JSON retains the existing HTTP 500 proxy policy.
 
+Mock security declarations use the captured native operation and graph-resolved
+schemes, reported separately as `nativeSecurityValidation` in `mock --json`.
+Alternatives use OR; schemes within one requirement use AND. An anonymous
+alternative or empty operation override permits unrelated Authorization fields.
+API key names retain their case in query/cookie fields and ignore case in headers.
+Empty values retain presence; duplicate credential fields refuse an arbitrary
+choice. Cookie keys require complete RFC6265 names and framing, without treating
+an ampersand inside another cookie's value as a separate credential.
+
+Basic, Bearer/OAuth/OpenID and Digest checks cover credential wire syntax. Basic
+uses canonical Base64, rejects ASCII controls and permits colons in passwords;
+HTTP authentication scheme names ignore case. These checks do not prove password
+validity, token issuer trust, role/scope grants or nonce authenticity. Unsupported
+mechanisms or unavailable mutual-TLS peer proofs return HTTP 501 with
+`complete: false`, including when proxy forwarding errors are disabled. Generated
+mocks retain their 401 invalid-credential policy. A validation proxy can forward
+known-invalid input when forwarding errors are explicitly disabled, retaining
+native findings and original response bytes. BusyAPI owns its diagnostic response
+fields, including `busyapi-request-security-complete`; upstream values cannot
+forge them. Security findings retain the captured source snapshot and ranges.
+
+Mock operations also use the canonical inventory and effective Path Item fields.
+Chained shared Path Items retain inherited parameters and exact operation examples;
+3.2 QUERY uses the actual QUERY method and native body/security rules. The pinned
+adapter's custom-method and generated-candidate limitations remain separately
+tracked in the [support matrix](implementation/native-openapi-support.md).
+
 Mock parameter assertions also use the original captured schemas, with a separate
 `nativeParameterValidation` identity in `mock --json`. Query, path and cookie
 names retain case; headers ignore case. Empty values retain presence, decimal
@@ -90,7 +117,7 @@ name participates in duplicate and authentication-collision checks. Required
 empty collections and undefined nested style data are refused before dispatch
 with source locations. Unexploded form-cookie collections still require an
 explicit comma-encoding policy and currently report an unsupported representation.
-Advanced multipart, security and additional-operation routing qualification remains tracked in the
+Advanced multipart, additional-operation routing and generated-candidate qualification remain tracked in the
 [support matrix](implementation/native-openapi-support.md).
 For 3.0, `required` properties marked readOnly/writeOnly use the request/response
 direction rules. In 3.1/3.2 those keywords remain annotations: native schema

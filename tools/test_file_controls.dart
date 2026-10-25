@@ -104,6 +104,8 @@ Future<String> _run() async {
           Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_RESPONSES'] == '1',
       mockParameters =
           Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_PARAMETERS'] == '1',
+      mockSecurity =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_SECURITY'] == '1',
       nestedItems =
           Platform.environment['BUSYAPI_FILE_CONTROLS_NESTED_ITEMS'] == '1';
   _expect(
@@ -267,7 +269,52 @@ Future<String> _run() async {
           },
         },
       }).replaceFirst('"EXACT"', '9007199254740992.00')}\r\n';
-  final mockSource = mockParameters
+  final mockSecurityRoot =
+      '${json ? '' : '# retained security capture\r\n'}${jsonEncode({
+        declaration: version,
+        'info': {'title': 'Native security capture', 'version': 'api-version'},
+        if (swagger) 'securityDefinitions': {
+            'Key': {'type': 'apiKey', 'in': 'header', 'name': 'X-Credential9007199254740992'},
+          } else 'components': {
+            'securitySchemes': {
+              'Key': {'type': 'apiKey', 'in': 'header', 'name': 'X-Credential9007199254740992'},
+            },
+          },
+        'paths': {
+          '/secure': {r'$ref': 'model.$format#/Secure'},
+          '/public': {r'$ref': 'model.$format#/Public'},
+        },
+        'x-literal': {r'$ref': 'literal', 'number': 0},
+      })}\r\n';
+  final securityModel = json
+      ? jsonEncode({
+          'Secure': {
+            'get': {
+              'summary': 'Captured 9007199254740992',
+              'security': [
+                {'Key': <String>[]},
+              ],
+              'responses': {
+                '204': {'description': 'Empty'},
+              },
+            },
+          },
+          'Public': {
+            'get': {
+              'security': [
+                <String, Object?>{},
+                {'Key': <String>[]},
+              ],
+              'responses': {
+                '204': {'description': 'Empty'},
+              },
+            },
+          },
+        })
+      : '# retained shared security\r\nSecure: &secure\r\n  get:\r\n    summary: Captured 9007199254740992\r\n    security: [{Key: []}]\r\n    responses: {"204": {description: Empty}}\r\nPublic:\r\n  get:\r\n    security: [{}, {Key: []}]\r\n    responses: {"204": {description: Empty}}\r\n';
+  final mockSource = mockSecurity
+      ? mockSecurityRoot
+      : mockParameters
       ? mockParameterSource
       : '${json ? '' : '# retained mock source\r\n'}${jsonEncode({
           declaration: version,
@@ -312,16 +359,18 @@ Future<String> _run() async {
       : nestedItems
       ? '# retained parameter\r\nSchema: &model\r\n  name: N\r\n  in: query\r\n  required: true\r\n  type: array\r\n  collectionFormat: csv\r\n  minItems: 2\r\n  maxItems: 2\r\n  items:\r\n    type: array\r\n    collectionFormat: pipes\r\n    minItems: 2\r\n    maxItems: 2\r\n    items: {type: integer, enum: [0, 9007199254740992.00]}\r\n'
       : '# retained parameter\r\nSchema: &model\r\n  name: N\r\n  in: query\r\n  required: true\r\n${swagger ? '  type: integer\r\n  enum: [9007199254740992.00]\r\n' : '  schema: {type: integer, enum: [9007199254740992.00]}\r\n'}';
-  final modelSource = mockParameters
+  final modelSource = mockSecurity
+      ? securityModel
+      : mockParameters
       ? parameterModel
       : json
       ? '{"Schema":{"type":"integer","enum":[9007199254740992.00]}}'
       : '# retained model\r\nSchema: &model\r\n  type: integer\r\n  enum: [9007199254740992.00]\r\n';
-  if (mockResponses || mockParameters) {
+  if (mockResponses || mockParameters || mockSecurity) {
     await modelFile.writeAsString(modelSource, flush: true);
   }
   final rootBytes = utf8.encode(
-        mockResponses || mockParameters
+        mockResponses || mockParameters || mockSecurity
             ? '\ufeff$mockSource'
             : responseStatus
             ? '\ufeff$responseSource'
@@ -1377,7 +1426,7 @@ environments:
 
   WorkspaceScreenState? mockScreen;
   try {
-    if (mockResponses || mockParameters) {
+    if (mockResponses || mockParameters || mockSecurity) {
       final screen =
           (_elements((w) => w is WorkspaceScreen).single as StatefulElement)
                   .state
@@ -1387,7 +1436,11 @@ environments:
         await controller.selectObject({
           'root': controller.root,
           'resource': file.uri.toString(),
-          'pointer': file == root ? '/info' : '/Schema',
+          'pointer': file == root
+              ? '/info'
+              : mockSecurity
+              ? '/Secure/get'
+              : '/Schema',
           'range': [0, 0],
         });
         controller.setMode('Source');
@@ -1465,7 +1518,9 @@ environments:
         (w) =>
             w is BusyApiActionRow &&
             w.title ==
-                (mockParameters ? 'Start Mock' : 'Start validation proxy') &&
+                (mockParameters || mockSecurity
+                    ? 'Start Mock'
+                    : 'Start validation proxy') &&
             w.onTap != null,
         'native-mock-start-proxy',
         eligible: _interactiveElement,
@@ -1476,12 +1531,69 @@ environments:
       );
       final run = screen.mockRun.run!;
       _expect(
-        run.upstreamForwarding == !mockParameters,
+        run.upstreamForwarding == mockResponses,
         'native-mock-explicit-mode',
       );
       final client = HttpClient();
       try {
-        if (mockParameters) {
+        if (mockSecurity) {
+          _expect(
+            run.nativeSecurityValidation.name == 'busyapi-native-security',
+            'native-mock-security-owner',
+          );
+          for (final (path, headers, status) in [
+            (
+              '/secure',
+              {'X-Credential${number(true)}': 'synthetic-private-value'},
+              204,
+            ),
+            (
+              '/secure',
+              {'X-Credential${number(false)}': 'synthetic-private-value'},
+              401,
+            ),
+            ('/secure', <String, String>{}, 401),
+            (
+              '/public',
+              {'Authorization': 'Bearer synthetic-private-value'},
+              204,
+            ),
+          ]) {
+            final request = await client.getUrl(run.baseUri.resolve(path));
+            headers.forEach(request.headers.set);
+            final response = await request.close();
+            await response.drain<void>();
+            final findings = jsonDecode(
+              response.headers.value('sl-violations') ?? '[]',
+            ) as List;
+            _expect(
+              response.statusCode == status &&
+                  response.headers.value('busyapi-request-security-complete') ==
+                      'true',
+              'native-mock-security-wire',
+            );
+            _expect(
+              status == 204
+                  ? findings.isEmpty
+                  : findings.whereType<Map>().any(
+                      (finding) =>
+                          finding['nativeCode'] ==
+                              'runtime.request.security.required' &&
+                          finding['source']['resource'] ==
+                              modelFile.uri.toString() &&
+                          finding['source']['pointer'] ==
+                              '/Secure/get/security/0' &&
+                          finding['source']['snapshot'] ==
+                              run.plan.snapshot.identity,
+                    ),
+              'native-mock-security-captured-owner',
+            );
+            _expect(
+              !jsonEncode(findings).contains('synthetic-private-value'),
+              'native-mock-security-credential-isolation',
+            );
+          }
+        } else if (mockParameters) {
           _expect(
             run.nativeParameterValidation.name == 'busyapi-native-parameters',
             'native-mock-parameter-owner',
@@ -1584,7 +1696,7 @@ environments:
         client.close(force: true);
       }
       _expect(
-        mockParameters
+        mockParameters || mockSecurity
             ? mockReceived.isEmpty
             : mockReceived.length == 2 &&
                   mockReceived.every(
@@ -1642,9 +1754,17 @@ environments:
         'native-mock-noop-save-reopen',
       );
       stdout.writeln(
-        'BUSYAPI_NATIVE_MOCK_${mockParameters ? 'PARAMETERS' : 'RESPONSES'}_PASS openapi=$version format=$format source=unsaved-root-and-model controls=prepare-start-stop validation=exact-captured history=one-undo save=reopen nested-items=$nestedItems',
+        'BUSYAPI_NATIVE_MOCK_${mockSecurity
+            ? 'SECURITY'
+            : mockParameters
+            ? 'PARAMETERS'
+            : 'RESPONSES'}_PASS openapi=$version format=$format source=unsaved-root-and-model controls=prepare-start-stop validation=exact-captured history=one-undo save=reopen nested-items=$nestedItems',
       );
-      return 'mock-${mockParameters ? 'parameters' : 'responses'}=native openapi=$version format=$format';
+      return 'mock-${mockSecurity
+          ? 'security'
+          : mockParameters
+          ? 'parameters'
+          : 'responses'}=native openapi=$version format=$format';
     }
     if (responseStatus) {
       const pointer = '/paths/~1items/get/responses/201';

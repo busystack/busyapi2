@@ -10,6 +10,8 @@ import {nativeMedia,selectNativeMedia,schemaLocation,sourceLocation,type SchemaL
 import {mockResponseProducer,validateMockResponse} from './mock_response_validation';
 import {mockParameterProducer,validateMockParameters} from './mock_request_parameters';
 import {schemaProducer} from './schema_evaluation';
+import {mockSecurityProducer,validateMockSecurity} from './mock_request_security';
+import {MockOperationProjection} from './mock_operations';
 export type {NativeMockCheck} from './mock_projection';
 
 export type MockCapture={root:string;snapshot:string;resources:Resource[]};
@@ -38,6 +40,7 @@ export class MockNativeValidation {
     private readonly operations=new Map<string,OperationOccurrence>();
     private readonly plans=new Map<string,{operation:OperationOccurrence;description:ReturnType<typeof requestOperation>;body:BodyDeclaration|undefined}>();
     private producer?:{name:string;version:string;configuration:string};
+    private operationProjection?:MockOperationProjection;
 
     constructor(private readonly capture:MockCapture) {
         this.context=createGraph(capture);
@@ -64,12 +67,19 @@ export class MockNativeValidation {
         const result=await this.client.request('deriveBundle',{...this.capture,outputId:output.id});
         if(result.snapshot!==this.capture.snapshot||result.complete!==true||!record(result.output)||result.output.id!==output.id||result.output.identity!==output.identity||typeof result.output.text!=='string')
             throw new SourceError('mock.capture.changed','The child derived document differs from the reviewed captured graph');
+        this.operationProjection=new MockOperationProjection(this.context.graph,output.id,result.provenance);
         return result.output.text;
     }
 
     get identity(){return this.producer;}
     get responseIdentity(){return this.producer&&{...mockResponseProducer,configuration:'response-wire-v2:'+this.producer.configuration};}
     get parameterIdentity(){return this.producer&&{...mockParameterProducer,configuration:'parameter-wire-v2:'+this.producer.configuration};}
+    get securityIdentity(){return this.producer&&{...mockSecurityProducer,configuration:'security-wire-v1:'+this.producer.configuration};}
+
+    projectedOperations(document:Record<string,unknown>) {
+        if(!this.operationProjection)throw new SourceError('mock.validation.protocol','The captured operation projection was not prepared');
+        return this.operationProjection.document(document);
+    }
 
     private declaration(value:unknown,operation:OperationOccurrence):BodyDeclaration|undefined {
         if(value===undefined)return;
@@ -132,6 +142,16 @@ export class MockNativeValidation {
     async parameters(template:string,method:string,path:string,query:string,headers:Readonly<Record<string,string>>,signal:AbortSignal):Promise<NativeMockCheck> {
         const {description}=this.plan(template,method);
         return validateMockParameters(this.context.graph,description,template,path,query,headers,instances=>this.evaluateInstances(instances,signal));
+    }
+
+    security(template:string,method:string,query:string,rawHeaders:readonly string[],signal:AbortSignal):NativeMockCheck {
+        const {description}=this.plan(template,method);
+        const checked=validateMockSecurity(description.security,query,rawHeaders,signal);
+        return {...checked,findings:checked.findings.map(finding=>({...finding,
+            producer:mockSecurityProducer.name,producerVersion:mockSecurityProducer.version,
+            source:record(finding.source)?{...finding.source,snapshot:this.capture.snapshot}:finding.source,
+            ...(record(finding.definition)?{definition:{...finding.definition,snapshot:this.capture.snapshot}}:{}),
+        }))};
     }
 
     private async evaluate(bytes:Buffer,actual:string,signal:AbortSignal,schema?:SchemaLocation,itemSchema?:SchemaLocation,form?:RuntimeFormTarget):Promise<NativeMockCheck> {

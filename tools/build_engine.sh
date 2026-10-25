@@ -83,6 +83,8 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_mock_native_validation.cjs"
 "$node_bin" "$engine_dir/test_mock_validation_revision.cjs"
 "$node_bin" "$engine_dir/test_mock_parameters.cjs"
+"$node_bin" "$engine_dir/test_mock_security.cjs"
+"$node_bin" "$engine_dir/test_mock_path_items.cjs"
 "$node_bin" "$engine_dir/test_mock_parameter_styles.cjs"
 "$node_bin" "$engine_dir/test_mock_parameter_edges.cjs"
 "$node_bin" "$engine_dir/test_mock_nested_items.cjs"
