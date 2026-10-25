@@ -217,7 +217,18 @@ The event-object policy includes only fields supplied in each dispatched block;
 it does not fabricate absent event/id/retry fields. An explicitly empty event
 type becomes `message`, and exactly one leading SSE byte order mark is removed. Bounded work, incomplete
 receipt and unimplemented codecs remain incomplete. These finite checks do not
-establish incremental evaluation of an unbounded stream or nested multipart.
+establish incremental evaluation of an unbounded stream.
+
+OpenAPI 3.2 serialized multipart requests and responses can map ordered JSON/text
+parts to arrays, including nested multipart, whole-array `schema` and independent
+`itemSchema` checks. `prefixEncoding` selects each corresponding position and
+`itemEncoding` applies to the remainder; unused encoding entries are ignored.
+Ordered form-data retains one named object per part. Exact numeric text, empty
+values, declared part headers and transfer encodings use the captured graph and
+the existing native evaluator. Decoding is bounded to eight nested levels and
+2,048 total parts. Unsupported media, ambiguous annotations and incomplete
+resources produce incomplete checks. This finite JSON/text support does not
+establish raw binary instance evaluation or typed positional/nested generation.
 
 Form execution uses the captured schema to interpret numeric and boolean fields,
 repeated array items and JSON object values. Explicit URL-encoded styles share
@@ -285,8 +296,9 @@ preferred, then implemented tokens starting with binary. A token is never used
 without satisfying that header's schema. Undefined implicit/header conflicts
 are refused; unavailable codecs and ambiguous conditional annotations report
 incomplete serialization. These choices are an input policy, not a server
-interoperability guarantee. Positional and nested encodings still require
-implementation and are reported as limitations before sending.
+interoperability guarantee. Typed positional and nested request generation still
+requires implementation and is reported as a limitation before sending; complete
+serialized bodies use the runtime decoding path described above.
 
 Native 3.0 `format: binary` multipart fields and files use the same octet-string
 instance policy as raw binary bodies. Entered text supplies its UTF-8 bytes;

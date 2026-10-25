@@ -4247,10 +4247,11 @@ class ContractRequestExecutor {
         : 'selected-json-body';
   }
 
-  static bool _formMedia(String? value) => const [
-    'application/x-www-form-urlencoded',
-    'multipart/form-data',
-  ].contains(value?.split(';').first.trim().toLowerCase());
+  static bool _formMedia(String? value) {
+    final essence = value?.split(';').first.trim().toLowerCase();
+    return essence == 'application/x-www-form-urlencoded' ||
+        essence?.startsWith('multipart/') == true;
+  }
 
   static RuntimeSchemaInstance _mediaInstance(
     Map? media, {

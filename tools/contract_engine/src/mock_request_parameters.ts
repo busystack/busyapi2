@@ -2,7 +2,7 @@ import {SourceError} from './document';
 import {record} from './engine_worker_client';
 import {FormSemantics,type FormShape} from './form_semantics';
 import type {ReferenceGraph} from './reference_graph';
-import {runtimeMediaKind} from './runtime_media';
+import {runtimeMediaKind,runtimeFormMedia} from './runtime_media';
 import {nativeHeaderParts} from './runtime_headers';
 import {swaggerWireShape,swaggerWireValues,type SwaggerWireShape} from './swagger_wire';
 import {nativeMedia,schemaLocation,sourceLocation,type NativeMockCheck,type NativeRuntimeCheck,type NativeRuntimeInstance,type SourceLocation} from './mock_projection';
@@ -216,7 +216,7 @@ export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,t
             }
             if(candidates+texts.length>maximumInstances)unsupported('Native parameter validation exceeds 2048 captured instances');
             candidates+=texts.length;
-            const media=parameter.content[0],form=mediaType&&['application/x-www-form-urlencoded','multipart/form-data'].includes(mediaType.split(';')[0].trim().toLowerCase())?media?.formOwner:undefined;
+            const media=parameter.content[0],form=mediaType&&runtimeFormMedia(mediaType)?media?.formOwner:undefined;
             instances.push({subject:'request-parameter',location,text:texts[0],schema:media?.schema??parameter.schema,...(texts.length>1?{alternatives:texts.slice(1)}:{}),...(mediaType?{mediaType,itemSchema:media?.itemSchema}:{}),...(form?{form}:{})});
             sources.set(location,parameter.source);
         }catch(error){

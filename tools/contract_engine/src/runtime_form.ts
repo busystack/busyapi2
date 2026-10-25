@@ -3,14 +3,16 @@ import type {GraphTarget,ReferenceGraph} from './reference_graph';
 import {FormSemantics,formLiteralType,type FormShape} from './form_semantics';
 import {ParameterSemantics} from './parameter_semantics';
 import {mediaTypeChoice,mediaTypes} from './media_types';
-import {decodeRuntimeMedia,runtimeMediaBytes,type RuntimeMediaData} from './runtime_media';
+import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind,type RuntimeMediaData} from './runtime_media';
 import {MultipartEncoding} from './multipart_encoding';
 import {decodeMultipartTransfer} from './multipart_transfer';
+import {mimeParts,mimeSingleton as singleton} from './mime_parts';
+import {decodeRuntimeMultipart} from './runtime_multipart';
 
 export type RuntimeFormTarget={resource:string;pointer:string;occurrence?:string};
 type Location={resource:string;pointer:string};
-type FormIssue={code:string;message:string;pointer:string;severity:'error'|'warning';source:{resource:string;pointer:string;range:Range}};
-type FormCheck={document:SourceDocument;schema?:Location;prefix:string;file?:boolean};
+export type FormIssue={code:string;message:string;pointer:string;severity:'error'|'warning';source:{resource:string;pointer:string;range:Range}};
+export type FormCheck={document:SourceDocument;schema?:Location;prefix:string;file?:boolean};
 export type RuntimeFormData=RuntimeMediaData&{checks:FormCheck[];issues:FormIssue[]};
 type Part={name:string;bytes:Buffer;encoded?:Buffer;headers:ReadonlyMap<string,string[]>};
 const object=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -34,12 +36,6 @@ function unquote(value:Buffer):Buffer {
     }
     return Buffer.from(output);
 }
-function singleton(headers:ReadonlyMap<string,string[]>,name:string):string|undefined {
-    const values=headers.get(name);
-    if(values&&values.length!==1)return syntax('A singleton MIME part header occurs more than once');
-    return values?.[0];
-}
-
 /** Finite RFC 7578/2046 framing. Buffers retain file octets, repeated fields and
  * order. The decoder has no filesystem, acquisition or request capabilities. */
 function parts(bytes:Buffer,contentType:string):Part[] {
@@ -56,47 +52,13 @@ function parts(bytes:Buffer,contentType:string):Part[] {
         return result;
     }
     if(type.type!=='multipart'||type.subtype!=='form-data')throw new SourceError('runtime.form.unsupported','This form representation requires another MIME binding',[0,0],'unsupported');
-    const boundary=type.parameters.get('boundary');
-    if(boundary===undefined||boundary.length<1||boundary.length>70||!/^[0-9A-Za-z'()+_,\-./:=? ]*[0-9A-Za-z'()+_,\-./:=?]$/.test(boundary))return syntax('A multipart boundary must follow RFC 2046');
-    const marker=Buffer.from('--'+boundary,'ascii'),line=Buffer.from('\r\n');
-    const delimiter=(start:number):{at:number;after:number;closed:boolean}|undefined=>{
-        let at=bytes.indexOf(marker,start);
-        while(at>=0){
-            if(at===0||bytes.subarray(at-2,at).equals(line)){
-                let after=at+marker.length,closed=false;
-                if(bytes.subarray(after,after+2).equals(Buffer.from('--'))){closed=true;after+=2;}
-                while(bytes[after]===32||bytes[after]===9)after++;
-                if(bytes.subarray(after,after+2).equals(line))return {at,after:after+2,closed};
-                if(closed&&after===bytes.length)return {at,after,closed};
-            }
-            at=bytes.indexOf(marker,at+marker.length);
-        }
-    };
-    let current=delimiter(0);
-    if(!current)return syntax('The multipart body has no initial delimiter');
-    const result:Part[]=[];
-    while(!current.closed){
-        const next=delimiter(current.after);
-        if(!next)return syntax('The multipart body has no closing delimiter');
-        const end=next.at-2,headerEnd=bytes.indexOf(Buffer.from('\r\n\r\n'),current.after);
-        if(headerEnd<current.after||headerEnd>end||headerEnd-current.after>16384)return syntax('Multipart headers are absent, unfinished or exceed 16 KiB');
-        const text=utf8(bytes.subarray(current.after,headerEnd)),headers=new Map<string,string[]>();
-        const lines=text.replace(/\r\n[ \t]+/g,' ').split('\r\n');
-        if(lines.length>64)throw new SourceError('limit.runtime.form.headers','A multipart part exceeds 64 header fields');
-        for(const value of lines){
-            const colon=value.indexOf(':'),originalName=value.slice(0,colon),name=originalName.toLowerCase();
-            if(colon<1||!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(originalName)||/[\x00-\x08\x0a-\x1f\x7f]/.test(value))return syntax('A multipart header is malformed');
-            const values=headers.get(name)??[];values.push(value.slice(colon+1).replace(/^[ \t]+|[ \t]+$/g,''));headers.set(name,values);
-        }
-        const disposition=singleton(headers,'content-disposition');
+    return mimeParts(bytes,contentType).map(part=>{
+        const disposition=singleton(part.headers,'content-disposition');
         if(disposition===undefined)return syntax('A named multipart part needs Content-Disposition');
         const parsed=mediaTypes('x/'+disposition,false);
         if(parsed.length!==1||parsed[0].subtype!=='form-data'||!parsed[0].parameters.has('name'))return syntax('A multipart form-data part needs a name');
-        result.push({name:parsed[0].parameters.get('name')!,bytes:bytes.subarray(headerEnd+4,end),headers});
-        if(result.length>maximumParts)throw new SourceError('limit.runtime.form','A multipart body exceeds 2048 parts');
-        current=next;
-    }
-    return result;
+        return {...part,name:parsed[0].parameters.get('name')!};
+    });
 }
 
 /** Contextual inversion of the canonical form projection, not a schema merger.
@@ -109,6 +71,10 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         throw new SourceError(code,message,range,unsupported?'unsupported':undefined,{...at,range});
     };
     if(!owner||!node||!scope)failure('runtime.form.owner','The captured form owner is unavailable');
+    if(scope.family==='3.2'&&scope.kind==='media'&&mediaTypes(contentType,false)[0].type==='multipart'){
+        const decoded=decodeRuntimeMultipart(text,id,contentType,base64,target,graph);
+        if(decoded)return decoded;
+    }
     const input=parts(runtimeMediaBytes(text,base64),contentType),multipart=mediaTypes(contentType,false)[0].type==='multipart';
     const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]))),transfers=new MultipartEncoding(graph);
     const checks:FormCheck[]=[],issues:FormIssue[]=[],members=new Map<string,string>(),claimed=new Map<Part,string>(),notes=new Set<string>();
@@ -171,7 +137,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         if(subject==='request-body'&&(node.value?.prefixEncoding!==undefined||node.value?.itemEncoding!==undefined))
             failure('runtime.form.positional.unsupported','This media description requires positional multipart decoding');
         const schema:GraphTarget={resource:target.resource,pointer:target.pointer+'/schema',kind:'schema'},shape=forms.shape(schema.resource,schema.pointer),properties=shape.properties??{};
-        const encoding=media&&subject==='request-body'&&object(node.value?.encoding)?node.value.encoding:{};
+        const encoding=media&&(subject==='request-body'||scope.family==='3.2')&&object(node.value?.encoding)?node.value.encoding:{};
         const styled=(rule:Record<string,unknown>)=>(!multipart||scope.family!=='3.0')&&['style','explode','allowReserved'].some(key=>Object.hasOwn(rule,key));
         const partHeaders=(part:Part,rule:Record<string,unknown>,name:string)=>{
             if(!multipart||!object(rule.headers))return;
@@ -197,13 +163,16 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
                 undeclared&&multipart?singleton(part.headers,'content-type')??'text/plain':field.defaultContentType??(undeclared||scope.family==='3.0'?'text/plain':'application/octet-stream');
             const concrete=multipart?singleton(part.headers,'content-type')??'text/plain':mediaTypeChoice(declared);
             if(multipart)mediaTypeChoice(declared,concrete);
-            const transfer=multipart&&graph.scopes.has(schema.resource+'#'+schema.pointer)?transfers.schemaEncoding(schema,name,array):{schemaEncoded:false};
+            const transfer=multipart&&graph.scopes.has(schema.resource+'#'+schema.pointer)?transfers.schemaEncoding(schema,name,array,type!==undefined&&type!=='string'?'other':undefined):{schemaEncoded:false};
             partHeaders(part,rule,name);
             const actual=singleton(part.headers,'content-transfer-encoding'),expected=transfer.encoding;
             if(actual!==undefined&&expected!==undefined&&actual.toLowerCase()!==expected.toLowerCase())
                 failure('runtime.form.transfer.undefined','The part header conflicts with its schema transfer encoding',transfer.source??schema);
             const decoded=decodeMultipartTransfer(part.bytes,actual??expected??'binary'),bytes=decoded.bytes;
-            if(transfer.schemaEncoded)return JSON.stringify(decoded.encoded??bytesText(bytes));
+            if(transfer.schemaEncoded){
+                if(runtimeMediaKind(concrete)!=='opaque')decodeRuntimeMedia(bytes.toString('base64'),id+'/encoded-media',concrete,true);
+                return JSON.stringify(decoded.encoded??bytesText(bytes));
+            }
             if(transfer.instanceEncoding==='octets')return JSON.stringify(bytes.toString('latin1'));
             const essence=mediaTypes(concrete,false)[0],json=essence.subtype==='json'||essence.subtype.endsWith('+json');
             if(json)return decodeRuntimeMedia(bytes.toString('base64'),id+'/json',concrete,true).document.dataJson('');

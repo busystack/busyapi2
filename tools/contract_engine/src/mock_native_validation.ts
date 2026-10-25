@@ -3,7 +3,7 @@ import {requestOperation} from './execution';
 import {SourceError,limits} from './document';
 import {EngineWorkerClient,record} from './engine_worker_client';
 import {mediaTypes} from './media_types';
-import {runtimeMediaKind} from './runtime_media';
+import {runtimeMediaKind,runtimeFormMedia} from './runtime_media';
 import type {RuntimeFormTarget} from './runtime_form';
 import type {OperationOccurrence} from './reference_graph';
 import {nativeMedia,selectNativeMedia,schemaLocation,sourceLocation,type SchemaLocation,type SourceLocation,type NativeMedia,type NativeRuntimeInstance,type NativeMockCheck,type NativeRuntimeCheck,type NativeRuntimeEvaluation} from './mock_projection';
@@ -140,7 +140,7 @@ export class MockNativeValidation {
         const media=selectNativeMedia(declaration.content,actual);
         if(!media)return invalid('runtime.request.content-type','The request Content-Type does not match the captured operation');
         const {schema,itemSchema}=media;
-        const form=['application/x-www-form-urlencoded','multipart/form-data'].includes(parsed[0].type+'/'+parsed[0].subtype)?media.formOwner:undefined;
+        const form=runtimeFormMedia(actual)?media.formOwner:undefined;
         if(!schema&&!itemSchema&&!form&&runtimeMediaKind(actual)==='opaque')return {complete:true,valid:true,findings:[]};
         return this.evaluate(bytes,actual,signal,schema,itemSchema,form);
     }

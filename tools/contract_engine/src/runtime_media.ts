@@ -2,10 +2,17 @@ import {SourceDocument,SourceError} from './document';
 import {mediaTypes} from './media_types';
 
 export type RuntimeMediaKind='json'|'text'|'json-lines'|'json-sequence'|'event-stream'|'opaque';
-export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];kind:RuntimeMediaKind|'octets'|'form-urlencoded'|'multipart-form'};
+export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];kind:RuntimeMediaKind|'octets'|'form-urlencoded'|'multipart-form'|'multipart-sequence'};
 export type RuntimeMediaDescription=
  {dataModelStatus:'classified'|'opaque';dataModel:RuntimeMediaKind}|
  {dataModelStatus:'invalid'|'unsupported';dataModelIssue:{code:string;message:string}};
+
+/** Multipart data needs its captured Media Type/Encoding owner in addition to
+ * byte framing. The form decoder chooses the binding from that graph scope. */
+export function runtimeFormMedia(contentType:string):boolean {
+ const essence=contentType.split(';')[0].trim().toLowerCase();
+ return essence==='application/x-www-form-urlencoded'||essence.startsWith('multipart/');
+}
 
 /** Inspect every authored choice without letting one malformed declaration
  * hide valid later choices. Invalid/unsupported metadata has no invented data

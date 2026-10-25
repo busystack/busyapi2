@@ -4,6 +4,7 @@ import {ReferenceGraph,supportedSchemaDialect,type GraphReference,type GraphTarg
 type MultipartSource={resource:string;pointer:string;range:number[]};
 export type MultipartTransfer={encoding?:string;schemaEncoded:boolean;instanceEncoding?:'octets';instanceSource?:MultipartSource;source?:MultipartSource};
 export type MultipartHeaderCandidate={name:string;values:string[];schema:GraphTarget;implicit:boolean;literalExample:boolean;source:GraphTarget};
+export type MultipartSchemaStep={property:string}|{item:number|undefined};
 
 /** MIME codecs implemented by the native transport. This is a serialization
  * capability list, not a restriction on JSON Schema content annotations. */
@@ -42,11 +43,18 @@ export class MultipartEncoding {
 
     /** Only annotations that apply to the same part instance participate. No
      * keywords are read from payload examples or from another schema dialect. */
-    schemaEncoding(schema:GraphTarget,name:string,array:boolean):MultipartTransfer {
+    schemaEncoding(schema:GraphTarget,name:string,array:boolean,instanceKind?:'string'|'other'):MultipartTransfer {
+        return this.schemaPathEncoding(schema,[{property:name},...(array?[{item:undefined}]:[])],instanceKind);
+    }
+
+    schemaPathEncoding(schema:GraphTarget,path:MultipartSchemaStep[],instanceKind?:'string'|'other'):MultipartTransfer {
+        // Content annotations and the legacy binary/byte formats only describe
+        // string instances. They cannot change an object's MIME representation.
+        if(instanceKind==='other')return {schemaEncoded:false};
         const values=new Map<string,GraphTarget>();
         let binary:GraphTarget|undefined;
         let work=0;
-        const visit=(target:GraphTarget,path:string[],active:ReadonlySet<string>,conditional=false):void=>{
+        const visit=(target:GraphTarget,path:MultipartSchemaStep[],active:ReadonlySet<string>,conditional=false):void=>{
             if(++work>2048)this.failure('limit.request.encoding','Multipart schema inspection exceeds 2048 locations',target);
             const key=JSON.stringify([target.resource,target.pointer,path]);
             if(active.has(key))return;
@@ -73,9 +81,11 @@ export class MultipartEncoding {
                 visit({...target,pointer:target.pointer+'/dependentSchemas/'+escape(key)},path,active,true);
             if(path.length){
                 const [field,...rest]=path;
-                if(field==='items'){
-                    if(value.items!==undefined&&!Array.isArray(value.items))visit({...target,pointer:target.pointer+'/items'},rest,active,conditional);
-                }else if(Object.hasOwn(value.properties??{},field))visit({...target,pointer:target.pointer+'/properties/'+escape(field)},rest,active,conditional);
+                if('item' in field){
+                    if(field.item!==undefined&&Array.isArray(value.prefixItems)&&field.item<value.prefixItems.length)
+                        visit({...target,pointer:target.pointer+'/prefixItems/'+field.item},rest,active,conditional);
+                    else if(value.items!==undefined&&!Array.isArray(value.items))visit({...target,pointer:target.pointer+'/items'},rest,active,conditional);
+                }else if(Object.hasOwn(value.properties??{},field.property))visit({...target,pointer:target.pointer+'/properties/'+escape(field.property)},rest,active,conditional);
                 return;
             }
             const encoding=scope.family==='3.0'?value.format==='byte'?'base64':undefined:typeof value.contentEncoding==='string'?value.contentEncoding:undefined;
@@ -88,7 +98,7 @@ export class MultipartEncoding {
                 values.set(encoding,{...target,pointer:target.pointer+(scope.family==='3.0'?'/format':'/contentEncoding')});
             }
         };
-        visit(schema,[name,...(array?['items']:[])],new Set());
+        visit(schema,path,new Set());
         if(values.size>1||binary&&values.size)this.failure('request.multipart.encoding.undefined','Applicable part schemas specify conflicting binary or encoded representations',binary??schema,true);
         const first=values.entries().next().value;
         if(!first){

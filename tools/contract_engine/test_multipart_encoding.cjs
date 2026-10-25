@@ -35,6 +35,18 @@ function mutate(input,change){
  return {...input,resources:[{...input.resources[0],text:input.root.endsWith('.yaml')?'# Native changed fixture\n'+YAML.stringify(value):JSON.stringify(value)},...input.resources.slice(1)]};
 }
 
+for(const version of ['3.0.4','3.2.1'])test(`${version} a field named items retains property annotation ownership`,async()=>{
+ const input=mutate(packet(version),media=>{
+  const field=version.startsWith('3.0.')?{type:'string',format:'byte'}:{type:'string',contentEncoding:'base64'};
+  media.schema={type:'object',properties:{items:field}};delete media.encoding;
+ });
+ const before=input.resources.map(resource=>resource.text);
+ const result=await requestMultipartEncoding({...input,parts:[{name:'items',kind:'string'}],files:[]});
+ assert.equal(result.parts.items.string.encoding,'base64');assert.equal(result.parts.items.string.schemaEncoded,true);
+ assert.match(result.parts.items.string.source.pointer,/\/schema\/properties\/items\/(format|contentEncoding)$/);
+ assert.deepEqual(input.resources.map(resource=>resource.text),before);
+});
+
 for(const version of ['3.0.0','3.0.1','3.0.2','3.0.3','3.0.4','3.1.2','3.2.1'])for(const format of ['json','yaml'])test(`${version} ${format} unencoded binary parts retain a family-owned octet instance directive`,async()=>{
  const input=mutate(packet(version,format),media=>{
   media.schema={type:'object',properties:{raw:{$ref:'shared.yaml#/Field'},values:{type:'array',items:{$ref:'shared.yaml#/Field'}},number:{type:'integer'}}};delete media.encoding;

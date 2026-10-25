@@ -18,8 +18,11 @@ working copy, independently checks its source ranges, then restores saved input.
 `--migrate-target VERSION` separately reviews and publishes a
 migrated copy, checks a destination race and reopens the target before returning
 to the original source. JSON targets additionally reopen without a manifest.
+`--multipart ordered|nested` sends exact and rounded serialized examples through
+the production request panel before Quit and after cold reopen.
 """
 import argparse
+import signal
 import ast
 import hashlib
 import http.client
@@ -32,6 +35,7 @@ import sys
 import tempfile
 import textwrap
 import time
+from contextlib import ExitStack
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,12 +47,12 @@ from native_focus import (
 )
 
 
-def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False, schema_definitions=False):
+def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False, schema_definitions=False, multipart=None):
     swagger = version == '2.0'
     schema = {
         'type': 'object',
         'required': ['id'],
-        'properties': {'id': {'type': 'integer', **({'enum': ['EXACT']} if mock_nested else {})}},
+        'properties': {'id': {'type': 'integer', **({'enum': ['EXACT']} if mock_nested or multipart else {})}},
         'additionalProperties': False,
         **({'default': {'id': 'EXACT'}} if mock_samples and not mock_nested else {}),
     }
@@ -73,6 +77,10 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
             'responses': {'200': response},
         }}},
     }
+    if multipart:
+        from native_multipart import multipart_operation
+        document['servers'] = [{'url': 'http://127.0.0.1:' + str(multipart.port)}]
+        document['paths']['/items'] = {'post': multipart_operation(format, multipart.nested)}
     if mock_methods:
         document['paths']['/items'] = {
             'additionalOperations': document['paths']['/items'],
@@ -125,13 +133,24 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
             '  /items:\n'
             + operations
         ).replace('\n', '\r\n')
+        if multipart:
+            source = (
+                '# Retain source organization\r\n'
+                f'openapi: "{version}"\r\n'
+                'info:\r\n'
+                f"  title: 'Production {version}'\r\n"
+                '  version: api-version\r\n'
+                f'servers: [{{url: "http://127.0.0.1:{multipart.port}"}}]\r\n'
+                'paths:\r\n  /items:\r\n    post: '
+                + json.dumps(document['paths']['/items']['post'], ensure_ascii=False) + '\r\n'
+            )
         shared = (
             '# Retain shared model and alias ownership\n'
             'Item: &item\n'
             '  type: object\n'
             '  required: [id]\n'
             '  properties:\n'
-            + ('    id: {type: integer, enum: [9007199254740993.00]}\n' if mock_nested
+            + ('    id: {type: integer, enum: [9007199254740993.00]}\n' if mock_nested or multipart
                else '    id: {type: integer}\n') +
             '  additionalProperties: false\n'
             + ('  default: {id: 9007199254740993.00}\n' if mock_samples and not mock_nested else '') +
@@ -234,7 +253,7 @@ def text_keys(value):
     return [('Shift_L+' + character.lower()) if 'A' <= character <= 'Z'
             else names.get(character, character) for character in value]
 
-def focus_control(native, pid, label, *, tabs=64):
+def focus_control(native, pid, label, *, tabs=64, backwards=False):
     for _ in range(tabs):
         nodes = tree(pid, details=True)
         matches = [node for node in nodes if node['focused']
@@ -243,11 +262,11 @@ def focus_control(native, pid, label, *, tabs=64):
             return matches[0]
         if len(matches) > 1:
             raise RuntimeError('Multiple focused controls claim ' + label)
-        keys(native, ['Tab'])
+        keys(native, ['Shift_L+Tab' if backwards else 'Tab'])
     raise RuntimeError('Bounded native keyboard traversal did not focus ' + label)
 
-def activate_control(native, pid, label):
-    focus_control(native, pid, label)
+def activate_control(native, pid, label, *, backwards=False):
+    focus_control(native, pid, label, backwards=backwards)
     keys(native, ['Return'])
 
 def wait_tree(native, pid, predicate, label):
@@ -533,6 +552,7 @@ def main():
     parser.add_argument('--schema-definitions', action='store_true')
     parser.add_argument('--operations', action='store_true')
     parser.add_argument('--migrate-target', choices=['2.0', '3.0.4', '3.1.2', '3.2.1'])
+    parser.add_argument('--multipart', choices=['ordered', 'nested'])
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1'])
@@ -553,8 +573,12 @@ def main():
     if args.operations and not args.edit:
         parser.error('--operations requires --edit for the save/reopen journey')
     if args.migrate_target and (not args.edit or args.operations or args.schema_definitions
-                               or args.documentation or args.mock_samples):
+                               or args.documentation or args.mock_samples or args.multipart):
         parser.error('--migrate-target requires --edit and its dedicated migration journey')
+    if args.multipart and (not args.edit or not args.version.startswith('3.2.') or args.operations
+                          or args.schema_definitions or args.documentation or args.mock_samples
+                          or args.migrate_target):
+        parser.error('--multipart requires --edit, OpenAPI 3.2 and its dedicated execution journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:
@@ -571,11 +595,23 @@ def main():
                 *(['--schema-definitions'] if args.schema_definitions else []),
                 *(['--operations'] if args.operations else []),
                 *(['--migrate-target', args.migrate_target] if args.migrate_target else []),
+                *(['--multipart', args.multipart] if args.multipart else []),
             ]
-            return subprocess.run(
+            # Own the complete private session, including accessibility and
+            # the application, so a timed-out journey leaves no native fixture.
+            with subprocess.Popen(
                 command, env=private_session_environment(environment, runtime),
-                timeout=90,
-            ).returncode
+                start_new_session=True,
+            ) as session:
+                try:
+                    # Multipart adds two HTTP requests and two native export
+                    # dialogs per opening. Keep each control's existing bound;
+                    # allocate the original journey budget to each opening.
+                    return session.wait(timeout=180 if args.multipart else 90)
+                except subprocess.TimeoutExpired:
+                    os.killpg(session.pid, signal.SIGTERM)
+                    session.wait(timeout=5)
+                    raise
     response = subprocess.run([
         'gdbus', 'call', '--session', '--dest', 'org.a11y.Bus',
         '--object-path', '/org/a11y/bus', '--method', 'org.a11y.Bus.GetAddress',
@@ -595,7 +631,7 @@ def main():
     if (evidence.is_symlink() or evidence.stat().st_uid != os.getuid()
             or evidence.stat().st_mode & 0o077):
         raise RuntimeError('Unowned evidence directory')
-    with tempfile.TemporaryDirectory(prefix='busyapi-prod-main-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='busyapi-prod-main-') as temporary, ExitStack() as fixtures:
         directory = Path(temporary)
         project_directory = directory / 'project'
         project_directory.mkdir()
@@ -610,10 +646,15 @@ def main():
             + ('-schema-definitions' if args.schema_definitions else '')
             + ('-operations' if args.operations else '')
             + ('-migrate-' + args.migrate_target if args.migrate_target else '')
+            + ('-multipart-' + args.multipart if args.multipart else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
-        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested, args.schema_definitions)
+        multipart = None
+        if args.multipart:
+            from native_multipart import MultipartFixture
+            multipart = fixtures.enter_context(MultipartFixture(args.multipart))
+        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested, args.schema_definitions, multipart)
         file.write_bytes(source)
         fragment.write_bytes(shared)
         files = [file, fragment]
@@ -642,6 +683,7 @@ def main():
         schema_definition_result = None
         operation_result = None
         migration_result = None
+        multipart_results = []
         binary = ROOT / 'build/linux/x64/release/bundle/busyapi-desktop'
         log = evidence / (case + '.log')
         with log.open('w') as stream:
@@ -712,6 +754,10 @@ def main():
                         nodes = tree(process.pid, details=True)
                     if args.mock_samples:
                         mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET', args.mock_nested)
+                    if multipart:
+                        from native_multipart import execute_multipart
+                        multipart_results.append(execute_multipart(native, process, file, expected_sources,
+                            args.version, multipart, evidence, case, 'initial'))
                     quit_application(native, process)
                     native = None
                     if migration_result is not None:
@@ -759,6 +805,9 @@ def main():
                     ), 'Standalone editing created a project wrapper'
                     if args.mock_samples:
                         mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET', args.mock_nested)
+                    if multipart:
+                        multipart_results.append(execute_multipart(native, process, file, expected_sources,
+                            args.version, multipart, evidence, case, 'reopened'))
                 window = native.ready()
                 width, height = native.dimensions(window)
                 pixels = Gdk.pixbuf_get_from_window(window, 0, 0, width, height)
@@ -780,6 +829,7 @@ def main():
                     'nativeSchemaDefinitions': schema_definition_result,
                     'nativeOperations': operation_result,
                     'nativeMigration': migration_result,
+                    'nativeMultipart': multipart_results,
                     'files': {
                         str(Path(name).relative_to(project_directory)):
                             hashlib.sha256(raw).hexdigest()

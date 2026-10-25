@@ -54,6 +54,11 @@ for(const version of versions)for(const yaml of [false,true])test(`${version} ${
  assert.equal(negative.findings[0].schema.resource,source.root);assert.ok(negative.findings[0].schema.range[1]>0);
  assert.equal(source.resources[0].text,original);
 });
+for(const version of versions)for(const yaml of [false,true])test(`${version} ${yaml?'YAML':'JSON'} charset labels are case-insensitive`,async()=>{
+ const source=packet(version,{type:'string',enum:['雪']},{yaml});
+ const result=await run(source,'text/plain; charset=UTF-8',Buffer.from('雪').toString('base64'),{mediaBase64:true});
+ assert.equal(result.result.complete,true,JSON.stringify(result.findings));assert.equal(result.valid,true,JSON.stringify(result.findings));
+});
 for(const version of ['3.0.0','3.0.4','3.1.2','3.2.1'])test(`${version} raw bytes retain family-specific binary interpretation`,async()=>{
  const source=packet(version,{$ref:'binary.json#/Binary'});
  source.resources.push({id:'file:///runtime-media/binary.json',generation:3,text:'{"Binary":{"type":"string","format":"binary","minLength":2,"maxLength":4}}'});

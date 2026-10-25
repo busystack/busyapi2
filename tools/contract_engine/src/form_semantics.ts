@@ -2,7 +2,7 @@ import {escape,segments,SourceError} from './document';
 import type {GraphReference,ReferenceGraph} from './reference_graph';
 import {mediaTypeOptions,mediaTypes} from './media_types';
 
-export type FormShape={types?:string[];literalType?:string;format?:string;contentEncoding?:string;properties?:Record<string,FormShape>;items?:FormShape;defaultContentType?:string};
+export type FormShape={types?:string[];literalType?:string;format?:string;contentEncoding?:string;properties?:Record<string,FormShape>;items?:FormShape;prefixItems?:FormShape[];defaultContentType?:string};
 
 export const formLiteralType=(shape:FormShape):string|undefined=>{
     // Literal input remains a string when a union permits strings; exact JSON
@@ -49,6 +49,7 @@ export class FormSemantics {
             contentEncoding:typeof value.contentEncoding==='string'?value.contentEncoding:shapes.find(shape=>shape.contentEncoding)?.contentEncoding,
             properties,
             items:value.items&&typeof value.items==='object'&&!Array.isArray(value.items)?this.shape(resource,pointer+'/items',seen,depth+1):shapes.find(shape=>shape.items)?.items,
+            prefixItems:Array.isArray(value.prefixItems)?value.prefixItems.map((_:unknown,index:number)=>this.shape(resource,pointer+'/prefixItems/'+index,seen,depth+1)):shapes.find(shape=>shape.prefixItems)?.prefixItems,
         };
         return {...shape,literalType:formLiteralType(shape),defaultContentType:formContentType(shape,scope.family)};
     }

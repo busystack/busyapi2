@@ -1,7 +1,7 @@
 import {SourceError} from './document';
 import {record} from './engine_worker_client';
 import {mediaTypes} from './media_types';
-import {runtimeMediaKind} from './runtime_media';
+import {runtimeMediaKind,runtimeFormMedia} from './runtime_media';
 import {permitsMemberName,responseStatusNamePolicy} from './member_names';
 import {isNativeFamily} from './specification';
 import type {ReferenceGraph} from './reference_graph';
@@ -73,8 +73,8 @@ export async function validateMockResponse(graph:ReferenceGraph,plan:unknown,met
             if(parsed.length!==1)throw new SourceError('runtime.response.media-type','A response requires one concrete Content-Type');
             const media=selectNativeMedia(content,actual);
             if(content.length&&!media)issue('runtime.response.media-type','The actual response Content-Type does not match its captured declaration','response-body','content-type',source);
-            else if(media?.schema||media?.itemSchema||runtimeMediaKind(actual)!=='opaque'){
-                const form=['application/x-www-form-urlencoded','multipart/form-data'].includes(parsed[0].type+'/'+parsed[0].subtype)?media?.formOwner:undefined;
+            else if(media?.schema||media?.itemSchema||runtimeFormMedia(actual)&&media?.formOwner||runtimeMediaKind(actual)!=='opaque'){
+                const form=runtimeFormMedia(actual)?media?.formOwner:undefined;
                 add({subject:'response-body',location:actual,text:bytes.toString('base64'),mediaType:actual,mediaBase64:true,schema:media?.schema,itemSchema:media?.itemSchema,...(form?{form}:{})},source);
             }
         }catch(error){

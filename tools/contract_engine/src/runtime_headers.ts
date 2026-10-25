@@ -2,7 +2,7 @@ import {SourceError,escape,segments} from './document';
 import {record} from './engine_worker_client';
 import {headerShapes} from './header_serialization';
 import {isNativeFamily} from './specification';
-import {runtimeMediaKind} from './runtime_media';
+import {runtimeMediaKind,runtimeFormMedia} from './runtime_media';
 import {nativeMedia,schemaLocation,type NativeRuntimeInstance} from './mock_projection';
 import {headerValueParts} from './header_values';
 import {supportedSchemaDialect,type ReferenceGraph,type GraphTarget} from './reference_graph';
@@ -89,7 +89,7 @@ function decodeRuntimeHeader(shapeFor:ReturnType<typeof headerShapes>,declaratio
         const media=content[0];
         if(!media.schema&&!media.itemSchema&&runtimeMediaKind(media.mediaType)==='opaque')return;
         return {complete:true,instance:{subject:'response-header',location:name,text:values.join('\n'),mediaType:media.mediaType,schema:media.schema,itemSchema:media.itemSchema,
-            ...(['application/x-www-form-urlencoded','multipart/form-data'].includes(media.mediaType.split(';')[0].trim().toLowerCase())&&media.formOwner?{form:media.formOwner}:{})}};
+            ...(runtimeFormMedia(media.mediaType)&&media.formOwner?{form:media.formOwner}:{})}};
     }
     const schema=schemaLocation(declaration.schema);
     if(!schema||record(declaration.schema)&&declaration.schema.unconstrained===true)return;
