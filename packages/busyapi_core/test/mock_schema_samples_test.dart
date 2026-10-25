@@ -40,12 +40,12 @@ String _root(String version, String format) {
   })}\r\n';
 }
 
-String _model(String format) => format == 'yaml'
+String _model(String format, {bool nested = false}) => format == 'yaml'
     ? '\uFEFF# Retain shared comments, aliases and Unicode 雪\r\n'
-          'Schema: &schema\r\n  type: integer\r\n'
-          '  default: 9007199254740992.00\r\n'
+          'Schema: &schema\r\n'
+          '${nested ? '  type: object\r\n  required: [id]\r\n  properties:\r\n    id: {type: integer, enum: [9007199254740992.00]}\r\n  additionalProperties: false\r\n' : '  type: integer\r\n  default: 9007199254740992.00\r\n'}'
           'Alias: *schema\r\nx-literal: {\$ref: literal, zero: 0, false: false}\r\n'
-    : '\uFEFF{"Schema":{"type":"integer","default":9007199254740992.00},'
+    : '\uFEFF{"Schema":${nested ? '{"type":"object","required":["id"],"properties":{"id":{"type":"integer","enum":[9007199254740992.00]}},"additionalProperties":false}' : '{"type":"integer","default":9007199254740992.00}'},'
           '"x-literal":{"\$ref":"literal","zero":0,"false":false,"text":"雪"}}\r\n';
 
 Future<void> _wire(HttpClient client, Uri base, String expected) async {
@@ -125,9 +125,9 @@ Future<_CliMock> _cli(String path) async {
   expect(message['input'], 'saved-source');
   expect(message['nativeGeneration'], {
     'name': 'busyapi-native-schema-samples',
-    'version': '1',
+    'version': '2',
     'configuration':
-        'captured-schema-candidates-v1:${message['nativeValidation']['configuration']}',
+        'captured-schema-candidates-v2:${message['nativeValidation']['configuration']}',
   });
   final host = message['host'], port = message['port'];
   if (host is! String || port is! int)
@@ -151,136 +151,151 @@ void main() {
     '3.2.1',
   ]) {
     for (final format in ['yaml', 'json']) {
-      test(
-        '$version $format installed native samples use captured unsaved data and saved CLI source',
-        () async {
-          final directory = await Directory.systemTemp.createTemp(
-            'busyapi-native-samples-',
-          );
-          addTearDown(() => directory.delete(recursive: true));
-          final file = File('${directory.path}/api.$format');
-          final fragment = File('${directory.path}/model.$format');
-          await file.writeAsString(_root(version, format));
-          await fragment.writeAsString(_model(format));
-          final original = file.readAsBytesSync(),
-              originalModel = fragment.readAsBytesSync();
-          File? manifest;
-          if (format == 'yaml') {
-            manifest = File('${directory.path}/busyapi.yaml');
-            await manifest.writeAsString(
-              'version: 1\r\n# Retain optional project\r\nroots: [{name: api, path: api.yaml}]\r\n',
+      for (final nested in [false, true]) {
+        test(
+          '$version $format installed native samples use captured unsaved data and saved CLI source nested=$nested',
+          () async {
+            final directory = await Directory.systemTemp.createTemp(
+              'busyapi-native-samples-',
             );
-          }
-          final originalManifest = manifest?.readAsBytesSync();
-          final engine = EngineProcess(
-            executable: runtimeNode,
-            helper: runtimeHelper,
-          );
-          addTearDown(engine.close);
-          final opening = manifest == null ? file.path : directory.path;
-          var project = await BusyProject.open(opening, engine);
-          addTearDown(() => project.close());
-          final root = await project.buffer(file.uri.toString());
-          final model = await project.buffer(fragment.uri.toString());
-          final workingRoot = root.text.replaceFirst('Original', 'Captured');
-          final workingModel = model.text.replaceFirst(
-            '9007199254740992.00',
-            '9007199254740993.00',
-          );
-          project.store.replace(root.id, workingRoot);
-          project.store.replace(model.id, workingModel);
-          final plan = await project.prepareMock(root.id);
-          addTearDown(plan.close);
-          final run = await plan.start(
-            nodeExecutable: runtimeNode,
-            helper: '$testBundle/libexec/busyapi/mock-server.cjs',
-          );
-          addTearDown(run.stop);
-          expect(run.nativeGeneration.name, 'busyapi-native-schema-samples');
-          expect(run.nativeGeneration.version, '1');
-          expect(
-            run.nativeGeneration.configuration,
-            'captured-schema-candidates-v1:${run.nativeValidation.configuration}',
-          );
-          final client = HttpClient();
-          addTearDown(() => client.close(force: true));
-          await _wire(client, run.baseUri, '9007199254740993.00');
-          final laterModel = workingModel.replaceFirst(
-            '9007199254740993.00',
-            '9007199254740994.00',
-          );
-          project.store.replace(model.id, laterModel);
-          expect(run.outdated, true);
-          await _wire(client, run.baseUri, '9007199254740993.00');
-          await expectLater(
-            plan.start(
+            addTearDown(() => directory.delete(recursive: true));
+            final file = File('${directory.path}/api.$format');
+            final fragment = File('${directory.path}/model.$format');
+            await file.writeAsString(_root(version, format));
+            await fragment.writeAsString(_model(format, nested: nested));
+            String expected(String number) =>
+                nested ? '{"id":$number}' : number;
+            final original = file.readAsBytesSync(),
+                originalModel = fragment.readAsBytesSync();
+            File? manifest;
+            if (format == 'yaml') {
+              manifest = File('${directory.path}/busyapi.yaml');
+              await manifest.writeAsString(
+                'version: 1\r\n# Retain optional project\r\nroots: [{name: api, path: api.yaml}]\r\n',
+              );
+            }
+            final originalManifest = manifest?.readAsBytesSync();
+            final engine = EngineProcess(
+              executable: runtimeNode,
+              helper: runtimeHelper,
+            );
+            addTearDown(engine.close);
+            final opening = manifest == null ? file.path : directory.path;
+            var project = await BusyProject.open(opening, engine);
+            addTearDown(() => project.close());
+            final root = await project.buffer(file.uri.toString());
+            final model = await project.buffer(fragment.uri.toString());
+            final workingRoot = root.text.replaceFirst('Original', 'Captured');
+            final workingModel = model.text.replaceFirst(
+              '9007199254740992.00',
+              '9007199254740993.00',
+            );
+            project.store.replace(root.id, workingRoot);
+            project.store.replace(model.id, workingModel);
+            final plan = await project.prepareMock(root.id);
+            addTearDown(plan.close);
+            final run = await plan.start(
               nodeExecutable: runtimeNode,
               helper: '$testBundle/libexec/busyapi/mock-server.cjs',
-            ),
-            throwsA(
-              isA<CoreFailure>().having(
-                (failure) => failure.code,
-                'code',
-                'mock.stale',
+            );
+            addTearDown(run.stop);
+            expect(run.nativeGeneration.name, 'busyapi-native-schema-samples');
+            expect(run.nativeGeneration.version, '2');
+            expect(
+              run.nativeGeneration.configuration,
+              'captured-schema-candidates-v2:${run.nativeValidation.configuration}',
+            );
+            final client = HttpClient();
+            addTearDown(() => client.close(force: true));
+            await _wire(client, run.baseUri, expected('9007199254740993.00'));
+            final laterModel = workingModel.replaceFirst(
+              '9007199254740993.00',
+              '9007199254740994.00',
+            );
+            project.store.replace(model.id, laterModel);
+            expect(run.outdated, true);
+            await _wire(client, run.baseUri, expected('9007199254740993.00'));
+            await expectLater(
+              plan.start(
+                nodeExecutable: runtimeNode,
+                helper: '$testBundle/libexec/busyapi/mock-server.cjs',
               ),
-            ),
-          );
-          final saved = await _cli(opening);
-          await _wire(client, saved.base, '9007199254740992.00');
-          await saved.close();
-          final next = await project.prepareMock(root.id);
-          addTearDown(next.close);
-          final nextRun = await next.start(
-            nodeExecutable: runtimeNode,
-            helper: '$testBundle/libexec/busyapi/mock-server.cjs',
-          );
-          addTearDown(nextRun.stop);
-          await _wire(client, nextRun.baseUri, '9007199254740994.00');
-          expect(file.readAsBytesSync(), original);
-          expect(fragment.readAsBytesSync(), originalModel);
-          expect(manifest?.readAsBytesSync(), originalManifest);
-          expect(root.dirty && model.dirty, true);
-          await run.stop();
-          await nextRun.stop();
-          expect(
-            (await PublicationStore(
-              '${directory.path}/publication',
-            ).save(project, [root, model])).complete,
-            true,
-          );
-          expect(file.readAsBytesSync(), [
-            239,
-            187,
-            191,
-            ...utf8.encode(workingRoot),
-          ]);
-          expect(fragment.readAsBytesSync(), [
-            239,
-            187,
-            191,
-            ...utf8.encode(laterModel),
-          ]);
-          final after = await _cli(opening);
-          await _wire(client, after.base, '9007199254740994.00');
-          await after.close();
-          project.close();
-          project = await BusyProject.open(opening, engine);
-          expect((await project.buffer(root.id)).text, workingRoot);
-          expect((await project.buffer(model.id)).text, laterModel);
-          final reopened = await project.prepareMock(root.id);
-          addTearDown(reopened.close);
-          final reopenedRun = await reopened.start(
-            nodeExecutable: runtimeNode,
-            helper: '$testBundle/libexec/busyapi/mock-server.cjs',
-          );
-          addTearDown(reopenedRun.stop);
-          await _wire(client, reopenedRun.baseUri, '9007199254740994.00');
-          await reopenedRun.stop();
-          expect(manifest?.readAsBytesSync(), originalManifest);
-          if (manifest == null)
-            expect(File('${directory.path}/busyapi.yaml').existsSync(), false);
-        },
-      );
+              throwsA(
+                isA<CoreFailure>().having(
+                  (failure) => failure.code,
+                  'code',
+                  'mock.stale',
+                ),
+              ),
+            );
+            final saved = await _cli(opening);
+            await _wire(client, saved.base, expected('9007199254740992.00'));
+            await saved.close();
+            final next = await project.prepareMock(root.id);
+            addTearDown(next.close);
+            final nextRun = await next.start(
+              nodeExecutable: runtimeNode,
+              helper: '$testBundle/libexec/busyapi/mock-server.cjs',
+            );
+            addTearDown(nextRun.stop);
+            await _wire(
+              client,
+              nextRun.baseUri,
+              expected('9007199254740994.00'),
+            );
+            expect(file.readAsBytesSync(), original);
+            expect(fragment.readAsBytesSync(), originalModel);
+            expect(manifest?.readAsBytesSync(), originalManifest);
+            expect(root.dirty && model.dirty, true);
+            await run.stop();
+            await nextRun.stop();
+            expect(
+              (await PublicationStore(
+                '${directory.path}/publication',
+              ).save(project, [root, model])).complete,
+              true,
+            );
+            expect(file.readAsBytesSync(), [
+              239,
+              187,
+              191,
+              ...utf8.encode(workingRoot),
+            ]);
+            expect(fragment.readAsBytesSync(), [
+              239,
+              187,
+              191,
+              ...utf8.encode(laterModel),
+            ]);
+            final after = await _cli(opening);
+            await _wire(client, after.base, expected('9007199254740994.00'));
+            await after.close();
+            project.close();
+            project = await BusyProject.open(opening, engine);
+            expect((await project.buffer(root.id)).text, workingRoot);
+            expect((await project.buffer(model.id)).text, laterModel);
+            final reopened = await project.prepareMock(root.id);
+            addTearDown(reopened.close);
+            final reopenedRun = await reopened.start(
+              nodeExecutable: runtimeNode,
+              helper: '$testBundle/libexec/busyapi/mock-server.cjs',
+            );
+            addTearDown(reopenedRun.stop);
+            await _wire(
+              client,
+              reopenedRun.baseUri,
+              expected('9007199254740994.00'),
+            );
+            await reopenedRun.stop();
+            expect(manifest?.readAsBytesSync(), originalManifest);
+            if (manifest == null)
+              expect(
+                File('${directory.path}/busyapi.yaml').existsSync(),
+                false,
+              );
+          },
+        );
+      }
     }
   }
 }

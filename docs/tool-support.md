@@ -132,14 +132,20 @@ document, declared specification version, dependency or runtime lock changes.
 
 The native sample owner proves finite authored whole-value examples, defaults,
 enum values and modern const/examples values against the original captured
-schema before giving Prism a request-owned example view. Exact JSON body bytes
+schema before giving Prism a request-owned example view. Bounded nested object
+and array construction uses original graph references, exact property/item
+suggestions, primitive/bound seeds and merged allOf properties. Every complete
+candidate receives the same original whole-schema proof. Exact JSON body bytes
 retain source numeric tokens and literal payload keys. Static media examples
 keep priority; dynamic bodies choose proved constrained candidates. Status/media
 selection still follows the pinned Prism negotiator. Unspecified Swagger response
 media uses a JSON generator default without changing the document. Candidate/work
 limits and unsupported evaluation stay incomplete; this policy does not establish
-arbitrary nested schema generation. CLI readiness exposes `nativeGeneration`
-separately, and Core rejects an incompatible policy identity.
+arbitrary constraint generation. CLI readiness exposes `nativeGeneration`
+separately (`busyapi-native-schema-samples` version 2), and Core rejects an
+incompatible policy identity. Construction and proof cancellation cannot return
+a cached success after ownership has ended. The [support record](implementation/native-openapi-support.md)
+lists exact-number, nested-property, installed CLI and production Linux coverage.
 
 This adapter was inspected against installed Prism **5.15.11** negotiator/mocker
 sources, http-spec **7.1.0** OAS2 response transformation, and the pinned MIT

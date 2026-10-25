@@ -37,14 +37,14 @@ from native_focus import (
 )
 
 
-def fixture_sources(version, format, mock_samples=False, mock_methods=False):
+def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False):
     swagger = version == '2.0'
     schema = {
         'type': 'object',
         'required': ['id'],
-        'properties': {'id': {'type': 'integer'}},
+        'properties': {'id': {'type': 'integer', **({'enum': ['EXACT']} if mock_nested else {})}},
         'additionalProperties': False,
-        **({'default': {'id': 'EXACT'}} if mock_samples else {}),
+        **({'default': {'id': 'EXACT'}} if mock_samples and not mock_nested else {}),
     }
     reference = {'$ref': './model.' + format + '#/Item'}
     response = {
@@ -119,9 +119,10 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False):
             '  type: object\n'
             '  required: [id]\n'
             '  properties:\n'
-            '    id: {type: integer}\n'
+            + ('    id: {type: integer, enum: [9007199254740993.00]}\n' if mock_nested
+               else '    id: {type: integer}\n') +
             '  additionalProperties: false\n'
-            + ('  default: {id: 9007199254740993.00}\n' if mock_samples else '') +
+            + ('  default: {id: 9007199254740993.00}\n' if mock_samples and not mock_nested else '') +
             'Mirror: *item\n'
             'x-literal:\n'
             '  $ref: literal\n'
@@ -241,7 +242,7 @@ def click_control(native, pid, name):
                     'point': points[name]})
 
 
-def mock_samples(native, process, format, method='GET'):
+def mock_samples(native, process, format, method='GET', nested=False):
     mode(native, process.pid, 'Local mock')
     wait_tree(
         native, process.pid,
@@ -273,7 +274,7 @@ def mock_samples(native, process, format, method='GET'):
             body = response.read()
             assert response.status == 200, body
             expected = (b'{\n      "id": 9007199254740993.00\n    }'
-                        if format == 'json' else b'{"id":9007199254740993.00}')
+                        if format == 'json' and not nested else b'{"id":9007199254740993.00}')
             assert body == expected, body
             assert response.getheader('content-length') == str(len(body))
             assert response.getheader('busyapi-response-validation-complete') == 'true'
@@ -395,11 +396,14 @@ def main():
     parser.add_argument('--project', action='store_true')
     parser.add_argument('--mock-samples', action='store_true')
     parser.add_argument('--mock-methods', action='store_true')
+    parser.add_argument('--mock-nested', action='store_true')
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1'])
     parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
     args = parser.parse_args()
+    if args.mock_nested:
+        args.mock_samples = True
     if args.mock_methods:
         if not args.version.startswith('3.2.'):
             parser.error('--mock-methods requires an OpenAPI 3.2 root')
@@ -417,6 +421,7 @@ def main():
                 *(['--project'] if args.project else []),
                 *(['--mock-samples'] if args.mock_samples else []),
                 *(['--mock-methods'] if args.mock_methods else []),
+                *(['--mock-nested'] if args.mock_nested else []),
             ]
             return subprocess.run(
                 command, env=private_session_environment(environment, runtime),
@@ -451,10 +456,11 @@ def main():
             + ('-journey' if args.edit else '')
             + ('-mock-samples' if args.mock_samples else '')
             + ('-methods' if args.mock_methods else '')
+            + ('-nested' if args.mock_nested else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
-        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods)
+        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested)
         file.write_bytes(source)
         fragment.write_bytes(shared)
         files = [file, fragment]
@@ -527,7 +533,7 @@ def main():
                     edited, nodes = edit(native, process, file, fragment, original, args.version)
                     expected_sources[str(file)] = edited
                     if args.mock_samples:
-                        mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET')
+                        mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET', args.mock_nested)
                     quit_application(native, process)
                     native = None
                     process = subprocess.Popen(
@@ -547,7 +553,7 @@ def main():
                         args.project or not (project_directory / 'busyapi.yaml').exists()
                     ), 'Standalone editing created a project wrapper'
                     if args.mock_samples:
-                        mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET')
+                        mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET', args.mock_nested)
                 window = native.ready()
                 width, height = native.dimensions(window)
                 pixels = Gdk.pixbuf_get_from_window(window, 0, 0, width, height)
@@ -564,6 +570,7 @@ def main():
                     'complete': True, 'nodes': nodes,
                     'nativeMockSamples': args.mock_samples,
                     'nativeMockMethods': args.mock_methods,
+                    'nativeMockNested': args.mock_nested,
                     'files': {
                         str(Path(name).relative_to(project_directory)):
                             hashlib.sha256(raw).hexdigest()

@@ -1659,7 +1659,7 @@ environments:
         } else if (mockSamples) {
           _expect(
             run.nativeGeneration.name == 'busyapi-native-schema-samples' &&
-                run.nativeGeneration.version == '1',
+                run.nativeGeneration.version == '2',
             'native-mock-sample-owner',
           );
           for (var index = 0; index < 2; index++) {

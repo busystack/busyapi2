@@ -4,8 +4,9 @@ import {record} from './engine_worker_client';
 import {supportedSchemaDialect,type ReferenceGraph,type GraphTarget} from './reference_graph';
 import {modernFamily} from './specification';
 import {nativeMedia,selectNativeMedia,schemaLocation,type SchemaLocation,type SourceLocation,type NativeRuntimeInstance,type NativeRuntimeCheck} from './mock_projection';
+import {MockSchemaShapes} from './mock_schema_shapes';
 
-export const mockSampleProducer=Object.freeze({name:'busyapi-native-schema-samples',version:'1'});
+export const mockSampleProducer=Object.freeze({name:'busyapi-native-schema-samples',version:'2'});
 type Sample={raw:string;source:SourceLocation};
 type Evaluate=(instances:NativeRuntimeInstance[],signal:AbortSignal)=>Promise<NativeRuntimeCheck>;
 
@@ -16,8 +17,10 @@ export class MockSchemaSamples {
     private readonly references:Map<string,ReferenceGraph['references']>;
     private readonly proved=new Map<string,readonly Sample[]>();
     private readonly identities:ReadonlyMap<string,string>;
+    private readonly shapes:MockSchemaShapes;
 
     constructor(private readonly graph:ReferenceGraph,private readonly evaluate:Evaluate,private readonly revision:string) {
+        this.shapes=new MockSchemaShapes(graph);
         this.identities=new Map([...graph.docs].map(([id,doc])=>[id,createHash('sha256').update(doc.text).digest('hex')]));
         this.references=new Map();
         for(const edge of graph.references)if(edge.kind==='schema'&&!edge.connection) {
@@ -86,6 +89,36 @@ export class MockSchemaSamples {
         return {samples:output,...(limit?{limit}:{})};
     }
 
+    private async prove(candidates:Sample[],schema:SchemaLocation,dynamic:boolean,proved:readonly Sample[]|undefined,signal:AbortSignal):Promise<Sample|undefined> {
+        if(signal.aborted)throw new SourceError('cancelled','Mock schema sample selection was cancelled');
+        const offset=dynamic&&candidates.length?randomInt(candidates.length):0;
+        const ordered=[...candidates.slice(offset),...candidates.slice(0,offset)];
+        const known=ordered[0]&&proved?.find(sample=>sample.raw===ordered[0].raw);
+        if(known)return known;
+        let selected:Sample|undefined;
+        if(ordered.length) {
+            const checked=await this.evaluate([{
+                subject:'response-body',location:'mock-schema-sample',schema,
+                text:ordered[0].raw,...(ordered.length>1?{alternatives:ordered.slice(1).map(sample=>sample.raw)}:{}),
+            }],signal);
+            if(signal.aborted)throw new SourceError('cancelled','Mock schema sample selection was cancelled');
+            if(!checked.complete) {
+                const source=ordered[0].source;
+                throw new SourceError('mock.sample.unchecked','The original schema could not completely evaluate captured sample candidates',source.range,'unsupported',source);
+            }
+            const [evaluation]=checked.evaluations;
+            if(checked.evaluations.length!==1||evaluation.subject!=='response-body'||evaluation.location!=='mock-schema-sample'||!evaluation.complete)
+                throw new SourceError('mock.validation.protocol','The schema sample proof omitted or repeated its captured candidate group');
+            if(evaluation.valid) {
+                const index=ordered.length===1?0:evaluation.chosen;
+                if(typeof index!=='number'||!Number.isSafeInteger(index)||index<0||index>=ordered.length)
+                    throw new SourceError('mock.validation.protocol','The schema sample proof omitted a valid original candidate identity');
+                selected=ordered[index];
+            }
+        }
+        return selected;
+    }
+
     async response(plan:unknown,status:string,actual:string,dynamic:boolean,signal:AbortSignal):Promise<string|undefined> {
         if(signal.aborted)throw new SourceError('cancelled','Mock schema sample selection was cancelled');
         if(!record(plan)||!record(plan.operation)||!Array.isArray(plan.responses))
@@ -111,32 +144,16 @@ export class MockSchemaSamples {
             specification?.declaredVersion,scope?.family,scope?.dialect,scope?.base,scope?.resourcePointer,dynamic]);
         const proved=this.proved.get(key);
         if(proved!==undefined&&(!dynamic||!proved.length))return proved[0]?.raw;
-        const {samples:candidates,limit}=this.candidates(schema,dynamic);
-        const offset=dynamic&&candidates.length?randomInt(candidates.length):0;
-        const ordered=[...candidates.slice(offset),...candidates.slice(0,offset)];
-        const known=ordered[0]&&proved?.find(sample=>sample.raw===ordered[0].raw);
-        if(known)return known.raw;
-        let selected:Sample|undefined;
-        if(ordered.length) {
-            const checked=await this.evaluate([{
-                subject:'response-body',location:'mock-schema-sample',schema,
-                text:ordered[0].raw,...(ordered.length>1?{alternatives:ordered.slice(1).map(sample=>sample.raw)}:{}),
-            }],signal);
-            if(signal.aborted)throw new SourceError('cancelled','Mock schema sample selection was cancelled');
-            if(!checked.complete) {
-                const source=ordered[0].source;
-                throw new SourceError('mock.sample.unchecked','The original schema could not completely evaluate captured sample candidates',source.range,'unsupported',source);
-            }
-            const [evaluation]=checked.evaluations;
-            if(checked.evaluations.length!==1||evaluation.subject!=='response-body'||evaluation.location!=='mock-schema-sample'||!evaluation.complete)
-                throw new SourceError('mock.validation.protocol','The schema sample proof omitted or repeated its captured candidate group');
-            if(evaluation.valid) {
-                const index=ordered.length===1?0:evaluation.chosen;
-                if(typeof index!=='number'||!Number.isSafeInteger(index)||index<0||index>=ordered.length)
-                    throw new SourceError('mock.validation.protocol','The schema sample proof omitted a valid original candidate identity');
-                selected=ordered[index];
-            }
+        const authored=this.candidates(schema,dynamic);
+        let limit=authored.limit;
+        let selected=await this.prove(authored.samples,schema,dynamic,proved,signal);
+        if(signal.aborted)throw new SourceError('cancelled','Mock schema sample selection was cancelled');
+        if(!selected&&!limit) {
+            const nested=this.shapes.candidates(schema,location=>this.candidates(location,dynamic),authored.samples);
+            limit=nested.limit;
+            selected=await this.prove(nested.samples,schema,dynamic,proved,signal);
         }
+        if(signal.aborted)throw new SourceError('cancelled','Mock schema sample selection was cancelled');
         if(!selected&&limit)
             throw new SourceError('mock.sample.limit','No captured candidate was proved within the 256-candidate / 8 MiB sample budget',limit.range,'unsupported',limit);
         if(this.proved.size>=128)this.proved.clear();
