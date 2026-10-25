@@ -9,7 +9,7 @@ import {downgradeSwagger} from './migration_downgrade';
 import {evaluateSchemas} from './schema_evaluation';
 import {referenceValue} from './reference_choices';
 import {coldGraph} from './reference_selection';
-import {documentUriBase,resolveUri} from './reference_graph';
+import {documentUriBase,resolveUri,pointerFragment as fragment} from './reference_graph';
 import {documentUriOccurrences} from './authoring';
 import {serverTemplate} from './derived_bundle';
 import {hasRelativeMarkdownLinks} from './markdown_links';
@@ -19,9 +19,9 @@ import {checkRequestBodyTarget,migrateOperationBodies} from './migration_operati
 import {checkSecurityRequirementTarget} from './migration_security';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
+const migrationProducerVersion='2';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
-const fragment=(pointer:string)=>'#'+encodeURI(pointer).replaceAll('#','%23').replaceAll('?','%3F');
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
 export type MigrationDisposition='faithfully-convertible'|'requires-decision'|'blocked';
 
@@ -38,7 +38,7 @@ export async function planMigration(input:MigrationInput) {
     const decisions=input.decisions??{};
     if(!decisions||typeof decisions!=='object'||Array.isArray(decisions)||Object.keys(decisions).length>2048)throw new SourceError('migration.decisions','Expected bounded explicit migration decisions');
     let resources:Resource[]=input.resources.map((resource:Resource)=>({...resource}));
-    const decisionRevision=digest(JSON.stringify([input.snapshot,input.targetVersion,input.resources.map((resource:Resource)=>[resource.id,resource.generation,resource.text,resource.aliases]).sort((a:any,b:any)=>String(a[0]).localeCompare(String(b[0])))]));
+    const decisionRevision=digest(JSON.stringify([migrationProducerVersion,input.snapshot,input.targetVersion,input.resources.map((resource:Resource)=>[resource.id,resource.generation,resource.text,resource.aliases]).sort((a:any,b:any)=>String(a[0]).localeCompare(String(b[0])))]));
     const decisionChoices=new Map<string,string[]>();
     const problems:MigrationProblem[]=[],accepted=new Set<string>(),stages:{from:string;to:string}[]=[],presentationChanges:{resource:string;pointer:string}[]=[];
     const ignoredBodyOmissions:MigrationLocation[]=[];
@@ -101,7 +101,7 @@ export async function planMigration(input:MigrationInput) {
             if(problems.length)break;
             migrateSchemas(graph,sources,before,after,issue);
             migrateEncodings(graph,sources,before,after,issue);
-            if(before==='2.0')upgradeSwagger(graph,sources,issue);
+            const referenceTargets=before==='2.0'?upgradeSwagger(graph,sources,issue):undefined;
             if(after==='2.0')downgradeSwagger(graph,sources,issue);
             if(problems.length)break;
             for(const [id,specification]of graph.specifications){
@@ -115,7 +115,7 @@ export async function planMigration(input:MigrationInput) {
             for(const reference of graph.references){
                 if(!['$ref','operationRef'].includes(reference.keyword)||reference.resolution!=='resolved')continue;
                 const destinations=[...sources].flatMap(([id,source])=>[...(id===reference.targetResource?source.origins.get(reference.targetPointer!):source.foreignOrigins.get(reference.targetResource+'#'+reference.targetPointer!))??[]].map(pointer=>({resource:id,pointer})));
-                const destination=destinations.length===1?destinations[0]:undefined;
+                const destination=referenceTargets?.get(reference.resource+'#'+reference.pointer)??(destinations.length===1?destinations[0]:undefined);
                 for(const [id,source]of sources){
                     const locations=id===reference.resource?source.origins.get(reference.pointer+'/'+escape(reference.keyword)):source.foreignOrigins.get(reference.resource+'#'+reference.pointer+'/'+escape(reference.keyword));
                     for(const pointer of locations??[]){
@@ -149,7 +149,7 @@ export async function planMigration(input:MigrationInput) {
             if(!decisionChoices.has(id))throw new SourceError('migration.decisions.stale','A supplied decision does not belong to this captured migration graph and target');
             if(!decisionChoices.get(id)!.includes(String(choice)))throw new SourceError('migration.decisions.choice','Choose a listed migration decision');
         }
-        return ({version:1,snapshot:input.snapshot,producer:'busyapi-native-migration',producerVersion:'1',from,target,stages,status:status(),complete:!problems.length,problems,acceptedDecisions:[...accepted],presentationChanges,
+        return ({version:1,snapshot:input.snapshot,producer:'busyapi-native-migration',producerVersion:migrationProducerVersion,from,target,stages,status:status(),complete:!problems.length,problems,acceptedDecisions:[...accepted],presentationChanges,
         affectedResources:resources.map(resource=>({resource:resource.id,generation:resource.generation,identity:resource.identity})),coverage:{source:'captured-native-graph',target:'native-structure-and-schema-evaluation',externalConsumers:'Only captured resources and their established connections are known'}});
     };
     if(problems.length)return {...common(),changes:[],outputs:[]};
@@ -168,7 +168,10 @@ export async function planMigration(input:MigrationInput) {
     const paths=new Map(resources.map(resource=>[resource.id,(resource.id===input.root?'openapi':'resources/'+digest(resource.id).slice(0,24))+'.'+sources.get(resource.id)!.doc.format]));
     const identifiers=new Map([...paths].map(([id,path])=>[id,new URL(path,input.destination).href]));
     if([...identifiers.values()].some(id=>context.graph.identities.has(id)))throw new SourceError('migration.destination','The output would replace a captured source identity');
-    let outputResources=resources.map(resource=>({...resource,id:identifiers.get(resource.id)!,text:sources.get(resource.id)!.doc.text,aliases:[resource.id,...resource.aliases??[]],generation:0}));
+    // Ordinary copied documents use their new retrieval location. Explicit
+    // $id/$self identities and approved aliases remain available separately;
+    // an optional project mapping must not be needed for a local self-reference.
+    let outputResources=resources.map(resource=>({...resource,id:identifiers.get(resource.id)!,text:sources.get(resource.id)!.doc.text,aliases:[identifiers.get(resource.id)!,resource.id,...resource.aliases??[]],generation:0}));
     let relocated=createGraph({...input,root:identifiers.get(input.root),resources:outputResources});
     for(const reference of relocated.graph.references){
         if(!['$ref','$dynamicRef','operationRef'].includes(reference.keyword)||reference.resolution!=='resolved')continue;
@@ -176,7 +179,7 @@ export async function planMigration(input:MigrationInput) {
         const value=destination&&referenceValue(relocated.graph,scope,destination,reference.keyword);
         if(value===undefined){issue({resource:input.root,pointer:''},'migration.reference.relocation','A captured reference has no proved portable target spelling','implementation');continue;}
         const source=outputResources.find(resource=>resource.id===reference.resource)!;
-        const doc=new SourceDocument(source.text,source.id);source.text=doc.set(reference.pointer+'/'+escape(reference.keyword),resolveUri(value,scope.base).href);
+        const doc=new SourceDocument(source.text,source.id);source.text=doc.set(reference.pointer+'/'+escape(reference.keyword),value);
     }
     const outputRoot=identifiers.get(input.root)!;await validate(outputResources,outputRoot);
     const finalContext=createGraph({...input,root:outputRoot,resources:outputResources});
@@ -210,13 +213,17 @@ export async function planMigration(input:MigrationInput) {
     if(problems.length)return {...common(),changes:[],outputs:[]};
     // Cold reopen proves that relative files and explicit identity mappings are
     // sufficient; no original-source disk access is a migration dependency.
-    const mappings=new Map(resources.map(resource=>[resource.id,paths.get(resource.id)!]));
-    for(const [identity,targets]of finalContext.graph.identities)if(targets.length===1&&targets[0].pointer===''){
-        const path=[...paths].find(([id])=>identifiers.get(id)===targets[0].resource)?.[1];
-        if(path&&!identity.startsWith(input.destination))mappings.set(identity,path);
+    const mappings=new Map([...paths].map(([id,path])=>[identifiers.get(id)!,path]));
+    for(const scope of finalContext.graph.scopes.values())if(scope.pointer===''){
+        const value=finalContext.docs.get(scope.resource)!.root.value;
+        const declared=scope.kind==='schema'&&typeof value?.$id==='string'||scope.kind==='root'&&scope.family==='3.2'&&typeof value?.$self==='string';
+        const path=[...paths].find(([id])=>identifiers.get(id)===scope.resource)?.[1];
+        if(declared&&path)mappings.set(scope.base,path);
     }
     if(mappings.size>256)issue({resource:input.root,pointer:''},'limit.migration.mappings','The migrated identity map exceeds the configured 256 URI mappings','source-incomplete');
-    const coldResources=outputResources.map(resource=>({...resource,aliases:[resource.id,...[...mappings].filter(([,path])=>new URL(path,input.destination).href===resource.id).map(([uri])=>uri)]}));
+    // Core sorts approved mappings before choosing a retrieval identity. Prove
+    // the delivered manifest with that same ordering, not transient old aliases.
+    const coldResources=outputResources.map(resource=>({...resource,aliases:[...mappings].filter(([,path])=>new URL(path,input.destination).href===resource.id).map(([uri])=>uri).sort()}));
     const reopened=coldGraph(outputRoot,coldResources);
     if(reopened.issues.length)issue({resource:input.root,pointer:''},'migration.reference.cold-reopen','The copied files and root identity mappings cannot reopen every captured dependency; a nested-resource relocation needs an additional mapping','implementation');
     if(problems.length)return {...common(),changes:[],outputs:[]};
@@ -224,5 +231,5 @@ export async function planMigration(input:MigrationInput) {
     const outputs=outputResources.map(resource=>({path:[...paths].find(([id])=>identifiers.get(id)===resource.id)![1],id:resource.id,text:resource.text,hasBom:input.resources.find((source:Resource)=>identifiers.get(source.id)===resource.id)?.hasBom===true,identity:digest(resource.text)}));
     const changes=resources.map(resource=>({resource:resource.id,destination:identifiers.get(resource.id),before:original.get(resource.id)!.text,after:outputResources.find(output=>output.id===identifiers.get(resource.id))!.text}));
     for(const decision of Object.keys(decisions))if(!accepted.has(decision))throw new SourceError('migration.decisions.stale','A supplied decision does not belong to this captured migration plan');
-    return {...common(),entry:paths.get(input.root),outputRoot,outputs,changes,manifest,identity:digest(JSON.stringify([input.snapshot,target,outputs,decisions])),validation:{complete:true,family:target.family},invariants:{operations:'preserved-method-and-path',requests:'effective-url-serialization-security-and-media',references:'canonical-target-relocation',examples:'exact-cst-values'}};
+    return {...common(),entry:paths.get(input.root),outputRoot,outputs,changes,manifest,identity:digest(JSON.stringify([migrationProducerVersion,input.snapshot,target,outputs,manifest,decisions])),validation:{complete:true,family:target.family},invariants:{operations:'preserved-method-and-path',requests:'effective-url-serialization-security-and-media',references:'canonical-target-relocation',examples:'exact-cst-values'}};
 }

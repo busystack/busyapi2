@@ -84,9 +84,12 @@ export class MigrationSource {
         this.ensure(parent);
         if(this.doc.nodes.has(to))throw new SourceError('migration.collision','A migration destination already exists at '+to);
         const owner=this.doc.node(parent),block=before.format==='yaml'&&!node.flow&&(node.kind==='object'||node.kind==='array');
+        // Collection ranges begin at their first value token. Comments between
+        // the entry key and that token still belong to the copied occurrence.
+        const leading=before.format==='yaml'?before.comments(from,true).filter(range=>range[1]<=node.range[0]).map(range=>before.text.slice(...range)):[];
         if(this.doc.format==='yaml'&&(!owner.flow||owner.children.size===0)&&this.blockParent(parent)&&block){
             const raw=before.text.slice(...node.range),indent=before.indent(node.range[0]);
-            const local=raw.replace(/(?:\r\n|\r|\n)([ \t]*)/g,(_match,space)=>this.doc.newline+space.slice(Math.min(indent,space.length)));
+            const local=(leading.length?leading.join(this.doc.newline)+this.doc.newline:'')+raw.replace(/(?:\r\n|\r|\n)([ \t]*)/g,(_match,space)=>this.doc.newline+space.slice(Math.min(indent,space.length)));
             const inline=this.doc.text.slice(this.doc.lineStart(owner.range[0]),owner.range[0]).trim()!=='';
             const depth=this.doc.indent(owner.range[0]),entryIndent=depth+(owner.flow&&inline?2:0);
             if(owner.flow&&owner.children.size===0){
@@ -99,7 +102,7 @@ export class MigrationSource {
         }else if(before.format===this.doc.format&&!block){
             this.set(to,null);const slot=this.doc.node(to),raw=before.text.slice(...node.range);
             const indent=before.indent(node.range[0]),depth=this.doc.indent(slot.range[0]);
-            const adjusted=raw.replace(/(?:\r\n|\r|\n)([ \t]*)/g,(_match,space)=>this.doc.newline+' '.repeat(depth)+space.slice(Math.min(indent,space.length)));
+            const adjusted=(leading.length?leading.join(this.doc.newline+' '.repeat(depth+2))+this.doc.newline+' '.repeat(depth+2):'')+raw.replace(/(?:\r\n|\r|\n)([ \t]*)/g,(_match,space)=>this.doc.newline+' '.repeat(depth)+space.slice(Math.min(indent,space.length)));
             this.update(this.doc.replace(...slot.range,adjusted));
         }else{
             this.exact(to,expected);this.presentationChanges.push(to);

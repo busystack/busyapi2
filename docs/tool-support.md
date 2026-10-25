@@ -244,6 +244,17 @@ remain intact in the original files. Migration to 3.0 blocks an active body on a
 method whose target declaration would be ignored, including callback operations.
 A composed Swagger 2.0 upgrade to 3.1/3.2 retains the originally active body.
 
+Shared Swagger body parameters and responses retain each operation's effective
+`consumes`/`produces` through media-specific target wrappers and one source-owned
+schema. External fragments, chained references, exact media examples and
+extensions remain captured. Local references use the migrated retrieval location
+and reopen after relocation without a project manifest. The generated project
+also retains file mappings and declared resource identities; its cold-reopen
+proof uses the same sorted mapping order as Core. Nested Swagger header delimiter
+hierarchies receive precise source-located conversion blockers. See the
+[migration guide](migration.md) and native support matrix for qualified directions
+and remaining mappings.
+
 Contract-case JSON reports include `dispatched` and `operationalFailure`. Coverage
 counts operation occurrences handed to the HTTP transport; refused preparation
 remains untested. The retained `executedOperations` field counts these dispatched

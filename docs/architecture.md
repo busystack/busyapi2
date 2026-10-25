@@ -378,3 +378,4 @@ the target family. A migration review is independent of a declaration edit.
 The core rechecks its captured buffers and disk inputs before atomic output
 publication; live source is never a migration destination. Implementation
 coverage and remaining blockers are recorded in the support matrix.
+The [migration guide](migration.md) describes the desktop and CLI review flow.
