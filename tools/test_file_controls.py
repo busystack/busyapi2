@@ -240,9 +240,10 @@ class NativeInput:
             self.xt.XTestFakeButtonEvent(self.display, 1, 0, 0)
         elif action['kind'] == 'snapshot':
             name = action.get('name', '')
-            if not isinstance(name, str) or not name.startswith('http-') or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789-' for c in name):
-                raise ValueError('Invalid HTTP-client snapshot name')
-            evidence = Path('/tmp/busyapi-http-native-evidence')
+            if not isinstance(name, str) or len(name) > 96 or not name.startswith(('http-', 'create-')) or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789-' for c in name):
+                raise ValueError('Invalid native snapshot name')
+            http = name.startswith('http-')
+            evidence = Path('/tmp/busyapi-http-native-evidence' if http else '/tmp/busyapi-creation-native-evidence')
             evidence.mkdir(mode=0o700, exist_ok=True)
             if evidence.is_symlink() or evidence.stat().st_uid != os.getuid():
                 raise ValueError('Unowned snapshot directory')
@@ -258,7 +259,7 @@ class NativeInput:
             while queue:
                 node = queue.pop(0); visited += 1
                 if visited > 4096:
-                    raise RuntimeError('HTTP accessibility inspection exceeded its bound')
+                    raise RuntimeError('Native accessibility inspection exceeded its bound')
                 names.add(node.get_name())
                 if action.get('texts') and node.get_role() != Atspi.Role.PASSWORD_TEXT:
                     text = node.get_text_iface()
@@ -267,11 +268,12 @@ class NativeInput:
                 queue.extend(node.get_child_at_index(i) for i in range(node.get_child_count()))
             for label in action.get('labels', []):
                 if not any(label in (name or '') for name in names):
-                    raise RuntimeError('HTTP accessibility label was not exposed: ' + label)
+                    raise RuntimeError('Native accessibility label was not exposed: ' + label)
             for wanted in action.get('texts', []):
                 if not any(wanted in (value or '') for value in texts):
-                    raise RuntimeError('HTTP accessible text was not exposed: ' + wanted)
-            print('BUSYAPI_HTTP_NATIVE_EVIDENCE ' + name + ' accessible-labels=' + str(len(action.get('labels', []))) + ' accessible-text=' + str(len(action.get('texts', []))), flush=True)
+                    raise RuntimeError('Native accessible text was not exposed: ' + wanted)
+            prefix = 'BUSYAPI_HTTP_NATIVE_EVIDENCE ' if http else 'BUSYAPI_CREATION_NATIVE_EVIDENCE '
+            print(prefix + name + ' accessible-labels=' + str(len(action.get('labels', []))) + ' accessible-text=' + str(len(action.get('texts', []))), flush=True)
         elif action['kind'] == 'menu-ready':
             # A native channel request is asynchronous. A fixed post-click
             # delay does not prove GTK has mapped its popup under build load.
