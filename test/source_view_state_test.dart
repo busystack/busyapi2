@@ -11,6 +11,83 @@ import 'package:flutter_test/flutter_test.dart';
 import '../packages/busyapi_core/test/test_support.dart';
 
 void main() {
+  testWidgets(
+    'a retired Source owner paints one coherent retained line window',
+    (tester) async {
+      const original = 'one\ntwo\nthree\nfour\nfive',
+          replacement = 'one\ntwo\nthree\nfour';
+      final buffer = DocumentBuffer(
+        id: 'form-value:retired',
+        path: 'value.yaml',
+        text: original,
+        baseline: original,
+        diskIdentity: '',
+        hasBom: false,
+      );
+      final store = BufferStore()..buffers[buffer.id] = buffer;
+      buffer.selection = SourceSelection(original.length, original.length);
+      final changes = ValueNotifier(0);
+      var current = true;
+      final editor = SourceEditor(
+        buffer: buffer,
+        owner: buffer,
+        isCurrent: () => current,
+        changes: changes,
+        onChanged: (text) => store.replace(buffer.id, text),
+        onEdit: (edit) => store.apply([edit]),
+        undo: store.undo,
+        redo: store.redo,
+      );
+      addTearDown(tester.view.resetPhysicalSize);
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildBusyApiTheme(
+              brightness: Brightness.light,
+              accentColor: const Color(0xffe95420),
+            ),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: editor),
+          ),
+        );
+        await tester.pump();
+        final field = find.descendant(
+          of: find.byType(SourceEditor),
+          matching: find.byType(EditableText),
+        );
+        expect(tester.widget<EditableText>(field).controller.text, original);
+        expect(find.text('5'), findsOneWidget);
+        current = false;
+        store.replace(buffer.id, replacement);
+        changes.value++;
+        final size = tester.view.physicalSize;
+        tester.view.physicalSize = Size(size.width + 20, size.height + 20);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(tester.widget<EditableText>(field).controller.text, original);
+        expect(find.text('5'), findsOneWidget);
+        expect(buffer.text, replacement);
+        current = true;
+        changes.value++;
+        await tester.pump();
+        await tester.pump();
+        expect(tester.widget<EditableText>(field).controller.text, replacement);
+        expect(find.text('5'), findsNothing);
+        expect(find.text('4'), findsOneWidget);
+        store.undo();
+        changes.value++;
+        await tester.pump();
+        expect(tester.widget<EditableText>(field).controller.text, original);
+        expect(find.text('5'), findsOneWidget);
+        expect(buffer.text, original);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        changes.dispose();
+      }
+    },
+  );
   test('fold pointers persist independently per root/resource without authoring project settings', () async {
     final temp = await Directory.systemTemp.createTemp(
       'busyapi-fold-preferences-',

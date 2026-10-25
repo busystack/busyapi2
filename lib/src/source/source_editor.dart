@@ -121,6 +121,16 @@ class SourceEditorState extends State<SourceEditor> {
   int _viewportEpoch = 0;
   static const _windowUnits = 16384;
   String _full = '';
+  SourceLineIndex? _displayIndex;
+  // A retired owner can paint before its replacement is installed. Its
+  // retained text, geometry and gutter still need the same source index.
+  SourceLineIndex get _sourceLines {
+    final lines = widget.buffer.lines;
+    if (lines.source == _full) return _displayIndex = lines;
+    if (_displayIndex?.source != _full) _displayIndex = SourceLineIndex(_full);
+    return _displayIndex!;
+  }
+
   bool _sync = false, _find = false, _loadingScroll = false;
   bool _accepting = false;
   TextRange _seenComposing = TextRange.empty;
@@ -141,6 +151,7 @@ class SourceEditorState extends State<SourceEditor> {
   List<SourceDiagnostic>? _diagnosticInput;
   final _diagnosticIndex = <(String, int), List<SourceDiagnostic>>{};
   List<SourceDiagnostic> _currentDiagnostics() {
+    if (_full != widget.buffer.text) return const [];
     if (!identical(_diagnosticInput, widget.diagnostics)) {
       _diagnosticInput = widget.diagnostics;
       _diagnosticIndex.clear();
@@ -154,7 +165,10 @@ class SourceEditorState extends State<SourceEditor> {
   }
 
   Widget _lineNumbers(List<double> heights, TextStyle style) {
-    final active = widget.buffer.lines.lineAtOffset(selection.extent).number;
+    final activeOffset = _full == widget.buffer.text
+        ? selection.extent
+        : _physicalOffset(_controller.selection.extentOffset);
+    final active = _sourceLines.lineAtOffset(activeOffset).number;
     final diagnostics = _currentDiagnostics();
     final palette = (
       busyApiStatusColor(context, BusyApiStatusKind.error),
@@ -183,7 +197,7 @@ class SourceEditorState extends State<SourceEditor> {
     final markers = <int, List<SourceDiagnostic>>{};
     for (final diagnostic in _currentDiagnostics()) {
       if (!diagnostic.current(widget.buffer)) continue;
-      final line = widget.buffer.lines.lineNumberAtOffset(diagnostic.start);
+      final line = _sourceLines.lineNumberAtOffset(diagnostic.start);
       if (!_visibleLines.contains(line)) continue;
       (markers[line] ??= []).add(diagnostic);
     }
@@ -562,12 +576,13 @@ class SourceEditorState extends State<SourceEditor> {
     final columns = math.max(8, (width / math.max(1, painter.width)).floor());
     final lineHeight = painter.height;
     painter.dispose();
-    if (identical(_indexed, widget.buffer.lines) &&
+    final lines = _sourceLines;
+    if (identical(_indexed, lines) &&
         columns == _columns &&
         _lineHeight == lineHeight) {
       return;
     }
-    _indexed = widget.buffer.lines;
+    _indexed = lines;
     _columns = columns;
     _lineHeight = lineHeight;
     _tops = [0];
@@ -583,9 +598,7 @@ class SourceEditorState extends State<SourceEditor> {
   }
 
   double _yForOffset(int offset) {
-    final line = widget.buffer.lines.lineAtOffset(
-      offset.clamp(0, _full.length),
-    );
+    final line = _sourceLines.lineAtOffset(offset.clamp(0, _full.length));
     final row = ((offset - line.startOffset) / _columns).floor();
     return (_tops.length > line.number ? _tops[line.number - 1] : 0) +
         row * _lineHeight;

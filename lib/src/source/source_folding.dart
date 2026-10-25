@@ -309,19 +309,20 @@ class _SourceFolding {
 
 extension _SourceFoldPresentation on SourceEditorState {
   void _updateVisibleLines() {
+    final lines = _sourceLines;
     if (identical(_visibleWindow, _window) &&
-        identical(_visibleIndex, widget.buffer.lines) &&
+        identical(_visibleIndex, lines) &&
         _visibleStart == _start &&
         _visibleEnd == _end) {
       return;
     }
     _visibleWindow = _window;
-    _visibleIndex = widget.buffer.lines;
+    _visibleIndex = lines;
     _visibleStart = _start;
     _visibleEnd = _end;
     if (_window == null) {
-      final first = widget.buffer.lines.lineNumberAtOffset(_start);
-      final last = widget.buffer.lines.lineNumberAtOffset(_end);
+      final first = lines.lineNumberAtOffset(_start);
+      final last = lines.lineNumberAtOffset(_end);
       final numbers = List.generate(last - first + 1, (i) => first + i);
       if (_visibleLines.length != numbers.length ||
           Iterable<int>.generate(numbers.length)
@@ -332,9 +333,7 @@ extension _SourceFoldPresentation on SourceEditorState {
       return;
     }
     final source = _windowText;
-    final numbers = <int>[
-      widget.buffer.lines.lineNumberAtOffset(_physicalOffset(0)),
-    ];
+    final numbers = <int>[lines.lineNumberAtOffset(_physicalOffset(0))];
     for (var i = 0; i < source.length; i++) {
       final unit = source.codeUnitAt(i);
       if (unit != 10 && unit != 13) continue;
@@ -343,9 +342,7 @@ extension _SourceFoldPresentation on SourceEditorState {
           source.codeUnitAt(i + 1) == 10) {
         i++;
       }
-      numbers.add(
-        widget.buffer.lines.lineNumberAtOffset(_physicalOffset(i + 1)),
-      );
+      numbers.add(lines.lineNumberAtOffset(_physicalOffset(i + 1)));
     }
     if (_visibleLines.length != numbers.length ||
         Iterable<int>.generate(numbers.length)
