@@ -13,6 +13,7 @@ add_executable(${BINARY_NAME}
   "gtk_accent_host.cc"
   "gtk_header_icons.cc"
   "gtk_window_preferences.cc"
+  "gtk_widget_lifetime.cc"
   "linux_chrome_host.cc"
   "documentation_host.cc"
   "documentation_runtime.cc"

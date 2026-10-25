@@ -13,6 +13,7 @@
 
 #include "flutter/generated_plugin_registrant.h"
 #include "gtk_accent_host.h"
+#include "gtk_widget_lifetime.h"
 #include "linux_chrome_host.h"
 #include "native_shortcut_metadata.h"
 #include "documentation_host.h"
@@ -1094,6 +1095,8 @@ static void my_application_activate(GApplication* application) {
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
   self->chrome_host = busyapi_linux_chrome_host_new(view, window, set_gtk_theme_preference);
   register_native_menu_channel(self, view);
+  busyapi_retain_widget_tree_until_disposed(
+      GTK_WIDGET(view), G_OBJECT(fl_view_get_engine(view)));
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
