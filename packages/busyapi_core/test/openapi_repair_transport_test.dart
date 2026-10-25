@@ -1651,7 +1651,7 @@ void main() {
   });
   for (final version in ['3.1.2', '3.2.1']) {
     test(
-      'F05 $version ambiguous and repeated header representations remain honest',
+      'F05 $version supported header alternatives and incomplete representations remain distinct',
       () async {
         final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
         addTearDown(() => server.close(force: true));
@@ -1707,10 +1707,12 @@ void main() {
               (
                 'untyped',
                 {
+                  // pattern constrains strings; the same wire text also
+                  // represents ["BAD"], allowed without a type restriction.
                   'schema': {'pattern': '^OK'},
                 },
                 ['BAD'],
-                false,
+                true,
                 true,
               ),
               (
@@ -1721,6 +1723,33 @@ void main() {
                   },
                 },
                 ['42'],
+                true,
+                true,
+              ),
+              (
+                'invalid-union',
+                {
+                  'schema': {
+                    'type': ['integer', 'string'],
+                    'enum': [43, 'other'],
+                  },
+                },
+                ['42'],
+                true,
+                false,
+              ),
+              (
+                'nested-array',
+                {
+                  'schema': {
+                    'type': 'array',
+                    'items': {
+                      'type': 'array',
+                      'items': {'type': 'integer'},
+                    },
+                  },
+                },
+                ['1,2'],
                 false,
                 true,
               ),
@@ -1833,6 +1862,7 @@ void main() {
             sample.$5,
             reason: '${sample.$1}: ${result.received.findings}',
           );
+          expect(result.conforming, sample.$4 && sample.$5, reason: sample.$1);
           if (sample.$1 == 'cookies')
             expect(
               result.response.headers
