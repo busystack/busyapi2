@@ -203,6 +203,125 @@ Future<void> expectCompleteCopy(
 }
 
 void main() {
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'full request pane traversal reaches off-screen example in ${brightness.name}',
+      (tester) async {
+        tester.view.physicalSize = const Size(1280, 720);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final fixture = _Fixture();
+        try {
+          await tester.runAsync(
+            () => fixture.open('''openapi: 3.2.1
+info: {title: Native request traversal, version: '1'}
+servers: [{url: 'http://127.0.0.1:1'}]
+paths:
+  /items:
+    post:
+      requestBody:
+        content:
+          text/plain:
+            schema: {type: string}
+            examples:
+              exact: {serializedValue: 'retained serialized value'}
+      responses: {'204': {description: Empty}}
+'''),
+          );
+          await tester.pumpWidget(
+            host(
+              Row(
+                children: [
+                  SizedBox(
+                    width: 300,
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < 12; i++)
+                          BusyApiActionRow(
+                            title: 'Navigation $i',
+                            onTap: () {},
+                          ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: BusyApiEditorScrollBody(
+                            child: Column(
+                              children: [
+                                for (var i = 0; i < 20; i++)
+                                  BusyApiActionRow(
+                                    title: 'Design $i',
+                                    onTap: () {},
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 300,
+                          child: SingleChildScrollView(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 300),
+                              child: RequestRunPanel(run: fixture.run),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              brightness: brightness,
+            ),
+          );
+          await tester.pumpAndSettle();
+          final send = find.descendant(
+            of: find.byType(RequestRunPanel),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is BusyApiCompactIconButton &&
+                  widget.tooltip == 'Send',
+            ),
+          );
+          Focus.of(
+            tester.element(
+              find.descendant(of: send, matching: find.byType(Icon)).first,
+            ),
+          ).requestFocus();
+          await tester.pumpAndSettle();
+          final trace = <String>[];
+          var found = false;
+          for (var step = 0; step < 64; step++) {
+            final row = FocusManager.instance.primaryFocus?.context
+                ?.findAncestorWidgetOfExactType<BusyApiActionRow>();
+            trace.add(
+              row?.title ??
+                  FocusManager.instance.primaryFocus?.debugLabel ??
+                  'other',
+            );
+            if (row?.title == 'Examples · text/plain · exact') {
+              found = true;
+              break;
+            }
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.pumpAndSettle();
+          }
+          expect(found, isTrue, reason: trace.join(' → '));
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(fixture.run.bodyText, 'retained serialized value');
+          expect(fixture.run.bodyEnabled, isTrue);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(fixture.dispose);
+        }
+      },
+    );
+  }
   for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
     testWidgets(
       '$version OpenID setup reviews a manual token and invalidates changed provider identity',

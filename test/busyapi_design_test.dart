@@ -12,6 +12,205 @@ void main() {
   for (final brightness in Brightness.values) {
     for (final enabled in [true, false]) {
       testWidgets(
+        'action row keyboard focus is exposed to accessibility in ${brightness.name}, enabled=$enabled',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final before = FocusNode(), after = FocusNode();
+          var activated = 0;
+          try {
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: buildBusyApiTheme(
+                  brightness: brightness,
+                  accentColor: Colors.blue,
+                ),
+                home: Scaffold(
+                  body: Column(
+                    children: [
+                      TextField(focusNode: before),
+                      BusyApiActionRow(
+                        title: 'Use exact example',
+                        enabled: enabled,
+                        onTap: () => activated++,
+                      ),
+                      TextField(focusNode: after),
+                    ],
+                  ),
+                ),
+              ),
+            );
+            before.requestFocus();
+            await tester.pumpAndSettle();
+            final control = find.bySemanticsLabel('Use exact example');
+            final controlNode = tester.getSemantics(control);
+            expect(
+              controlNode.getSemanticsData().hasAction(
+                ui.SemanticsAction.focus,
+              ),
+              enabled,
+            );
+            expect(
+              controlNode.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+              enabled,
+            );
+            expect(
+              tester
+                  .getSemantics(control)
+                  .getSemanticsData()
+                  .flagsCollection
+                  .isButton,
+              isTrue,
+            );
+            expect(
+              tester
+                  .getSemantics(control)
+                  .getSemanticsData()
+                  .flagsCollection
+                  .isFocused,
+              enabled ? ui.Tristate.isFalse : ui.Tristate.none,
+            );
+            if (enabled) {
+              tester.binding.platformDispatcher.onSemanticsActionEvent!(
+                ui.SemanticsActionEvent(
+                  type: ui.SemanticsAction.focus,
+                  viewId: tester.view.viewId,
+                  nodeId: controlNode.id,
+                ),
+              );
+              await tester.pumpAndSettle();
+              expect(
+                tester
+                    .getSemantics(control)
+                    .getSemanticsData()
+                    .flagsCollection
+                    .isFocused,
+                ui.Tristate.isTrue,
+              );
+              before.requestFocus();
+              await tester.pumpAndSettle();
+            }
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.pumpAndSettle();
+            if (enabled) {
+              expect(
+                tester
+                    .getSemantics(control)
+                    .getSemanticsData()
+                    .flagsCollection
+                    .isFocused,
+                ui.Tristate.isTrue,
+              );
+              await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+              await tester.pumpAndSettle();
+              expect(activated, 1);
+              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+              await tester.pumpAndSettle();
+              expect(
+                tester
+                    .getSemantics(control)
+                    .getSemanticsData()
+                    .flagsCollection
+                    .isFocused,
+                ui.Tristate.isFalse,
+              );
+            }
+            expect(after.hasPrimaryFocus, isTrue);
+            expect(activated, enabled ? 1 : 0);
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            before.dispose();
+            after.dispose();
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'action row retains child button focus and activation in ${brightness.name}',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        final before = FocusNode(), child = FocusNode(), after = FocusNode();
+        var rowActivations = 0, childActivations = 0;
+        try {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: buildBusyApiTheme(
+                brightness: brightness,
+                accentColor: Colors.blue,
+              ),
+              home: Scaffold(
+                body: Column(
+                  children: [
+                    TextField(focusNode: before),
+                    BusyApiActionRow(
+                      title: 'Example action',
+                      onTap: () => rowActivations++,
+                      trailing: IconButton(
+                        tooltip: 'More actions',
+                        focusNode: child,
+                        icon: const Icon(Icons.more_horiz),
+                        onPressed: () => childActivations++,
+                      ),
+                    ),
+                    TextField(focusNode: after),
+                  ],
+                ),
+              ),
+            ),
+          );
+          before.requestFocus();
+          await tester.pumpAndSettle();
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pumpAndSettle();
+          final row = find.bySemanticsLabel('Example action');
+          expect(
+            tester
+                .getSemantics(row)
+                .getSemanticsData()
+                .flagsCollection
+                .isFocused,
+            ui.Tristate.isTrue,
+          );
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pumpAndSettle();
+          expect(child.hasPrimaryFocus, isTrue);
+          expect(
+            tester
+                .getSemantics(row)
+                .getSemanticsData()
+                .flagsCollection
+                .isFocused,
+            ui.Tristate.isFalse,
+          );
+          expect(
+            tester
+                .getSemantics(find.byTooltip('More actions'))
+                .getSemanticsData()
+                .flagsCollection
+                .isButton,
+            isTrue,
+          );
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect((rowActivations, childActivations), (0, 1));
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pumpAndSettle();
+          expect(after.hasPrimaryFocus, isTrue);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          before.dispose();
+          child.dispose();
+          after.dispose();
+          semantics.dispose();
+        }
+      },
+    );
+  }
+  for (final brightness in Brightness.values) {
+    for (final enabled in [true, false]) {
+      testWidgets(
         'combo keyboard focus is exposed to accessibility in ${brightness.name}, enabled=$enabled',
         (tester) async {
           final semantics = tester.ensureSemantics();

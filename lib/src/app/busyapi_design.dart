@@ -3491,8 +3491,15 @@ class BusyApiActionRow extends StatefulWidget {
 }
 
 class _BusyApiActionRowState extends State<BusyApiActionRow> {
+  final FocusNode _focusNode = FocusNode(debugLabel: 'BusyAPI action row');
   int? _primaryPointer;
   Offset? _pointerDownPosition;
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(covariant BusyApiActionRow oldWidget) {
@@ -3521,28 +3528,35 @@ class _BusyApiActionRowState extends State<BusyApiActionRow> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ));
-    final interactive =
-        widget.enabled && (widget.onTap != null || widget.onActivated != null);
+    final actionable = widget.onTap != null || widget.onActivated != null;
+    final interactive = widget.enabled && actionable;
+    final title =
+        widget.titleWidget ??
+        Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: titleStyle,
+        );
     final row = YaruListTile.square(
       leading: widget.leading,
-      title:
-          widget.titleWidget ??
-          Text(
-            widget.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: titleStyle,
-          ),
+      title: actionable && widget.titleWidget == null
+          ? ExcludeSemantics(child: title)
+          : title,
       subtitle: subtitle == null
           ? null
-          : _busyApiGroupedRowSubtitle(
-              context,
-              subtitle,
-              enabled: widget.enabled,
+          : ExcludeSemantics(
+              excluding: actionable && widget.subtitleWidget == null,
+              child: _busyApiGroupedRowSubtitle(
+                context,
+                subtitle,
+                enabled: widget.enabled,
+              ),
             ),
       trailing: widget.trailing,
       enabled: widget.enabled,
       autofocus: widget.autofocus,
+      focusNode: _focusNode,
       hoverColor: widget.hoverColor ?? busyApiRowHoverColor(context),
       onTap: interactive ? _activate : null,
     );
@@ -3556,13 +3570,35 @@ class _BusyApiActionRowState extends State<BusyApiActionRow> {
             child: row,
           );
 
+    final semanticRow = actionable
+        ? ListenableBuilder(
+            listenable: _focusNode,
+            child: trackedRow,
+            builder: (context, child) => Semantics(
+              container: true,
+              button: true,
+              label: [
+                widget.title,
+                if (widget.subtitleWidget == null &&
+                    widget.subtitle?.isNotEmpty == true)
+                  widget.subtitle!,
+              ].join('\n'),
+              enabled: widget.enabled,
+              focusable: interactive,
+              focused: interactive ? _focusNode.hasPrimaryFocus : null,
+              onFocus: interactive ? _focusNode.requestFocus : null,
+              onTap: interactive ? _activate : null,
+              child: child,
+            ),
+          )
+        : trackedRow;
     if (widget.enabled || widget.tooltip == null) {
-      return trackedRow;
+      return semanticRow;
     }
 
     return Tooltip(
       message: widget.tooltip!,
-      child: Opacity(opacity: 0.6, child: IgnorePointer(child: trackedRow)),
+      child: Opacity(opacity: 0.6, child: IgnorePointer(child: semanticRow)),
     );
   }
 

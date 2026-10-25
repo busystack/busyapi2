@@ -24,83 +24,85 @@ class BusyApiToolSurface extends StatelessWidget {
   final Widget child;
   final BusyApiStatusKind kind;
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final colors = BusyApiSurfaceColors.of(context);
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: constraints.hasBoundedHeight
-              ? constraints.maxHeight
-              : MediaQuery.sizeOf(context).height *
-                    BusyApiSizes.modalMaxHeightFraction /
-                    2,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.view,
-            border: Border(top: BorderSide(color: colors.subtleBorder)),
+  Widget build(BuildContext context) => FocusTraversalGroup(
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final colors = BusyApiSurfaceColors.of(context);
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: constraints.hasBoundedHeight
+                ? constraints.maxHeight
+                : MediaQuery.sizeOf(context).height *
+                      BusyApiSizes.modalMaxHeightFraction /
+                      2,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: BusyApiSizes.paneHeaderHeight,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: BusyApiSpacing.sm,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Tooltip(
-                          message: '$title · $status',
-                          child: Text(
-                            expanded ? title : '$title · $status',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.view,
+              border: Border(top: BorderSide(color: colors.subtleBorder)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: BusyApiSizes.paneHeaderHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: BusyApiSpacing.sm,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Tooltip(
+                            message: '$title · $status',
+                            child: Text(
+                              expanded ? title : '$title · $status',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                           ),
                         ),
-                      ),
-                      ...actions,
-                      BusyApiCompactIconButton(
-                        tooltip: title,
-                        icon: expanded
-                            ? BusyApiGlyphs.upArrow
-                            : BusyApiGlyphs.downArrow,
-                        onPressed: onToggle,
-                      ),
-                    ],
+                        ...actions,
+                        BusyApiCompactIconButton(
+                          tooltip: title,
+                          icon: expanded
+                              ? BusyApiGlyphs.upArrow
+                              : BusyApiGlyphs.downArrow,
+                          onPressed: onToggle,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Flexible(
-                child: Offstage(
-                  offstage: !expanded,
-                  child: ExcludeFocus(
-                    excluding: !expanded,
-                    child: TickerMode(
-                      enabled: expanded,
-                      child: BusyApiLocalTextEditingShortcuts(
-                        child: BusyApiEditorScrollBody(
-                          maxWidth: BusyApiSizes.modalMaxWidth,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              BusyApiStatusBox(message: status, kind: kind),
-                              child,
-                            ],
+                Flexible(
+                  child: Offstage(
+                    offstage: !expanded,
+                    child: ExcludeFocus(
+                      excluding: !expanded,
+                      child: TickerMode(
+                        enabled: expanded,
+                        child: BusyApiLocalTextEditingShortcuts(
+                          child: BusyApiEditorScrollBody(
+                            maxWidth: BusyApiSizes.modalMaxWidth,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                BusyApiStatusBox(message: status, kind: kind),
+                                child,
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 }
