@@ -1190,7 +1190,7 @@ class BusyApiCompactIconButton extends StatelessWidget {
     ).defaultStyleOf(context);
     final button = IconButton(
       tooltip: tooltip,
-      icon: Icon(icon, size: glyphSize),
+      icon: Icon(icon, size: glyphSize, semanticLabel: tooltip),
       constraints: BoxConstraints.tightFor(width: size, height: size),
       padding: EdgeInsets.zero,
       style: semanticStyle.merge(yaruDefaults),

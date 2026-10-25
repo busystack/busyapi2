@@ -6,6 +6,42 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
 
 void main() {
+  testWidgets('compact icon actions expose their localized accessible name', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      for (final brightness in Brightness.values) {
+        for (final enabled in [true, false]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: buildBusyApiTheme(
+                brightness: brightness,
+                accentColor: const Color(0xFF3584E4),
+              ),
+              home: Scaffold(
+                body: BusyApiCompactIconButton(
+                  tooltip: 'Arrêter 雪',
+                  icon: Icons.stop,
+                  onPressed: enabled ? () {} : null,
+                ),
+              ),
+            ),
+          );
+          expect(
+            tester
+                .getSemantics(find.byType(IconButton))
+                .getSemanticsData()
+                .label,
+            'Arrêter 雪',
+          );
+        }
+      }
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets('dialog title and body share a clipped surface in both themes', (
     tester,
   ) async {
