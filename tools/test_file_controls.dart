@@ -103,7 +103,9 @@ Future<String> _run() async {
       mockResponses =
           Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_RESPONSES'] == '1',
       mockParameters =
-          Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_PARAMETERS'] == '1';
+          Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_PARAMETERS'] == '1',
+      nestedItems =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_NESTED_ITEMS'] == '1';
   _expect(
     ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
         ['yaml', 'json'].contains(format),
@@ -125,6 +127,10 @@ Future<String> _run() async {
       json = format == 'json',
       createdName = 'created.$format',
       unusedName = 'unused.$format';
+  _expect(
+    !nestedItems || swagger && (mockResponses || mockParameters),
+    'fixture-nested-items-mode',
+  );
   _expect(
     ['', 'empty', 'unicode'].contains(memberNames) &&
         (memberNames.isEmpty || swagger && maintenance == 'named'),
@@ -191,6 +197,30 @@ Future<String> _run() async {
       ? await HttpServer.bind(InternetAddress.loopbackIPv4, 0)
       : null;
   final mockReceived = <(String, String, List<int>)>[];
+  String number(bool valid) => valid ? '9007199254740993' : '9007199254740992';
+  String numericWire(bool valid) =>
+      nestedItems ? '0|${number(valid)},9007199254740993|0' : number(valid);
+  Map<String, Object?> numericSchema() => nestedItems
+      ? {
+          'type': 'array',
+          'collectionFormat': 'csv',
+          'minItems': 2,
+          'maxItems': 2,
+          'items': {
+            'type': 'array',
+            'collectionFormat': 'pipes',
+            'minItems': 2,
+            'maxItems': 2,
+            'items': {
+              'type': 'integer',
+              'enum': [0, 'EXACT'],
+            },
+          },
+        }
+      : {
+          'type': 'integer',
+          'enum': ['EXACT'],
+        };
   mockUpstream?.listen((request) async {
     final bytes = await request.fold<List<int>>([], (a, b) => a..addAll(b));
     mockReceived.add((request.method, request.uri.path, bytes));
@@ -198,7 +228,11 @@ Future<String> _run() async {
     request.response.headers.contentType = ContentType.json;
     request.response.headers.set(
       'x-exact',
-      valid ? '9007199254740993.000' : '9007199254740992',
+      nestedItems
+          ? numericWire(valid)
+          : valid
+          ? '9007199254740993.000'
+          : '9007199254740992',
     );
     request.response.write(valid ? '9007199254740993.000' : '9007199254740992');
     await request.response.close();
@@ -215,10 +249,7 @@ Future<String> _run() async {
                   'name': 'ID',
                   'in': 'path',
                   'required': true,
-                  if (swagger) ...{
-                    'type': 'integer',
-                    'enum': ['EXACT'],
-                  } else 'schema': {
+                  if (swagger) ...{...numericSchema()} else 'schema': {
                       'type': 'integer',
                       'enum': ['EXACT'],
                     },
@@ -245,10 +276,7 @@ Future<String> _run() async {
                   '200': {
                     'description': 'Actual response',
                     'headers': {
-                      'X-Exact': swagger ? {
-                              'type': 'integer',
-                              'enum': ['EXACT'],
-                            } : {
+                      'X-Exact': swagger ? numericSchema() : {
                               'schema': {
                                 'type': 'integer',
                                 'enum': ['EXACT'],
@@ -269,7 +297,16 @@ Future<String> _run() async {
         }).replaceFirst('"EXACT"', '9007199254740992.00')}\r\n';
   final modelFile = File('${sourceDirectory.path}/model.$format');
   final parameterModel = json
-      ? '{"Schema":{"name":"N","in":"query","required":true,${swagger ? '"type":"integer","enum":[9007199254740992.00]' : '"schema":{"type":"integer","enum":[9007199254740992.00]}'}}}'
+      ? jsonEncode({
+          'Schema': {
+            'name': 'N',
+            'in': 'query',
+            'required': true,
+            if (swagger) ...numericSchema() else 'schema': numericSchema(),
+          },
+        }).replaceFirst('"EXACT"', '9007199254740992.00')
+      : nestedItems
+      ? '# retained parameter\r\nSchema: &model\r\n  name: N\r\n  in: query\r\n  required: true\r\n  type: array\r\n  collectionFormat: csv\r\n  minItems: 2\r\n  maxItems: 2\r\n  items:\r\n    type: array\r\n    collectionFormat: pipes\r\n    minItems: 2\r\n    maxItems: 2\r\n    items: {type: integer, enum: [0, 9007199254740992.00]}\r\n'
       : '# retained parameter\r\nSchema: &model\r\n  name: N\r\n  in: query\r\n  required: true\r\n${swagger ? '  type: integer\r\n  enum: [9007199254740992.00]\r\n' : '  schema: {type: integer, enum: [9007199254740992.00]}\r\n'}';
   final modelSource = mockParameters
       ? parameterModel
@@ -1445,22 +1482,33 @@ environments:
             run.nativeParameterValidation.name == 'busyapi-native-parameters',
             'native-mock-parameter-owner',
           );
+          final goodWire = nestedItems
+              ? Uri.encodeComponent(numericWire(true))
+              : number(true);
+          final badWire = nestedItems
+              ? Uri.encodeComponent(numericWire(false))
+              : number(false);
           for (final (path, status, location, resource) in [
-            ('/precise/9007199254740993?N=9007199254740993.000', 204, '', ''),
             (
-              '/precise/9007199254740992?N=9007199254740993',
+              '/precise/$goodWire?N=$goodWire${nestedItems ? '' : '.000'}',
+              204,
+              '',
+              '',
+            ),
+            (
+              '/precise/$badWire?N=$goodWire',
               422,
               'path:ID',
               root.uri.toString(),
             ),
             (
-              '/precise/9007199254740993?N=9007199254740992',
+              '/precise/$goodWire?N=$badWire',
               422,
               'query:N',
               modelFile.uri.toString(),
             ),
             (
-              '/precise/9007199254740993?n=9007199254740993',
+              '/precise/$goodWire?n=$goodWire',
               422,
               'query:N',
               modelFile.uri.toString(),
@@ -1506,6 +1554,12 @@ environments:
                       'true',
               'native-mock-actual-response',
             );
+            if (nestedItems) {
+              _expect(
+                response.headers.value('x-exact') == numericWire(valid),
+                'native-mock-nested-header-wire',
+              );
+            }
             for (final subject in ['response-body', 'response-header']) {
               _expect(
                 valid
@@ -1584,7 +1638,7 @@ environments:
         'native-mock-noop-save-reopen',
       );
       stdout.writeln(
-        'BUSYAPI_NATIVE_MOCK_${mockParameters ? 'PARAMETERS' : 'RESPONSES'}_PASS openapi=$version format=$format source=unsaved-root-and-model controls=prepare-start-stop validation=exact-captured history=one-undo save=reopen',
+        'BUSYAPI_NATIVE_MOCK_${mockParameters ? 'PARAMETERS' : 'RESPONSES'}_PASS openapi=$version format=$format source=unsaved-root-and-model controls=prepare-start-stop validation=exact-captured history=one-undo save=reopen nested-items=$nestedItems',
       );
       return 'mock-${mockParameters ? 'parameters' : 'responses'}=native openapi=$version format=$format';
     }

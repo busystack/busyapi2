@@ -764,6 +764,23 @@ class RuntimeFormTarget {
   };
 }
 
+class RuntimeSwaggerHeaderTarget {
+  RuntimeSwaggerHeaderTarget({
+    required this.resource,
+    required this.pointer,
+    required this.name,
+    required List<String> values,
+  }) : values = List.unmodifiable(values);
+  final String resource, pointer, name;
+  final List<String> values;
+  Map<String, Object?> toJson() => {
+    'resource': resource,
+    'pointer': pointer,
+    'name': name,
+    'values': List<String>.of(values, growable: false),
+  };
+}
+
 class RuntimeSchemaInstance {
   const RuntimeSchemaInstance({
     required this.subject,
@@ -776,12 +793,16 @@ class RuntimeSchemaInstance {
     this.mediaType,
     this.mediaBase64 = false,
     this.form,
+    this.alternatives = const [],
+    this.swaggerHeader,
   });
   final String subject, location, text;
   final String? schemaResource, schemaPointer;
   final String? itemSchemaResource, itemSchemaPointer, mediaType;
   final bool mediaBase64;
   final RuntimeFormTarget? form;
+  final List<String> alternatives;
+  final RuntimeSwaggerHeaderTarget? swaggerHeader;
   Map<String, Object?> toJson() => {
     'subject': subject,
     'location': location,
@@ -796,6 +817,9 @@ class RuntimeSchemaInstance {
     if (mediaType != null) 'mediaType': mediaType,
     if (mediaBase64) 'mediaBase64': true,
     if (form != null) 'form': form!.toJson(),
+    if (alternatives.isNotEmpty)
+      'alternatives': List<String>.of(alternatives, growable: false),
+    if (swaggerHeader != null) 'swaggerHeader': swaggerHeader!.toJson(),
   };
 }
 

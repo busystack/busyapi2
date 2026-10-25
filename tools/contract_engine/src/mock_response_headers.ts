@@ -4,23 +4,15 @@ import {headerShapes,type HeaderShape} from './header_serialization';
 import {isNativeFamily} from './specification';
 import {runtimeMediaKind} from './runtime_media';
 import {nativeMedia,schemaLocation,type NativeRuntimeInstance} from './mock_projection';
+import {headerValueParts} from './header_values';
 
 const decimal=/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/;
 const unsupported=(message:string):never=>{throw new SourceError('runtime.response.header.unchecked',message,[0,0],'unsupported');};
 const malformed=(message:string):never=>{throw new SourceError('runtime.response.header.serialization',message);};
 
 export function nativeHeaderParts(text:string):string[] {
-    const result:string[]=[];
-    let quoted=false,escaped=false,start=0;
-    for(let index=0;index<text.length;index++){
-        const character=text[index];
-        if(escaped){escaped=false;continue;}
-        if(quoted&&character==='\\'){escaped=true;continue;}
-        if(character==='"')quoted=!quoted;
-        if(!quoted&&character===','){result.push(text.slice(start,index).trim());start=index+1;}
-    }
-    if(quoted||escaped)malformed('A header quoted value is unfinished');
-    result.push(text.slice(start).trim());return result;
+    try{return headerValueParts(text);}
+    catch(error){if(error instanceof SourceError)return malformed(error.message);throw error;}
 }
 
 /** Reconstruct header data for the canonical evaluator. Decimal tokens never
@@ -42,8 +34,11 @@ export function decodeRuntimeHeader(shapeFor:ReturnType<typeof headerShapes>,dec
     }
     const schema=schemaLocation(declaration.schema);
     if(!schema||record(declaration.schema)&&declaration.schema.unconstrained===true)return;
+    if(family==='2.0'){
+        return {subject:'response-header',location:name,text:values.join(','),schema,swaggerHeader:{...schema,name,values:[...values]}};
+    }
     const shape=shapeFor({...schema,kind:'schema'});
-    if(!shape||family!=='2.0'&&declaration.style!=='simple')unsupported('The declared header has no unambiguous simple representation');
+    if(!shape||declaration.style!=='simple')unsupported('The declared header has no unambiguous simple representation');
     if(cookie&&family!=='3.2'&&(values.length>1||shape.type==='array'||shape.type==='object'))
         unsupported('This Set-Cookie representation requires the OpenAPI 3.2 multiline rules');
     const scalar=(text:string,shape:HeaderShape|undefined):string=>{
@@ -57,10 +52,7 @@ export function decodeRuntimeHeader(shapeFor:ReturnType<typeof headerShapes>,dec
         if(values.length!==1)unsupported('A scalar header occurs more than once');
         text=scalar(values[0],shape);
     }else{
-        const collection=declaration.collectionFormat;
-        const delimiters:Readonly<Record<string,string>>={ssv:' ',tsv:'\t',pipes:'|'};
-        const delimiter=typeof collection==='string'&&Object.hasOwn(delimiters,collection)?delimiters[collection]:undefined;
-        const parts=family==='2.0'&&delimiter!==undefined?values.join(',').split(delimiter):cookie?[...values]:nativeHeaderParts(values.join(','));
+        const parts=cookie?[...values]:nativeHeaderParts(values.join(','));
         if(shape.type==='array'){
             if(cookie)unsupported('Set-Cookie values are separate cookie fields rather than comma-separated array items');
             if(parts.length===1&&parts[0]==='')unsupported('An empty array and one empty item share this wire representation');

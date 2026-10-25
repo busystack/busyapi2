@@ -8,6 +8,7 @@ import 'package:busyapi/src/app/busyapi_app.dart';
 import 'package:busyapi/src/app/busyapi_design.dart';
 import 'package:busyapi/src/workspace/request_run.dart';
 import 'package:busyapi/src/workspace/workspace_controller.dart';
+import 'package:busyapi_core/busyapi_core.dart' show OperationRequestDraft;
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:busyapi/src/platform/secret_store.dart';
@@ -38,6 +39,17 @@ Future<void> waitFor(bool Function() ready, String code) async {
   }
 }
 
+Future<void> resize(Size size) async {
+  await windowManager.setSize(size);
+  // GTK acknowledges the resize request before Flutter receives new metrics.
+  // Input coordinates must belong to the rendered size, not the previous frame.
+  await waitFor(() {
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    return view != null && view.physicalSize / view.devicePixelRatio == size;
+  }, 'native-resize-metrics');
+  await WidgetsBinding.instance.endOfFrame;
+}
+
 Future<void> main(List<String> args) async {
   try {
     await exercise();
@@ -65,12 +77,14 @@ Future<void> exercise() async {
     'fixture-version-format',
   );
   final swagger = version == '2.0';
+  final cookies = Platform.environment['BUSYAPI_NATIVE_HTTP_COOKIES'] == '1';
   final openId = Platform.environment['BUSYAPI_NATIVE_HTTP_OPENID'] == '1';
   final binding =
       Platform.environment['BUSYAPI_NATIVE_HTTP_BINDING'] ?? 'named';
   check(const ['named', 'prototype', 'uri'].contains(binding), 'binding-mode');
   check(binding != 'uri' || version.startsWith('3.2.'), 'binding-family');
   check(!openId || binding == 'named', 'binding-authentication');
+  check(!cookies || !swagger && !openId && binding == 'named', 'cookie-family');
   final schemeName = binding == 'prototype'
       ? '__proto__'
       : binding == 'uri'
@@ -84,7 +98,7 @@ Future<void> exercise() async {
       ? 'accessTokenRef'
       : 'tokenRef';
   final evidencePrefix =
-      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}${binding == 'named' ? '' : '-$binding'}';
+      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}${binding == 'named' ? '' : '-$binding'}${cookies ? '-cookies' : ''}';
   final directory =
       Platform.environment['BUSYAPI_FILE_CONTROLS_DIRECTORY'] ?? '';
   check(
@@ -115,6 +129,12 @@ Future<void> exercise() async {
       'request-target',
     );
     check(utf8.decode(bytes) == 'hello', 'example-wire');
+    if (cookies) {
+      check(
+        request.headers.value('cookie') == 'Colors=%E9%9B%AA&Colors=a%26b; zero=0&flag=false&%E9%9B%AA=0; Plain=100%25',
+        'native-cookie-wire',
+      );
+    }
     check(
       apiKey
           ? request.headers.value('x-fixture-key') == 'fixture-token' &&
@@ -160,6 +180,62 @@ Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
       'id': {'type': 'integer', 'minimum': '@exact-minimum'},
     },
   };
+  final cookieParameters = <Map<String, Object?>>[
+    {
+      'name': 'Colors',
+      'in': 'cookie',
+      'required': true,
+      'style': 'form',
+      'explode': true,
+      'schema': {
+        'type': 'array',
+        'minItems': 2,
+        'maxItems': 2,
+        'items': {
+          'type': 'string',
+          'enum': ['雪', 'a&b'],
+        },
+      },
+      'example': ['雪', 'a&b'],
+    },
+    {
+      'name': 'Object',
+      'in': 'cookie',
+      'required': true,
+      'style': 'form',
+      'explode': true,
+      'schema': {
+        'type': 'object',
+        'required': ['zero', 'flag', '雪'],
+        'additionalProperties': false,
+        'properties': {
+          'zero': {
+            'type': 'integer',
+            'enum': [0],
+          },
+          'flag': {
+            'type': 'boolean',
+            'enum': [false],
+          },
+          '雪': {
+            'type': 'integer',
+            'enum': [0],
+          },
+        },
+      },
+      'example': {'zero': 0, 'flag': false, '雪': 0},
+    },
+    {
+      'name': 'Plain',
+      'in': 'cookie',
+      'required': true,
+      'schema': {
+        'type': 'string',
+        'enum': ['100%'],
+      },
+      'example': '100%',
+    },
+  ];
   final contract = <String, Object?>{
     if (swagger) 'swagger': version else 'openapi': version,
     'info': {'title': 'Native HTTP client', 'version': '1'},
@@ -184,6 +260,7 @@ Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
     'paths': {
       '/items': {
         'post': {
+          if (cookies) 'parameters': cookieParameters,
           if (swagger)
             'parameters': [
               {
@@ -243,7 +320,7 @@ components: {securitySchemes: ${binding == 'uri' ? '{}' : '{${jsonEncode(schemeN
 paths:
   /items:
     post:
-      requestBody:
+${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      requestBody:
         required: true
         content: {text/plain: {schema: {}, example: hello}}
       responses:
@@ -390,7 +467,7 @@ paths:
           !File('${project.path}/busyapi.yaml').existsSync(),
       'native-render-source-unchanged',
     );
-    await windowManager.setSize(const Size(620, 820));
+    await resize(const Size(620, 820));
     await WidgetsBinding.instance.endOfFrame;
     final selector =
         elements((w) => w is BusyApiComboRow<String> && w.title == 'Responses')
@@ -522,6 +599,19 @@ paths:
   } else {
     await row('Examples · text/plain · json');
   }
+  if (cookies) {
+    for (final name in ['Colors', 'Object', 'Plain']) {
+      await row('Examples · $name · json');
+      final key = OperationRequestDraft.parameterKey('cookie', name);
+      await waitFor(
+        () =>
+            run.values.containsKey(key) &&
+            run.structuredValues.contains(key) &&
+            !run.omittedValues.contains(key),
+        'native-cookie-example-$name',
+      );
+    }
+  }
   await waitFor(() => run.bodyText == 'hello' && run.canSend, 'example-ready');
   await keys(['Control_L+Return']);
   await observed.future.timeout(const Duration(seconds: 15));
@@ -545,7 +635,7 @@ paths:
         base64Encode(decoded.readAsBytesSync()) == base64Encode(decodedBytes),
     'decoded-export',
   );
-  await windowManager.setSize(const Size(620, 820));
+  await resize(const Size(620, 820));
   await waitFor(
     () => elements((w) => w is RequestRunPanel).isNotEmpty,
     'narrow-mounted',
@@ -623,6 +713,6 @@ paths:
     );
   }
   stdout.writeln(
-    'BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format openId=$openId binding=$binding',
+    'BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format openId=$openId binding=$binding cookies=$cookies',
   );
 }

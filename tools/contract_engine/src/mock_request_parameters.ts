@@ -4,17 +4,18 @@ import {FormSemantics,type FormShape} from './form_semantics';
 import type {ReferenceGraph} from './reference_graph';
 import {runtimeMediaKind} from './runtime_media';
 import {nativeHeaderParts} from './mock_response_headers';
+import {swaggerWireShape,swaggerWireValues,type SwaggerWireShape} from './swagger_wire';
 import {nativeMedia,schemaLocation,sourceLocation,type NativeMockCheck,type NativeRuntimeCheck,type NativeRuntimeInstance,type SourceLocation} from './mock_projection';
 
 type Pair=readonly [string,string];
-type Parameter={name:string;in:string;style:string;explode:boolean;required:boolean;allowEmptyValue:boolean;family:string;source:SourceLocation;schema?:{resource:string;pointer:string};content:ReturnType<typeof nativeMedia>;shape:FormShape;collectionFormat?:string};
+type Parameter={name:string;in:string;style:string;explode:boolean;required:boolean;allowEmptyValue:boolean;family:string;source:SourceLocation;schema?:{resource:string;pointer:string};content:ReturnType<typeof nativeMedia>;shape:FormShape;swagger?:SwaggerWireShape};
 type Candidates={present:boolean;texts:string[]};
 type Evaluate=(instances:NativeRuntimeInstance[])=>Promise<NativeRuntimeCheck>;
 const maximumCandidates=256,maximumInstances=2048;
 const decimal=/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/;
 const unsupported=(message:string):never=>{throw new SourceError('runtime.request.parameter.unchecked',message,[0,0],'unsupported');};
 const malformed=(message:string):never=>{throw new SourceError('runtime.request.parameter.serialization',message);};
-export const mockParameterProducer=Object.freeze({name:'busyapi-native-parameters',version:'1'});
+export const mockParameterProducer=Object.freeze({name:'busyapi-native-parameters',version:'2'});
 
 function decode(value:string,form=false):string {
     try{return decodeURIComponent(form?value.replace(/\+/g,' '):value);}
@@ -92,6 +93,7 @@ function pathValues(template:string,path:string):Map<string,string> {
 
 function data(parameter:Parameter,values:readonly string[],raw:boolean,fields:readonly Pair[],reserved:ReadonlySet<string>):Candidates {
     const {in:location,name,style,explode,shape}=parameter;
+    if(parameter.swagger)return values.length?{present:true,texts:swaggerWireValues(values,parameter.swagger,{...(raw?{decode:(text:string)=>decode(text,location==='query'),plus:location==='query'}:{}),...(location==='header'?{commas:nativeHeaderParts}:{})})}:{present:false,texts:[]};
     const types=shape.types,possible=(type:string)=>!types||types.includes(type),texts:string[]=[];
     const convert=(text:string)=>raw?decode(text,location==='query'):text;
     const add=(values:readonly string[])=>{texts.push(...values);if(texts.length>maximumCandidates)unsupported('Parameter inversion exceeds 256 possible data values');};
@@ -126,23 +128,15 @@ function data(parameter:Parameter,values:readonly string[],raw:boolean,fields:re
                 value=value.slice(1);
             }
             add(scalars(convert(value),shape));
-            const delimiter=parameter.family==='2.0'?({csv:',',ssv:' ',tsv:'\t',pipes:'|'} as Record<string,string>)[parameter.collectionFormat??'csv']:
-                style==='spaceDelimited'?' ':style==='pipeDelimited'?'|':style==='tabDelimited'?'\t':style==='label'&&explode?'.':',';
+            const delimiter=style==='spaceDelimited'?' ':style==='pipeDelimited'?'|':style==='label'&&explode?'.':',';
             const separator=raw&&location==='query'&&delimiter===' '?/(?:%20|\+| )/iu:
-                raw&&location==='query'&&delimiter==='|'?/(?:%7c|\|)/iu:
-                raw&&location==='query'&&delimiter==='\t'?/(?:%09|\t)/iu:delimiter;
+                raw&&location==='query'&&delimiter==='|'?/(?:%7c|\|)/iu:delimiter;
             if(separator!==undefined)parts=location==='header'&&delimiter===','?nativeHeaderParts(value):value.split(separator);
         }
         if(possible('array')){
-            if((location==='query'||location==='cookie')&&explode&&(style==='form'||style==='cookie')||parameter.collectionFormat==='multi')add(arrays(values.map(convert),shape));
+            if((location==='query'||location==='cookie')&&explode&&(style==='form'||style==='cookie'))add(arrays(values.map(convert),shape));
             else if(parts){
                 for(const layout of style==='label'&&explode?labelPartitions(parts):[parts])add(arrays(layout.map(convert),shape));
-                if(parameter.family==='2.0'&&raw&&values.length===1){
-                    // Swagger does not prescribe RFC6570 expansion. Its
-                    // native client percent-encodes the complete collection.
-                    const delimiter=({csv:',',ssv:' ',tsv:'\t',pipes:'|'} as Record<string,string>)[parameter.collectionFormat??'csv'];
-                    if(delimiter!==undefined)add(arrays(convert(values[0]).split(delimiter),shape));
-                }
             }
         }
     }
@@ -170,10 +164,10 @@ export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,t
         if(!record(value)||typeof value.name!=='string'||typeof value.in!=='string'||typeof value.style!=='string'||typeof value.explode!=='boolean'||typeof value.required!=='boolean'||typeof value.family!=='string')throw new SourceError('mock.validation.protocol','A native parameter is malformed');
         const source=sourceLocation(value.definition)??sourceLocation(value.source),schema=schemaLocation(value.schema);
         if(!source)throw new SourceError('mock.validation.protocol','A native parameter omitted its source');
-        return {name:value.name,in:value.in,style:value.style,explode:value.explode,required:value.required,allowEmptyValue:value.allowEmptyValue===true,family:value.family,source,schema,content:nativeMedia(value.content),shape:schema?shapes.shape(schema.resource,schema.pointer):{},collectionFormat:typeof value.collectionFormat==='string'?value.collectionFormat:undefined};
+        return {name:value.name,in:value.in,style:value.style,explode:value.explode,required:value.required,allowEmptyValue:value.allowEmptyValue===true,family:value.family,source,schema,content:nativeMedia(value.content),shape:schema?shapes.shape(schema.resource,schema.pointer):{},...(value.family==='2.0'?{swagger:swaggerWireShape(value)}:{})};
     });
-    const findings:Record<string,unknown>[]=[],instances:NativeRuntimeInstance[]=[],groups:{location:string;source:SourceLocation;ids:string[]}[]=[];
-    let complete=true,queryFields:Pair[]|undefined,pathFields:Map<string,string>|undefined;
+    const findings:Record<string,unknown>[]=[],instances:NativeRuntimeInstance[]=[],sources=new Map<string,SourceLocation>();
+    let complete=true,candidates=0,queryFields:Pair[]|undefined,pathFields:Map<string,string>|undefined;
     const issue=(parameter:Parameter,code:string,message:string,incomplete=false)=>{
         if(incomplete)complete=false;
         findings.push({code,message,subject:'request-parameter',location:parameter.in+':'+parameter.name,pointer:'',source:parameter.source,severity:incomplete?'warning':'error',...(incomplete?{kind:'unsupported'}:{})});
@@ -214,13 +208,11 @@ export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,t
                 if(!decoded.present){if(parameter.required)issue(parameter,'runtime.request.parameter.required','A required parameter is absent');continue;}
                 texts=decoded.texts;
             }
-            if(instances.length+texts.length>maximumInstances)unsupported('Native parameter validation exceeds 2048 captured instances');
-            const ids=texts.map((text,index)=>{
-                const id=location+':candidate:'+index,media=parameter.content[0];
-                const form=mediaType&&['application/x-www-form-urlencoded','multipart/form-data'].includes(mediaType.split(';')[0].trim().toLowerCase())?media?.formOwner:undefined;
-                instances.push({subject:'request-parameter',location:id,text,schema:media?.schema??parameter.schema,...(mediaType?{mediaType,itemSchema:media?.itemSchema}:{}),...(form?{form}:{})});return id;
-            });
-            groups.push({location,source:parameter.source,ids});
+            if(candidates+texts.length>maximumInstances)unsupported('Native parameter validation exceeds 2048 captured instances');
+            candidates+=texts.length;
+            const media=parameter.content[0],form=mediaType&&['application/x-www-form-urlencoded','multipart/form-data'].includes(mediaType.split(';')[0].trim().toLowerCase())?media?.formOwner:undefined;
+            instances.push({subject:'request-parameter',location,text:texts[0],schema:media?.schema??parameter.schema,...(texts.length>1?{alternatives:texts.slice(1)}:{}),...(mediaType?{mediaType,itemSchema:media?.itemSchema}:{}),...(form?{form}:{})});
+            sources.set(location,parameter.source);
         }catch(error){
             if(!(error instanceof SourceError))throw error;
             issue(parameter,error.code==='runtime.response.header.serialization'?'runtime.request.parameter.serialization':error.code,error.message,error.kind==='unsupported'||error.code.startsWith('limit.'));
@@ -229,20 +221,8 @@ export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,t
     if(instances.length){
         const result=await evaluate(instances);
         if(!result.complete)complete=false;
-        for(const group of groups){
-            const selected=result.evaluations.filter(value=>group.ids.includes(value.location));
-            const covered=group.ids.every(id=>selected.some(value=>value.location===id));
-            if(covered&&group.ids.some(id=>selected.filter(value=>value.location===id).every(value=>value.complete&&value.valid)))continue;
-            if(!covered||selected.some(value=>!value.complete)){
-                complete=false;findings.push({code:'runtime.request.parameter.unchecked',message:'Native evaluation could not prove this parameter representation',subject:'request-parameter',location:group.location,pointer:'',source:group.source,severity:'warning',kind:'unsupported'});
-            }else{
-                const failed=result.findings.filter(value=>group.ids.includes(String(value.location)));
-                if(!failed.length)throw new SourceError('mock.validation.protocol','Invalid native parameter evaluation omitted its findings');
-                // One failed inversion is sufficient evidence after every
-                // permitted interpretation failed; avoid repetitive findings.
-                const first=failed[0];findings.push({...first,location:group.location,source:group.source});
-            }
-        }
+        if(!result.valid&&result.complete&&!result.findings.some(value=>value.severity==='error'))throw new SourceError('mock.validation.protocol','Invalid native parameter evaluation omitted its findings');
+        findings.push(...result.findings.map(finding=>({...finding,...(sources.has(String(finding.location))?{source:sources.get(String(finding.location))}:{})})));
         if(!result.complete&&!findings.some(finding=>finding.severity==='warning')){
             const source=sourceLocation(record(plan.operation)?plan.operation.source:undefined);
             findings.push({code:'runtime.request.parameter.unchecked',message:'The bounded native parameter evaluation did not complete',subject:'request-parameter',location:'parameters',pointer:'',...(source?{source}:{}),severity:'warning',kind:'unsupported'});

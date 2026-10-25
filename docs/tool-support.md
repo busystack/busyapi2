@@ -67,6 +67,21 @@ when `allowEmptyValue` is true; Swagger query values additionally require that
 permission. This is BusyAPI's documented conversion policy under
 [OAS 3.0 Appendix B](https://spec.openapis.org/oas/v3.0.4.html#appendix-b-data-type-conversion),
 not a guarantee about another server's ambiguous parameter decoding.
+Swagger Parameter, Header and recursive Items Objects retain each layer's
+`collectionFormat`. Nested collections use the original schema to prove a bounded
+wire interpretation, including identical delimiters at adjacent layers. Response
+headers use this same engine decoder in direct execution, saved cases and mocks;
+repeated CSV fields may combine, while repeated scalar or non-CSV fields remain
+explicitly incomplete. Exact decimal leaves never pass through JavaScript numbers.
+
+Outgoing exploded form cookies support arrays and objects. Fields within one
+parameter join with `&`; separate cookie declarations join with `; `. Form names
+and values are percent encoded, including Unicode and literal percent data.
+OpenAPI 3.2 `cookie` style retains its literal encoding policy. Every grouped
+name participates in duplicate and authentication-collision checks. Required
+empty collections and undefined nested style data are refused before dispatch
+with source locations. Unexploded form-cookie collections still require an
+explicit comma-encoding policy and currently report an unsupported representation.
 Advanced multipart, security and additional-operation routing qualification remains tracked in the
 [support matrix](implementation/native-openapi-support.md).
 For 3.0, `required` properties marked readOnly/writeOnly use the request/response

@@ -142,10 +142,10 @@ void main() {
           addTearDown(run.stop);
           expect(run.upstreamForwarding, true);
           expect(run.nativeResponseValidation.name, 'busyapi-native-response');
-          expect(run.nativeResponseValidation.version, '1');
+          expect(run.nativeResponseValidation.version, '2');
           expect(
             run.nativeResponseValidation.configuration,
-            startsWith('response-wire-v1:'),
+            startsWith('response-wire-v2:'),
           );
           final client = HttpClient();
           addTearDown(() => client.close(force: true));

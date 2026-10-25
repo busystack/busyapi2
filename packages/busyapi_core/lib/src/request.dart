@@ -500,6 +500,14 @@ class ContractRequestBuilder {
               supplied.text,
               structured: supplied.json,
             );
+      if (serialized.isEmpty && raw['required'] == true) {
+        throw CoreFailure(
+          'request.parameter.empty-serialization',
+          'Required $location parameter $name has an empty collection that emits no wire field.',
+          kind: CoreFailureKind.unsupported,
+          source: _definitionSource(raw),
+        );
+      }
       switch (location) {
         case 'path':
           final marker = '{$name}';
@@ -554,9 +562,27 @@ class ContractRequestBuilder {
               throw CoreFailure(
                 'request.cookie.duplicate',
                 'Cookie parameter ${item.$1} is supplied more than once',
+                source: _definitionSource(raw),
               );
             }
-            cookies.add(item);
+          }
+          final formCollection =
+              raw['style'] == 'form' &&
+              (raw['content'] as List? ?? const []).isEmpty &&
+              supplied.representation !=
+                  RequestValueRepresentation.serializedParameter &&
+              (value is List || value is Map);
+          if (formCollection && serialized.isNotEmpty) {
+            final first = serialized.first;
+            cookies.add((
+              first.$1,
+              [
+                first.$2,
+                for (final item in serialized.skip(1)) '${item.$1}=${item.$2}',
+              ].join('&'),
+            ));
+          } else {
+            cookies.addAll(serialized);
           }
           cookieOwners.addAll(serialized.map((item) => item.$1));
           break;
@@ -616,6 +642,7 @@ class ContractRequestBuilder {
           query,
           base,
           cookies,
+          cookieOwners,
           sensitiveHeaders,
           sensitiveQuery,
         );
@@ -765,6 +792,19 @@ class ContractRequestBuilder {
       await body?.close();
       rethrow;
     }
+  }
+
+  static CoreFailureSource? _definitionSource(Map value) {
+    final source = value['definition'] ?? value['source'];
+    if (source case {
+      'resource': String resource,
+      'pointer': String pointer,
+      'range': [int start, int end],
+    }) {
+      if (start >= 0 && end >= start)
+        return CoreFailureSource(resource, pointer, SourceRange(start, end));
+    }
+    return null;
   }
 
   static void _positiveTimeout(Duration value, String name) {
@@ -918,6 +958,14 @@ class ContractRequestBuilder {
             (location == 'query' || location == 'cookie' ? 'form' : 'simple'),
         explode = parameter['explode'] == true;
     String scalar(Object? item) {
+      if (item is List || item is Map) {
+        throw CoreFailure(
+          'request.parameter.nesting',
+          'This parameter style does not define nested data values. Select its declared content or a serialized example.',
+          kind: CoreFailureKind.unsupported,
+          source: _definitionSource(parameter),
+        );
+      }
       if (item == null) return 'null';
       if (item is bool) return item ? 'true' : 'false';
       if (item is String) return item;
@@ -1025,10 +1073,14 @@ class ContractRequestBuilder {
               'This cookie style/explode declaration is invalid for its OpenAPI version.',
             );
           }
-          if (style == 'form' && (array != null || object != null)) {
+          if (style == 'form' &&
+              !explode &&
+              (array != null || object != null)) {
             throw CoreFailure(
-              'request.cookie.style',
-              'Composite form-style cookie serialization is unsupported; use the declared cookie style where available.',
+              'request.cookie.encoding',
+              'This unexploded form cookie requires an explicit wire encoding for its comma delimiter.',
+              kind: CoreFailureKind.unsupported,
+              source: _definitionSource(parameter),
             );
           }
           if (style != 'cookie' && style != 'form') {
@@ -1043,6 +1095,9 @@ class ContractRequestBuilder {
             : location == 'query'
             ? _encode(text, parameter['allowReserved'] == true)
             : style == 'form'
+            ? _encode(text, false)
+            : text;
+        String fieldName(String text) => location == 'cookie' && style == 'form'
             ? _encode(text, false)
             : text;
         if (style == 'deepObject') {
@@ -1065,17 +1120,17 @@ class ContractRequestBuilder {
             ? '\t'
             : ',';
         if (explode && array != null) {
-          return [for (final item in array) (name, encode(item))];
+          return [for (final item in array) (fieldName(name), encode(item))];
         }
         if (explode && object != null) {
           return [
             for (final entry in object.entries)
-              (entry.key, encode(entry.value)),
+              (fieldName(entry.key), encode(entry.value)),
           ];
         }
         return [
           (
-            name,
+            fieldName(name),
             flattened(separator)
                 .map(encode)
                 .join(
@@ -1243,6 +1298,7 @@ class ContractRequestBuilder {
     List<_QueryField> query,
     Uri base,
     List<(String, String)> cookies,
+    Set<String> cookieOwners,
     Set<String> sensitiveHeaders,
     Set<String> sensitiveQuery,
   ) async {
@@ -1327,10 +1383,12 @@ class ContractRequestBuilder {
           ));
           sensitiveQuery.add(name);
         case 'cookie':
-          if (cookies.any((entry) => entry.$1 == name)) {
+          if (cookieOwners.contains(name) ||
+              cookies.any((entry) => entry.$1 == name)) {
             throw CoreFailure(
               'request.security.collision',
               'Cookie $name already has an explicit value',
+              source: _definitionSource(declaration),
             );
           }
           cookies.add((name, value));
@@ -3934,6 +3992,43 @@ class ContractRequestExecutor {
         );
       }
       if (name.toLowerCase() == 'content-type' || values == null) continue;
+      if (header['family'] == '2.0') {
+        final schema = header['schema'];
+        if (schema is Map && schema['unconstrained'] != true) {
+          if (values.fold<int>(
+                0,
+                (bytes, value) => bytes + utf8.encode(value).length,
+              ) >
+              _evaluationLimit) {
+            checksComplete = false;
+            findings.add(
+              _finding(
+                'runtime.response.header.limit',
+                'warning',
+                'The header representation exceeds the bounded evaluation input.',
+                location: name,
+              ),
+            );
+          } else {
+            instances.add(
+              RuntimeSchemaInstance(
+                subject: 'response-header',
+                location: name,
+                text: values.join(','),
+                schemaResource: schema['resource'] as String,
+                schemaPointer: schema['pointer'] as String,
+                swaggerHeader: RuntimeSwaggerHeaderTarget(
+                  resource: schema['resource'] as String,
+                  pointer: schema['pointer'] as String,
+                  name: name,
+                  values: values,
+                ),
+              ),
+            );
+          }
+        }
+        continue;
+      }
       final headerMedia = (header['content'] as List? ?? const [])
           .whereType<Map>()
           .toList();

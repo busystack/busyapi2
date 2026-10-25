@@ -9,6 +9,7 @@ import type {OperationOccurrence} from './reference_graph';
 import {nativeMedia,selectNativeMedia,schemaLocation,sourceLocation,type SchemaLocation,type SourceLocation,type NativeMedia,type NativeRuntimeInstance,type NativeMockCheck,type NativeRuntimeCheck,type NativeRuntimeEvaluation} from './mock_projection';
 import {mockResponseProducer,validateMockResponse} from './mock_response_validation';
 import {mockParameterProducer,validateMockParameters} from './mock_request_parameters';
+import {schemaProducer} from './schema_evaluation';
 export type {NativeMockCheck} from './mock_projection';
 
 export type MockCapture={root:string;snapshot:string;resources:Resource[]};
@@ -57,7 +58,8 @@ export class MockNativeValidation {
             throw new SourceError(checked.complete?'mock.validation.invalid':'mock.validation.unsupported',
                 'Native validation could not qualify the captured mock graph'+(record(finding)?': '+finding.code:''),range,!checked.complete?'unsupported':undefined,target&&node?{...target,range:node.range}:undefined);
         }
-        if(typeof checked.producer!=='string'||typeof checked.producerVersion!=='string'||typeof checked.configuration!=='string')throw new SourceError('mock.validation.protocol','The native validator omitted its producer identity');
+        if(checked.producer!==schemaProducer.name||checked.producerVersion!==schemaProducer.version||checked.configuration!==schemaProducer.configuration)
+            throw new SourceError('mock.validation.revision','The native evaluator revision differs from the captured mock implementation');
         this.producer={name:checked.producer,version:checked.producerVersion,configuration:checked.configuration};
         const result=await this.client.request('deriveBundle',{...this.capture,outputId:output.id});
         if(result.snapshot!==this.capture.snapshot||result.complete!==true||!record(result.output)||result.output.id!==output.id||result.output.identity!==output.identity||typeof result.output.text!=='string')
@@ -66,8 +68,8 @@ export class MockNativeValidation {
     }
 
     get identity(){return this.producer;}
-    get responseIdentity(){return this.producer&&{...mockResponseProducer,configuration:'response-wire-v1:'+this.producer.configuration};}
-    get parameterIdentity(){return this.producer&&{...mockParameterProducer,configuration:'parameter-wire-v1:'+this.producer.configuration};}
+    get responseIdentity(){return this.producer&&{...mockResponseProducer,configuration:'response-wire-v2:'+this.producer.configuration};}
+    get parameterIdentity(){return this.producer&&{...mockParameterProducer,configuration:'parameter-wire-v2:'+this.producer.configuration};}
 
     private declaration(value:unknown,operation:OperationOccurrence):BodyDeclaration|undefined {
         if(value===undefined)return;
@@ -140,7 +142,7 @@ export class MockNativeValidation {
 
     private async evaluateInstances(runtimeInstances:NativeRuntimeInstance[],signal:AbortSignal):Promise<NativeRuntimeCheck> {
         const result=await this.client.request('evaluateSchemas',{...this.capture,runtimeInstances},signal);
-        if(result.snapshot!==this.capture.snapshot||typeof result.complete!=='boolean'||!Array.isArray(result.runtimeEvaluations)||!Array.isArray(result.runtimeFindings))
+        if(result.snapshot!==this.capture.snapshot||result.producer!==this.producer?.name||result.producerVersion!==this.producer?.version||result.configuration!==this.producer?.configuration||typeof result.complete!=='boolean'||!Array.isArray(result.runtimeEvaluations)||!Array.isArray(result.runtimeFindings))
             throw new SourceError('mock.validation.protocol','Native validation returned an unrelated runtime result');
         const evaluations:NativeRuntimeEvaluation[]=[],findings:Record<string,unknown>[]=[];
         for(const value of result.runtimeFindings){if(!record(value)||typeof value.code!=='string'||typeof value.message!=='string')throw new SourceError('mock.validation.protocol','Native validation returned a malformed finding');findings.push(value);}

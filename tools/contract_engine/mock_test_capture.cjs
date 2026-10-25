@@ -16,8 +16,8 @@ function capturedMockStart(capture,options={}) {
  if(derived.complete!==true)throw Error('The synthetic mock fixture did not form one complete bundle');
  return {version:1,snapshot:capture.snapshot,capture,derived:{id:derived.output.id,identity:derived.output.identity},...options};
 }
-async function startMock(t,input,{failure=false}={}) {
- const child=spawn(process.execPath,[path.join(__dirname,'dist/mock-server.cjs')],{stdio:['pipe','pipe','pipe']});
+async function startMock(t,input,{failure=false,helper=path.join(__dirname,'dist/mock-server.cjs')}={}) {
+ const child=spawn(process.execPath,[helper],{stdio:['pipe','pipe','pipe']});
  let stderr='';child.stderr.on('data',chunk=>stderr+=chunk);
  t.after(async()=>{
   if(child.exitCode===null){
@@ -49,11 +49,11 @@ async function startMock(t,input,{failure=false}={}) {
   assert.equal(typeof event.nativeValidation.version,'string');
   assert.match(event.nativeValidation.configuration,/exact-cst/);
   assert.equal(event.nativeResponseValidation.name,'busyapi-native-response');
-  assert.equal(event.nativeResponseValidation.version,'1');
-  assert.match(event.nativeResponseValidation.configuration,/^response-wire-v1:/);
+  assert.equal(event.nativeResponseValidation.version,'2');
+  assert.match(event.nativeResponseValidation.configuration,/^response-wire-v2:/);
   assert.equal(event.nativeParameterValidation.name,'busyapi-native-parameters');
-  assert.equal(event.nativeParameterValidation.version,'1');
-  assert.match(event.nativeParameterValidation.configuration,/^parameter-wire-v1:/);
+  assert.equal(event.nativeParameterValidation.version,'2');
+  assert.match(event.nativeParameterValidation.configuration,/^parameter-wire-v2:/);
  }
  return event;
 }

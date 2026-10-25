@@ -229,10 +229,10 @@ void main() {
             run.nativeParameterValidation.name,
             'busyapi-native-parameters',
           );
-          expect(run.nativeParameterValidation.version, '1');
+          expect(run.nativeParameterValidation.version, '2');
           expect(
             run.nativeParameterValidation.configuration,
-            startsWith('parameter-wire-v1:'),
+            startsWith('parameter-wire-v2:'),
           );
           final client = HttpClient();
           addTearDown(() => client.close(force: true));
