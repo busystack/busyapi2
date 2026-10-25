@@ -6,6 +6,8 @@ import type {RuntimeFormTarget} from './runtime_form';
 export type SchemaLocation={resource:string;pointer:string};
 export type SourceLocation=SchemaLocation&{range:Range};
 export type NativeMockCheck={complete:boolean;valid:boolean;findings:Record<string,unknown>[]};
+export type NativeRuntimeEvaluation={subject:string;location:string;complete:boolean;valid:boolean};
+export type NativeRuntimeCheck=NativeMockCheck&{evaluations:NativeRuntimeEvaluation[]};
 export type NativeMedia={mediaType:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;formOwner?:RuntimeFormTarget};
 export type NativeRuntimeInstance={subject:string;location:string;text:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget};
 

@@ -56,6 +56,14 @@ List<(String, String)> serializeSwaggerParameter(
   final values = value is List
       ? value.map((v) => item(declaration['items'] as Map?, v, 0)).toList()
       : [scalar(value)];
+  if (location == 'query' &&
+      declaration['allowEmptyValue'] != true &&
+      values.contains('')) {
+    throw CoreFailure(
+      'request.parameter.empty',
+      'An empty Swagger query value requires allowEmptyValue: true',
+    );
+  }
   final multiple = value is List && declaration['collectionFormat'] == 'multi';
   final serialized = multiple
       ? values

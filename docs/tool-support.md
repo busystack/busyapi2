@@ -52,8 +52,22 @@ checks preserve exact numeric tokens and 3.2 Set-Cookie field lines. The respons
 owner is reported separately as `nativeResponseValidation` in `mock --json`.
 `busyapi-response-validation-complete: false` and located `sl-violations` identify
 incomplete response checks while retaining forwarded bytes. Malformed applicable
-JSON retains the existing HTTP 500 proxy policy. Advanced multipart, parameter,
-security and additional-operation routing qualification remains tracked in the
+JSON retains the existing HTTP 500 proxy policy.
+
+Mock parameter assertions also use the original captured schemas, with a separate
+`nativeParameterValidation` identity in `mock --json`. Query, path and cookie
+names retain case; headers ignore case. Empty values retain presence, decimal
+tokens remain exact, and percent-encoded data stays distinct from delimiters.
+Native collection/style, cookie and content-based inputs use bounded wire
+decoders; undefined nested style models and exhausted decoding work return
+HTTP 501 with located findings. Primitive inversion considers literal strings,
+JSON decimal tokens, lower-case booleans and literal `null`; the authored schema
+proves compatibility. Explicit empty values still undergo schema checks, including
+when `allowEmptyValue` is true; Swagger query values additionally require that
+permission. This is BusyAPI's documented conversion policy under
+[OAS 3.0 Appendix B](https://spec.openapis.org/oas/v3.0.4.html#appendix-b-data-type-conversion),
+not a guarantee about another server's ambiguous parameter decoding.
+Advanced multipart, security and additional-operation routing qualification remains tracked in the
 [support matrix](implementation/native-openapi-support.md).
 For 3.0, `required` properties marked readOnly/writeOnly use the request/response
 direction rules. In 3.1/3.2 those keywords remain annotations: native schema

@@ -69,7 +69,7 @@ export class FormSemantics {
         }));
         return {multipartStyle:family!=='3.0',legacyBinary:family==='3.0',
             defaultContentType:formContentType({},family),
-            styles:['form','spaceDelimited','pipeDelimited','deepObject',...(family==='3.2'?['tabDelimited']:[])],
+            styles:['form','spaceDelimited','pipeDelimited','deepObject'],
             shape:{defaultContentType:formContentType({},family),...shape},parts};
     }
 }

@@ -101,7 +101,9 @@ Future<String> _run() async {
       responseStatus =
           Platform.environment['BUSYAPI_FILE_CONTROLS_RESPONSE_STATUS'] == '1',
       mockResponses =
-          Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_RESPONSES'] == '1';
+          Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_RESPONSES'] == '1',
+      mockParameters =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_MOCK_PARAMETERS'] == '1';
   _expect(
     ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
         ['yaml', 'json'].contains(format),
@@ -201,47 +203,84 @@ Future<String> _run() async {
     request.response.write(valid ? '9007199254740993.000' : '9007199254740992');
     await request.response.close();
   });
-  final mockSource =
-      '${json ? '' : '# retained mock source\r\n'}${jsonEncode({
+  final mockParameterSource =
+      '${json ? '' : '# retained parameter source\r\n'}${jsonEncode({
         declaration: version,
-        'info': {'title': 'Native response capture 雪😀', 'version': '1'},
-        if (swagger) 'produces': ['application/json'],
+        'info': {'title': 'Native parameter capture 雪😀', 'version': '1'},
         'paths': {
-          '/data': {
+          '/precise/{ID}': {
             'post': {
-              'responses': {
-                '200': {
-                  'description': 'Actual response',
-                  'headers': {
-                    'X-Exact': swagger ? {
-                            'type': 'integer',
-                            'enum': ['EXACT'],
-                          } : {
-                            'schema': {
-                              'type': 'integer',
-                              'enum': ['EXACT'],
-                            },
-                          },
-                  },
-                  if (swagger) 'schema': {r'$ref': 'model.$format#/Schema'} else 'content': {
-                      'application/json': {
-                        'schema': {r'$ref': 'model.$format#/Schema'},
-                      },
+              'parameters': [
+                {
+                  'name': 'ID',
+                  'in': 'path',
+                  'required': true,
+                  if (swagger) ...{
+                    'type': 'integer',
+                    'enum': ['EXACT'],
+                  } else 'schema': {
+                      'type': 'integer',
+                      'enum': ['EXACT'],
                     },
                 },
+                {r'$ref': 'model.$format#/Schema'},
+              ],
+              'responses': {
+                '204': {'description': 'Accepted'},
               },
             },
           },
         },
-        'x-literal': {r'$ref': 'literal', 'number': 0},
       }).replaceFirst('"EXACT"', '9007199254740992.00')}\r\n';
+  final mockSource = mockParameters
+      ? mockParameterSource
+      : '${json ? '' : '# retained mock source\r\n'}${jsonEncode({
+          declaration: version,
+          'info': {'title': 'Native response capture 雪😀', 'version': '1'},
+          if (swagger) 'produces': ['application/json'],
+          'paths': {
+            '/data': {
+              'post': {
+                'responses': {
+                  '200': {
+                    'description': 'Actual response',
+                    'headers': {
+                      'X-Exact': swagger ? {
+                              'type': 'integer',
+                              'enum': ['EXACT'],
+                            } : {
+                              'schema': {
+                                'type': 'integer',
+                                'enum': ['EXACT'],
+                              },
+                            },
+                    },
+                    if (swagger) 'schema': {r'$ref': 'model.$format#/Schema'} else 'content': {
+                        'application/json': {
+                          'schema': {r'$ref': 'model.$format#/Schema'},
+                        },
+                      },
+                  },
+                },
+              },
+            },
+          },
+          'x-literal': {r'$ref': 'literal', 'number': 0},
+        }).replaceFirst('"EXACT"', '9007199254740992.00')}\r\n';
   final modelFile = File('${sourceDirectory.path}/model.$format');
-  final modelSource = json
+  final parameterModel = json
+      ? '{"Schema":{"name":"N","in":"query","required":true,${swagger ? '"type":"integer","enum":[9007199254740992.00]' : '"schema":{"type":"integer","enum":[9007199254740992.00]}'}}}'
+      : '# retained parameter\r\nSchema: &model\r\n  name: N\r\n  in: query\r\n  required: true\r\n${swagger ? '  type: integer\r\n  enum: [9007199254740992.00]\r\n' : '  schema: {type: integer, enum: [9007199254740992.00]}\r\n'}';
+  final modelSource = mockParameters
+      ? parameterModel
+      : json
       ? '{"Schema":{"type":"integer","enum":[9007199254740992.00]}}'
       : '# retained model\r\nSchema: &model\r\n  type: integer\r\n  enum: [9007199254740992.00]\r\n';
-  if (mockResponses) await modelFile.writeAsString(modelSource, flush: true);
+  if (mockResponses || mockParameters) {
+    await modelFile.writeAsString(modelSource, flush: true);
+  }
   final rootBytes = utf8.encode(
-        mockResponses
+        mockResponses || mockParameters
             ? '\ufeff$mockSource'
             : responseStatus
             ? '\ufeff$responseSource'
@@ -1297,7 +1336,7 @@ environments:
 
   WorkspaceScreenState? mockScreen;
   try {
-    if (mockResponses) {
+    if (mockResponses || mockParameters) {
       final screen =
           (_elements((w) => w is WorkspaceScreen).single as StatefulElement)
                   .state
@@ -1384,7 +1423,8 @@ environments:
       await click(
         (w) =>
             w is BusyApiActionRow &&
-            w.title == 'Start validation proxy' &&
+            w.title ==
+                (mockParameters ? 'Start Mock' : 'Start validation proxy') &&
             w.onTap != null,
         'native-mock-start-proxy',
         eligible: _interactiveElement,
@@ -1394,50 +1434,107 @@ environments:
         'native-mock-running',
       );
       final run = screen.mockRun.run!;
-      _expect(run.upstreamForwarding, 'native-mock-explicit-proxy');
+      _expect(
+        run.upstreamForwarding == !mockParameters,
+        'native-mock-explicit-mode',
+      );
       final client = HttpClient();
       try {
-        for (final valid in [true, false]) {
-          final request = await client.postUrl(
-            run.baseUri.resolve(valid ? '/data?valid' : '/data'),
-          );
-          final response = await request.close();
-          final text = await utf8.decoder.bind(response).join();
-          final findings = jsonDecode(
-            response.headers.value('sl-violations') ?? '[]',
-          ) as List;
+        if (mockParameters) {
           _expect(
-            response.statusCode == 200 &&
-                text == (valid ? '9007199254740993.000' : '9007199254740992') &&
-                response.headers.value(
-                      'busyapi-response-validation-complete',
-                    ) ==
-                    'true',
-            'native-mock-actual-response',
+            run.nativeParameterValidation.name == 'busyapi-native-parameters',
+            'native-mock-parameter-owner',
           );
-          for (final subject in ['response-body', 'response-header']) {
+          for (final (path, status, location, resource) in [
+            ('/precise/9007199254740993?N=9007199254740993.000', 204, '', ''),
+            (
+              '/precise/9007199254740992?N=9007199254740993',
+              422,
+              'path:ID',
+              root.uri.toString(),
+            ),
+            (
+              '/precise/9007199254740993?N=9007199254740992',
+              422,
+              'query:N',
+              modelFile.uri.toString(),
+            ),
+            (
+              '/precise/9007199254740993?n=9007199254740993',
+              422,
+              'query:N',
+              modelFile.uri.toString(),
+            ),
+          ]) {
+            final request = await client.postUrl(run.baseUri.resolve(path));
+            final response = await request.close();
+            await response.drain<void>();
+            final findings = jsonDecode(
+              response.headers.value('sl-violations') ?? '[]',
+            ) as List;
             _expect(
-              valid
-                  ? findings.isEmpty
-                  : findings.whereType<Map>().any(
-                      (finding) =>
-                          finding['code'] == 'runtime.schema.incompatible' &&
-                          (finding['location'] as List).contains(subject) &&
-                          finding['source']['resource'] == root.uri.toString(),
-                    ),
-              'native-mock-captured-response-check',
+              response.statusCode == status &&
+                  (status == 204
+                      ? findings.isEmpty
+                      : findings.whereType<Map>().any(
+                          (finding) =>
+                              (finding['location'] as List).contains(
+                                location,
+                              ) &&
+                              finding['source']['resource'] == resource,
+                        )),
+              'native-mock-actual-parameter-check',
             );
+          }
+        } else {
+          for (final valid in [true, false]) {
+            final request = await client.postUrl(
+              run.baseUri.resolve(valid ? '/data?valid' : '/data'),
+            );
+            final response = await request.close();
+            final text = await utf8.decoder.bind(response).join();
+            final findings = jsonDecode(
+              response.headers.value('sl-violations') ?? '[]',
+            ) as List;
+            _expect(
+              response.statusCode == 200 &&
+                  text ==
+                      (valid ? '9007199254740993.000' : '9007199254740992') &&
+                  response.headers.value(
+                        'busyapi-response-validation-complete',
+                      ) ==
+                      'true',
+              'native-mock-actual-response',
+            );
+            for (final subject in ['response-body', 'response-header']) {
+              _expect(
+                valid
+                    ? findings.isEmpty
+                    : findings.whereType<Map>().any(
+                        (finding) =>
+                            finding['code'] == 'runtime.schema.incompatible' &&
+                            (finding['location'] as List).contains(subject) &&
+                            finding['source']['resource'] ==
+                                root.uri.toString(),
+                      ),
+                'native-mock-captured-response-check',
+              );
+            }
           }
         }
       } finally {
         client.close(force: true);
       }
       _expect(
-        mockReceived.length == 2 &&
-            mockReceived.every(
-              (value) =>
-                  value.$1 == 'POST' && value.$2 == '/data' && value.$3.isEmpty,
-            ),
+        mockParameters
+            ? mockReceived.isEmpty
+            : mockReceived.length == 2 &&
+                  mockReceived.every(
+                    (value) =>
+                        value.$1 == 'POST' &&
+                        value.$2 == '/data' &&
+                        value.$3.isEmpty,
+                  ),
         'native-mock-forwarded-request',
       );
       _expect(
@@ -1487,9 +1584,9 @@ environments:
         'native-mock-noop-save-reopen',
       );
       stdout.writeln(
-        'BUSYAPI_NATIVE_MOCK_RESPONSES_PASS openapi=$version format=$format source=unsaved-root-and-model controls=prepare-proxy-stop response=status-headers-bytes validation=exact-captured history=one-undo save=reopen',
+        'BUSYAPI_NATIVE_MOCK_${mockParameters ? 'PARAMETERS' : 'RESPONSES'}_PASS openapi=$version format=$format source=unsaved-root-and-model controls=prepare-start-stop validation=exact-captured history=one-undo save=reopen',
       );
-      return 'mock-responses=native openapi=$version format=$format';
+      return 'mock-${mockParameters ? 'parameters' : 'responses'}=native openapi=$version format=$format';
     }
     if (responseStatus) {
       const pointer = '/paths/~1items/get/responses/201';

@@ -9,7 +9,7 @@ const decimal=/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/;
 const unsupported=(message:string):never=>{throw new SourceError('runtime.response.header.unchecked',message,[0,0],'unsupported');};
 const malformed=(message:string):never=>{throw new SourceError('runtime.response.header.serialization',message);};
 
-function listParts(text:string):string[] {
+export function nativeHeaderParts(text:string):string[] {
     const result:string[]=[];
     let quoted=false,escaped=false,start=0;
     for(let index=0;index<text.length;index++){
@@ -60,7 +60,7 @@ export function decodeRuntimeHeader(shapeFor:ReturnType<typeof headerShapes>,dec
         const collection=declaration.collectionFormat;
         const delimiters:Readonly<Record<string,string>>={ssv:' ',tsv:'\t',pipes:'|'};
         const delimiter=typeof collection==='string'&&Object.hasOwn(delimiters,collection)?delimiters[collection]:undefined;
-        const parts=family==='2.0'&&delimiter!==undefined?values.join(',').split(delimiter):cookie?[...values]:listParts(values.join(','));
+        const parts=family==='2.0'&&delimiter!==undefined?values.join(',').split(delimiter):cookie?[...values]:nativeHeaderParts(values.join(','));
         if(shape.type==='array'){
             if(cookie)unsupported('Set-Cookie values are separate cookie fields rather than comma-separated array items');
             if(parts.length===1&&parts[0]==='')unsupported('An empty array and one empty item share this wire representation');

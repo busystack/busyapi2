@@ -7,7 +7,6 @@ import { transformOas3Operations } from '@stoplight/http-spec/oas3/operation';
 import { createLogger } from '@stoplight/prism-core';
 import { ContentExample, createInstance, ProblemJsonError } from '@stoplight/prism-http';
 import { DiagnosticSeverity, IMediaTypeContent } from '@stoplight/types';
-import {validateInput} from '@stoplight/prism-http/dist/validator';
 const {default:route}:typeof import('@stoplight/prism-http/dist/router')=require('@stoplight/prism-http/dist/router');
 import { findNodeAtLocation, Node, parseTree } from 'jsonc-parser';
 import pino from 'pino';
@@ -257,14 +256,14 @@ function exactBody(examples: ExactExample[], method: string, path: string, statu
   return selected.serialized ? JSON.parse(selected.raw) as string : selected.raw;
 }
 
-function violation(value: { path?: string[]; severity: number; code?: string | number; message: string; source?:unknown; nativeSource?:unknown }, prefix: string) {
+function violation(value: { path?: string[]; severity: number; code?: string | number; nativeCode?:string; message: string; source?:unknown; nativeSource?:unknown }, prefix: string) {
   return { location: [prefix, ...(value.path ?? [])], severity: DiagnosticSeverity[value.severity],
-    code: value.code === undefined ? undefined : String(value.code), message: value.message,...(value.nativeSource!==undefined?{source:value.nativeSource}:value.source!==undefined?{source:value.source}:{}) };
+    code: value.code === undefined ? undefined : String(value.code),...(value.nativeCode?{nativeCode:value.nativeCode}:{}), message: value.message,...(value.nativeSource!==undefined?{source:value.nativeSource}:value.source!==undefined?{source:value.source}:{}) };
 }
 
 function nativeDiagnostics(checked:NativeMockCheck,severity:'error'|'warning'='error',response=false) {
-  return checked.findings.filter(finding=>finding.severity===severity).map(finding=>({severity:severity==='error'?DiagnosticSeverity.Error:DiagnosticSeverity.Warning,code:severity==='error'&&!response?422:String(finding.code),message:finding.code+': '+finding.message,
-    path:[response&&typeof finding.subject==='string'?finding.subject:'body',...(response&&finding.subject==='response-header'&&typeof finding.location==='string'?[finding.location]:[]),...segments(typeof finding.pointer==='string'?finding.pointer:'')],
+  return checked.findings.filter(finding=>finding.severity===severity).map(finding=>({severity:severity==='error'?DiagnosticSeverity.Error:DiagnosticSeverity.Warning,code:severity==='error'&&!response?422:String(finding.code),nativeCode:String(finding.code),message:finding.code+': '+finding.message,
+    path:[(response||finding.subject==='request-parameter')&&typeof finding.subject==='string'?finding.subject:'body',...((response&&finding.subject==='response-header'||finding.subject==='request-parameter')&&typeof finding.location==='string'?[finding.location]:[]),...segments(typeof finding.pointer==='string'?finding.pointer:'')],
     ...(record(finding.source)?{nativeSource:finding.source}:record(finding.schema)?{nativeSource:finding.schema}:{})}));
 }
 
@@ -313,19 +312,12 @@ async function main(): Promise<void> {
     const prism = createInstance(baseConfig, { logger,
       validateInput: options=>{
         const checked=nativeChecks.get(options.element);
-        if(!checked||!checked.complete)throw new Error('Native body validation did not complete before Prism input validation');
+        if(!checked||!checked.complete)throw new Error('Native request validation did not complete before Prism input validation');
         const diagnostics=nativeDiagnostics(checked),[first,...rest]=diagnostics;
-        if(!checked.valid&&!first)throw new Error('Native body validation omitted its invalid-input findings');
-        // A malformed Content-Type must stay a rejected request; passing it to
-        // Prism's MIME parser would turn this known violation into a 500.
-        if(first&&checked.findings.some(finding=>finding.code==='runtime.request.content-type'))
-          return {_tag:'Left',left:[first,...rest]};
-        // Delegate body assertions to the canonical engine. Prism 5.15.11's
-        // truthy required-body check and JS numeric conversion cannot own them.
-        const body={id:options.resource.id+'-native-body',required:false,contents:[{id:options.resource.id+'-native-content',mediaType:'*/*'}]};
-        const result=validateInput({resource:{...options.resource,request:{...options.resource.request,body}},element:options.element});
-        if(checked.valid)return result;
-        return {_tag:'Left',left:[first,...rest,...(result._tag==='Left'?result.left:[])]};
+        if(!checked.valid&&!first)throw new Error('Native request validation omitted its invalid-input findings');
+        // Prism still owns routing, security and response negotiation. All
+        // parameter and body schema assertions use the captured native graph.
+        return checked.valid?{_tag:'Right',right:options.element}:{_tag:'Left',left:[first,...rest]};
       },
       mock: options => logger => {
         const result = mock(options)(logger);
@@ -369,14 +361,23 @@ async function main(): Promise<void> {
       try {
         const url = new URL(request.url ?? '/', 'http://127.0.0.1');
         const preferences = preference(request, url);
-        const query: Record<string, string | string[]> = {};
+        const query: Record<string, string | string[]> = Object.create(null);
         for (const name of url.searchParams.keys()) {
           const values = url.searchParams.getAll(name);
           query[name] = values.length === 1 ? values[0] : values;
         }
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = Object.create(null);
         for (const [name, value] of Object.entries(request.headers))
           if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(', ') : value;
+        // Node 24's cooked header map can omit valid names inherited from
+        // Object.prototype. Retain those actual fields from rawHeaders while
+        // keeping Node's existing duplicate/credential handling for other names.
+        const rawFields=new Map<string,string[]>();
+        for(let index=0;index<request.rawHeaders.length;index+=2){
+          const name=request.rawHeaders[index].toLowerCase();
+          if(!Object.hasOwn(headers,name))rawFields.set(name,[...(rawFields.get(name)??[]),request.rawHeaders[index+1]]);
+        }
+        for(const [name,values]of rawFields)headers[name]=values.join(', ');
         const captured = await body(request);
         const prismRequest = { method: (request.method ?? 'GET').toLowerCase() as never,
           url: { path: url.pathname, query }, headers, body: captured.value };
@@ -384,7 +385,9 @@ async function main(): Promise<void> {
         signals.set(prismRequest,cancellation.signal);
         const selected=route({resources:operations,input:prismRequest});
         if(selected._tag==='Right'){
-          const check=await native.body(selected.right.path,selected.right.method,captured.raw??Buffer.alloc(0),headers['content-type'],(captured.raw?.length??0)>0||headers['content-type']!==undefined,cancellation.signal);
+          const bodyCheck=await native.body(selected.right.path,selected.right.method,captured.raw??Buffer.alloc(0),headers['content-type'],(captured.raw?.length??0)>0||headers['content-type']!==undefined,cancellation.signal);
+          const parameterCheck=await native.parameters(selected.right.path,selected.right.method,url.pathname,url.search.slice(1),headers,cancellation.signal);
+          const check={complete:bodyCheck.complete&&parameterCheck.complete,valid:bodyCheck.valid&&parameterCheck.valid,findings:[...bodyCheck.findings,...parameterCheck.findings]};
           if(!check.complete){
             if(reply.destroyed)return;
             reply.setHeader('content-type','application/problem+json');
@@ -476,7 +479,7 @@ async function main(): Promise<void> {
     write({ version: 1, event: 'ready', snapshot: input.snapshot, tool: 'Prism',
       toolVersion: '5.15.11', adapter: 'in-memory-http-spec-7.1.0', host: '127.0.0.1',
       port: address.port, operations: operations.length, nativeValidation:native.identity,
-      nativeResponseValidation:native.responseIdentity,upstreamForwarding: input.upstream !== undefined });
+      nativeResponseValidation:native.responseIdentity,nativeParameterValidation:native.parameterIdentity,upstreamForwarding: input.upstream !== undefined });
   } finally {
     if(!listening)await native.close();
   }

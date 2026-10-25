@@ -351,11 +351,12 @@ def main():
     parser.add_argument('--member-names', choices=['empty', 'unicode'], help='Use native Swagger reusable names in the named security-maintenance workflow')
     parser.add_argument('--response-status', action='store_true', help='Exercise native reviewed response-status correction and reference repairs')
     parser.add_argument('--mock-responses', action='store_true', help='Exercise native proxy controls and captured unsaved response validation')
+    parser.add_argument('--mock-parameters', action='store_true', help='Exercise native mock controls and captured unsaved parameter validation')
     parser.add_argument('--session', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.member_names and (args.openapi != '2.0' or args.security_maintenance != 'named'):
         parser.error('Member-name cases require Swagger 2.0 and named security maintenance')
-    if sum(bool(value) for value in [args.security_maintenance, args.security_selection, args.authoring, args.response_status, args.mock_responses]) > 1:
+    if sum(bool(value) for value in [args.security_maintenance, args.security_selection, args.authoring, args.response_status, args.mock_responses, args.mock_parameters]) > 1:
         parser.error('Choose one native workflow per run')
     if (args.security_maintenance == 'uri' or args.security_selection == 'uri') and not args.openapi.startswith('3.2.'):
         parser.error('URI Security Requirements require OpenAPI 3.2')
@@ -372,6 +373,7 @@ def main():
                 *(['--member-names', args.member_names] if args.member_names else []),
                 *(['--response-status'] if args.response_status else []),
                 *(['--mock-responses'] if args.mock_responses else []),
+                *(['--mock-parameters'] if args.mock_parameters else []),
             ], env=private_session_environment(environment, runtime), timeout=900 if args.authoring else 210).returncode
     # Give GTK a valid private accessibility bus without modifying the desktop
     # root property. Screen-lock checks still use the original desktop bus.
@@ -399,6 +401,7 @@ def main():
                            BUSYAPI_FILE_CONTROLS_MEMBER_NAMES=args.member_names or '',
                            BUSYAPI_FILE_CONTROLS_RESPONSE_STATUS='1' if args.response_status else '',
                            BUSYAPI_FILE_CONTROLS_MOCK_RESPONSES='1' if args.mock_responses else '',
+                           BUSYAPI_FILE_CONTROLS_MOCK_PARAMETERS='1' if args.mock_parameters else '',
                            XDG_CONFIG_HOME=f'{directory}/config', XDG_STATE_HOME=f'{directory}/state',
                            XDG_CACHE_HOME=f'{directory}/cache', LC_ALL='C.UTF-8')
         process = subprocess.Popen([str(executable)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,

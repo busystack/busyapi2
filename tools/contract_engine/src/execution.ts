@@ -364,14 +364,14 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   const parameters=new ParameterSemantics(graph).operation(input.resource,input.pointer,context.pathItem);
   if(!parameters.complete||!parameters.valid)throw new SourceError('request.parameters','Effective parameters are incomplete or invalid');
   const parameter=(entry:ParameterOccurrence)=>{
-    if(entry.state!=='resolved'||!entry.definition||!entry.name||!entry.location)throw new SourceError('request.parameter','An effective parameter is incomplete');
+    if(entry.state!=='resolved'||!entry.definition||entry.name===undefined||!entry.location)throw new SourceError('request.parameter','An effective parameter is incomplete');
     const selected=follow(entry.definition,'parameter'),v=selected.node.value;
     const defaultStyle=entry.location==='query'||entry.location==='cookie'?'form':'simple';
     const defaultExplode=(entry.location==='query'||entry.location==='cookie')&&(v.style===undefined||v.style==='form'||family==='3.2'&&v.style==='cookie');
     const content=v.content&&typeof v.content==='object'?media(selected.resource,selected.pointer+'/content',v.content):[];
     return {name:entry.name,in:entry.location,family,type:typeof v.schema?.type==='string'?v.schema.type:undefined,description:v.description,required:v.required===true||entry.location==='path',deprecated:v.deprecated===true,
       style:typeof v.style==='string'?v.style:defaultStyle,explode:typeof v.explode==='boolean'?v.explode:defaultExplode,
-      allowReserved:v.allowReserved===true,source:location(entry.source.resource,entry.source.pointer),definition:selected.source,
+      allowReserved:v.allowReserved===true,allowEmptyValue:v.allowEmptyValue===true,source:location(entry.source.resource,entry.source.pointer),definition:selected.source,
       schema:schema(selected.resource,selected.pointer,v),content,example:example(selected.resource,selected.pointer,v),examples:examples(selected.resource,selected.pointer,v),
       ...(family==='2.0'&&entry.location!=='body'?swaggerFlat(v,selected.source):{})};
   };

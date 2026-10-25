@@ -256,6 +256,7 @@ class MockRun {
     this.upstreamForwarding,
     this.nativeValidation,
     this.nativeResponseValidation,
+    this.nativeParameterValidation,
     this._stderr,
   );
   final MockPlan plan;
@@ -266,6 +267,7 @@ class MockRun {
   final bool upstreamForwarding;
   final MockValidationIdentity nativeValidation;
   final MockValidationIdentity nativeResponseValidation;
+  final MockValidationIdentity nativeParameterValidation;
   final List<int> _stderr;
   bool _stopping = false;
   bool get outdated => plan.outdated;
@@ -376,6 +378,10 @@ class MockRun {
       message['nativeResponseValidation'],
       expectedName: 'busyapi-native-response',
     );
+    final nativeParameterValidation = MockValidationIdentity._read(
+      message['nativeParameterValidation'],
+      expectedName: 'busyapi-native-parameters',
+    );
     if (message['event'] != 'ready' ||
         message['snapshot'] != plan.snapshot.identity ||
         message['tool'] != 'Prism' ||
@@ -385,6 +391,7 @@ class MockRun {
         message['operations'] is! int ||
         nativeValidation == null ||
         nativeResponseValidation == null ||
+        nativeParameterValidation == null ||
         message['upstreamForwarding'] != (proxyTarget != null)) {
       _terminateMock(process, grouped);
       await lines.cancel();
@@ -413,6 +420,7 @@ class MockRun {
       message['upstreamForwarding'] as bool,
       nativeValidation,
       nativeResponseValidation,
+      nativeParameterValidation,
       stderrBytes,
     );
   }

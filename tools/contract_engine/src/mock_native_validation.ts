@@ -6,8 +6,9 @@ import {mediaTypes} from './media_types';
 import {runtimeMediaKind} from './runtime_media';
 import type {RuntimeFormTarget} from './runtime_form';
 import type {OperationOccurrence} from './reference_graph';
-import {nativeMedia,selectNativeMedia,schemaLocation,sourceLocation,type SchemaLocation,type SourceLocation,type NativeMedia,type NativeRuntimeInstance,type NativeMockCheck} from './mock_projection';
+import {nativeMedia,selectNativeMedia,schemaLocation,sourceLocation,type SchemaLocation,type SourceLocation,type NativeMedia,type NativeRuntimeInstance,type NativeMockCheck,type NativeRuntimeCheck,type NativeRuntimeEvaluation} from './mock_projection';
 import {mockResponseProducer,validateMockResponse} from './mock_response_validation';
+import {mockParameterProducer,validateMockParameters} from './mock_request_parameters';
 export type {NativeMockCheck} from './mock_projection';
 
 export type MockCapture={root:string;snapshot:string;resources:Resource[]};
@@ -66,6 +67,7 @@ export class MockNativeValidation {
 
     get identity(){return this.producer;}
     get responseIdentity(){return this.producer&&{...mockResponseProducer,configuration:'response-wire-v1:'+this.producer.configuration};}
+    get parameterIdentity(){return this.producer&&{...mockParameterProducer,configuration:'parameter-wire-v1:'+this.producer.configuration};}
 
     private declaration(value:unknown,operation:OperationOccurrence):BodyDeclaration|undefined {
         if(value===undefined)return;
@@ -125,21 +127,29 @@ export class MockNativeValidation {
         return validateMockResponse(this.context.graph,description,description.operation.method,status,headers,bytes,instances=>this.evaluateInstances(instances,signal));
     }
 
+    async parameters(template:string,method:string,path:string,query:string,headers:Readonly<Record<string,string>>,signal:AbortSignal):Promise<NativeMockCheck> {
+        const {description}=this.plan(template,method);
+        return validateMockParameters(this.context.graph,description,template,path,query,headers,instances=>this.evaluateInstances(instances,signal));
+    }
+
     private async evaluate(bytes:Buffer,actual:string,signal:AbortSignal,schema?:SchemaLocation,itemSchema?:SchemaLocation,form?:RuntimeFormTarget):Promise<NativeMockCheck> {
         return this.evaluateInstances([{
             subject:'request-body',location:actual,text:bytes.toString('base64'),mediaType:actual,mediaBase64:true,
             ...(schema?{schema}:{}),...(itemSchema?{itemSchema}:{}),...(form?{form}:{})}],signal);
     }
 
-    private async evaluateInstances(runtimeInstances:NativeRuntimeInstance[],signal:AbortSignal):Promise<NativeMockCheck> {
+    private async evaluateInstances(runtimeInstances:NativeRuntimeInstance[],signal:AbortSignal):Promise<NativeRuntimeCheck> {
         const result=await this.client.request('evaluateSchemas',{...this.capture,runtimeInstances},signal);
         if(result.snapshot!==this.capture.snapshot||typeof result.complete!=='boolean'||!Array.isArray(result.runtimeEvaluations)||!Array.isArray(result.runtimeFindings))
             throw new SourceError('mock.validation.protocol','Native validation returned an unrelated runtime result');
-        const evaluations=result.runtimeEvaluations,findings:Record<string,unknown>[]=[];
+        const evaluations:NativeRuntimeEvaluation[]=[],findings:Record<string,unknown>[]=[];
         for(const value of result.runtimeFindings){if(!record(value)||typeof value.code!=='string'||typeof value.message!=='string')throw new SourceError('mock.validation.protocol','Native validation returned a malformed finding');findings.push(value);}
-        for(const value of evaluations)if(!record(value)||typeof value.complete!=='boolean'||typeof value.valid!=='boolean')throw new SourceError('mock.validation.protocol','Native validation returned a malformed evaluation');
+        for(const value of result.runtimeEvaluations){
+            if(!record(value)||typeof value.complete!=='boolean'||typeof value.valid!=='boolean'||typeof value.subject!=='string'||typeof value.location!=='string')throw new SourceError('mock.validation.protocol','Native validation returned a malformed evaluation');
+            evaluations.push({subject:value.subject,location:value.location,complete:value.complete,valid:value.valid});
+        }
         const complete=result.complete&&evaluations.length>0&&evaluations.every(value=>value.complete===true);
-        return {complete,valid:complete&&evaluations.every(value=>value.valid===true),findings};
+        return {complete,valid:complete&&evaluations.every(value=>value.valid===true),findings,evaluations};
     }
 
     close(){return this.client.close();}

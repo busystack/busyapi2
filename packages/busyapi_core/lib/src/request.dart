@@ -25,6 +25,13 @@ import 'exact_http_method.dart';
 import 'trace_request_policy.dart';
 
 typedef SecretResolver = Future<String?> Function(String reference);
+typedef _QueryField = ({
+  String name,
+  String value,
+  bool allowReserved,
+  bool encoded,
+  bool whole,
+});
 
 // Representation headers on these responses describe content that HTTP does
 // not transfer. Keep this decision shared by decoding, validation and display.
@@ -448,7 +455,7 @@ class ContractRequestBuilder {
     }
     final (base, substitute) = _server(plan, draft, environment);
     var path = plan.operation['path'] as String;
-    final query = <(String, String, bool, bool)>[];
+    final query = <_QueryField>[];
     final cookies = <(String, String)>[];
     final cookieOwners = <String>{};
     final headers = <(String, String)>[];
@@ -506,7 +513,15 @@ class ContractRequestBuilder {
           break;
         case 'query':
           for (final item in serialized) {
-            query.add((item.$1, item.$2, raw['allowReserved'] == true, true));
+            query.add((
+              name: item.$1,
+              value: item.$2,
+              allowReserved: raw['allowReserved'] == true,
+              encoded: true,
+              whole:
+                  supplied.representation ==
+                  RequestValueRepresentation.serializedParameter,
+            ));
           }
           break;
         case 'querystring':
@@ -516,7 +531,13 @@ class ContractRequestBuilder {
               'A querystring parameter cannot be combined with query parameters',
             );
           }
-          query.add(('', serialized.single.$2, true, true));
+          query.add((
+            name: '',
+            value: serialized.single.$2,
+            allowReserved: true,
+            encoded: true,
+            whole: true,
+          ));
           break;
         case 'header':
           _addHeader(
@@ -706,10 +727,10 @@ class ContractRequestBuilder {
       final encodedQuery = <String>[
         if (base.hasQuery) base.query,
         for (final item in query)
-          if (item.$1.isEmpty)
-            item.$2
+          if (item.whole)
+            item.value
           else
-            '${_encode(item.$1, false)}=${item.$4 ? item.$2 : _encode(item.$2, item.$3)}',
+            '${_encode(item.name, false)}=${item.encoded ? item.value : _encode(item.value, item.allowReserved)}',
       ].where((value) => value.isNotEmpty).join('&');
       // The parameter serializer has already percent-encoded each path/query
       // value. Uri.replace would encode those percent signs a second time.
@@ -1219,7 +1240,7 @@ class ContractRequestBuilder {
     Map<String, dynamic> configuration,
     SecretResolver resolver,
     List<(String, String)> headers,
-    List<(String, String, bool, bool)> query,
+    List<_QueryField> query,
     Uri base,
     List<(String, String)> cookies,
     Set<String> sensitiveHeaders,
@@ -1280,9 +1301,9 @@ class ContractRequestBuilder {
                   ) ||
               query.any(
                 (entry) =>
-                    entry.$1 == name ||
-                    entry.$1.isEmpty &&
-                        entry.$2
+                    !entry.whole && entry.name == name ||
+                    entry.whole &&
+                        entry.value
                             .split('&')
                             .any(
                               (pair) =>
@@ -1297,7 +1318,13 @@ class ContractRequestBuilder {
               'Query input $name already has an explicit value',
             );
           }
-          query.add((name, value, false, false));
+          query.add((
+            name: name,
+            value: value,
+            allowReserved: false,
+            encoded: false,
+            whole: false,
+          ));
           sensitiveQuery.add(name);
         case 'cookie':
           if (cookies.any((entry) => entry.$1 == name)) {

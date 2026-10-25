@@ -224,9 +224,12 @@ function installExactNumericKeywords() {
  addKeyword({...getKeyword(id('const')),compile:schemaFingerprint,interpret:(expected,instance)=>expected===instanceFingerprint(instance)} as any);
  addKeyword({...getKeyword(id('enum')),compile:schema=>{
   const source=sourceAt(canonicalUri(schema));
+  // An alias owns its source range but its sequence children belong to the
+  // physical anchor. Fingerprint those children with their exact CST lexemes.
+  const node=source?.doc.dataNode(source.node.pointer);
   // Enum members are literal data. Traversing them with Browser.step/values
   // can resolve a JRef wrapper; reading their value must never do so.
-  return ((source?source.node.value:Browser.value(schema)) as any[]).map((value,i)=>fingerprint(value,source?{doc:source.doc,node:source.node.children.get(String(i))}:undefined));
+  return ((node?node.value:Browser.value(schema)) as any[]).map((value,i)=>fingerprint(value,source&&node?{doc:source.doc,node:node.children.get(String(i))}:undefined));
  },interpret:(options,instance)=>options.includes(instanceFingerprint(instance))} as any);
  addKeyword({...getKeyword(id('uniqueItems')),interpret:(enabled,instance)=>{
   if(!enabled||Instance.typeOf(instance)!=='array')return true;
