@@ -88,6 +88,12 @@ Future<void> exercise() async {
   final modern = version.startsWith('3.1.') || version.startsWith('3.2.');
   final multiline = version.startsWith('3.2.');
   final cookies = Platform.environment['BUSYAPI_NATIVE_HTTP_COOKIES'] == '1';
+  final singleCookie =
+      Platform.environment['BUSYAPI_NATIVE_COOKIE_SINGLE'] == '1';
+  check(
+    !singleCookie || cookies && !swagger && !version.startsWith('3.2.'),
+    'single-cookie-family',
+  );
   final openId = Platform.environment['BUSYAPI_NATIVE_HTTP_OPENID'] == '1';
   final credentialMode =
       Platform.environment['BUSYAPI_NATIVE_CREDENTIAL_MODE'] ?? 'normal';
@@ -129,7 +135,11 @@ Future<void> exercise() async {
       ? 'accessTokenRef'
       : 'tokenRef';
   final evidencePrefix =
-      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}${binding == 'named' ? '' : '-$binding'}${cookies ? '-cookies' : ''}${emptyCredential ? '-$credentialMode' : ''}';
+      'http-${version.replaceAll('.', '-')}-$format${openId ? '-openid' : ''}${binding == 'named' ? '' : '-$binding'}${cookies
+          ? singleCookie
+                ? '-cookie-single'
+                : '-cookies'
+          : ''}${emptyCredential ? '-$credentialMode' : ''}';
   final directory =
       Platform.environment['BUSYAPI_FILE_CONTROLS_DIRECTORY'] ?? '';
   check(
@@ -167,7 +177,10 @@ Future<void> exercise() async {
     check(utf8.decode(bytes) == 'hello', 'example-wire');
     if (cookies) {
       check(
-        request.headers.value('cookie') == 'Colors=%E9%9B%AA&Colors=a%26b; zero=0&flag=false&%E9%9B%AA=0; Plain=100%25',
+        request.headers.value('cookie') ==
+            (singleCookie
+                ? 'Colors=one%2C%E9%9B%AA; Plain=100%25'
+                : 'Colors=%E9%9B%AA&Colors=a%26b; zero=0&flag=false&%E9%9B%AA=0; Plain=100%25'),
         'native-cookie-wire',
       );
     }
@@ -322,27 +335,27 @@ Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
       'in': 'cookie',
       'required': true,
       'style': 'form',
-      'explode': true,
+      'explode': !singleCookie,
       'schema': {
         'type': 'array',
-        'minItems': 2,
-        'maxItems': 2,
+        'minItems': singleCookie ? 1 : 2,
+        'maxItems': singleCookie ? 1 : 2,
         'items': {
           'type': 'string',
-          'enum': ['雪', 'a&b'],
+          'enum': singleCookie ? ['one,雪'] : ['雪', 'a&b'],
         },
       },
-      'example': ['雪', 'a&b'],
+      'example': singleCookie ? ['one,雪'] : ['雪', 'a&b'],
     },
     {
       'name': 'Object',
       'in': 'cookie',
-      'required': true,
+      'required': !singleCookie,
       'style': 'form',
-      'explode': true,
+      'explode': !singleCookie,
       'schema': {
         'type': 'object',
-        'required': ['zero', 'flag', '雪'],
+        if (!singleCookie) 'required': ['zero', 'flag', '雪'],
         'additionalProperties': false,
         'properties': {
           'zero': {
@@ -359,7 +372,9 @@ Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
           },
         },
       },
-      'example': {'zero': 0, 'flag': false, '雪': 0},
+      'example': singleCookie
+          ? <String, Object?>{}
+          : {'zero': 0, 'flag': false, '雪': 0},
     },
     {
       'name': 'Plain',
@@ -371,6 +386,18 @@ Provider/~: {type: apiKey, in: header, name: X-Fixture-Key}
       },
       'example': '100%',
     },
+    if (singleCookie)
+      {
+        'name': 'Empty',
+        'in': 'cookie',
+        'style': 'form',
+        'explode': false,
+        'schema': {
+          'type': 'array',
+          'items': {'type': 'string'},
+        },
+        'example': <String>[],
+      },
   ];
   final contract = <String, Object?>{
     if (swagger) 'swagger': version else 'openapi': version,
@@ -762,7 +789,12 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
     await row('Examples · text/plain · json');
   }
   if (cookies) {
-    for (final name in ['Colors', 'Object', 'Plain']) {
+    for (final name in [
+      'Colors',
+      'Object',
+      'Plain',
+      if (singleCookie) 'Empty',
+    ]) {
       await row('Examples · $name · json');
       final key = OperationRequestDraft.parameterKey('cookie', name);
       await waitFor(
@@ -944,4 +976,9 @@ ${cookies ? '      parameters: ${jsonEncode(cookieParameters)}\n' : ''}      req
   stdout.writeln(
     'BUSYAPI_NATIVE_HTTP_PASS version=$version format=$format openId=$openId binding=$binding cookies=$cookies',
   );
+  if (singleCookie) {
+    stdout.writeln(
+      'BUSYAPI_NATIVE_COOKIE_SINGLE_PASS version=$version format=$format',
+    );
+  }
 }

@@ -77,6 +77,18 @@ remain incomplete. This conversion policy follows the implementation-defined
 guidance in [OpenAPI 3.2 §4.24.4.2](https://spec.openapis.org/oas/v3.2.1.html#non-json-data)
 and Appendix B; it does not change the authored schema or response bytes.
 
+For OpenAPI 3.0/3.1 non-exploded form cookies, one array item is encoded without
+a structural comma. Empty optional arrays/objects emit no cookie; required empty
+collections produce a located preparation refusal. A form representation needing
+a structural comma is refused because Cookie syntax excludes that character;
+encoding the delimiter would change its meaning. Mock decoding splits delimiters
+before decoding data, preserving `%2C` inside one item and decoding percent
+sequences once. OpenAPI 3.2's prohibition on explicit `explode: false` remains.
+This policy follows [3.0 Appendix D](https://spec.openapis.org/oas/v3.0.4.html#appendix-d-serializing-headers-and-cookies),
+[3.1 Appendix C.2](https://spec.openapis.org/oas/v3.1.2.html#delimiters-in-parameter-values),
+[RFC 6570 §2.3](https://www.rfc-editor.org/rfc/rfc6570#section-2.3) and
+[RFC 6265 §4.2.1](https://www.rfc-editor.org/rfc/rfc6265#section-4.2.1).
+
 Mock security declarations use the captured native operation and graph-resolved
 schemes, reported separately as `nativeSecurityValidation` in `mock --json`.
 Alternatives use OR; schemes within one requirement use AND. An anonymous
@@ -130,8 +142,9 @@ and values are percent encoded, including Unicode and literal percent data.
 OpenAPI 3.2 `cookie` style retains its literal encoding policy. Every grouped
 name participates in duplicate and authentication-collision checks. Required
 empty collections and undefined nested style data are refused before dispatch
-with source locations. Unexploded form-cookie collections still require an
-explicit comma-encoding policy and currently report an unsupported representation.
+with source locations. Non-exploded form-cookie arrays support one item, and
+optional empty collections are omitted. Collections requiring a structural comma
+are refused under Cookie syntax, as described above.
 Advanced multipart, additional-operation routing and generated-candidate qualification remain tracked in the
 [support matrix](implementation/native-openapi-support.md).
 For 3.0, `required` properties marked readOnly/writeOnly use the request/response

@@ -45,8 +45,8 @@ void main() {
       };
       final parameter = <String, String>{
         'name': 'busyapi-native-parameters',
-        'version': '2',
-        'configuration': 'parameter-wire-v2:fixture-runtime',
+        'version': '3',
+        'configuration': 'parameter-wire-v3:fixture-runtime',
       };
       final security = <String, String>{
         'name': 'busyapi-native-security',
@@ -61,7 +61,7 @@ void main() {
         case 'response-configuration':
           response['configuration'] = 'obsolete';
         case 'parameter-version':
-          parameter['version'] = '1';
+          parameter['version'] = '2';
         case 'parameter-configuration':
           parameter['configuration'] = 'obsolete';
         case 'security-version':

@@ -1077,12 +1077,18 @@ class ContractRequestBuilder {
           if (style == 'form' &&
               !explode &&
               (array != null || object != null)) {
-            throw CoreFailure(
-              'request.cookie.encoding',
-              'This unexploded form cookie requires an explicit wire encoding for its comma delimiter.',
-              kind: CoreFailureKind.unsupported,
-              source: _definitionSource(parameter),
-            );
+            final fields = flattened(',');
+            // RFC6570 omits empty collections. One item needs no delimiter;
+            // a structural comma would violate RFC6265 cookie-octet syntax.
+            if (fields.isEmpty) return [];
+            if (fields.length > 1) {
+              throw CoreFailure(
+                'request.cookie.encoding',
+                'This unexploded form cookie needs a comma delimiter forbidden by Cookie syntax. Select a declared representation with an explicit encoding.',
+                kind: CoreFailureKind.unsupported,
+                source: _definitionSource(parameter),
+              );
+            }
           }
           if (style != 'cookie' && style != 'form') {
             throw CoreFailure(

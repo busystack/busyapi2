@@ -90,6 +90,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_mock_path_items.cjs"
 "$node_bin" "$engine_dir/test_mock_parameter_styles.cjs"
 "$node_bin" "$engine_dir/test_mock_parameter_edges.cjs"
+"$node_bin" "$engine_dir/test_mock_cookie_boundaries.cjs"
 "$node_bin" "$engine_dir/test_mock_nested_items.cjs"
 "$node_bin" "$engine_dir/test_mock_responses.cjs"
 "$node_bin" "$engine_dir/test_mock_header_compositions.cjs"

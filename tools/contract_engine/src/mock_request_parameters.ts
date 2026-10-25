@@ -15,7 +15,7 @@ const maximumCandidates=256,maximumInstances=2048;
 const decimal=/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/;
 const unsupported=(message:string):never=>{throw new SourceError('runtime.request.parameter.unchecked',message,[0,0],'unsupported');};
 const malformed=(message:string):never=>{throw new SourceError('runtime.request.parameter.serialization',message);};
-export const mockParameterProducer=Object.freeze({name:'busyapi-native-parameters',version:'2'});
+export const mockParameterProducer=Object.freeze({name:'busyapi-native-parameters',version:'3'});
 
 function decode(value:string,form=false):string {
     try{return decodeURIComponent(form?value.replace(/\+/g,' '):value);}
@@ -93,6 +93,8 @@ function pathValues(template:string,path:string):Map<string,string> {
 
 function data(parameter:Parameter,values:readonly string[],raw:boolean,fields:readonly Pair[],reserved:ReadonlySet<string>):Candidates {
     const {in:location,name,style,explode,shape}=parameter;
+    if(location==='cookie'&&style==='form'&&!explode&&raw&&values.some(value=>value.includes(',')))
+        malformed('A non-exploded form cookie has a comma excluded by RFC6265 cookie-octet syntax');
     if(parameter.swagger)return values.length?{present:true,texts:swaggerWireValues(values,parameter.swagger,{...(raw?{decode:(text:string)=>decode(text,location==='query'),plus:location==='query'}:{}),...(location==='header'?{commas:nativeHeaderParts}:{})})}:{present:false,texts:[]};
     const types=shape.types,possible=(type:string)=>!types||types.includes(type),texts:string[]=[];
     const convert=(text:string)=>raw?decode(text,location==='query'):text;
@@ -189,8 +191,12 @@ export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,t
             }else if(parameter.in==='cookie'){
                 const cookie=parameter.style==='cookie';
                 const segments=pairs(headers.cookie??'',';',false).map(([name,value])=>[name.trim(),value] as Pair);
-                fields=cookie?segments:segments.flatMap(([name,value])=>pairs(name+'='+value,'&',true));
-                values=fields.filter(([name])=>name===parameter.name).map(([,value])=>value);
+                // Split RFC6570 delimiters before percent-decoding data. In
+                // particular %2C inside one item cannot become a list comma.
+                const rawFields=cookie?segments:segments.flatMap(([name,value])=>pairs(name+'='+value,'&',false)).map(([name,value])=>[decode(name),value] as Pair);
+                fields=cookie?rawFields:rawFields.map(([name,value])=>[name,decode(value)]);
+                values=rawFields.filter(([name])=>name===parameter.name).map(([,value])=>value);
+                raw=!cookie;
             }else unsupported('The parameter location has no native mock codec');
             if(parameter.family==='2.0'&&parameter.in==='query'&&!parameter.allowEmptyValue&&values.includes(''))malformed('An empty Swagger query value requires allowEmptyValue: true');
             const location=parameter.in+':'+parameter.name,reserved=new Set(parameters.filter(other=>other.in===parameter.in).map(other=>other.name));
