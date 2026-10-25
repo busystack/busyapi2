@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -77,7 +78,10 @@ class BuildToolchain(unittest.TestCase):
             (tools/name).write_text(script)
             for line in script.splitlines():
                 if not line.startswith('"$node_bin" ') or '"$npm_cli"' in line: continue
-                argument = line.split(' ', 2)[1].strip('"').replace('$engine_dir', 'tools/contract_engine')
+                arguments = shlex.split(line)
+                script_arguments = [argument for argument in arguments[1:] if not argument.startswith('-') and argument.endswith(('.cjs', '.mjs'))]
+                self.assertEqual(len(script_arguments), 1, line)
+                argument = script_arguments[0].replace('$engine_dir', 'tools/contract_engine')
                 target = self.root/argument
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(record)
