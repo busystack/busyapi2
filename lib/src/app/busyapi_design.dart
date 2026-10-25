@@ -3402,22 +3402,29 @@ class BusyApiComboRow<T> extends StatelessWidget {
               hoverColor: busyApiRowHoverColor(context),
               enabled: enabled,
             );
-            final semanticRow = Semantics(
-              container: true,
-              button: true,
-              enabled: enabled,
-              expanded: trigger.isOpen,
-              onTap: enabled ? trigger.onPressed : null,
-              label: subtitle == null || subtitle!.isEmpty
-                  ? title
-                  : '$title, $subtitle',
-              value: labelFor(selected),
-              hint: hasError ? errorText : null,
-              liveRegion: hasError,
-              validationResult: hasError
-                  ? ui.SemanticsValidationResult.invalid
-                  : ui.SemanticsValidationResult.valid,
+            final semanticRow = ListenableBuilder(
+              listenable: trigger.focusNode,
               child: ExcludeSemantics(child: row),
+              builder: (context, child) => Semantics(
+                container: true,
+                button: true,
+                enabled: enabled,
+                focusable: enabled,
+                focused: enabled ? trigger.focusNode.hasFocus : null,
+                onFocus: enabled ? trigger.focusNode.requestFocus : null,
+                expanded: trigger.isOpen,
+                onTap: enabled ? trigger.onPressed : null,
+                label: subtitle == null || subtitle!.isEmpty
+                    ? title
+                    : '$title, $subtitle',
+                value: labelFor(selected),
+                hint: hasError ? errorText : null,
+                liveRegion: hasError,
+                validationResult: hasError
+                    ? ui.SemanticsValidationResult.invalid
+                    : ui.SemanticsValidationResult.valid,
+                child: child,
+              ),
             );
             final statefulRow = ColoredBox(
               color: trigger.isOpen

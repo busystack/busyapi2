@@ -1,11 +1,91 @@
 // Ported BusyMark control assertions, Copyright 2026 BusyStack, Apache-2.0.
+import 'dart:ui' as ui;
+
 import 'package:busyapi/src/app/app_theme.dart';
 import 'package:busyapi/src/app/busyapi_design.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
 
 void main() {
+  for (final brightness in Brightness.values) {
+    for (final enabled in [true, false]) {
+      testWidgets(
+        'combo keyboard focus is exposed to accessibility in ${brightness.name}, enabled=$enabled',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          final before = FocusNode(), after = FocusNode();
+          try {
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: buildBusyApiTheme(
+                  brightness: brightness,
+                  accentColor: Colors.blue,
+                ),
+                home: Scaffold(
+                  body: Column(
+                    children: [
+                      TextField(focusNode: before),
+                      BusyApiComboRow<String>(
+                        title: 'Target specification',
+                        values: const ['3.0.4', '3.2.1'],
+                        selected: '3.2.1',
+                        labelFor: (value) => value,
+                        enabled: enabled,
+                        onSelected: (_) {},
+                      ),
+                      TextField(focusNode: after),
+                    ],
+                  ),
+                ),
+              ),
+            );
+            before.requestFocus();
+            await tester.pumpAndSettle();
+            final control = find.bySemanticsLabel('Target specification');
+            expect(
+              tester
+                  .getSemantics(control)
+                  .getSemanticsData()
+                  .flagsCollection
+                  .isFocused,
+              enabled ? ui.Tristate.isFalse : ui.Tristate.none,
+            );
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.pumpAndSettle();
+            if (enabled) {
+              expect(
+                tester
+                    .getSemantics(control)
+                    .getSemanticsData()
+                    .flagsCollection
+                    .isFocused,
+                ui.Tristate.isTrue,
+              );
+              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+              await tester.pumpAndSettle();
+              expect(
+                tester
+                    .getSemantics(control)
+                    .getSemanticsData()
+                    .flagsCollection
+                    .isFocused,
+                ui.Tristate.isFalse,
+              );
+            }
+            expect(after.hasPrimaryFocus, isTrue);
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            before.dispose();
+            after.dispose();
+            semantics.dispose();
+          }
+        },
+      );
+    }
+  }
+
   testWidgets('compact icon actions expose their localized accessible name', (
     tester,
   ) async {
