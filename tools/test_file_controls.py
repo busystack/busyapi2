@@ -27,8 +27,8 @@ gi.require_version('GdkX11', '3.0')
 gi.require_version('Atspi', '2.0')
 from gi.repository import Atspi, Gdk, GdkX11, Gio
 
-from native_focus import (belongs_to_window, private_session_command, private_session_environment,
-                          restore_native_environment, validate_private_accessibility_address)
+from native_focus import (NativeFocusPending, belongs_to_window, private_session_command, private_session_environment,
+                          restore_native_environment, validate_private_accessibility_address, wait_for_initial_focus)
 
 
 class NativeInput:
@@ -115,7 +115,7 @@ class NativeInput:
                 current = self.tree(current)[0]
         if self.window is None or not belongs_to_window(
                 focus.value, self.window, lambda child: self.tree(child)[0]):
-            raise RuntimeError('Test window does not own focus; no input sent')
+            raise NativeFocusPending('Test window does not own focus; no input sent')
         window = GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), self.window)
         if not window or not window.is_viewable() or self.owner(self.window) != self.pid:
             raise RuntimeError('Test window is not visible or no longer owned')
@@ -412,6 +412,8 @@ def main():
                         if action.get('version') != 1 or action.get('step') != step:
                             raise RuntimeError('Fixture protocol mismatch')
                         print(f'BUSYAPI_FILE_CONTROLS_STEP {step} {action["kind"]}', flush=True)
+                        if step == 1:
+                            wait_for_initial_focus(native.ready)
                         native.perform(action)
                         process.stdin.write(f'ack:{step}\n'.encode('ascii'))
                     else:

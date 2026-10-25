@@ -4,12 +4,34 @@ import json
 import os
 from pathlib import Path
 import stat
+import time
 from urllib.parse import quote, unquote
 from xml.sax.saxutils import escape
 
 
 _NATIVE_KEYS = ('DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR')
 _NATIVE_CAPTURE = 'BUSYAPI_NATIVE_SESSION_ENVIRONMENT'
+
+
+class NativeFocusPending(RuntimeError):
+    """The fixture has not acquired its own native window focus."""
+
+
+def wait_for_initial_focus(check, timeout=5, *, clock=time.monotonic, pause=time.sleep):
+    """Observe startup readiness; other guards and later focus loss fail at once.
+
+    The callback only reads the native state. This never activates a window or
+    sends input, and the caller still rechecks all guards for the actual action.
+    """
+    deadline = clock() + timeout
+    while True:
+        try:
+            return check()
+        except NativeFocusPending:
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise
+            pause(min(0.05, remaining))
 
 
 def private_session_command(runtime_directory, *, accessibility_service=None):

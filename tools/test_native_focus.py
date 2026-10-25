@@ -5,11 +5,47 @@ import socket
 import subprocess
 import tempfile
 
-from tools.native_focus import (belongs_to_window, private_session_command, private_session_environment,
-                                restore_native_environment, validate_private_accessibility_address)
+from tools.native_focus import (NativeFocusPending, belongs_to_window, private_session_command, private_session_environment,
+                                restore_native_environment, validate_private_accessibility_address, wait_for_initial_focus)
 
 
 class NativeFocusTests(unittest.TestCase):
+    def test_initial_focus_is_observed_without_changing_or_sending_input(self):
+        observations = iter([None, None, 'owned-window'])
+        pauses = []
+        def read():
+            value = next(observations)
+            if value is None:
+                raise NativeFocusPending('Not owned yet')
+            return value
+        self.assertEqual(wait_for_initial_focus(read, clock=lambda: 0, pause=pauses.append), 'owned-window')
+        self.assertEqual(pauses, [0.05, 0.05])
+
+    def test_initial_focus_wait_never_retries_a_held_button_or_locked_desktop(self):
+        for message in ['A desktop pointer button is held; no input sent', 'Desktop locked; no input sent']:
+            failure = RuntimeError(message)
+            pauses = []
+            def read():
+                raise failure
+            with self.subTest(message=message), self.assertRaises(RuntimeError) as result:
+                wait_for_initial_focus(read, pause=pauses.append)
+            self.assertIs(result.exception, failure)
+            self.assertEqual(pauses, [])
+
+    def test_initial_foreign_focus_remains_a_failure_after_its_bounded_wait(self):
+        now, pauses = [0.0], []
+        failure = NativeFocusPending('Foreign focus; no input sent')
+        def read():
+            raise failure
+        def pause(delay):
+            pauses.append(delay)
+            now[0] += delay
+        with self.assertRaises(NativeFocusPending) as result:
+            wait_for_initial_focus(read, timeout=0.12, clock=lambda: now[0], pause=pause)
+        self.assertIs(result.exception, failure)
+        self.assertAlmostEqual(now[0], 0.12)
+        self.assertEqual(len(pauses), 3)
+
     def test_fixture_bus_cannot_activate_desktop_portal_or_secret_service(self):
         with tempfile.TemporaryDirectory(prefix='busyapi-native-runtime-test-') as runtime:
             service = Path(runtime) / 'original.service'
