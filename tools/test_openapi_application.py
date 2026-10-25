@@ -146,15 +146,18 @@ def tree(pid, details=False):
         name = node.get_name()[:512]
         role = node.get_role_name()
         value = None
+        caret = None
         editable = False
         if details and role in ['text', 'entry']:
             text = node.get_text_iface()
             if text:
                 value = Atspi.Text.get_text(
                     text, 0, min(text.get_character_count(), 1024))
+                caret = Atspi.Text.get_caret_offset(text)
             editable = node.get_state_set().contains(Atspi.StateType.EDITABLE)
         result.append({
             'text': value, 'name': name, 'role': role, 'depth': depth,
+            'caret': caret,
             'editable': editable,
             'focused': node.get_state_set().contains(Atspi.StateType.FOCUSED),
         })
@@ -317,12 +320,15 @@ def edit(native, process, file, fragment, original, version):
         return [
             node for node in nodes
             if node['editable'] and 'api-version' in (node['text'] or '')
-            and any(token in (node['text'] or '') for token in [
+            and (any(token in (node['text'] or '') for token in [
                 '"openapi"', '"swagger"', '\nopenapi:', '\nswagger:',
-            ])
+            ]) or (node['text'] or '').lstrip('\ufeff').startswith(('openapi:', 'swagger:')))
         ]
     wait_tree(native, process.pid, lambda nodes: bool(source_nodes(nodes)), 'Source did not expose the current root')
-    native.perform({'kind': 'click', 'scale': 1, 'point': [650, 300], 'viewport': [1280, 720]})
+    native.perform({'kind': 'click', 'scale': 1, 'point': [650, 110], 'viewport': [1280, 720]})
+    wait_tree(native, process.pid,
+        lambda nodes: any(node['focused'] for node in source_nodes(nodes)),
+        'Source text did not own focus before history navigation')
     keys(native, ['Control_L+z'])
     wait_tree(
         native, process.pid,
@@ -332,13 +338,24 @@ def edit(native, process, file, fragment, original, version):
     assert file.read_bytes() == expected
     keys(native, ['Control_L+Shift_L+z'])
     nodes = wait_tree(
-        native, process.pid, lambda nodes: contains(source_nodes(nodes), title),
+        native, process.pid, lambda nodes: contains(source_nodes(nodes), title)
+        and any(node['focused'] for node in source_nodes(nodes)),
         'One-operation Design redo failed',
     )
     value = source_nodes(nodes)[0]['text']
     offset = value.index('api-version') + len('api-version')
-    offset -= value[:offset].count('\r\n')
-    keys(native, ['Control_L+Home'] + ['Right'] * offset + ['2'])
+    line = value[:offset].count('\n')
+    line_end = value.find('\n', offset)
+    suffix = value[offset:line_end if line_end >= 0 else len(value)].rstrip('\r')
+    # Each native navigation step settles before the next. Verify the actual
+    # caret before typing rather than guessing from rendered source offsets.
+    for chord in ['Control_L+Home'] + ['Down'] * line + ['End'] + ['Left'] * len(suffix):
+        keys(native, [chord])
+    wait_tree(native, process.pid,
+        lambda nodes: any(node['focused'] and node['caret'] == offset
+                          for node in source_nodes(nodes)),
+        'Native Source caret did not reach the API version boundary')
+    keys(native, ['2'])
     wait_tree(
         native, process.pid,
         lambda nodes: contains(source_nodes(nodes), 'api-version2'),

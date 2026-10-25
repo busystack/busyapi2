@@ -115,3 +115,27 @@ def belongs_to_window(focused, owned, parent_of, maximum_depth=32):
         seen.add(focused)
         focused = parent_of(focused)
     return False
+
+
+def owned_transient_frame(focused, main, pid, parent_of, owner_of,
+                          transient_of, is_dialog, maximum_depth=32):
+    """Find only this process's dialog directly transient for its owned frame.
+
+    This grants no input authority by itself. The caller also checks visibility,
+    desktop lock and pointer state, and repeats this proof for every action.
+    Ordinary focus checks still exclude all separate frames.
+    """
+    if type(pid) is not int or pid <= 0 or main in (None, 0, 1) or owner_of(main) != pid:
+        return None
+    seen = set()
+    for _ in range(maximum_depth):
+        if focused in (None, 0, 1, main) or focused in seen:
+            return None
+        seen.add(focused)
+        owner = owner_of(focused)
+        if owner is not None and owner != pid:
+            return None
+        if owner == pid and transient_of(focused) == main and is_dialog(focused):
+            return focused
+        focused = parent_of(focused)
+    return None

@@ -9,6 +9,7 @@ This is not performance, renderer, release or strict-Snap qualification.
 import argparse
 import ast
 import ctypes
+from contextlib import contextmanager
 import json
 import math
 import os
@@ -27,7 +28,7 @@ gi.require_version('GdkX11', '3.0')
 gi.require_version('Atspi', '2.0')
 from gi.repository import Atspi, Gdk, GdkX11, Gio
 
-from native_focus import (NativeFocusPending, belongs_to_window, private_session_command, private_session_environment,
+from native_focus import (NativeFocusPending, belongs_to_window, owned_transient_frame, private_session_command, private_session_environment,
                           restore_native_environment, validate_private_accessibility_address, wait_for_initial_focus)
 
 
@@ -53,6 +54,7 @@ class NativeInput:
                                 ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_ulong),
                                 ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_uint)]
         x.XGetInputFocus.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_int)]
+        x.XGetTransientForHint.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong)]
         x.XGetWindowProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong,
                                         ctypes.c_long, ctypes.c_long, ctypes.c_int, ctypes.c_ulong,
                                         ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_int),
@@ -68,7 +70,11 @@ class NativeInput:
             raise RuntimeError('X11 display unavailable')
         self.pid_atom = x.XInternAtom(self.display, b'_NET_WM_PID', False)
         self.cardinal = x.XInternAtom(self.display, b'CARDINAL', False)
+        self.atom = x.XInternAtom(self.display, b'ATOM', False)
+        self.window_type = x.XInternAtom(self.display, b'_NET_WM_WINDOW_TYPE', False)
+        self.dialog_type = x.XInternAtom(self.display, b'_NET_WM_WINDOW_TYPE_DIALOG', False)
         self.window = None
+        self._transient = None
         desktop_bus = Gio.DBusConnection.new_for_address_sync(
             os.environ['BUSYAPI_NATIVE_DESKTOP_BUS'],
             Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
@@ -95,15 +101,66 @@ class NativeInput:
         value = ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))[0] if data.value and count.value else None
         if data.value:
             self.x.XFree(data)
-        return value if not status and kind.value == self.cardinal and bits.value == 32 and count.value == 1 else None
+        return value if not status and kind.value == self.cardinal and bits.value == 32 and count.value == 1 and remaining.value == 0 else None
+
+    def transient_for(self, window):
+        parent = ctypes.c_ulong()
+        return parent.value if self.x.XGetTransientForHint(self.display, window, ctypes.byref(parent)) else None
+
+    def is_dialog(self, window):
+        kind, count, remaining, bits, data = (ctypes.c_ulong(), ctypes.c_ulong(),
+                                             ctypes.c_ulong(), ctypes.c_int(), ctypes.c_void_p())
+        status = self.x.XGetWindowProperty(
+            self.display, window, self.window_type, 0, 1, False, self.atom,
+            ctypes.byref(kind), ctypes.byref(bits), ctypes.byref(count),
+            ctypes.byref(remaining), ctypes.byref(data))
+        try:
+            return (not status and kind.value == self.atom and bits.value == 32
+                    and count.value == 1 and remaining.value == 0 and bool(data.value)
+                    and ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))[0] == self.dialog_type)
+        finally:
+            if data.value:
+                self.x.XFree(data)
+
+    def _focused(self):
+        focus, revert = ctypes.c_ulong(), ctypes.c_int()
+        self.x.XGetInputFocus(self.display, ctypes.byref(focus), ctypes.byref(revert))
+        return focus.value
+
+    def _owned_dialog(self, focused):
+        return owned_transient_frame(focused, self.window, self.pid,
+            lambda child: self.tree(child)[0], self.owner, self.transient_for, self.is_dialog)
+
+    @contextmanager
+    def transient_dialog(self, timeout=8):
+        """Scope guarded keys to one owned GTK dialog; never activate it."""
+        if self.window is None or self._transient is not None:
+            raise RuntimeError('An established main frame and no nested dialog scope are required')
+        def observe():
+            candidate = self._owned_dialog(self._focused())
+            if candidate is None:
+                raise NativeFocusPending('The owned transient dialog has not acquired focus')
+            self._transient = candidate
+            checked = False
+            try:
+                window = self.ready()
+                checked = True
+                return window
+            finally:
+                if not checked:
+                    self._transient = None
+        try:
+            window = wait_for_initial_focus(observe, timeout=timeout)
+            yield window
+        finally:
+            self._transient = None
 
     def ready(self):
         if self.screen.call_sync('GetActive', None, Gio.DBusCallFlags.NONE, 1000, None).unpack()[0]:
             raise RuntimeError('Desktop locked; no input sent')
-        focus, revert = ctypes.c_ulong(), ctypes.c_int()
-        self.x.XGetInputFocus(self.display, ctypes.byref(focus), ctypes.byref(revert))
+        focused = self._focused()
         if self.window is None:
-            current = focus.value
+            current = focused
             seen = set()
             for _ in range(32):
                 if current in (None, 0, 1) or current in seen:
@@ -113,11 +170,19 @@ class NativeInput:
                     self.window = current
                     break
                 current = self.tree(current)[0]
-        if self.window is None or not belongs_to_window(
-                focus.value, self.window, lambda child: self.tree(child)[0]):
+        target = self.window
+        if self._transient is not None:
+            if self._owned_dialog(focused) != self._transient:
+                raise NativeFocusPending('The scoped owned dialog no longer owns focus; no input sent')
+            main = GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), self.window)
+            if not main or not main.is_viewable() or self.owner(self.window) != self.pid:
+                raise RuntimeError('The dialog main frame is not visible or no longer owned')
+            target = self._transient
+        if target is None or not belongs_to_window(
+                focused, target, lambda child: self.tree(child)[0]):
             raise NativeFocusPending('Test window does not own focus; no input sent')
-        window = GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), self.window)
-        if not window or not window.is_viewable() or self.owner(self.window) != self.pid:
+        window = GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), target)
+        if not window or not window.is_viewable() or self.owner(target) != self.pid:
             raise RuntimeError('Test window is not visible or no longer owned')
         pointer_root, pointer_child = ctypes.c_ulong(), ctypes.c_ulong()
         root_x, root_y, local_x, local_y, mask = (ctypes.c_int(), ctypes.c_int(),
@@ -133,6 +198,8 @@ class NativeInput:
         return window
 
     def surface(self, viewport):
+        if self._transient is not None:
+            raise RuntimeError('A native dialog has no Flutter viewport coordinate authority')
         if (not isinstance(viewport, list) or len(viewport) != 2 or
                 not all(isinstance(v, (float, int)) and math.isfinite(v) and 1 <= v <= 16384 for v in viewport)):
             raise ValueError('Invalid fixture viewport')
