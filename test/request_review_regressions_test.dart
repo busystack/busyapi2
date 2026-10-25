@@ -203,6 +203,107 @@ Future<void> expectCompleteCopy(
 }
 
 void main() {
+  for (final version in ['3.0.0', '3.0.4', '3.1.2']) {
+    for (final brightness in Brightness.values) {
+      testWidgets(
+        '$version named generic multipart editor retains exact data through version switches in ${brightness.name}',
+        (tester) async {
+          tester.view.physicalSize = const Size(1280, 720);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          final fixture = _Fixture();
+          final source = '''openapi: $version
+info: {title: Generic multipart editor, version: api-version}
+servers: [{url: 'http://127.0.0.1:1'}]
+paths:
+  /items:
+    post:
+      requestBody:
+        required: true
+        content:
+          multipart/mixed:
+            schema:
+              type: object
+              properties:
+                flag: {type: boolean}
+                metadata: {type: object, properties: {id: {type: integer}}}
+            encoding:
+              metadata: {contentType: application/json}
+            examples:
+              exact:
+                value: {flag: false, metadata: {id: 9007199254740993.00}}
+      responses: {'204': {description: Empty}}
+''';
+          try {
+            await tester.runAsync(() => fixture.open(source));
+            await tester.pumpWidget(
+              host(RequestRunPanel(run: fixture.run), brightness: brightness),
+            );
+            await tester.pumpAndSettle();
+            expect(fixture.run.bodyKind, RequestBodyKind.multipart);
+            final example = find.byWidgetPredicate(
+              (widget) =>
+                  widget is BusyApiActionRow &&
+                  widget.title == 'Examples · multipart/mixed · exact',
+            );
+            expect(example, findsOneWidget);
+            await tester.ensureVisible(example);
+            await tester.pumpAndSettle();
+            await tester.tap(example);
+            await tester.pumpAndSettle();
+            expect(fixture.run.bodyStructured, isTrue);
+            expect(fixture.run.bodyText, contains('9007199254740993.00'));
+            expect(fixture.run.draft().body.kind, RequestBodyKind.multipart);
+            expect(fixture.run.draft().body.mediaType, 'multipart/mixed');
+            expect(
+              tester
+                  .widgetList<EditableText>(find.byType(EditableText))
+                  .any(
+                    (entry) => entry.controller.text == fixture.run.bodyText,
+                  ),
+              isTrue,
+            );
+            final retained = fixture.run.bodyText;
+            await tester.runAsync(() async {
+              fixture.c.store!.replace(
+                fixture.c.root!,
+                source.replaceFirst(version, '3.2.1'),
+              );
+              expect(fixture.run.outdated, isTrue);
+              expect(fixture.run.canSend, isFalse);
+              await fixture.run.reconcileDraft();
+            });
+            await tester.pumpAndSettle();
+            expect(fixture.run.bodyText, retained);
+            expect(
+              fixture.run.plan!.formBindingForMedia('multipart/mixed'),
+              isNull,
+            );
+            expect(fixture.run.outdated, isFalse);
+            expect(fixture.run.hasUnavailableSelection, isTrue);
+            expect(fixture.run.canSend, isFalse);
+            await tester.runAsync(() async {
+              fixture.c.store!.replace(fixture.c.root!, source);
+              await fixture.run.reconcileDraft();
+            });
+            await tester.pumpAndSettle();
+            expect(fixture.run.bodyText, retained);
+            expect(
+              fixture.run.plan!.formBindingForMedia('multipart/mixed'),
+              RequestFormBinding.namedMultipart,
+            );
+            expect(fixture.run.hasUnavailableSelection, isFalse);
+            expect(fixture.run.canSend, isTrue);
+            expect(fixture.file.readAsStringSync(), source);
+            expect(tester.takeException(), isNull);
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.runAsync(fixture.dispose);
+          }
+        },
+      );
+    }
+  }
   for (final brightness in Brightness.values) {
     testWidgets(
       'full request pane traversal reaches off-screen example in ${brightness.name}',

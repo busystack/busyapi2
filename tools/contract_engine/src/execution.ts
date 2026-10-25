@@ -9,7 +9,9 @@ import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
 import {responseStatusNamePolicy} from './member_names';
 import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './swagger_operation';
 import {componentLocation} from './authoring';
-import {FormSemantics} from './form_semantics';
+import {formBinding,FormSemantics} from './form_semantics';
+import {selectNativeMedia} from './mock_projection';
+import {isNativeFamily} from './specification';
 import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
 import {evaluateSchemas} from './schema_evaluation';
@@ -161,10 +163,10 @@ export function requestFormMediaTypes(input:any){
       !input.choices||typeof input.choices!=='object'||Array.isArray(input.choices)||Object.keys(input.choices).length>maximumItems||
       Object.values(input.choices).some(value=>typeof value!=='string'))
     throw new SourceError('request.form.content-type','Expected bounded named part media selections');
-  const plan=requestOperation(input),content=plan.requestBody?.content.find((value:any)=>value.mediaType===input.mediaType);
-  if(!content||!['multipart/form-data','application/x-www-form-urlencoded'].includes(input.mediaType.split(';')[0].trim().toLowerCase()))
+  const plan=requestOperation(input),content=selectNativeMedia<Record<string,any>&{mediaType:string}>(plan.requestBody?.content??[],input.mediaType);
+  if(!content||content.formBinding===undefined)
     throw new SourceError('request.form.content-type','Select a captured form media declaration');
-  const multipart=input.mediaType.split(';')[0].trim().toLowerCase()==='multipart/form-data',types:Record<string,string>=Object.create(null);
+  const multipart=content.formBinding==='multipart-named',types:Record<string,string>=Object.create(null);
   const names=new Set<string>([...input.parts,...Object.keys(input.choices)]);
   const resolve=(name:string,choice?:string,fallback?:string)=>{
     const rule=content.encoding?.[name];
@@ -200,8 +202,8 @@ export async function requestMultipartEncoding(input:any){
   if(!Array.isArray(input.parts)||input.parts.length>maximumItems||input.parts.some((part:any)=>!part||typeof part.name!=='string'||!['literal','string','other','item-string','item-other'].includes(part.kind))||
      !Array.isArray(input.files)||input.files.length>maximumItems||input.files.some((name:unknown)=>typeof name!=='string'))
     throw new SourceError('request.multipart.encoding','Expected bounded captured multipart field kinds');
-  const captured=createGraph(input),plan=requestOperation(input,captured),content=plan.requestBody?.content.find((value:any)=>value.mediaType===input.mediaType);
-  if(!content||input.mediaType.split(';')[0].trim().toLowerCase()!=='multipart/form-data')
+  const captured=createGraph(input),plan=requestOperation(input,captured),content=selectNativeMedia<Record<string,any>&{mediaType:string}>(plan.requestBody?.content??[],input.mediaType);
+  if(!content||content.formBinding!=='multipart-named')
     throw new SourceError('request.multipart.encoding','Select a captured named multipart declaration');
   const projection=new MultipartEncoding(captured.graph),media={...content.definition,kind:'media'},schema={...content.schema,kind:'schema'};
   const result:Record<string,{string?:MultipartTransfer;other?:MultipartTransfer}>=Object.create(null),candidates:{transfer:MultipartTransfer;header:MultipartHeaderCandidate;subjects:string[]}[]=[];
@@ -349,11 +351,13 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       if(name.startsWith('x-'))continue;
       if(entries.length>=maximumItems)throw new SourceError('limit.request.media','Request media choices exceed 2048');
       const at=pointer+'/'+escape(name),selected=follow({resource,pointer:at,kind:'media'},'media'),v=selected.node.value;
-      const projectedExamples=examples(selected.resource,selected.pointer,v,'media').map(e=>({...e,mediaType:name,
-        conversionError:['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?e.conversionError:undefined}));
       const mediaFamily=graph.scope(selected.resource,selected.pointer).family;
+      if(!isNativeFamily(mediaFamily))throw new SourceError('request.family.unsupported','The captured media owner has no supported specification family');
+      const binding=formBinding(mediaFamily,name);
+      const projectedExamples=examples(selected.resource,selected.pointer,v,'media').map(e=>({...e,mediaType:name,
+        conversionError:binding!==undefined?e.conversionError:undefined}));
       entries.push({mediaType:name,...runtimeMediaDescription(name),family:mediaFamily,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:mediaFamily==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
-        form: ['application/x-www-form-urlencoded','multipart/form-data'].includes(name.split(';')[0].trim().toLowerCase())?forms.media(mediaFamily,selected.resource,selected.pointer,name):undefined,
+        formBinding:binding,form:binding!==undefined?forms.media(mediaFamily,selected.resource,selected.pointer,name):undefined,
         prefixEncoding:v?.prefixEncoding,itemEncoding:v?.itemEncoding,encoding:v?.encoding&&typeof v.encoding==='object'?Object.fromEntries(Object.entries(v.encoding).slice(0,maximumItems)):undefined});
     }
     return entries;
@@ -433,7 +437,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     const projected=parameters.visible.map(parameter),body=projected.find(p=>p.in==='body'),form=projected.filter(p=>p.in==='formData');
     const consumes=swaggerMedia(graph,input.resource,input.pointer,'consumes');
     if(body)requestBody={required:body.required,source:body.source,definition:body.definition,content:consumes.map(mediaType=>({mediaType,...runtimeMediaDescription(mediaType),source:body.source,definition:body.definition,schema:body.schema,examples:[]}))};
-    else if(form.length)requestBody={required:form.some(p=>p.required),source:location(input.resource,input.pointer),definition:location(input.resource,input.pointer),content:consumes.map(mediaType=>({mediaType,...runtimeMediaDescription(mediaType),source:location(input.resource,input.pointer),swaggerForm:form,examples:[]}))};
+    else if(form.length)requestBody={required:form.some(p=>p.required),source:location(input.resource,input.pointer),definition:location(input.resource,input.pointer),content:consumes.map(mediaType=>({mediaType,...runtimeMediaDescription(mediaType),source:location(input.resource,input.pointer),formBinding:formBinding(family,mediaType),swaggerForm:form,examples:[]}))};
   }
   const headerShape=headerShapes(graph);
   const responses:any[]=[];

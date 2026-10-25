@@ -1499,6 +1499,14 @@ class ContractRequestBuilder {
       if (file.selectedMediaType != null) _mediaType(file.selectedMediaType!);
     }
     if (body.kind == RequestBodyKind.multipart &&
+        plan.formBindingForMedia(body.mediaType) !=
+            RequestFormBinding.namedMultipart) {
+      throw CoreFailure(
+        'request.multipart.binding.unsupported',
+        'This captured media type has no named multipart binding; no request was sent.',
+      );
+    }
+    if (body.kind == RequestBodyKind.multipart &&
         (declaration?['prefixEncoding'] != null ||
             declaration?['itemEncoding'] != null)) {
       throw CoreFailure(

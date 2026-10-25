@@ -1,5 +1,20 @@
 import 'model.dart';
 
+enum RequestFormBinding {
+  urlEncoded,
+  namedMultipart;
+
+  static RequestFormBinding? fromJson(Object? value) => switch (value) {
+    null => null,
+    'urlencoded' => urlEncoded,
+    'multipart-named' => namedMultipart,
+    _ => throw CoreFailure(
+      'request.form.protocol',
+      'The captured form binding is not recognized.',
+    ),
+  };
+}
+
 class ResolvedFormMediaTypes {
   const ResolvedFormMediaTypes(this.fields, this.files);
   final Map<String, String> fields;

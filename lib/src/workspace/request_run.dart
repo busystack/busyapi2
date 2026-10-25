@@ -179,6 +179,15 @@ class RequestRunController extends ChangeNotifier {
   bool get hasUnavailableSelection {
     final captured = plan;
     if (captured == null) return false;
+    if (bodyEnabled) {
+      final binding = captured.formBindingForMedia(bodyMediaType);
+      if (bodyKind == RequestBodyKind.multipart &&
+              binding != RequestFormBinding.namedMultipart ||
+          bodyKind == RequestBodyKind.form &&
+              binding != RequestFormBinding.urlEncoded) {
+        return true;
+      }
+    }
     final servers = captured.result['servers'] as List;
     final requirements = captured.result['security']['requirements'] as List;
     final alternative = securityAlternative;
@@ -334,11 +343,11 @@ class RequestRunController extends ChangeNotifier {
     refresh();
   }
 
-  static RequestBodyKind _kindForMedia(String? media) =>
-      switch (media?.split(';').first.trim().toLowerCase()) {
-        'application/x-www-form-urlencoded' => RequestBodyKind.form,
-        'multipart/form-data' => RequestBodyKind.multipart,
-        _ => RequestBodyKind.raw,
+  RequestBodyKind _kindForMedia(String? media) =>
+      switch (plan?.formBindingForMedia(media)) {
+        RequestFormBinding.urlEncoded => RequestBodyKind.form,
+        RequestFormBinding.namedMultipart => RequestBodyKind.multipart,
+        null => RequestBodyKind.raw,
       };
 
   void selectPartMedia(String name, String? media) {
@@ -2974,8 +2983,9 @@ class _BodyEditor extends StatelessWidget {
     final mediaType = run.bodyMediaType;
     final unavailable = mediaType != null && !run.hasDeclaredBodyMediaType;
     final selectedMedia = mediaType?.split(';').first.trim().toLowerCase();
-    final form = selectedMedia == 'application/x-www-form-urlencoded';
-    final multipart = selectedMedia == 'multipart/form-data';
+    final binding = run.plan!.formBindingForMedia(mediaType);
+    final form = binding == RequestFormBinding.urlEncoded;
+    final multipart = binding == RequestFormBinding.namedMultipart;
     final l = context.l10n;
     return BusyApiGroupedList(
       title: l.requestBodyMedia,
@@ -3123,9 +3133,7 @@ class _BodyEditor extends StatelessWidget {
                       : () {
                           run.bodyFiles.remove(file);
                           if (run.bodyFiles.isEmpty) {
-                            run.bodyKind = RequestRunController._kindForMedia(
-                              run.bodyMediaType,
-                            );
+                            run.bodyKind = run._kindForMedia(run.bodyMediaType);
                           }
                           run.refresh();
                         },

@@ -230,6 +230,19 @@ the existing native evaluator. Decoding is bounded to eight nested levels and
 resources produce incomplete checks. This finite JSON/text support does not
 establish raw binary instance evaluation or typed positional/nested generation.
 
+OpenAPI 3.0/3.1 use the same named mapping for generic multipart types when
+parts carry `Content-Disposition: form-data` and a name. This is the policy
+permitted by [3.0 §4.7.15.3](https://spec.openapis.org/oas/v3.0.4.html#encoding-multipart-media-types)
+and [3.1 §4.8.15.3](https://spec.openapis.org/oas/v3.1.2.html#encoding-multipart-media-types).
+The engine supplies the binding to native request controls and CLI cases;
+generated and raw requests retain the declared family. Generic MIME text without
+a charset uses US-ASCII; form-data retains its separate UTF-8 policy. Declared
+simple part headers use their original Header Object schemas, references and
+exact numeric values. Unnamed older-family parts have no inferred positional
+mapping. Content-based or ambiguous MIME headers, additional codecs and advanced
+representations still report incomplete checks. See the [support matrix](implementation/native-openapi-support.md) for
+representation coverage and verification status.
+
 Form execution uses the captured schema to interpret numeric and boolean fields,
 repeated array items and JSON object values. Explicit URL-encoded styles share
 the parameter serializer. Multipart style fields are ignored in 3.0 and applied

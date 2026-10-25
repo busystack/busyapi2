@@ -1,6 +1,7 @@
 import 'model.dart';
 import 'project.dart';
 import 'request.dart';
+import 'form_media_types.dart';
 
 class ContractCaseResult {
   const ContractCaseResult({
@@ -484,18 +485,19 @@ class ContractTestRunner {
           ? (rawBody['partMediaTypes'] as Map).cast<String, String>()
           : const <String, String>{};
       body = exact['body']['json'] == true
-          ? switch (media.split(';').first.trim().toLowerCase()) {
-              'application/x-www-form-urlencoded' => RequestBodyDraft.formValue(
+          ? switch (plan.formBindingForMedia(media)) {
+              RequestFormBinding.urlEncoded => RequestBodyDraft.formValue(
                 json: text,
                 mediaType: media,
                 partMediaTypes: partMediaTypes,
               ),
-              'multipart/form-data' => RequestBodyDraft.multipartValue(
-                json: text,
-                mediaType: media,
-                partMediaTypes: partMediaTypes,
-              ),
-              _ => RequestBodyDraft.raw(mediaType: media, text: text),
+              RequestFormBinding.namedMultipart =>
+                RequestBodyDraft.multipartValue(
+                  json: text,
+                  mediaType: media,
+                  partMediaTypes: partMediaTypes,
+                ),
+              null => RequestBodyDraft.raw(mediaType: media, text: text),
             }
           : RequestBodyDraft.raw(mediaType: media, text: text);
     }

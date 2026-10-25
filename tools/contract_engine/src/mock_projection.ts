@@ -38,7 +38,7 @@ export function nativeMedia(value:unknown,occurrence?:string):NativeMedia[] {
     });
 }
 
-export function selectNativeMedia(content:readonly NativeMedia[],actual:string):NativeMedia|undefined {
+export function selectNativeMedia<T extends Pick<NativeMedia,'mediaType'>>(content:readonly T[],actual:string):T|undefined {
     const matches=content.filter(media=>{
         try{mediaTypeChoice(media.mediaType,actual);return true;}
         catch(error){if(error instanceof SourceError&&error.code==='request.form.content-type')return false;throw error;}

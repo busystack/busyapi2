@@ -352,6 +352,14 @@ class OperationRequestPlan {
     }
   }
 
+  RequestFormBinding? formBindingForMedia(String? mediaType) {
+    final body = result['requestBody'];
+    final content = body is Map ? body['content'] : null;
+    if (content is! List || mediaType == null) return null;
+    final media = selectDeclaredMedia(content.whereType<Map>(), mediaType);
+    return RequestFormBinding.fromJson(media?['formBinding']);
+  }
+
   Future<Uint8List> readProjectFile(String relative) async {
     ensureCurrentOwner();
     final path = p.normalize(

@@ -1,6 +1,17 @@
 import {escape,segments,SourceError} from './document';
 import type {GraphReference,ReferenceGraph} from './reference_graph';
 import {mediaTypeOptions,mediaTypes} from './media_types';
+import type {SpecificationFamily} from './specification';
+
+export type FormBinding='urlencoded'|'multipart-named';
+
+/** OAS 3.0 §4.7.15.3 permits named generic multipart. This policy keeps the
+ * older property/name correlation; 3.2 generic multipart uses array positions. */
+export function formBinding(family:SpecificationFamily,contentType:string):FormBinding|undefined {
+    const essence=contentType.split(';')[0].trim().toLowerCase();
+    if(essence==='application/x-www-form-urlencoded')return 'urlencoded';
+    if(essence==='multipart/form-data'||essence.startsWith('multipart/')&&(family==='3.0'||family==='3.1'))return 'multipart-named';
+}
 
 export type FormShape={types?:string[];literalType?:string;format?:string;contentEncoding?:string;properties?:Record<string,FormShape>;items?:FormShape;prefixItems?:FormShape[];defaultContentType?:string};
 
@@ -58,7 +69,7 @@ export class FormSemantics {
         const value=this.graph.docs.get(resource)?.dataNode(pointer)?.value,shape=this.shape(resource,pointer+'/schema');
         const parts=Object.fromEntries([...new Set([...Object.keys(shape.properties??{}),...Object.keys(value?.encoding??{})])].map(name=>{
             const rule=value?.encoding?.[name],property=shape.properties?.[name],item=property?.types?.includes('array')?property.items:property;
-            const multipart=mediaType.split(';')[0].trim().toLowerCase()==='multipart/form-data';
+            const multipart=mediaType.split(';')[0].trim().toLowerCase().startsWith('multipart/');
             const styled=(!multipart||family!=='3.0')&&['style','explode','allowReserved'].some(key=>Object.hasOwn(rule??{},key));
             const doc=this.graph.docs.get(resource)!;
             const at=[pointer+'/encoding/'+escape(name)+'/contentType',pointer+'/encoding/'+escape(name),pointer+'/schema/properties/'+escape(name),pointer+'/schema',pointer].find(at=>doc.dataNode(at))!;

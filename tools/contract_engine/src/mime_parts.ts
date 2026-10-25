@@ -10,6 +10,13 @@ export function mimeSingleton(headers:ReadonlyMap<string,string[]>,name:string):
     return values?.[0];
 }
 
+/** RFC 2046 §4.1.2 defaults generic MIME text to US-ASCII. Form-data
+ * retains the separate RFC 7578 charset policy used by the named form codec. */
+export function mimePartDecodingType(contentType:string,formData:boolean):string {
+    const type=mediaTypes(contentType,false)[0];
+    return !formData&&type.type==='text'&&!type.parameters.has('charset')?contentType+'; charset=us-ascii':contentType;
+}
+
 /** Bounded RFC 2046 framing, shared by named and ordered multipart bindings.
  * Part octets, order, preamble and epilogue do not pass through serialization.
  * Content-Disposition belongs to the binding, not to generic MIME framing. */

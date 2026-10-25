@@ -6,8 +6,9 @@ import {mediaTypeChoice,mediaTypes} from './media_types';
 import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind,type RuntimeMediaData} from './runtime_media';
 import {MultipartEncoding} from './multipart_encoding';
 import {decodeMultipartTransfer} from './multipart_transfer';
-import {mimeParts,mimeSingleton as singleton} from './mime_parts';
+import {mimeParts,mimePartDecodingType,mimeSingleton as singleton} from './mime_parts';
 import {decodeRuntimeMultipart} from './runtime_multipart';
+import {mimeHeaders} from './mime_headers';
 
 export type RuntimeFormTarget={resource:string;pointer:string;occurrence?:string};
 type Location={resource:string;pointer:string};
@@ -38,7 +39,7 @@ function unquote(value:Buffer):Buffer {
 }
 /** Finite RFC 7578/2046 framing. Buffers retain file octets, repeated fields and
  * order. The decoder has no filesystem, acquisition or request capabilities. */
-function parts(bytes:Buffer,contentType:string):Part[] {
+function parts(bytes:Buffer,contentType:string,allowGenericNamed:boolean):Part[] {
     const [type]=mediaTypes(contentType,false);
     if(type.type==='application'&&type.subtype==='x-www-form-urlencoded'){
         const result:Part[]=[];
@@ -51,12 +52,18 @@ function parts(bytes:Buffer,contentType:string):Part[] {
         }
         return result;
     }
-    if(type.type!=='multipart'||type.subtype!=='form-data')throw new SourceError('runtime.form.unsupported','This form representation requires another MIME binding',[0,0],'unsupported');
+    if(type.type!=='multipart'||type.subtype!=='form-data'&&!allowGenericNamed)throw new SourceError('runtime.form.unsupported','This form representation requires another MIME binding',[0,0],'unsupported');
     return mimeParts(bytes,contentType).map(part=>{
         const disposition=singleton(part.headers,'content-disposition');
-        if(disposition===undefined)return syntax('A named multipart part needs Content-Disposition');
+        if(disposition===undefined){
+            if(type.subtype!=='form-data')throw new SourceError('runtime.form.unnamed.unsupported','An older-family generic multipart part needs an explicit form-data name for the native property mapping',[0,0],'unsupported');
+            return syntax('A named multipart part needs Content-Disposition');
+        }
         const parsed=mediaTypes('x/'+disposition,false);
-        if(parsed.length!==1||parsed[0].subtype!=='form-data'||!parsed[0].parameters.has('name'))return syntax('A multipart form-data part needs a name');
+        if(parsed.length!==1||parsed[0].subtype!=='form-data'||!parsed[0].parameters.has('name')){
+            if(type.subtype!=='form-data')throw new SourceError('runtime.form.unnamed.unsupported','This generic multipart disposition has no native property/name correlation',[0,0],'unsupported');
+            return syntax('A multipart form-data part needs a name');
+        }
         return {...part,name:parsed[0].parameters.get('name')!};
     });
 }
@@ -75,8 +82,9 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         const decoded=decodeRuntimeMultipart(text,id,contentType,base64,target,graph);
         if(decoded)return decoded;
     }
-    const input=parts(runtimeMediaBytes(text,base64),contentType),multipart=mediaTypes(contentType,false)[0].type==='multipart';
+    const input=parts(runtimeMediaBytes(text,base64),contentType,scope.kind==='media'&&(scope.family==='3.0'||scope.family==='3.1')),multipart=mediaTypes(contentType,false)[0].type==='multipart';
     const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]))),transfers=new MultipartEncoding(graph);
+    const genericHeaders=mimeHeaders(graph,id+'/headers',transfers);
     const checks:FormCheck[]=[],issues:FormIssue[]=[],members=new Map<string,string>(),claimed=new Map<Part,string>(),notes=new Set<string>();
     const document=(raw:string,suffix:string)=>{
         const result=new SourceDocument(raw,id+'/'+suffix,true,'json');
@@ -141,6 +149,10 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         const styled=(rule:Record<string,unknown>)=>(!multipart||scope.family!=='3.0')&&['style','explode','allowReserved'].some(key=>Object.hasOwn(rule,key));
         const partHeaders=(part:Part,rule:Record<string,unknown>,name:string)=>{
             if(!multipart||!object(rule.headers))return;
+            if(mediaTypes(contentType,false)[0].subtype!=='form-data'){
+                const decoded=genericHeaders(part.headers,rule.headers,{...target,pointer:target.pointer+'/encoding/'+escape(name),kind:'encoding'},'/'+escape(name),false);
+                checks.push(...decoded.checks);issues.push(...decoded.issues);return;
+            }
             const seen=new Set<string>();
             for(const key of Object.keys(rule.headers)){
                 const lower=key.toLowerCase();if(lower==='content-type')continue;
@@ -163,6 +175,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
                 undeclared&&multipart?singleton(part.headers,'content-type')??'text/plain':field.defaultContentType??(undeclared||scope.family==='3.0'?'text/plain':'application/octet-stream');
             const concrete=multipart?singleton(part.headers,'content-type')??'text/plain':mediaTypeChoice(declared);
             if(multipart)mediaTypeChoice(declared,concrete);
+            const decodingType=multipart?mimePartDecodingType(concrete,mediaTypes(contentType,false)[0].subtype==='form-data'):concrete;
             const transfer=multipart&&graph.scopes.has(schema.resource+'#'+schema.pointer)?transfers.schemaEncoding(schema,name,array,type!==undefined&&type!=='string'?'other':undefined):{schemaEncoded:false};
             partHeaders(part,rule,name);
             const actual=singleton(part.headers,'content-transfer-encoding'),expected=transfer.encoding;
@@ -170,13 +183,13 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
                 failure('runtime.form.transfer.undefined','The part header conflicts with its schema transfer encoding',transfer.source??schema);
             const decoded=decodeMultipartTransfer(part.bytes,actual??expected??'binary'),bytes=decoded.bytes;
             if(transfer.schemaEncoded){
-                if(runtimeMediaKind(concrete)!=='opaque')decodeRuntimeMedia(bytes.toString('base64'),id+'/encoded-media',concrete,true);
+                if(runtimeMediaKind(concrete)!=='opaque')decodeRuntimeMedia(bytes.toString('base64'),id+'/encoded-media',decodingType,true);
                 return JSON.stringify(decoded.encoded??bytesText(bytes));
             }
             if(transfer.instanceEncoding==='octets')return JSON.stringify(bytes.toString('latin1'));
             const essence=mediaTypes(concrete,false)[0],json=essence.subtype==='json'||essence.subtype.endsWith('+json');
             if(json)return decodeRuntimeMedia(bytes.toString('base64'),id+'/json',concrete,true).document.dataJson('');
-            if(essence.type==='text'&&essence.subtype==='plain')return scalar(bytesText(bytes,concrete),type);
+            if(essence.type==='text'&&essence.subtype==='plain')return scalar(bytesText(bytes,decodingType),type);
             return failure('runtime.form.media.unsupported','This field has no native media decoder',schema);
         };
         const names=new Set([...Object.keys(properties),...Object.keys(encoding),...input.map(part=>part.name)]);
@@ -189,7 +202,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             if(styled(rule)){
                 const style=typeof rule.style==='string'?rule.style:'form',explode=typeof rule.explode==='boolean'?rule.explode:style==='form';
                 const separator=style==='spaceDelimited'?' ':style==='pipeDelimited'?'|':style==='tabDelimited'?'\t':',';
-                const read=(part:Part)=>bytesText(unencoded(part));
+                const read=(part:Part)=>bytesText(unencoded(part),multipart?mimePartDecodingType(singleton(part.headers,'content-type')??'text/plain',mediaTypes(contentType,false)[0].subtype==='form-data'):'text/plain; charset=utf-8');
                 for(const part of values)partHeaders(part,rule,name);
                 const split=(part:Part)=>part.encoded&&separator===','?part.encoded.toString('latin1').split(',').map(token=>utf8(unquote(Buffer.from(token,'latin1')))):read(part).split(separator);
                 if(type==='object'){

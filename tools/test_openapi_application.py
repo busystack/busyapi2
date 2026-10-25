@@ -18,8 +18,10 @@ working copy, independently checks its source ranges, then restores saved input.
 `--migrate-target VERSION` separately reviews and publishes a
 migrated copy, checks a destination race and reopens the target before returning
 to the original source. JSON targets additionally reopen without a manifest.
-`--multipart ordered|nested` sends exact and rounded serialized examples through
-the production request panel before Quit and after cold reopen.
+`--multipart ordered|nested` sends exact and rounded serialized 3.2 examples.
+`--multipart named` generates older-family named MIME and edits its exact body
+draft through keyboard input. Both exercise the production request panel before
+Quit and after cold reopen.
 """
 import argparse
 import signal
@@ -78,9 +80,8 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
         }}},
     }
     if multipart:
-        from native_multipart import multipart_operation
         document['servers'] = [{'url': 'http://127.0.0.1:' + str(multipart.port)}]
-        document['paths']['/items'] = {'post': multipart_operation(format, multipart.nested)}
+        document['paths']['/items'] = {'post': multipart.operation(format)}
     if mock_methods:
         document['paths']['/items'] = {
             'additionalOperations': document['paths']['/items'],
@@ -552,10 +553,10 @@ def main():
     parser.add_argument('--schema-definitions', action='store_true')
     parser.add_argument('--operations', action='store_true')
     parser.add_argument('--migrate-target', choices=['2.0', '3.0.4', '3.1.2', '3.2.1'])
-    parser.add_argument('--multipart', choices=['ordered', 'nested'])
+    parser.add_argument('--multipart', choices=['ordered', 'nested', 'named'])
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
-    parser.add_argument('--version', default='3.0.4', choices=['3.0.0', '3.0.4', '2.0', '3.1.2', '3.2.0', '3.2.1'])
+    parser.add_argument('--version', default='3.0.4', choices=['2.0', '3.0.0', '3.0.1', '3.0.2', '3.0.3', '3.0.4', '3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1'])
     parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
     args = parser.parse_args()
     if args.mock_nested:
@@ -575,10 +576,11 @@ def main():
     if args.migrate_target and (not args.edit or args.operations or args.schema_definitions
                                or args.documentation or args.mock_samples or args.multipart):
         parser.error('--migrate-target requires --edit and its dedicated migration journey')
-    if args.multipart and (not args.edit or not args.version.startswith('3.2.') or args.operations
+    if args.multipart and (not args.edit or (args.multipart != 'named' and not args.version.startswith('3.2.'))
+                          or (args.multipart == 'named' and not args.version.startswith(('3.0.', '3.1.'))) or args.operations
                           or args.schema_definitions or args.documentation or args.mock_samples
                           or args.migrate_target):
-        parser.error('--multipart requires --edit, OpenAPI 3.2 and its dedicated execution journey')
+        parser.error('--multipart requires --edit, an applicable family (named: 3.0/3.1; ordered/nested: 3.2), and its dedicated execution journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:

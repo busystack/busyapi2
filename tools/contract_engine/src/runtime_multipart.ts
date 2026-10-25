@@ -3,11 +3,10 @@ import type {GraphTarget,ReferenceGraph} from './reference_graph';
 import {FormSemantics,formLiteralType,type FormShape} from './form_semantics';
 import {MultipartEncoding,type MultipartSchemaStep,type MultipartTransfer} from './multipart_encoding';
 import {mediaTypes,mediaTypeChoice} from './media_types';
-import {mimeParts,mimeSingleton,type MimePart} from './mime_parts';
+import {mimeParts,mimeSingleton,mimePartDecodingType} from './mime_parts';
 import {decodeMultipartTransfer} from './multipart_transfer';
 import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind} from './runtime_media';
-import {headerShapes} from './header_serialization';
-import {headerWireValues} from './header_wire_values';
+import {mimeHeaders} from './mime_headers';
 import type {FormCheck,FormIssue,RuntimeFormData,RuntimeFormTarget} from './runtime_form';
 
 type ObjectValue=Record<string,unknown>;
@@ -21,7 +20,7 @@ export function decodeRuntimeMultipart(text:string,id:string,contentType:string,
     const owner=graph.docs.get(target.resource)?.dataNode(target.pointer),media=owner?.value;
     if(!object(media))throw new SourceError('runtime.form.owner','The captured multipart Media Type Object is unavailable',owner?.range??[0,0]);
     const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
-    const transfers=new MultipartEncoding(graph),headerShape=headerShapes(graph),checks:FormCheck[]=[],issues:FormIssue[]=[];
+    const transfers=new MultipartEncoding(graph),headers=mimeHeaders(graph,id+'/headers',transfers),checks:FormCheck[]=[],issues:FormIssue[]=[];
     const location=(pointer:string):GraphTarget=>({resource:target.resource,pointer,kind:'schema'});
     const hints:Hint[]=['schema','itemSchema'].filter(key=>graph.scopes.has(target.resource+'#'+target.pointer+'/'+key))
         .map(key=>({schema:location(target.pointer+'/'+key),shape:forms.shape(target.resource,target.pointer+'/'+key),path:[]}));
@@ -34,33 +33,8 @@ export function decodeRuntimeMultipart(text:string,id:string,contentType:string,
         const doc=new SourceDocument(raw,id+'/'+serial++,true,'json');if(doc.issues.length)throw doc.issues[0];return doc;
     };
     const fail=(code:string,message:string,at:GraphTarget,unsupported=true):never=>transfers.failure(code,message,at,unsupported);
-    const issue=(code:string,message:string,prefix:string,at:GraphTarget,severity:'error'|'warning'='error')=>{
-        const range=graph.docs.get(at.resource)?.dataNode(at.pointer)?.range??[0,0];
-        issues.push({code,message,pointer:prefix,severity,source:{resource:at.resource,pointer:at.pointer,range}});
-    };
     const descend=(hint:Hint,step:MultipartSchemaStep):Hint=>({schema:hint.schema,path:[...hint.path,step],
         shape:'property' in step?hint.shape.properties?.[step.property]??{}:step.item===undefined?hint.shape.items??{}:hint.shape.prefixItems?.[step.item]??hint.shape.items??{}});
-    const headers=(part:MimePart,rule:ObjectValue,at:GraphTarget,prefix:string,form:boolean)=>{
-        if(!object(rule.headers))return;
-        const seen=new Set<string>();
-        for(const name of Object.keys(rule.headers)){
-            const lower=name.toLowerCase(),source={...at,pointer:at.pointer+'/headers/'+escape(name),kind:'header'};
-            if(lower==='content-type')continue;
-            if(seen.has(lower))fail('runtime.form.headers','MIME header declarations repeat without regard to case',source,false);seen.add(lower);
-            if(form&&!['content-disposition','content-transfer-encoding'].includes(lower)){
-                issue('runtime.form.header.ignored','RFC 7578 requires consumers to ignore this additional part header',prefix,source,'warning');continue;
-            }
-            const definition=transfers.follow(source,'header'),value=graph.docs.get(definition.resource)!.dataNode(definition.pointer)!.value,actual=part.headers.get(lower);
-            if(!actual){if(value.required===true)issue('runtime.form.header.required','A required part header is absent',prefix,definition);continue;}
-            if(value.content!==undefined)fail('runtime.form.header.unsupported','This part header needs a content-based representation',definition);
-            if(!Object.hasOwn(value,'schema'))continue;
-            const schema={...definition,pointer:definition.pointer+'/schema',kind:'schema'},shape=headerShape(schema);
-            if(!shape||value.style!==undefined&&value.style!=='simple')fail('runtime.form.header.unsupported','This part header has no supported simple-style representation',definition);
-            const decoded=headerWireValues(shape,actual,{cookie:false,multiline:false,explode:value.explode===true});
-            if(!decoded.complete||decoded.texts.length!==1)fail('runtime.form.header.unsupported','This part header requires several possible data interpretations',definition);
-            checks.push({document:parse(decoded.texts[0]),schema,prefix:prefix+'/headers/'+escape(name)});
-        }
-    };
     const decode=(bytes:Buffer,type:string,rule:ObjectValue,at:GraphTarget,values:Hint[],prefix:string,depth:number):{raw:string;items?:SourceDocument[]}=>{
         if(depth>8)fail('limit.runtime.multipart.depth','Nested multipart decoding exceeds eight levels',at);
         const concrete=mediaTypes(type,false)[0],form=concrete.subtype==='form-data';
@@ -91,9 +65,10 @@ export function decodeRuntimeMultipart(text:string,id:string,contentType:string,
             const actual=mimeSingleton(part.headers,'content-type')??(concrete.subtype==='digest'?'message/rfc822':'text/plain');
             mediaTypeChoice(declared,actual);
             const actualType=mediaTypes(actual,false)[0];
-            const decodingType=!form&&actualType.type==='text'&&!actualType.parameters.has('charset')?actual+'; charset=us-ascii':actual;
+            const decodingType=mimePartDecodingType(actual,form);
             const partPrefix=prefix+'/'+(array?index:escape(name!));
-            headers(part,encoding,entryAt,partPrefix,form);
+            const checkedHeaders=headers(part.headers,encoding.headers,entryAt,partPrefix,form);
+            checks.push(...checkedHeaders.checks);issues.push(...checkedHeaders.issues);
             const literalType=formLiteralType(field);
             const implicit=itemHints.map(hint=>transfers.schemaPathEncoding(hint.schema,hint.path,literalType!==undefined&&literalType!=='string'?'other':undefined));
             const encodings=new Set(implicit.flatMap(value=>value.encoding===undefined?[]:[value.encoding.toLowerCase()]));

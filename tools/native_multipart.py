@@ -3,6 +3,8 @@ from contextlib import AbstractContextManager
 import hashlib
 import http.server
 import json
+import re
+from email.message import Message
 from pathlib import Path
 import threading
 
@@ -48,9 +50,42 @@ def multipart_operation(format, nested):
             'responses': {'200': {'description': 'Actual response', 'content': {MEDIA: media}}}}
 
 
+def named_multipart_wire(number, boundary):
+    return ('--' + boundary + '\r\nContent-Disposition: form-data; name="flag"\r\n'
+            'Content-Type: text/plain\r\n\r\nfalse\r\n'
+            '--' + boundary + '\r\nContent-Disposition: form-data; name="metadata"\r\n'
+            'Content-Type: application/json\r\n\r\n{"id":' + number + '}\r\n'
+            '--' + boundary + '\r\nContent-Disposition: form-data; name="note"\r\n'
+            'Content-Type: text/plain; charset=utf-8\r\n\r\ncafé 東京\r\n'
+            '--' + boundary + '--\r\n')
+
+
+def named_multipart_operation(format):
+    media = {
+        'schema': {'type': 'object', 'required': ['flag', 'metadata', 'note'],
+                   'properties': {
+                       'flag': {'type': 'boolean', 'enum': [False]},
+                       'metadata': {'$ref': './model.' + format + '#/Item'},
+                       'note': {'type': 'string', 'enum': ['café 東京']},
+                   }},
+        'encoding': {'flag': {'contentType': 'text/plain'},
+                     'metadata': {'contentType': 'application/json'},
+                     'note': {'contentType': 'text/plain; charset=utf-8'}},
+        'examples': {'exact': {'value': {'flag': False, 'metadata': {'id': 9007199254740993},
+                                         'note': 'café 東京'}}},
+    }
+    return {'operationId': 'postItems', 'summary': 'Inspect items',
+            'requestBody': {'required': True, 'content': {'multipart/mixed': media}},
+            'responses': {'200': {'description': 'Actual response',
+                                  'content': {'multipart/mixed': media}}}}
+
+
 class MultipartFixture(AbstractContextManager):
     def __init__(self, kind):
+        self.kind = kind
         self.nested = kind == 'nested'
+        self.named = kind == 'named'
+        self.media = 'multipart/mixed' if self.named else MEDIA
         self.records = []
         fixture = self
 
@@ -64,7 +99,7 @@ class MultipartFixture(AbstractContextManager):
                 fixture.records.append({'method': self.command, 'target': self.path,
                                         'headers': dict(self.headers.items()), 'body': body})
                 self.send_response(200)
-                self.send_header('Content-Type', MEDIA)
+                self.send_header('Content-Type', self.headers['Content-Type'] if fixture.named else MEDIA)
                 self.send_header('Content-Length', str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -76,6 +111,9 @@ class MultipartFixture(AbstractContextManager):
         self.server.daemon_threads = True
         self.port = self.server.server_port
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def operation(self, format):
+        return named_multipart_operation(format) if self.named else multipart_operation(format, self.nested)
 
     def __enter__(self):
         self.thread.start()
@@ -89,6 +127,35 @@ class MultipartFixture(AbstractContextManager):
             raise RuntimeError('Owned multipart server did not stop')
 
 
+def edit_named_body(native, pid, original):
+    from test_openapi_application import keys, tree, wait_tree
+
+    for _ in range(64):
+        nodes = tree(pid, details=True)
+        matches = [node for node in nodes if node['editable'] and node['focused']
+                   and original in (node['text'] or '')]
+        if len(matches) == 1:
+            value = matches[0]['text']
+            break
+        if len(matches) > 1:
+            raise RuntimeError('More than one owned body field claims keyboard focus')
+        keys(native, ['Shift_L+Tab'])
+    else:
+        raise RuntimeError('Bounded reverse traversal did not reach the exact body draft')
+    assert value.count(original) == 1
+    offset = value.index(original) + len(original)
+    keys(native, ['Control_L+Home'] + ['Right'] * offset)
+    wait_tree(native, pid,
+        lambda nodes: any(node['editable'] and node['focused'] and node['caret'] == offset
+                          and node['text'] == value for node in nodes),
+        'The multipart body caret did not reach the exact numeric boundary')
+    keys(native, ['BackSpace', '2'])
+    expected = value.replace(original, '9007199254740992', 1)
+    wait_tree(native, pid,
+        lambda nodes: any(node['editable'] and node['focused'] and node['text'] == expected for node in nodes),
+        'The native body edit did not preserve its other exact values and Unicode')
+
+
 def execute_multipart(native, process, file, baseline, version, fixture, evidence, case, phase):
     from test_openapi_application import (
         activate_control, complete_problems, contains, design_values, keys, text_keys, wait_tree,
@@ -100,20 +167,25 @@ def execute_multipart(native, process, file, baseline, version, fixture, evidenc
     wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Try') and contains(nodes, 'Inspect items'),
               'Multipart operation selection failed')
     activate_control(native, process.pid, 'Try')
-    wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Examples · ' + MEDIA + ' · exact'),
+    wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Examples · ' + fixture.media + ' · exact'),
               'Multipart request did not expose its serialized examples')
     checks = []
     for name, number, expected in [
-        ('exact', '9007199254740993.00', 'HTTP received · contract checks passed'),
+        ('exact', '9007199254740993' if fixture.named else '9007199254740993.00', 'HTTP received · contract checks passed'),
         ('rounded', '9007199254740992', 'HTTP received · contract findings require review'),
     ]:
-        label = 'Examples · ' + MEDIA + ' · ' + name
-        activate_control(native, process.pid, label, backwards=name == 'rounded')
-        body = multipart_wire(number, fixture.nested).encode()
+        label = 'Examples · ' + fixture.media + ' · ' + name
+        if fixture.named and name == 'rounded':
+            edit_named_body(native, process.pid, '9007199254740993')
+        else:
+            activate_control(native, process.pid, label, backwards=name == 'rounded')
         wait_tree(native, process.pid,
                   lambda nodes: any(node['editable'] and number in (node['text'] or '') for node in nodes),
                   'The selected serialized multipart example was not retained')
-        keys(native, ['Control_L+Return'])
+        if fixture.named:
+            activate_control(native, process.pid, 'Send')
+        else:
+            keys(native, ['Control_L+Return'])
         nodes = wait_tree(native, process.pid, lambda nodes: contains(nodes, expected),
                           'Native multipart conformance did not match its actual bytes')
         assert len(fixture.records) == start + len(checks) + 1
@@ -121,7 +193,18 @@ def execute_multipart(native, process, file, baseline, version, fixture, evidenc
         headers = {key.lower(): value for key, value in record['headers'].items()}
         assert record['method'] == 'POST' and record['target'] == '/items'
         assert headers['host'] == '127.0.0.1:' + str(fixture.port)
-        assert headers['content-type'] == MEDIA and record['body'] == body
+        if fixture.named:
+            media = Message()
+            media['content-type'] = headers['content-type']
+            assert media.get_content_type() == 'multipart/mixed'
+            boundary = media.get_param('boundary')
+            assert isinstance(boundary, str) and re.fullmatch(r'busyapi-[0-9a-f]{48}', boundary)
+            assert headers['content-type'] == 'multipart/mixed; boundary=' + boundary
+            body = named_multipart_wire(number, boundary).encode()
+        else:
+            assert headers['content-type'] == MEDIA
+            body = multipart_wire(number, fixture.nested).encode()
+        assert record['body'] == body
         preview = body.hex(' ')[:1024]
         assert any(node['text'] == preview for node in nodes), 'Native response byte preview changed'
         destination = evidence / (case + '-multipart-' + phase + '-' + name + '.bin')
@@ -146,7 +229,7 @@ def execute_multipart(native, process, file, baseline, version, fixture, evidenc
     wait_tree(native, process.pid,
               lambda nodes: design_values(nodes, 'edited ' + version, 'api-version2') and complete_problems(nodes),
               'Overview did not retain source after native multipart execution')
-    result = {'complete': True, 'kind': 'nested' if fixture.nested else 'ordered', 'phase': phase,
+    result = {'complete': True, 'kind': fixture.kind, 'phase': phase,
               'requests': checks, 'sourceUnchanged': True}
     (evidence / (case + '-multipart-' + phase + '.json')).write_text(
         json.dumps(result, indent=2, ensure_ascii=False) + '\n')
