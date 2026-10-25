@@ -48,6 +48,38 @@ class CoreFailure implements Exception {
 
 enum SpecificationFamily { swagger20, openapi30, openapi31, openapi32 }
 
+/// Syntax and bounded authoring limits supplied by the containing engine scope.
+class MemberNamePolicy {
+  const MemberNamePolicy._(this.allowEmpty, this.maxLength, this._pattern);
+  factory MemberNamePolicy.fromJson(Object? value) {
+    CoreFailure invalid() => CoreFailure(
+      'engine.name-policy',
+      'The engine returned an incomplete member-name policy',
+    );
+    if (value case {'allowEmpty': bool empty, 'maxLength': int length}) {
+      if (length < 1 || length > 65536) throw invalid();
+      final pattern = value['pattern'];
+      RegExp? expression;
+      if (pattern != null) {
+        if (pattern is! String || pattern.length > 1024) throw invalid();
+        try {
+          expression = RegExp(pattern);
+        } on FormatException {
+          throw invalid();
+        }
+      }
+      return MemberNamePolicy._(empty, length, expression);
+    }
+    throw invalid();
+  }
+  final bool allowEmpty;
+  final int maxLength;
+  final RegExp? _pattern;
+  bool allows(String value) =>
+      value.length <= maxLength &&
+      (value.isEmpty ? allowEmpty : _pattern?.hasMatch(value) ?? true);
+}
+
 enum SecurityRequirementValueKind { scopes, roles, empty, unresolved }
 
 class SecurityBindingInspection {

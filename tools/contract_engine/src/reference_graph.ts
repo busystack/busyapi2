@@ -44,7 +44,9 @@ export const implicitNameReference=(reference:Pick<GraphReference,'connection'|'
 /** An address for an already established schema occurrence. This is not
  * resolution or acquisition; both pointer escaping and resource ownership
  * come from the canonical graph. */
-export const schemaAddress=(scope:GraphScope)=>scope.base+'#'+encodeURI(scope.pointer.slice(scope.resourcePointer.length)).replaceAll('#','%23').replaceAll('?','%3F');
+/** RFC 6901 pointer text still needs RFC 3986 fragment encoding. */
+export const pointerFragment=(pointer:string)=>'#'+encodeURI(pointer).replaceAll('#','%23').replaceAll('?','%3F');
+export const schemaAddress=(scope:GraphScope)=>scope.base+pointerFragment(scope.pointer.slice(scope.resourcePointer.length));
 
 /** Description URI fields retain their canonical occurrence base, including
  * OAS 3.2 $self. Server/API URLs deliberately use the original retrieval

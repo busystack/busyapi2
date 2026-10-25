@@ -294,7 +294,9 @@ class _ReferencePickerState extends State<_ReferencePicker> {
                 };
                 return BusyApiActionRow(
                   key: ValueKey(entry['semanticId']),
-                  title: entry['label'],
+                  title: entry['label'] == ''
+                      ? l.emptyObjectName
+                      : entry['label'],
                   subtitleWidget: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

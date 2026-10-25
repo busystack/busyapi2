@@ -16,6 +16,7 @@ String contractIdentityLabel(String value, {int limit = 480}) {
 /// Authored keyword names remain recognizable; ordinary concepts use the
 /// same localized labels in native authoring and read-only documentation.
 String contractFieldLabel(BuildContext context, String key) => switch (key) {
+  '' => context.l10n.emptyObjectName,
   'title' => context.l10n.title,
   'version' => context.l10n.apiVersion,
   'summary' => context.l10n.summary,

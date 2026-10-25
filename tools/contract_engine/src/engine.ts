@@ -14,6 +14,7 @@ import {restrictedSchemaIssues} from './restricted_schema';
 import {securityRequirementIssues,securityRequirementValueRule} from './security_requirements';
 import {formMediaIssues} from './form_semantics';
 import {mediaTypeIssues} from './media_validation';
+import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
 const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions };
@@ -363,6 +364,8 @@ export function inspect(input: any) {
       }
     }
     const componentDestinations=componentFamily(scope.kind,family)?[...docs.values()].filter(candidate=>graph.specifications.get(candidate.id)?.family===family&&candidate.syntaxSafe('')&&!candidate.root.shared).map(candidate=>candidate.id):[];
+    const memberPolicy=collectionMemberNamePolicy(graph,scope),componentPolicy=componentFamily(scope.kind,family)?componentNamePolicy(family):undefined;
+    const componentDefinition=!!componentPolicy&&graph.specifications.has(doc.id)&&reusableDefinitionPointer(node.pointer,family);
     let operationContext:any;
     if(scope.kind==='operation'){
         let at=node.pointer;
@@ -380,6 +383,9 @@ export function inspect(input: any) {
     return {version: 1, snapshot: input.snapshot, family, ...(isNativeFamily(family)?{capabilities:capabilitiesFor(family)}:{}), customSchemaKeywords: modernFamily(family), ...located(node, scope.kind), sharedTarget, componentDestination: graph.specifications.get(doc.id)?.family===family, componentDestinations, ...(componentFamily(scope.kind,family)?{componentFamily:componentFamily(scope.kind,family)}:{}), ...(schemaTreeRoot!==undefined?{schemaTreeRoot}:{}), removable, allowsExtensions: allowsExtensions(scope.kind, family, node.value, segments(node.pointer).at(-1),graph.allowsReference(scope)), fields, entries, offset, count: node.children.size, references,
         ...(ownerSchema ? {ownerSchema: located(ownerSchema, 'schema')} : {}),
         ...(binding?{securityBinding:binding}:{}),
+        ...(memberPolicy?{memberNamePolicy:memberPolicy}:{}),
+        ...(componentPolicy?{componentNamePolicy:componentPolicy}:{}),
+        componentDefinition,
         value: Object.fromEntries(fields.filter(f => f.present && Object.hasOwn(f, 'value')).map(f => [f.name, f.value])),
         boolean: scope.kind==='schema'&&typeof node.value === 'boolean' ? node.value : undefined,
         ...(operationContext?{operationContext}:{}),

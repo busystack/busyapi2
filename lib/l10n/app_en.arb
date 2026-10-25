@@ -415,6 +415,7 @@
   "callbacks": "Callbacks",
   "objectNameRequired": "Enter a name or required URL before adding the entry.",
   "componentNameInvalid": "Component names may contain only letters, digits, dots, hyphens and underscores.",
+  "memberNameTooLong": "This name exceeds the supported length limit.",
   "responseStatusInvalid": "Use default, a status code from 100 to 599, or a range from 1XX to 5XX.",
   "close": "Close",
   "undo": "Undo",

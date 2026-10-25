@@ -2,11 +2,10 @@ import {posix} from 'node:path';
 import {createGraph,Resource} from './engine';
 import {componentLocation,fieldsForScope} from './authoring';
 import {escape,segments,SourceError} from './document';
-import {GraphReference,GraphScope,ReferenceGraph,implicitNameReference,resolveUri,supportedSchemaDialect} from './reference_graph';
+import {GraphReference,GraphScope,ReferenceGraph,implicitNameReference,resolveUri,supportedSchemaDialect,pointerFragment as fragment} from './reference_graph';
 import {capabilitiesFor,isNativeFamily} from './specification';
 import {securityRequirementDefinition,securityRequirementValuesAllowed} from './security_requirements';
 
-const fragment=(pointer:string)=>'#'+encodeURI(pointer).replaceAll('#','%23').replaceAll('?','%3F');
 const bounded=(value:string)=>Array.from(value).slice(0,240).join('');
 const same=(a:{resource:string;pointer:string},b:{resource:string;pointer:string})=>a.resource===b.resource&&a.pointer===b.pointer;
 

@@ -263,7 +263,9 @@ class ApiNavigatorState extends State<ApiNavigator> {
           for (final component in componentGroups[group] ?? const <Map>[])
             node(
               'component',
-              component['name'] as String,
+              component['name'] == ''
+                  ? l.emptyObjectName
+                  : component['name'] as String,
               Map<String, dynamic>.from(component),
             ),
         ],

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { createGraph, propose, Resource } from './engine';
 import { escape, segments, SourceError } from './document';
-import { GraphReference, resolveUri } from './reference_graph';
+import { GraphReference, resolveUri, pointerFragment } from './reference_graph';
 import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
+import {componentNamePolicy,permitsMemberName,responseStatusNamePolicy} from './member_names';
 
 /** Semantic plans operate on each entry description's namespace separately.
  * Physical edits are coalesced only after every occurrence agrees. There is no
@@ -18,7 +19,7 @@ export function planRename(input: any) {
     const parts = segments(input.target.pointer);
     const property = input.property === true;
     const response = input.response === true;
-    if (typeof input.name !== 'string' || input.name.length > 4096 || (property ? parts.length < 2 || parts.at(-2) !== 'properties' : response ? parts.at(-2)!=='responses'||! /^(default|[1-5](\d\d|XX))$/.test(input.name) : !(parts.length===2&&['definitions','parameters','responses','securityDefinitions'].includes(parts[0]) || parts.length===3&&parts[0]==='components'&&['schemas','parameters','responses','headers','requestBodies','examples','links','callbacks','pathItems','securitySchemes','mediaTypes'].includes(parts[1])) || !/^[a-zA-Z0-9._-]+$/.test(input.name)))
+    if (typeof input.name !== 'string' || input.name.length > 4096 || (property ? parts.length < 2 || parts.at(-2) !== 'properties' : response ? parts.at(-2)!=='responses' : !(parts.length===2&&['definitions','parameters','responses','securityDefinitions'].includes(parts[0]) || parts.length===3&&parts[0]==='components'&&['schemas','parameters','responses','headers','requestBodies','examples','links','callbacks','pathItems','securitySchemes','mediaTypes'].includes(parts[1]))))
         throw new SourceError('refactor.name', 'Choose a component definition and a legal component name');
     const oldName = parts.at(-1)!, oldPointer = input.target.pointer;
     const nextPointer = '/' + parts.slice(0,-1).map(escape).join('/') + '/' + escape(input.name);
@@ -28,11 +29,14 @@ export function planRename(input: any) {
         for(const move of [...moves].sort((a,b)=>b.from.length-a.from.length))if(move.resource===resource&&(next===move.from||next?.startsWith(move.from+'/')))next=move.to+next.slice(move.from.length);
         return next;
     };
-    const graphs = input.contexts.map((context: any) => {
+    const graphs:({context:any}&ReturnType<typeof createGraph>)[] = input.contexts.map((context: any) => {
         if (!Array.isArray(context.resources) || !context.resources.includes(context.root) || context.resources.some((id: string) => !resources.some(r => r.id === id)))
             throw new SourceError('refactor.context', 'A root context contains an unavailable resource');
         return {context, ...createGraph({root: context.root, resources: resources.filter(r => context.resources.includes(r.id))})};
     });
+    const owningScopes=graphs.map(g=>g.graph.scopes.get(source.id+'#'+oldPointer)).filter(scope=>scope!==undefined);
+    if(!property&&(!owningScopes.length||owningScopes.some(scope=>!permitsMemberName(response?responseStatusNamePolicy(scope.family):componentNamePolicy(scope.family),input.name))))
+        throw new SourceError('refactor.name','Choose a name permitted by every owning specification family',input.target.range,undefined,{resource:source.id,pointer:oldPointer,range:input.target.range});
     if(!property&&!response&&parts.length===2&&!graphs.some((g:any)=>g.graph.specifications.get(source.id)?.family==='2.0'))throw new SourceError('refactor.definition','Choose a native Swagger reusable definition');
     const definition = graphs.map((g: any) => g.docs.get(source.id)?.nodes.get(oldPointer)).find(Boolean);
     if (!definition || !definition.keyRange || definition.shared || definition.keyShared)
@@ -143,7 +147,7 @@ export function planRename(input: any) {
         if (target !== basePointer && !target.startsWith(basePointer + '/')) throw new SourceError('refactor.identity', 'The moved definition escapes the referenced schema resource');
         const pointer = target.slice(basePointer.length);
         if (pointer === fragment) return ref.value;
-        return ref.value.slice(0, ref.value.indexOf('#')) + '#' + encodeURI(pointer).replaceAll('#', '%23').replaceAll('?', '%3F');
+        return ref.value.slice(0, ref.value.indexOf('#')) + pointerFragment(pointer);
     };
     for (const {context, graph, docs} of graphs) {
         for (const ref of graph.references) {

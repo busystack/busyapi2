@@ -82,7 +82,9 @@ Future<String> _run() async {
           Platform.environment['BUSYAPI_FILE_CONTROLS_SECURITY'] ?? '',
       selection =
           Platform.environment['BUSYAPI_FILE_CONTROLS_SECURITY_SELECTION'] ??
-          '';
+          '',
+      memberNames =
+          Platform.environment['BUSYAPI_FILE_CONTROLS_MEMBER_NAMES'] ?? '';
   _expect(
     ['2.0', '3.0.0', '3.0.4', '3.1.2', '3.2.1'].contains(version) &&
         ['yaml', 'json'].contains(format),
@@ -104,6 +106,13 @@ Future<String> _run() async {
       json = format == 'json',
       createdName = 'created.$format',
       unusedName = 'unused.$format';
+  _expect(
+    ['', 'empty', 'unicode'].contains(memberNames) &&
+        (memberNames.isEmpty || swagger && maintenance == 'named'),
+    'fixture-member-name-mode',
+  );
+  final originalName = memberNames == 'unicode' ? 'clé/雪 ~😀 #?%' : 'Old',
+      renamedName = memberNames.isEmpty ? '__proto__' : '';
   final sourceDirectory = Directory('$directory/project');
   _expect(!sourceDirectory.existsSync(), 'project-collision');
   await sourceDirectory.create();
@@ -116,7 +125,7 @@ Future<String> _run() async {
   );
   final binding = maintenance == 'uri'
       ? '#/components/securitySchemes/Old'
-      : 'Old';
+      : originalName;
   final securitySource =
       '${json ? '' : '# retained security source\r\n'}${jsonEncode({
         declaration: version,
@@ -126,7 +135,7 @@ Future<String> _run() async {
           {binding: <String>[]},
         ],
         if (swagger) 'securityDefinitions': {
-            'Old': {'type': 'apiKey', 'in': 'header', 'name': 'X-Key'},
+            originalName: {'type': 'apiKey', 'in': 'header', 'name': 'X-Key'},
             if (selection.isNotEmpty) 'New': {'type': 'apiKey', 'in': 'header', 'name': 'X-New'},
           } else 'components': {
             'securitySchemes': {
@@ -355,7 +364,12 @@ environments:
       'authoring-field',
       editable: true,
     );
-    await keys(['Control_L+a', ...ascii(value), if (!dialog) 'Return']);
+    await keys([
+      'Control_L+a',
+      if (value.isEmpty) 'BackSpace',
+      ...ascii(value),
+      if (!dialog) 'Return',
+    ]);
     try {
       await _wait(
         () =>
@@ -1341,11 +1355,11 @@ environments:
     if (maintenance.isNotEmpty) {
       final configId = manifest.uri.toString(), rootId = root.uri.toString();
       final pointer =
-          '${swagger ? '/securityDefinitions' : '/components/securitySchemes'}/Old';
+          '${swagger ? '/securityDefinitions' : '/components/securitySchemes'}/${originalName.replaceAll('~', '~0').replaceAll('/', '~1')}';
       for (final accept in [false, true]) {
         await route(pointer);
         await row('Rename component');
-        await entry('Name', '__proto__', dialog: true);
+        await entry('Name', renamedName, dialog: true);
         await button('Apply');
         await _wait(
           () =>
@@ -1383,21 +1397,42 @@ environments:
         () =>
             !controller.checking &&
             !controller.formApplying &&
-            project.store.get(rootId).text.contains('__proto__'),
+            !listEquals(project.store.get(rootId).bytes(), rootBytes),
         'native-security-accepted',
       );
       final accepted = project.store.get(rootId).bytes(),
           acceptedConfiguration = project.store.get(configId).text;
       _expect(
-        acceptedConfiguration.contains(
-              maintenance == 'uri'
-                  ? '#/components/securitySchemes/__proto__'
-                  : '__proto__',
-            ) &&
+        (renamedName.isEmpty
+                ? RegExp(
+                    r'''^\s*(?:""|''):\s*''',
+                    multiLine: true,
+                  ).hasMatch(acceptedConfiguration)
+                : acceptedConfiguration.contains(
+                    maintenance == 'uri'
+                        ? '#/components/securitySchemes/$renamedName'
+                        : renamedName,
+                  )) &&
             acceptedConfiguration.contains('# retained reference') &&
             project.store.get(rootId).text.contains('9007199254740993.00'),
         'native-security-bindings-and-exact-source',
       );
+      if (memberNames.isNotEmpty) {
+        final parsed = jsonDecode(
+          project.store
+              .get(rootId)
+              .text
+              .replaceFirst('# retained security source\r\n', ''),
+        ) as Map;
+        _expect(
+          (parsed['securityDefinitions'] as Map).containsKey('') &&
+              !(parsed['securityDefinitions'] as Map).containsKey(
+                originalName,
+              ) &&
+              (parsed['security'] as List).single.containsKey(''),
+          'native-empty-member-bindings',
+        );
+      }
       await keys(['Control_L+z']);
       await _wait(
         () =>

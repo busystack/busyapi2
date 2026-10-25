@@ -380,6 +380,14 @@ other schemes require empty lists before 3.2, which can carry roles. An intentio
 requires its own authentication configuration and does not copy credentials or
 environment settings. Definition rename remains a separate action.
 
+Swagger 2.0 reusable schema, parameter, response and security-scheme names follow
+its native named-map rules, including Unicode and empty names. **Use an empty
+name** makes empty-name creation explicit in Design; navigation and native
+documentation label it visibly. OpenAPI 3.x Components retain their restricted
+name syntax. Rename and extraction repair captured references through the graph.
+An extraction's semantic name and separately reviewed filename are independent;
+names containing path characters receive an editable safe filename suggestion.
+
 Security-scheme rename and file moves use captured graph bindings to repair
 requirement names and 3.2 URI keys. Reviewed changes include exact aliases of
 configured environment credential references; old bindings remain available for

@@ -1190,7 +1190,7 @@ String _referenceHtml(Map document, String Function(String) portable) {
           path = parts.take(parts.length - (additional ? 2 : 1)).join(' / ');
       return '$verb · $path';
     }
-    return '${section['kind']} · ${parts.join(' / ')}';
+    return '${section['kind']} · ${parts.map((part) => part.isEmpty ? '""' : part).join(' / ')}';
   }
 
   final sections = (document['sections'] as List).cast<Map>();
@@ -1254,7 +1254,9 @@ String _referenceHtml(Map document, String Function(String) portable) {
       );
     if ((section['entries'] as List).isNotEmpty) html.write('<dl>');
     for (final field in section['entries'] as List) {
-      html.write('<dt>${escape(field['name'])}</dt><dd>');
+      html.write(
+        '<dt>${escape(field['name'] == '' ? '"" (empty name)' : field['name'])}</dt><dd>',
+      );
       if (field['target'] != null) {
         html.write(
           '<a href="#${_referenceAnchor(field['target'] as Map)}">${escape(field['kind'])} — view authored content</a>',

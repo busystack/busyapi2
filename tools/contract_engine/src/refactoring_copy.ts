@@ -3,12 +3,13 @@ import {createGraph,Resource} from './engine';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {referenceValue} from './reference_choices';
 import {fieldsForScope,componentFamily,componentLocation,documentUriOccurrences} from './authoring';
-import {documentUriBase,ReferenceGraph,resolveUri} from './reference_graph';
+import {documentUriBase,ReferenceGraph,resolveUri,pointerFragment} from './reference_graph';
 import {coldGraph} from './reference_selection';
 import {ParameterSemantics} from './parameter_semantics';
 import {standardOperationMethods} from './contexts';
 import {serverTemplate} from './derived_bundle';
 import {hasRelativeMarkdownLinks} from './markdown_links';
+import {componentNamePolicy,permitsMemberName,reusableDefinitionPointer} from './member_names';
 
 const inside=(pointer:string,owner:string)=>pointer===owner||pointer.startsWith(owner+'/');
 
@@ -199,7 +200,7 @@ function relocateCopiedUris(before:ReferenceGraph,after:ReferenceGraph,from:{res
 
 function planCopy(input:any,moving=false) {
  const {resources,target,resource,graphs,owning,selected,doc,node,scope}=capture(input),family=componentFamily(scope.kind,scope.family);
- if(!family||scope.kind==='media'&&scope.family!=='3.2'||typeof input.name!=='string'||!/^[a-zA-Z0-9._-]+$/.test(input.name)||input.name.length>4096)
+ if(!family||scope.kind==='media'&&scope.family!=='3.2'||!permitsMemberName(componentNamePolicy(scope.family),input.name))
   throw new SourceError('refactor.copy.context','Choose an inline reusable object and a legal component name');
  const destinationId=input.destinationResource??resource.id,destinationResource=resources.find(r=>r.id===destinationId);
  const namedFragment=input.destinationFragment==='named';
@@ -214,7 +215,7 @@ function planCopy(input:any,moving=false) {
  const destinationDoc=fragment?new SourceDocument(destinationResource!.text,destinationId):destinationResource&&graphs.map(g=>g.docs.get(destinationId)).find(Boolean);
  if(!destinationDoc||!fragment&&!graphs.some(g=>g.graph.specifications.get(destinationId)?.family===scope.family))
   throw new SourceError('refactor.extract.destination','Choose an OpenAPI document as the component destination');
- const definition=(scope.family==='2.0'?/^\/(definitions|parameters|responses|securityDefinitions)\/[^/]+$/:/^\/components\/[^/]+\/[^/]+$/).test(target.pointer);
+ const definition=reusableDefinitionPointer(target.pointer,scope.family);
  if(moving?!definition:definition)
   throw new SourceError('refactor.extract.definition',moving?'Choose an authored component definition to move':'Choose an inline object, not an existing component definition');
  if(typeof node.value?.$ref==='string'||typeof node.value?.$dynamicRef==='string')
@@ -246,7 +247,7 @@ function planCopy(input:any,moving=false) {
  if(cross)for(const at of selected.graph.scopes.values())if(at.kind==='schema'&&at.resource===resource.id&&inside(at.pointer,target.pointer)&&doc.nodes.has(at.pointer+'/$id')){
   admit(destinationId);changed=new SourceDocument(changed.set(move(resource.id,at.pointer)+'/$id',at.base),destinationId);
  }
- const occurrenceValue={$ref:fragment?destinationId+(destination?'#'+destination:''):'#'+destination};
+ const occurrenceValue={$ref:fragment?destinationId+(destination?pointerFragment(destination):''):pointerFragment(destination)};
  const parent=doc.node(target.pointer.slice(0,target.pointer.lastIndexOf('/')));
  const occurrence=doc.format==='yaml'&&!parent.flow
   ?new SourceDocument(doc.emit(occurrenceValue),'occurrence.yaml')

@@ -592,9 +592,7 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                     item['sharedTarget'] == true ||
                     c.selectedOccurrence?.startsWith('definition:') == true)
                   Text(l.sharedDefinition),
-                if (RegExp(
-                  r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))/[^/]+$',
-                ).hasMatch(widget.pointer))
+                if (item['componentDefinition'] == true)
                   BusyApiActionRow(
                     title: l.renameComponent,
                     onTap: c.scopeSafe(item)
@@ -604,9 +602,7 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                         : null,
                   ),
                 if (item['componentFamily'] is String &&
-                    RegExp(
-                      r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))/[^/]+$',
-                    ).hasMatch(widget.pointer) &&
+                    item['componentDefinition'] == true &&
                     !(item['references'] as List).any(
                       (ref) =>
                           ref['keyword'] == r'$ref' ||
@@ -626,9 +622,7 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                         : null,
                   ),
                 if (item['componentFamily'] is String &&
-                    !RegExp(
-                      r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))/[^/]+$',
-                    ).hasMatch(widget.pointer) &&
+                    item['componentDefinition'] != true &&
                     !(item['references'] as List).any(
                       (ref) =>
                           ref['keyword'] == r'$ref' ||
@@ -682,7 +676,9 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                     children: [
                       for (final entry in entries)
                         BusyApiActionRow(
-                          title: entry['name'] as String,
+                          title: (entry['name'] as String).isEmpty
+                              ? l.emptyObjectName
+                              : entry['name'] as String,
                           subtitle: _securityValuesLabel(context, entry),
                           onTap: () => run(() => c.selectObject(entry)),
                         ),
@@ -1200,7 +1196,7 @@ Future<void> _addSecurityScheme(
         labels: {
           for (final s in schemes)
             s['name'] as String:
-                '${s['name']} · ${Uri.parse(s['resource']).pathSegments.last}',
+                '${s['name'] == '' ? l.emptyObjectName : s['name']} · ${Uri.parse(s['resource']).pathSegments.last}',
         },
       ),
     ],
@@ -1400,11 +1396,11 @@ Future<void> _addObjectEntry(
   item = prepared;
   final array = item['nodeKind'] == 'array', kind = item['kind'] as String;
   final textValue = kind == 'string-array';
+  final namePolicy = item['memberNamePolicy'] == null
+      ? null
+      : MemberNamePolicy.fromJson(item['memberNamePolicy']);
   final emptyNameAllowed =
-      kind == 'schema-map' &&
-      !RegExp(
-        r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))$',
-      ).hasMatch(item['pointer']);
+      !array && (namePolicy?.allowEmpty ?? kind == 'schema-map');
   final l = context.l10n;
   final owner = c.project, root = c.root;
   String? createdPointer;
@@ -1429,15 +1425,13 @@ Future<void> _addObjectEntry(
           kind == 'server-array' && (v['url'] as String).isEmpty) {
         return l.objectNameRequired;
       }
-      if (RegExp(
-            r'^(?:/components/[^/]+|/(?:definitions|parameters|responses|securityDefinitions))$',
-          ).hasMatch(item['pointer']) &&
-          !RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(v['name'])) {
-        return l.componentNameInvalid;
-      }
-      if (kind == 'response-map' &&
-          !RegExp(r'^(default|[1-5](?:[0-9]{2}|XX))$').hasMatch(v['name'])) {
-        return l.responseStatusInvalid;
+      final name = v['emptyName'] == true ? '' : v['name'] as String;
+      if (namePolicy != null && !namePolicy.allows(name)) {
+        return name.length > namePolicy.maxLength
+            ? l.memberNameTooLong
+            : kind == 'response-map'
+            ? l.responseStatusInvalid
+            : l.componentNameInvalid;
       }
       return null;
     },
@@ -1536,6 +1530,9 @@ Future<void> _renameObjectComponent(
   if (prepared == null || !context.mounted) return;
   item = prepared;
   final owner = c.project!, l = context.l10n;
+  final namePolicy = property
+      ? null
+      : MemberNamePolicy.fromJson(item['componentNamePolicy']);
   RefactoringPlan? plan;
   final name = (item['pointer'] as String)
       .split('/')
@@ -1551,9 +1548,10 @@ Future<void> _renameObjectComponent(
     target: item,
     kind: property ? 'object.renameProperty' : 'object.rename',
     waitForDismissal: true,
-    validate: (value) =>
-        property || RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(value['name'])
+    validate: (value) => namePolicy == null || namePolicy.allows(value['name'])
         ? null
+        : (value['name'] as String).length > namePolicy.maxLength
+        ? l.memberNameTooLong
         : l.componentNameInvalid,
     onApply: (value) async {
       try {
@@ -1622,6 +1620,20 @@ Future<void> _reviewObjectDeletion(
   await showRefactoringReview(context, c, owner, plan);
 }
 
+String _suggestedExtractionFilename(String name, String extension) {
+  // A JSON member name need not be a filename. This is only the editable
+  // destination suggestion; the semantic name is retained independently.
+  final basename =
+      name.isNotEmpty &&
+          name != '.' &&
+          name != '..' &&
+          !name.contains(RegExp(r'[/\\\x00-\x1f\x7f]')) &&
+          utf8.encode(name).length <= 200
+      ? name
+      : 'component';
+  return '$basename$extension';
+}
+
 Future<void> _extractObjectComponent(
   BuildContext context,
   WorkspaceController c,
@@ -1632,6 +1644,7 @@ Future<void> _extractObjectComponent(
   final prepared = await _prepareObjectAction(context, c, item);
   if (prepared == null || !context.mounted) return;
   final owner = c.project!, l = context.l10n;
+  final namePolicy = MemberNamePolicy.fromJson(prepared['componentNamePolicy']);
   final failureText = _copyRefactoringFailure(context);
   final capturedRoot = c.root, navigation = c.navigationGeneration;
   final capturedSelection = (
@@ -1667,13 +1680,15 @@ Future<void> _extractObjectComponent(
       ? prepared['resource'] as String
       : c.root!;
   RefactoringPlan? plan;
-  final result = fileName != null
+  final formResult = fileName != null
       ? {'name': fileName, 'destination': newFileDestination}
       : await editForm(
           context,
           moving ? l.moveComponentDefinition : l.extractComponent,
           [
             FormFieldSpec('name', moving ? l.destinationComponentName : l.name),
+            if (!moving && namePolicy.allowEmpty)
+              FormFieldSpec('emptyName', l.useEmptyObjectName, boolean: true),
             FormFieldSpec(
               'destination',
               l.componentDestination,
@@ -1690,16 +1705,27 @@ Future<void> _extractObjectComponent(
                       .replaceAll('~0', '~')
                 : '',
             'destination': destination,
+            'emptyName': false,
           },
           controller: c,
           target: prepared,
           kind: moving ? 'object.moveDefinition' : 'object.extract',
           waitForDismissal: true,
-          validate: (values) =>
-              RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(values['name'])
-              ? null
-              : l.componentNameInvalid,
+          validate: (values) {
+            final name = values['emptyName'] == true
+                ? ''
+                : values['name'] as String;
+            if (!moving && name.isEmpty && values['emptyName'] != true) {
+              return l.objectNameRequired;
+            }
+            return namePolicy.allows(name)
+                ? null
+                : name.length > namePolicy.maxLength
+                ? l.memberNameTooLong
+                : l.componentNameInvalid;
+          },
           onApply: (values) async {
+            if (values['emptyName'] == true) values = {...values, 'name': ''};
             if (!moving && values['destination'] == newFileDestination) return;
             try {
               final prepare = moving
@@ -1721,6 +1747,9 @@ Future<void> _extractObjectComponent(
             }
           },
         );
+  final result = formResult == null
+      ? null
+      : {...formResult, if (formResult['emptyName'] == true) 'name': ''};
   if (result != null &&
       !moving &&
       result['destination'] == newFileDestination &&
@@ -1737,7 +1766,10 @@ Future<void> _extractObjectComponent(
       [FormFieldSpec('path', l.fileMoveDestination)],
       {
         'path': p.relative(
-          p.join(p.dirname(sourcePath), '$name$extension'),
+          p.join(
+            p.dirname(sourcePath),
+            _suggestedExtractionFilename(name, extension),
+          ),
           from: owner.access.boundary,
         ),
       },
