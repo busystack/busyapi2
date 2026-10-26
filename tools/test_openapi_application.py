@@ -570,18 +570,19 @@ def main():
     parser.add_argument('--binary-schema-free', action='store_true')
     parser.add_argument('--swagger-form', choices=['urlencoded', 'multipart'])
     parser.add_argument('--header-content', action='store_true')
-    parser.add_argument('--generated-headers', action='store_true')
+    parser.add_argument('--generated-headers', choices=['generic', 'transfer'])
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['2.0', '3.0.0', '3.0.1', '3.0.2', '3.0.3', '3.0.4', '3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1'])
     parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
     args = parser.parse_args()
-    if args.generated_headers and (not args.edit or not args.version.startswith(('3.0.', '3.1.'))
+    if args.generated_headers and (not args.edit or args.version == '2.0'
+                                    or args.generated_headers == 'generic' and not args.version.startswith(('3.0.', '3.1.'))
                                     or args.operations or args.schema_definitions or args.documentation
                                     or args.mock_samples or args.mock_nested or args.mock_methods
                                     or args.migrate_target or args.multipart or args.binary
                                     or args.swagger_form or args.header_content):
-        parser.error('--generated-headers requires --edit, a 3.0/3.1 root and its dedicated MIME journey')
+        parser.error('--generated-headers requires --edit, an applicable 3.x root (generic: 3.0/3.1), and its dedicated MIME journey')
     if args.mock_nested:
         args.mock_samples = True
     if args.mock_methods:
@@ -640,7 +641,7 @@ def main():
                 *(['--binary-schema-free'] if args.binary_schema_free else []),
                 *(['--swagger-form', args.swagger_form] if args.swagger_form else []),
                 *(['--header-content'] if args.header_content else []),
-                *(['--generated-headers'] if args.generated_headers else []),
+                *(['--generated-headers', args.generated_headers] if args.generated_headers else []),
             ]
             # Own the complete private session, including accessibility and
             # the application, so a timed-out journey leaves no native fixture.
@@ -696,14 +697,14 @@ def main():
             + ('-schema-free' if args.binary_schema_free else '')
             + ('-swagger-form-' + args.swagger_form if args.swagger_form else '')
             + ('-header-content' if args.header_content else '')
-            + ('-generated-headers' if args.generated_headers else '')
+            + ('-generated-headers-' + args.generated_headers if args.generated_headers else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
         multipart = None
         if args.generated_headers:
-            from native_generated_headers import GeneratedHeadersFixture
-            multipart = fixtures.enter_context(GeneratedHeadersFixture())
+            from native_generated_headers import GeneratedHeadersFixture, GeneratedTransferFixture
+            multipart = fixtures.enter_context(GeneratedTransferFixture() if args.generated_headers == 'transfer' else GeneratedHeadersFixture())
         elif args.header_content:
             from native_header_content import HeaderContentFixture
             multipart = fixtures.enter_context(HeaderContentFixture(args.version))
