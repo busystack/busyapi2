@@ -28,7 +28,9 @@ def maintain_case_file(native, process, file, baseline, fixture):
     assert expected != original and original.count(b'"path":"one.json"') == 2
 
     def sidebar(files):
-        activate_control(native, process.pid, 'Sidebar view')
+        # The project-view icon and the global sidebar toggle share a tooltip.
+        # NativeInput proves this fixed client viewport before the local click.
+        native.perform({'kind': 'click', 'scale': 1, 'point': [275, 77], 'viewport': [1280, 720]})
         wait_tree(native, process.pid, lambda nodes: contains(nodes, 'API') and contains(nodes, 'Files'), 'Sidebar menu did not expose native views')
         keys(native, ['Home'] + (['Down'] if files else []) + ['Return'])
         wait_tree(native, process.pid,
@@ -48,6 +50,7 @@ def maintain_case_file(native, process, file, baseline, fixture):
             'Saved upload deletion did not identify its source-located consumer')
         apply = [node for node in nodes if node['name'] == 'Apply']
         assert len(apply) == 1 and not apply[0]['enabled'], apply
+        assert any(node['name'] == 'Cancel' and node['enabled'] for node in nodes)
         activate_control(native, process.pid, 'Cancel')
         wait_tree(native, process.pid, lambda nodes: not contains(nodes, 'Review file deletion'), 'Cancelled upload deletion left a review open')
         assert all(Path(path).read_bytes() == value for path, value in baseline.items())
