@@ -83,7 +83,7 @@ def edit_boolean_body(native, pid):
 def execute_generated_headers(native, process, file, baseline, version, fixture, evidence, case, phase):
     from test_openapi_application import (
         activate_control, complete_problems, contains, design_values,
-        field_matches, focus_control, keys, text_keys, wait_tree,
+        field_matches, focus_control, keys, text_keys, tree, wait_tree,
     )
     from native_focus import wait_for_initial_focus
 
@@ -109,7 +109,14 @@ def execute_generated_headers(native, process, file, baseline, version, fixture,
             if name == 'rounded':
                 edit_boolean_body(native, process.pid)
         else:
-            focus_control(native, process.pid, 'Header value', backwards=name == 'rounded')
+            nodes = tree(process.pid, details=True)
+            reopened = not field_matches(nodes, 'Header name', value='X-Meta', editable=True)
+            if reopened:
+                if not contains(nodes, 'Part headers'):
+                    activate_control(native, process.pid, 'Declared form parts')
+                activate_control(native, process.pid, 'Part headers')
+                wait_tree(native, process.pid, lambda nodes: field_matches(nodes, 'Header name', value='X-Meta', editable=True), 'The retained MIME header draft was not restored')
+            focus_control(native, process.pid, 'Header value', backwards=name == 'rounded' and not reopened)
             chords = ['Shift_L+bracketleft', 'Shift_L+apostrophe', 'i', 'd',
                       'Shift_L+apostrophe', 'Shift_L+semicolon', *text_keys(number),
                       'Shift_L+bracketright']
