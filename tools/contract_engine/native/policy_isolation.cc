@@ -196,8 +196,9 @@ napi_value restrict(napi_env env, napi_callback_info info) {
 }  // namespace
 
 NAPI_MODULE_INIT() {
-  for (const auto& item : {std::pair{"capabilities", capabilities},
-      std::pair{"restrict", restrict}}) {
+  const std::pair<const char*, napi_callback> methods[] = {
+      {"capabilities", capabilities}, {"restrict", restrict}};
+  for (const auto& item : methods) {
     napi_value method;
     napi_create_function(env, item.first, NAPI_AUTO_LENGTH, item.second, nullptr, &method);
     napi_set_named_property(env, exports, item.first, method);
