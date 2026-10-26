@@ -63,11 +63,15 @@ for(const version of ['3.0.0','3.0.4','3.1.2','3.2.1'])test(`${version} raw byte
  const source=packet(version,{$ref:'binary.json#/Binary'});
  source.resources.push({id:'file:///runtime-media/binary.json',generation:3,text:'{"Binary":{"type":"string","format":"binary","minLength":2,"maxLength":4}}'});
  const positive=await run(source,'application/octet-stream',Buffer.from([0,255,254,10]).toString('base64'),{mediaBase64:true});
- assert.equal(positive.result.complete,version.startsWith('3.0.'));
+ assert.equal(positive.result.complete,true);
  if(version.startsWith('3.0.')){
   assert.equal(positive.valid,true,JSON.stringify(positive.findings));
   for(const bytes of [[0],[0,1,2,3,4]]){const invalid=await run(source,'application/octet-stream',Buffer.from(bytes).toString('base64'),{mediaBase64:true});assert.equal(invalid.result.complete,true);assert.equal(invalid.valid,false);}
- }else assert.ok(positive.findings.some(f=>f.kind==='unsupported'&&f.reason==='unsupported-representation'));
+ }else{
+  assert.equal(positive.valid,false);
+  assert(positive.findings.some(f=>f.code==='runtime.schema.incompatible'&&f.keyword==='https://json-schema.org/keyword/type'));
+  assert(!positive.findings.some(f=>f.kind==='unsupported'));
+ }
 });
 test('3.0 binary length, enum and pattern use the same exact octet string',async()=>{
  const source=packet('3.0.4',{type:'string',format:'binary',minLength:1,maxLength:1,enum:['ÿ'],pattern:'^ÿ$'});

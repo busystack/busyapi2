@@ -202,7 +202,14 @@ applying the captured schema. `text/plain` uses its Unicode string value. Native
 3.0 `type: string, format: binary` uses an exact one-octet-per-character view for
 raw binary media, so length counts octets; byte values map to U+0000–U+00FF for
 enum and pattern assertions. A modern `format: binary` annotation does not select
-this legacy interpretation. Unknown representations remain explicitly incomplete.
+this legacy interpretation. In 3.1/3.2, raw binary remains outside JSON Schema's
+six JSON types. Use an unconstrained schema or appropriate annotations for raw
+octets; `type: string` rejects them. Known binary media and binary multipart
+leaves retain byte identity through whole-value, nested and item checks, including
+conditionals and equality. JSON string assertions do not apply to these finite
+binary values. Unknown representations remain explicitly incomplete. Use **Use
+binary file** for a complete body or **Add binary file** for a named part; the
+native binary journeys remain under qualification in the implementation record.
 
 Finite JSONL/NDJSON, JSON text sequences and server-sent events map to ordered
 arrays. In 3.2, `schema` checks the complete array and `itemSchema` checks each
@@ -219,7 +226,7 @@ type becomes `message`, and exactly one leading SSE byte order mark is removed. 
 receipt and unimplemented codecs remain incomplete. These finite checks do not
 establish incremental evaluation of an unbounded stream.
 
-OpenAPI 3.2 serialized multipart requests and responses can map ordered JSON/text
+OpenAPI 3.2 serialized multipart requests and responses can map ordered JSON/text/binary
 parts to arrays, including nested multipart, whole-array `schema` and independent
 `itemSchema` checks. `prefixEncoding` selects each corresponding position and
 `itemEncoding` applies to the remainder; unused encoding entries are ignored.
@@ -227,8 +234,8 @@ Ordered form-data retains one named object per part. Exact numeric text, empty
 values, declared part headers and transfer encodings use the captured graph and
 the existing native evaluator. Decoding is bounded to eight nested levels and
 2,048 total parts. Unsupported media, ambiguous annotations and incomplete
-resources produce incomplete checks. This finite JSON/text support does not
-establish raw binary instance evaluation or typed positional/nested generation.
+resources produce incomplete checks. Typed positional/nested request generation
+and incremental streams remain incomplete; finite decoding does not establish them.
 
 OpenAPI 3.0/3.1 use the same named mapping for generic multipart types when
 parts carry `Content-Disposition: form-data` and a name. This is the policy

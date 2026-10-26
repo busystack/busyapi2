@@ -158,6 +158,9 @@ def edit_named_body(native, pid, original):
 
 
 def execute_multipart(native, process, file, baseline, version, fixture, evidence, case, phase):
+    if getattr(fixture, 'binary', False):
+        from native_binary import execute_binary
+        return execute_binary(native, process, file, baseline, version, fixture, evidence, case, phase)
     from test_openapi_application import (
         activate_control, complete_problems, contains, design_values, keys, text_keys, wait_tree,
     )

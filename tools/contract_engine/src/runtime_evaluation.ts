@@ -72,7 +72,7 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
   try{
    const identity=createHash('sha256').update(JSON.stringify([owner.snapshot,index,supplied.subject,supplied.mediaType])).digest('hex');
    if(supplied.form){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
-   else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,octets);
+   else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,octets?'octets':scope?.family==='3.1'||scope?.family==='3.2'?'binary':'unsupported');
   }catch(error){
    const limited=error instanceof SourceError&&error.code.startsWith('limit.');
    const unsupported=error instanceof SourceError&&error.kind==='unsupported';
@@ -121,7 +121,7 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
     if(!ast){complete=false;evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:false,valid:false,reason:'schema-incomplete'});continue;}
     owner.exact.setDirection(supplied.subject.startsWith('request-')?'request':supplied.subject.startsWith('response-')?'response':undefined);
     let result:Output;
-    try{result=interpret(ast,owner.exact.exactInstance(check.document),BASIC);instances++;}
+    try{result=interpret(ast,owner.exact.exactInstance(check.document,'',undefined,false,decoded.binaryInstances?.get(check.document)),BASIC);instances++;}
     finally{owner.exact.setDirection(undefined);}
     evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:true,valid:result.valid,representation:decoded.kind,schema:check.schema});
     if(result.valid===false){

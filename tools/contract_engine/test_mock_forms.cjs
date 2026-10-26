@@ -83,8 +83,12 @@ for(const [encoding,value]of [['base64','Zm9vYmFy'],['base64url','Zm9vYmFy'],['b
 
 for(const version of ['3.1.2','3.2.1'])test(`${version} format binary alone cannot select the legacy octet-string model`,{timeout:20000},async t=>{
  const {port}=await startMock(t,mockStart(binaryContract(version,{type:'string',format:'binary',minLength:3},{contentType:'application/octet-stream'})));
- const result=await sendPart(port,Buffer.from([0,255,65]));assert.equal(result.status,501,result.text);
- assert.equal(JSON.parse(result.text).complete,false);
+ const result=await sendPart(port,Buffer.from([0,255,65]));assert.equal(result.status,422,result.text);
+ const response=JSON.parse(result.text);
+ assert(response.validation.some(finding=>finding.message.startsWith('runtime.schema.incompatible:')));
+ assert(!response.validation.some(finding=>finding.message.includes('unchecked')));
+ // The generated error response is still not an authored response contract.
+ assert.equal(response.complete,false);
 });
 
 test('Swagger file parameters validate presence and MIME framing without becoming Schema Objects',{timeout:20000},async t=>{

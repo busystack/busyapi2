@@ -9,6 +9,7 @@ import {decodeMultipartTransfer} from './multipart_transfer';
 import {mimeParts,mimePartDecodingType,mimeSingleton as singleton} from './mime_parts';
 import {decodeRuntimeMultipart} from './runtime_multipart';
 import {mimeHeaders} from './mime_headers';
+import type {BinaryLocations} from './runtime_binary';
 
 export type RuntimeFormTarget={resource:string;pointer:string;occurrence?:string};
 type Location={resource:string;pointer:string};
@@ -86,6 +87,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
     const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]))),transfers=new MultipartEncoding(graph);
     const genericHeaders=mimeHeaders(graph,id+'/headers',transfers);
     const checks:FormCheck[]=[],issues:FormIssue[]=[],members=new Map<string,string>(),claimed=new Map<Part,string>(),notes=new Set<string>();
+    const binary=new Map<string,Buffer>();
     const document=(raw:string,suffix:string)=>{
         const result=new SourceDocument(raw,id+'/'+suffix,true,'json');
         if(result.issues.length)throw result.issues[0];return result;
@@ -167,7 +169,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
                 if(Object.hasOwn(header,'schema'))checks.push({document:document(JSON.stringify(actual),'header/'+checks.length),schema:{...definition,pointer:definition.pointer+'/schema'},prefix:'/'+escape(name)+'/headers/'+escape(key)});
             }
         };
-        const literal=(part:Part,field:FormShape,rule:Record<string,unknown>,name:string,array:boolean):string=>{
+        const literal=(part:Part,field:FormShape,rule:Record<string,unknown>,name:string,array:boolean,pointer:string):string=>{
             if(rule.encoding!==undefined||rule.prefixEncoding!==undefined||rule.itemEncoding!==undefined)
                 failure('runtime.form.nested.unsupported','This field requires nested multipart decoding',{resource:target.resource,pointer:target.pointer+'/encoding/'+escape(name)});
             const undeclared=!Object.hasOwn(properties,name)&&!Object.hasOwn(encoding,name);
@@ -190,6 +192,11 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             const essence=mediaTypes(concrete,false)[0],json=essence.subtype==='json'||essence.subtype.endsWith('+json');
             if(json)return decodeRuntimeMedia(bytes.toString('base64'),id+'/json',concrete,true).document.dataJson('');
             if(essence.type==='text'&&essence.subtype==='plain')return scalar(bytesText(bytes,decodingType),type);
+            if(scope.family==='3.1'||scope.family==='3.2'){
+                const value=decodeRuntimeMedia(bytes.toString('base64'),id+'/binary',concrete,true,'binary');
+                const leaf=value.binaryInstances?.get(value.document)?.get('');
+                if(leaf!==undefined){binary.set(pointer,leaf);return value.document.dataJson('');}
+            }
             return failure('runtime.form.media.unsupported','This field has no native media decoder',schema);
         };
         const names=new Set([...Object.keys(properties),...Object.keys(encoding),...input.map(part=>part.name)]);
@@ -234,9 +241,10 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             values.forEach(part=>claim(part,name));
             const array=type==='array'||values.length>1;
             if(values.length>1&&type!==undefined&&type!=='array'&&scope.family!=='3.2')return syntax('A non-array form property occurs more than once');
-            const item=array?field.items??{}:field,raw=values.map(part=>literal(part,item,rule,name,array));
+            const item=array?field.items??{}:field,raw=values.map((part,index)=>literal(part,item,rule,name,array,'/'+escape(name)+(array?'/'+index:'')));
             members.set(name,array?'['+raw.join(',')+']':raw[0]);
         }
     }
-    return {document:document('{'+[...members].map(([name,value])=>JSON.stringify(name)+':'+value).join(',')+'}','body'),kind:multipart?'multipart-form':'form-urlencoded',checks,issues};
+    const result=document('{'+[...members].map(([name,value])=>JSON.stringify(name)+':'+value).join(',')+'}','body');
+    return {document:result,...(binary.size?{binaryInstances:new Map<SourceDocument,BinaryLocations>([[result,binary]])}:{}),kind:multipart?'multipart-form':'form-urlencoded',checks,issues};
 }

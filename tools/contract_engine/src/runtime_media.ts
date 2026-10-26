@@ -1,8 +1,9 @@
 import {SourceDocument,SourceError} from './document';
 import {mediaTypes} from './media_types';
+import {runtimeBinaryMedia,type BinaryDocuments} from './runtime_binary';
 
 export type RuntimeMediaKind='json'|'text'|'json-lines'|'json-sequence'|'event-stream'|'opaque';
-export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];kind:RuntimeMediaKind|'octets'|'form-urlencoded'|'multipart-form'|'multipart-sequence'};
+export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];binaryInstances?:BinaryDocuments;kind:RuntimeMediaKind|'binary'|'octets'|'form-urlencoded'|'multipart-form'|'multipart-sequence'};
 export type RuntimeMediaDescription=
  {dataModelStatus:'classified'|'opaque';dataModel:RuntimeMediaKind}|
  {dataModelStatus:'invalid'|'unsupported';dataModelIssue:{code:string;message:string}};
@@ -54,7 +55,7 @@ export function runtimeMediaKind(contentType:string,ranges=false):RuntimeMediaKi
  return 'opaque';
 }
 
-export function decodeRuntimeMedia(text:string,id:string,contentType?:string,base64=false,octets=false):RuntimeMediaData {
+export function decodeRuntimeMedia(text:string,id:string,contentType?:string,base64=false,opaque:'unsupported'|'octets'|'binary'='unsupported'):RuntimeMediaData {
  const type=contentType===undefined?undefined:mediaTypes(contentType,false);
  if(type&&type.length!==1)throw new SourceError('runtime.media.type','Runtime content requires one concrete media type');
  const kind=contentType===undefined?'json':runtimeMediaKind(contentType);
@@ -66,7 +67,11 @@ export function decodeRuntimeMedia(text:string,id:string,contentType?:string,bas
   return doc;
  };
  if(kind==='opaque'){
-  if(!octets)throw new SourceError('runtime.media.unsupported','This media type has no native data-model decoder',[0,0],'unsupported');
+  if(opaque==='binary'&&contentType!==undefined&&runtimeBinaryMedia(contentType)){
+   const document=parse('null');
+   return {document,kind:'binary',binaryInstances:new Map([[document,new Map([['',bytes??runtimeMediaBytes(text,false)]])]])};
+  }
+  if(opaque!=='octets')throw new SourceError('runtime.media.unsupported','This media type has no native data-model decoder',[0,0],'unsupported');
   // OAS 3.0 §4.4.2 extends string to arbitrary octets. The one-to-one
   // U+0000–U+00FF view preserves every byte and counts length in octets. It is
   // confined to a graph-proven native binary string, never inferred from a

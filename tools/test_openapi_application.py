@@ -554,6 +554,7 @@ def main():
     parser.add_argument('--operations', action='store_true')
     parser.add_argument('--migrate-target', choices=['2.0', '3.0.4', '3.1.2', '3.2.1'])
     parser.add_argument('--multipart', choices=['ordered', 'nested', 'named'])
+    parser.add_argument('--binary', choices=['raw', 'named', 'ordered', 'nested'])
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['2.0', '3.0.0', '3.0.1', '3.0.2', '3.0.3', '3.0.4', '3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1'])
@@ -574,13 +575,18 @@ def main():
     if args.operations and not args.edit:
         parser.error('--operations requires --edit for the save/reopen journey')
     if args.migrate_target and (not args.edit or args.operations or args.schema_definitions
-                               or args.documentation or args.mock_samples or args.multipart):
+                               or args.documentation or args.mock_samples or args.multipart or args.binary):
         parser.error('--migrate-target requires --edit and its dedicated migration journey')
     if args.multipart and (not args.edit or (args.multipart != 'named' and not args.version.startswith('3.2.'))
                           or (args.multipart == 'named' and not args.version.startswith(('3.0.', '3.1.'))) or args.operations
                           or args.schema_definitions or args.documentation or args.mock_samples
-                          or args.migrate_target):
+                          or args.migrate_target or args.binary):
         parser.error('--multipart requires --edit, an applicable family (named: 3.0/3.1; ordered/nested: 3.2), and its dedicated execution journey')
+    if args.binary and (not args.edit or not args.version.startswith(('3.1.', '3.2.'))
+                        or args.binary in ['ordered', 'nested'] and not args.version.startswith('3.2.')
+                        or args.operations or args.schema_definitions or args.documentation
+                        or args.mock_samples or args.migrate_target or args.multipart):
+        parser.error('--binary requires --edit, an applicable modern family, and its dedicated execution journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:
@@ -598,6 +604,7 @@ def main():
                 *(['--operations'] if args.operations else []),
                 *(['--migrate-target', args.migrate_target] if args.migrate_target else []),
                 *(['--multipart', args.multipart] if args.multipart else []),
+                *(['--binary', args.binary] if args.binary else []),
             ]
             # Own the complete private session, including accessibility and
             # the application, so a timed-out journey leaves no native fixture.
@@ -609,7 +616,7 @@ def main():
                     # Multipart adds two HTTP requests and two native export
                     # dialogs per opening. Keep each control's existing bound;
                     # allocate the original journey budget to each opening.
-                    return session.wait(timeout=180 if args.multipart else 90)
+                    return session.wait(timeout=180 if args.multipart or args.binary else 90)
                 except subprocess.TimeoutExpired:
                     os.killpg(session.pid, signal.SIGTERM)
                     session.wait(timeout=5)
@@ -649,11 +656,16 @@ def main():
             + ('-operations' if args.operations else '')
             + ('-migrate-' + args.migrate_target if args.migrate_target else '')
             + ('-multipart-' + args.multipart if args.multipart else '')
+            + ('-binary-' + args.binary if args.binary else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
         multipart = None
-        if args.multipart:
+        if args.binary:
+            from native_binary import BinaryFixture
+            multipart = fixtures.enter_context(BinaryFixture(args.binary))
+            multipart.prepare(project_directory)
+        elif args.multipart:
             from native_multipart import MultipartFixture
             multipart = fixtures.enter_context(MultipartFixture(args.multipart))
         source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested, args.schema_definitions, multipart)

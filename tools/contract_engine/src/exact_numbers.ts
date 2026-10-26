@@ -10,6 +10,7 @@ import {SourceDocument, SourceError} from './document';
 import {schemaMetaView} from './schema_boundaries';
 import {isReferenceObject} from './contexts';
 import {swaggerDiscriminator} from './swagger_discriminator';
+import type {BinaryLocations} from './runtime_binary';
 
 export function decimal(raw: string) {
  const match=/^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/.exec(raw);
@@ -66,6 +67,7 @@ export function multiple(a:Decimal,b:Decimal) {
 export function createExactNumericAdapter(trustedSchemaIdentities:ReadonlySet<string>=new Set()) {
 let disposed=false;
 const exactInstanceNumbers=new WeakMap<object,any>(), sourceLocations=new Map<string,{doc:SourceDocument,node:any}>();
+const binaryInstances=new WeakMap<object,Buffer>();
 let referenceGraph:any;
 let direction: 'request' | 'response' | undefined;
 const current=()=>{if(disposed)throw new SourceError('schema.owner','The schema evaluation owner was disposed');};
@@ -88,7 +90,7 @@ function addExactSource(doc: SourceDocument,graph: any) {
   sourceLocations.set(uri,{doc,node});
  }
 }
-function exactInstance(doc: SourceDocument,pointer='',opaque?:ReadonlySet<string>,restrictedMeta=false) {
+function exactInstance(doc: SourceDocument,pointer='',opaque?:ReadonlySet<string>,restrictedMeta=false,binary?:BinaryLocations) {
  current();
  // A compound document's resources have separate dialect/meta boundaries.
  // Only meta-evaluation uses this view; source and supplied instances remain
@@ -103,9 +105,13 @@ function exactInstance(doc: SourceDocument,pointer='',opaque?:ReadonlySet<string
  };
  const meta=schemaMetaView(value,pointer,opaque);
  const root=Instance.fromJs(restrictedMeta?referenceView(meta,pointer):meta,doc.id);
+ let binaryCount=0;
  for(const node of Instance.allNodes(root)) {
   if(Instance.typeOf(node)==='number')exactInstanceNumbers.set(node,decimal(doc.dataJson(pointer+node.pointer)));
+  const bytes=binary?.get(node.pointer);
+  if(bytes!==undefined&&Instance.typeOf(node)==='null'){binaryInstances.set(node,bytes);binaryCount++;}
  }
+ if(binaryCount!==(binary?.size??0))throw new SourceError('runtime.binary.provenance','Binary leaf ownership does not match its captured instance');
  return root;
 }
 function fingerprint(value:any,source?:{doc:SourceDocument,node:any},instance?:any) {
@@ -117,7 +123,8 @@ function fingerprint(value:any,source?:{doc:SourceDocument,node:any},instance?:a
   if(node&&source)node=source.doc.dataNode(node.pointer);
   const type=actual?Instance.typeOf(actual):value===null?'null':Array.isArray(value)?'array':typeof value;
   let result;
-  if(type==='number')result=encodedNumber(actual?number(actual):node?decimal(source.doc.dataJson(node.pointer)):fallback(value));
+  if(actual&&binaryInstances.has(actual))result='b:'+binaryInstances.get(actual)!.toString('base64');
+  else if(type==='number')result=encodedNumber(actual?number(actual):node?decimal(source.doc.dataJson(node.pointer)):fallback(value));
   else if(type==='object')result='{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+render(value[key],node?.children.get(key),actual?Instance.step(key,actual):undefined,depth+1)).join(',')+'}';
   else if(type==='array')result='['+value.map((child,i)=>render(child,node?.children.get(String(i)),actual?Instance.step(String(i),actual):undefined,depth+1)).join(',')+']';
   else result=JSON.stringify(value);
@@ -188,6 +195,7 @@ function installExactNumericKeywords() {
  // delegation chain (and its old owner) across worker reuse.
  const type=standardType??(standardType=getKeyword(id('type')) as any);
  addKeyword({...type,interpret:(types:any,instance,context)=>{
+  if(binaryInstances.has(instance))return false;
   if(Instance.typeOf(instance)!=='number')return type.interpret(types,instance,context);
   return (typeof types==='string'?[types]:types).some(t=>t==='number'||t==='integer'&&(number(instance).coefficient===0n||number(instance).exponent>=0n));
  }});
