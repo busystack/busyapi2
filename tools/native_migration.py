@@ -20,7 +20,7 @@ def verify_migration(destination, baseline, file, fragment, version, target):
     assert receipt['owner'] == 'io.busystack.busyapi'
     assert receipt['metadata'] == metadata
     assert metadata['operation'] == 'migration'
-    assert metadata['producer'] == 'busyapi-native-migration' and metadata['producerVersion'] == '4'
+    assert metadata['producer'] == 'busyapi-native-migration' and metadata['producerVersion'] == '5'
     assert metadata['target']['declaredVersion'] == target
     assert metadata['status'] == 'faithfully-convertible'
     assert metadata['input'] == 'working-copy' and metadata['unsaved'] is True

@@ -68,7 +68,9 @@ export function downgradeFormBody(graph:ReferenceGraph,source:MigrationSource,sc
             block(encodingLocation,'migration.form.scalar-style','This scalar style has no defined Swagger form serialization','target-representation');
         if(array){
             const style=rule.style??'form',explode=rule.explode??(style==='form');
-            const collection=styled?(style==='form'?explode?'multi':'csv':!explode&&style==='spaceDelimited'?'ssv':!explode&&style==='pipeDelimited'?'pipes':undefined):scope.family!=='3.2'?'multi':undefined;
+            // Encoding by name applies the default content type to each item,
+            // including OAS 3.2 §4.15.1.1. Primitive items remain repeated fields.
+            const collection=styled?(style==='form'?explode?'multi':'csv':!explode&&style==='spaceDelimited'?'ssv':!explode&&style==='pipeDelimited'?'pipes':undefined):'multi';
             if(collection){
                 collections.set(name,collection);
                 const items=property.children.get('items'),separator=collection==='csv'?',':collection==='ssv'?' ':'|';

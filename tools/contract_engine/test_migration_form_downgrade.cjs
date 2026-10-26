@@ -61,11 +61,11 @@ for(const version of ['3.0.0','3.0.1','3.0.2','3.0.3','3.0.4','3.1.0','3.1.1','3
   for(const parameter of parameters){assert.equal(parameter.allowEmptyValue,true);assert.equal(parameter.minItems,1);assert.equal(parameter.maxItems,4);assert.equal(parameter.uniqueItems,true);assert.deepEqual({...parameter.items},properties.multi.items);}
  });
 }
-for(const variant of ['unstyled','reserved','exploded-delimited','nested','item-description','item-reference','encoding-extension','content-encoding','separator-in-item','unbounded-separated'])test(`array form ${variant} never claims faithful conversion`,async()=>{
+for(const variant of ['nested-content','reserved','exploded-delimited','nested','item-description','item-reference','encoding-extension','content-encoding','separator-in-item','unbounded-separated'])test(`array form ${variant} never claims faithful conversion`,async()=>{
  const root='file:///approved/api.yaml',media='application/x-www-form-urlencoded',property={type:'array',items:{type:'string'}},rule={style:'form'};
  const content={schema:{type:'object',required:['values'],properties:{values:property}},encoding:{values:rule}};
- const document={openapi:variant==='unstyled'?'3.2.1':'3.0.4',info:{title:'Arrays',version:'1'},servers:[{url:'https://api.invalid'}],paths:{'/items':{post:{requestBody:{required:true,content:{[media]:content}},responses:{204:{description:'No body'}}}}}};
- if(variant==='unstyled')delete content.encoding;
+ const document={openapi:variant==='nested-content'?'3.2.1':'3.0.4',info:{title:'Arrays',version:'1'},servers:[{url:'https://api.invalid'}],paths:{'/items':{post:{requestBody:{required:true,content:{[media]:content}},responses:{204:{description:'No body'}}}}}};
+ if(variant==='nested-content'){delete content.encoding;property.items={type:'array',items:{type:'string'}};}
  if(variant==='reserved')rule.allowReserved=true;
  if(variant==='exploded-delimited'){rule.style='spaceDelimited';rule.explode=true;}
  if(variant==='nested')property.items={type:'array',items:{type:'string'}};

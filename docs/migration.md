@@ -38,7 +38,7 @@ invariants supplement the structural mappings.
 
 URL-encoded forms with independent scalar fields can be downgraded to Swagger
 `formData` parameters. Primitive arrays use their declared encoding, including
-the repeated text-field default in OpenAPI 3.0 and 3.1. Separated string items
+the repeated text-field default for named primitive-array properties. Separated string items
 need a finite enum that excludes their separator. Joint object constraints,
 shared form schema owners and other encodings can still require additional
 mappings; the review identifies these blockers before publication.

@@ -69,7 +69,7 @@ void main() {
                   },
                 };
               }
-              if (!version.startsWith('3.2.')) encoding.remove('multi');
+              encoding.remove('multi');
             }
             final document = {
               'openapi': version,

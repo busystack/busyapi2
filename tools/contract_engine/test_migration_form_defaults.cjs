@@ -9,12 +9,9 @@ for(const version of ['3.0.0','3.0.1','3.0.2','3.0.3','3.0.4','3.1.0','3.1.1','3
 
  const text=format==='json'?JSON.stringify(document):YAML.stringify(document),resources=[{id:root,text,generation:1}];
  const result=await planMigration({root,resources,snapshot:'defaults',targetVersion:'2.0',destination:'file:///output/'});
- if(version.startsWith('3.2.')){
-  assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);assert(result.problems.some(p=>p.code==='migration.form.array-encoding'&&p.range[1]>p.range[0]));
- }else{
-  assert.equal(result.complete,true,JSON.stringify(result.problems));
-  const output=result.outputs.find(value=>value.id===result.outputRoot),doc=new SourceDocument(output.text,output.id);
-  assert.equal(doc.node('/paths/~1items/post/parameters/1/collectionFormat').value,'multi');
- }
+ assert.equal(result.complete,true,JSON.stringify(result.problems));
+ const output=result.outputs.find(value=>value.id===result.outputRoot),doc=new SourceDocument(output.text,output.id);
+ assert.equal(doc.node('/paths/~1items/post/parameters/1/collectionFormat').value,'multi');
+
  assert.equal(resources[0].text,text);
 });
