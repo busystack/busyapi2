@@ -13,6 +13,7 @@ import {authoringRelationships} from './authoring_relationships';
 import {restrictedSchemaIssues} from './restricted_schema';
 import {securityRequirementIssues,securityRequirementValueRule} from './security_requirements';
 import {formMediaIssues} from './form_semantics';
+import {schemaInferenceSources} from './schema_inference';
 import {mediaTypeIssues} from './media_validation';
 import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
@@ -383,6 +384,7 @@ export function inspect(input: any) {
     const sharedTarget=!!componentFamily(scope.kind,family)&&graph.references.some(ref=>ref.resolution==='resolved'&&ref.targetResource===doc.id&&ref.targetPointer===node.pointer);
     return {version: 1, snapshot: input.snapshot, family, ...(isNativeFamily(family)?{capabilities:capabilitiesFor(family)}:{}), customSchemaKeywords: modernFamily(family), ...located(node, scope.kind), sharedTarget, componentDestination: graph.specifications.get(doc.id)?.family===family, componentDestinations, ...(componentFamily(scope.kind,family)?{componentFamily:componentFamily(scope.kind,family)}:{}), ...(schemaTreeRoot!==undefined?{schemaTreeRoot}:{}), removable, allowsExtensions: allowsExtensions(scope.kind, family, node.value, segments(node.pointer).at(-1),graph.allowsReference(scope)), fields, entries, offset, count: node.children.size, references,
         ...(ownerSchema ? {ownerSchema: located(ownerSchema, 'schema')} : {}),
+        schemaSuggestion:schemaInferenceSources(graph,scope),
         ...(binding?{securityBinding:binding}:{}),
         ...(memberPolicy?{memberNamePolicy:memberPolicy}:{}),
         ...(componentPolicy?{componentNamePolicy:componentPolicy}:{}),

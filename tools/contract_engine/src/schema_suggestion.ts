@@ -1,16 +1,9 @@
 import { createGraph, propose, Resource } from './engine';
 import { escape, segments, SourceDocument, SourceError } from './document';
 import {modernFamily} from './specification';
+import {supportedSchemaDialect} from './reference_graph';
+import {inferSampleSchema} from './schema_inference';
 import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
-
-function integer(raw: string) {
-    const [mantissa, exponent = '0'] = raw.toLowerCase().split('e');
-    const [whole, fraction = ''] = mantissa.replace(/^-/, '').split('.');
-    const digits = whole + fraction;
-    if (!/[1-9]/.test(digits)) return true;
-    const zeros = digits.length - digits.replace(/0+$/, '').length;
-    return BigInt(exponent) + BigInt(zeros - fraction.length) >= 0n;
-}
 
 /** Inference is a reviewed suggestion over JSON-compatible authored data. It
  * never modifies the sample, infers credentials, or claims sample universality.
@@ -30,6 +23,9 @@ export function suggestSchema(input: any) {
     const examplesAt=parentPointer.lastIndexOf('/examples/');
     const container=parent?.kind==='media'?parent:parent?.kind==='example'&&examplesAt>=0?graph.scopes.get(doc.id+'#'+parentPointer.slice(0,examplesAt)):undefined;
     const destination=input.target?graph.scopes.get(input.target.resource+'#'+input.target.pointer):undefined;
+    if(input.target&&!destination)throw new SourceError('suggest.destination','Choose a current schema-bearing object in this root');
+    const inferenceScope=destination??graph.scope(doc.id,input.pointer);
+    if(!supportedSchemaDialect(inferenceScope))throw new SourceError('suggest.dialect','Schema inference requires a supported destination schema dialect',node.range,'unsupported');
     const media=container?.kind==='media'?container:destination?.kind==='media'?destination:undefined;
     const form=media?mediaExampleRepresentations(graph)(media,field,node.value):undefined;
     if(swaggerExample&&exampleRepresentation(field,node.value,name)==='serialized'||form?.serialized||form?.contextMissing)
@@ -37,40 +33,9 @@ export function suggestSchema(input: any) {
 
     if (raw.length > 1024 * 1024) throw new SourceError('limit.suggest', 'The example exceeds the 1 MiB suggestion budget');
     const sample = new SourceDocument(raw, 'file:///busyapi-derived-example.json');
-    let count = 0;
-    const assumptions = new Set(['sample-only','optional-properties','no-enums','no-string-formats','no-numeric-bounds']);
-    const family=graph.scope(doc.id,input.pointer).family,modern=modernFamily(family);
-    const infer = (pointer: string, depth: number): any => {
-        if (++count > 10000 || depth > 32) throw new SourceError('limit.suggest', 'The example exceeds the bounded suggestion complexity');
-        const n = sample.node(pointer);
-        switch (n.kind) {
-            case 'null':
-                if (modern||family==='2.0') return {type:'null'};
-                assumptions.delete('no-enums'); assumptions.add('null-only-enum');
-                return {type:'string',nullable:true,enum:[null]};
-            case 'boolean': return {type:'boolean'};
-            case 'string': return {type:'string'};
-            case 'number': return {type: integer(raw.slice(...n.range)) ? 'integer' : 'number'};
-            case 'object': return {type:'object',properties:Object.fromEntries([...n.children].map(([key, child])=>[key,infer(child.pointer,depth+1)]))};
-            case 'array': {
-                if (!n.children.size) { assumptions.add('empty-array'); return modern ? {type:'array'} : {type:'array',items:{}}; }
-                const variants = new Map<string,any>();
-                for (const child of n.children.values()) {
-                    const schema=infer(child.pointer,depth+1);
-                    if (variants.size <= 32) variants.set(JSON.stringify(schema),schema);
-                }
-                if (variants.size > 32) {assumptions.add('heterogeneous-array'); return {type:'array',items:{}};}
-                const schemas=[...variants.values()];
-                if(family==='2.0'&&schemas.length>1){assumptions.add('heterogeneous-array');return {type:'array',items:{}};}
-                return {type:'array',items:schemas.length===1?schemas[0]:{anyOf:schemas}};
-            }
-            default: throw new SourceError('suggest.data', 'The example is not a strict JSON-compatible value');
-        }
-    };
-    const schema = infer('',0), encoded = JSON.stringify(schema);
-    if (encoded.length > 512 * 1024) throw new SourceError('limit.suggest','The inferred schema exceeds the bounded suggestion size');
+    const {schema,assumptions}=inferSampleSchema(sample,raw,inferenceScope.family);
     const resource=(input.resources as Resource[]).find(r=>r.id===doc.id)!;
-    return {version:1,snapshot:input.snapshot,root:input.root,resource:doc.id,generation:resource.generation,pointer:input.pointer,range:node.range,schema,assumptions:[...assumptions]};
+    return {version:1,snapshot:input.snapshot,root:input.root,resource:doc.id,generation:resource.generation,pointer:input.pointer,range:node.range,schema,assumptions};
 }
 
 export function planSchemaSuggestion(input: any) {

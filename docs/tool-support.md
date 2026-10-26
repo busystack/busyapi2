@@ -27,6 +27,13 @@ reference chains. The choice is excluded when a captured body consumer shares
 that chain. Definitions and nested properties retain ordinary Schema Object
 rules. See [Swagger response schemas](https://spec.openapis.org/oas/v2.0.html#response-object).
 
+Reviewed schema inference follows the destination's family and declared dialect,
+including when the sample is in another captured resource. Unsupported dialects
+produce a limitation before edits. Swagger response examples are selectable in
+Design. Its Schema Object retains Draft 4 null types and type arrays; OpenAPI
+3.0 uses its own nullable/composition rules. Inference remains a sample-based
+suggestion requiring review, with optional properties and no invented bounds.
+
 Security Requirement arrays contain OAuth/OpenID scopes or, in OpenAPI 3.1 and
 3.2, role names for other security schemes. Swagger 2.0 and OpenAPI 3.0 require
 empty arrays for non-OAuth schemes. Native editing and selection retain authored

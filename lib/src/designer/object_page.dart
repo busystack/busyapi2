@@ -817,10 +817,7 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
                       for (final field in visible) objectField(item, field),
                     ],
                   ),
-                if (const ['media', 'parameter', 'header'].contains(kind) &&
-                    fields.any(
-                      (f) => f['name'] == 'example' && f['present'] == true,
-                    ))
+                if (item['schemaSuggestion'] is Map)
                   BusyApiActionRow(
                     title: l.suggestSchema,
                     subtitle:
@@ -1987,22 +1984,41 @@ Future<void> _suggestObjectSchema(
   final prepared = await _prepareObjectAction(context, c, item);
   if (prepared == null || !context.mounted) return;
   final owner = c.project!, root = c.root!, l = context.l10n;
+  final inference = prepared['schemaSuggestion'];
+  if (inference is! Map || inference['samples'] is! List) return;
+  final samples = (inference['samples'] as List).whereType<Map>().toList();
+  if (samples.isEmpty ||
+      samples.any((sample) => sample['pointer'] is! String)) {
+    return;
+  }
   RefactoringPlan? plan;
   final selected = await editForm(
     context,
     l.suggestSchema,
     [
-      FormFieldSpec(
-        'nullable',
-        l.schemaSuggestionNullChoice,
-        options: const ['observed', 'nullable'],
-        labels: {
-          'observed': l.schemaSuggestionObserved,
-          'nullable': l.schemaSuggestionNullable,
-        },
-      ),
+      if (samples.length > 1 || samples.first['name'] is String)
+        FormFieldSpec(
+          'sample',
+          l.example,
+          options: [for (final sample in samples) sample['pointer']],
+          labels: {
+            for (final sample in samples)
+              sample['pointer'] as String:
+                  sample['name'] as String? ?? l.example,
+          },
+        ),
+      if (inference['nullable'] == true)
+        FormFieldSpec(
+          'nullable',
+          l.schemaSuggestionNullChoice,
+          options: const ['observed', 'nullable'],
+          labels: {
+            'observed': l.schemaSuggestionObserved,
+            'nullable': l.schemaSuggestionNullable,
+          },
+        ),
     ],
-    {'nullable': 'observed'},
+    {'nullable': 'observed', 'sample': samples.first['pointer']},
     controller: c,
     target: prepared,
     kind: 'object.suggest',
@@ -2011,7 +2027,7 @@ Future<void> _suggestObjectSchema(
         plan = await owner.planSchemaSuggestion(
           root,
           prepared['resource'],
-          '${prepared['pointer']}/example',
+          values['sample'] as String? ?? samples.first['pointer'] as String,
           {
             'resource': prepared['resource'],
             'generation': prepared['generation'],
