@@ -697,7 +697,7 @@ def main():
                     # Multipart adds two HTTP requests and two native export
                     # dialogs per opening. Keep each control's existing bound;
                     # allocate the original journey budget to each opening.
-                    return session.wait(timeout=180 if args.form_migration or args.multipart or args.binary or args.swagger_form or args.header_content or args.generated_headers or args.source_file_choice or args.file_shapes or args.saved_file_media else 90)
+                    return session.wait(timeout=300 if args.form_migration else 180 if args.multipart or args.binary or args.swagger_form or args.header_content or args.generated_headers or args.source_file_choice or args.file_shapes or args.saved_file_media else 90)
                 except subprocess.TimeoutExpired:
                     os.killpg(session.pid, signal.SIGTERM)
                     session.wait(timeout=5)
@@ -950,6 +950,8 @@ def main():
                     )
                     native = NativeInput(process.pid)
                     wait_for_initial_focus(native.ready, timeout=8)
+                    # Reopen restores the last mode, including Reference after Try.
+                    mode(native, process.pid, 'design')
                     nodes = wait_tree(
                         native, process.pid,
                         lambda nodes: design_values(

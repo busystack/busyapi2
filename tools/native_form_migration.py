@@ -71,7 +71,6 @@ class FormMigrationFixture(AbstractContextManager):
 def execute_form_migration(native, process, file, baseline, version, fixture, evidence, case, phase):
     from test_openapi_application import activate_control, contains, field_matches, focus_control, keys, mode, wait_tree
     from native_swagger_forms import _focus_entry, _json_keys
-    from native_multipart import edit_named_body
 
     activate_control(native, process.pid, 'POST /items')
     mode(native, process.pid, 'reference')
@@ -93,7 +92,15 @@ def execute_form_migration(native, process, file, baseline, version, fixture, ev
                            ('9007199254740992', 'HTTP received · contract findings require review')]:
         if checks:
             _focus_entry(native, process.pid, 'Use an exact JSON value')
-            edit_named_body(native, process.pid, '9007199254740993', backwards=False)
+            wait_tree(native, process.pid,
+                lambda nodes: any(node['editable'] and node['focused'] and node['text'] == data for node in nodes),
+                'The native form body no longer matches its exact fixture before editing')
+            replacement = data.replace('"n":9007199254740993', '"n":9007199254740992', 1)
+            assert replacement != data and replacement.count('9007199254740993') == 1
+            keys(native, ['Control_L+a'] + _json_keys(replacement))
+            wait_tree(native, process.pid,
+                lambda nodes: any(node['editable'] and node['focused'] and node['text'] == replacement for node in nodes),
+                'The native form edit changed more than its top-level numeric value')
         count = len(fixture.records)
         activate_control(native, process.pid, 'Send')
         wait_tree(native, process.pid, lambda nodes: len(fixture.records) == count + 1 and contains(nodes, status),
@@ -103,7 +110,7 @@ def execute_form_migration(native, process, file, baseline, version, fixture, ev
         assert record['method'] == 'POST' and record['target'] == '/items'
         assert headers['host'] == '127.0.0.1:' + str(fixture.port)
         assert headers['content-type'] == fixture.media
-        expected = ('n=' + number + '&flag=false&empty=&label=%E9%9B%AA&free=%7B%22n%22%3A9007199254740993%2C%22nil%22%3Anull%2C%22flag%22%3Afalse%2C%22zero%22%3A0%2C%22text%22%3A%22%E9%9B%AA%22%7D&ids=0&ids=2&csv=0'
+        expected = ('n=' + number + '&flag=false&empty=&label=%E9%9B%AA&free=%7B%22n%22%3A9007199254740993%2C%22nil%22%3Anull%2C%22flag%22%3Afalse%2C%22zero%22%3A0%2C%22text%22%3A%22%5Cu96ea%22%7D&ids=0&ids=2&csv=0'
                     + ('%2C' if version == '2.0' else ',') + '2').encode()
         assert record['body'] == expected, record
         destination = evidence / (case + '-form-migration-' + phase + '-' + number + '.bin')
