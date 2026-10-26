@@ -242,7 +242,30 @@ void main() {
         expect(buffer.text, referenced);
         project.store.redo();
         expect(buffer.text, inlined);
-        expect((await project.check(buffer.id))['complete'], true);
+        final checked = await project.check(buffer.id);
+        expect(checked['projectionComplete'], true);
+        expect(checked['complete'], false);
+        expect(checked['status'], 'incomplete');
+        final findings = (checked['findings'] as List).cast<Map>();
+        final unavailable = findings.where(
+          (finding) => finding['code'] == 'example.serialization.incomplete',
+        );
+        expect(unavailable, hasLength(1));
+        expect(unavailable.single['resource'], buffer.id);
+        expect(
+          unavailable.single['pointer'],
+          '$pointer/content/application~1json/examples/External/externalValue',
+        );
+        expect(
+          findings.any(
+            (finding) =>
+                finding['code'] == 'example.schema.incompatible' &&
+                finding['resource'] == buffer.id &&
+                finding['pointer'] ==
+                    '$pointer/content/application~1json/examples/Literal/value',
+          ),
+          true,
+        );
         expect(await File('${temp.path}/payload.txt').exists(), false);
         final publication = PublicationStore('${temp.path}/state');
         expect(
