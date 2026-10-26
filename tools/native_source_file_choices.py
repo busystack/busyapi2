@@ -19,8 +19,9 @@ def source_caret(native, pid, text, offset):
 
 
 def complete_file_type(native, process, file, fragment, baseline, version):
-    original = baseline[str(fragment)].decode()
-    root = baseline[str(file)].decode()
+    original = baseline[str(fragment)].decode('utf-8-sig')
+    root = baseline[str(file)].decode('utf-8-sig')
+    bom = b'\xef\xbb\xbf' if baseline[str(fragment)].startswith(b'\xef\xbb\xbf') else b''
     assert original.count('string') == 1
     reference = './model.' + fragment.suffix[1:] + '#/File'
     assert root.count(reference) == 1
@@ -45,7 +46,8 @@ def complete_file_type(native, process, file, fragment, baseline, version):
     keys(native, ['Control_L+Shift_L+z'])
     wait_tree(native, process.pid, lambda nodes: any(node['editable'] and node['text'] == changed for node in nodes), 'One native Redo did not restore the file choice')
     keys(native, ['Control_L+s'])
-    expected = {**baseline, str(fragment): changed.encode()}
+    changed_bytes = bom + changed.encode()
+    expected = {**baseline, str(fragment): changed_bytes}
     deadline = time.monotonic() + 30
     while any(Path(name).read_bytes() != raw for name, raw in expected.items()):
         native.ready()
@@ -57,7 +59,7 @@ def complete_file_type(native, process, file, fragment, baseline, version):
     mode(native, process.pid, 'design')
     native.perform({'kind': 'click', 'scale': 1, 'point': [110, 215], 'viewport': [1280, 720]})
     wait_tree(native, process.pid, lambda nodes: design_values(nodes, 'edited ' + version, 'api-version2') and complete_problems(nodes), 'The file completion changed document or API version ownership')
-    return {str(fragment): changed.encode()}, {
+    return {str(fragment): changed_bytes}, {
         'complete': True, 'definitionNavigation': True, 'keyboardCompletion': True,
         'oneOperationUndoRedo': True, 'exactMultiFileSave': True,
         'rootUnchanged': True, 'declaration': '2.0',
