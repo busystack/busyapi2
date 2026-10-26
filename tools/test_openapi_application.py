@@ -580,11 +580,19 @@ def main():
     parser.add_argument('--header-content', action='store_true')
     parser.add_argument('--generated-headers', choices=['generic', 'transfer'])
     parser.add_argument('--file-shapes', action='store_true')
+    parser.add_argument('--saved-file-media', action='store_true')
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['2.0', '3.0.0', '3.0.1', '3.0.2', '3.0.3', '3.0.4', '3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1'])
     parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
     args = parser.parse_args()
+    if args.saved_file_media and (not args.edit or not args.project
+                                 or args.operations or args.schema_definitions or args.documentation
+                                 or args.mock_samples or args.mock_nested or args.mock_methods
+                                 or args.migrate_target or args.multipart or args.binary
+                                 or args.swagger_form or args.header_content or args.generated_headers
+                                 or args.source_file_choice or args.file_shapes):
+        parser.error('--saved-file-media requires --edit, --project and its dedicated saved-case journey')
     if args.file_shapes and (not args.edit or not args.version.startswith(('3.0.', '3.1.'))
                             or args.operations or args.schema_definitions or args.documentation
                             or args.mock_samples or args.mock_nested or args.mock_methods
@@ -666,6 +674,7 @@ def main():
                 *(['--header-content'] if args.header_content else []),
                 *(['--generated-headers', args.generated_headers] if args.generated_headers else []),
                 *(['--file-shapes'] if args.file_shapes else []),
+                *(['--saved-file-media'] if args.saved_file_media else []),
             ]
             # Own the complete private session, including accessibility and
             # the application, so a timed-out journey leaves no native fixture.
@@ -677,7 +686,7 @@ def main():
                     # Multipart adds two HTTP requests and two native export
                     # dialogs per opening. Keep each control's existing bound;
                     # allocate the original journey budget to each opening.
-                    return session.wait(timeout=180 if args.multipart or args.binary or args.swagger_form or args.header_content or args.generated_headers or args.source_file_choice or args.file_shapes else 90)
+                    return session.wait(timeout=180 if args.multipart or args.binary or args.swagger_form or args.header_content or args.generated_headers or args.source_file_choice or args.file_shapes or args.saved_file_media else 90)
                 except subprocess.TimeoutExpired:
                     os.killpg(session.pid, signal.SIGTERM)
                     session.wait(timeout=5)
@@ -724,11 +733,16 @@ def main():
             + ('-header-content' if args.header_content else '')
             + ('-generated-headers-' + args.generated_headers if args.generated_headers else '')
             + ('-file-shapes' if args.file_shapes else '')
+            + ('-saved-file-media' if args.saved_file_media else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
         multipart = None
-        if args.file_shapes:
+        if args.saved_file_media:
+            from native_saved_file_media import SavedFileMediaFixture
+            multipart = fixtures.enter_context(SavedFileMediaFixture(args.version))
+            multipart.prepare(project_directory)
+        elif args.file_shapes:
             from native_file_shapes import FileShapesFixture
             multipart = fixtures.enter_context(FileShapesFixture(args.version))
             multipart.prepare(project_directory)
@@ -760,6 +774,9 @@ def main():
                 'version: 1\r\n# Retain project options\r\n'
                 f'roots: [{{name: api, path: api.{args.format}}}]\r\n'
             ).encode())
+            if args.saved_file_media:
+                with manifest.open('ab') as stream:
+                    stream.write(('tests: ' + json.dumps(multipart.cases(), separators=(',', ':')).replace('"EXACT"', '9007199254740993.00') + '\r\n').encode())
             files.append(manifest)
         original = {str(p): p.read_bytes() for p in files}
         authored_examples = None
