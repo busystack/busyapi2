@@ -168,7 +168,7 @@ void main() {
                   planIdentity: plan.identity,
                   body: RequestBodyDraft.formValue(
                     json:
-                        '{"count":${valid ? 0 : -1},"name":"","flag":false,"exact":9007199254740993.00,"label":"café 雪","\$ref":"./literal.json#/example"${arrays ? ',"multi":["one","two"],"csv":["one","two"],"ssv":["one","two"],"pipes":["one","two"]' : ''}}',
+                        '{"count":${valid ? 0 : -1},"name":"","flag":false,"exact":9007199254740993.00,"label":"café 雪","\$ref":"./literal.json#/example","opaque":{"n":9007199254740993.00,"s":"雪","literal":{"\$ref":"data"},"flag":false,"zero":0,"nil":null},"opaqueRows":[{"n":9007199254740993.00},[false,0,null,"雪"]],"nothing":null,"openEmpty":[]${arrays ? ',"multi":["one","two"],"csv":["one","two"],"ssv":["one","two"],"pipes":["one","two"]' : ''}}',
                   ),
                 ),
                 resolveSecret: (_) async => null,
@@ -224,11 +224,11 @@ void main() {
             expect(seen[0].$4, 'application/x-www-form-urlencoded');
             expect(
               utf8.decode(seen[0].$5),
-              'count=0&name=&flag=false&exact=9007199254740993.00&label=caf%C3%A9+%E9%9B%AA&%24ref=.%2Fliteral.json%23%2Fexample${arrays ? '&multi=one&multi=two&csv=one,two&ssv=one%20two&pipes=one%7Ctwo' : ''}',
+              'count=0&name=&flag=false&exact=9007199254740993.00&label=caf%C3%A9+%E9%9B%AA&%24ref=.%2Fliteral.json%23%2Fexample&opaque=%7B%22n%22%3A9007199254740993.00%2C%22s%22%3A%22%E9%9B%AA%22%2C%22literal%22%3A%7B%22%24ref%22%3A%22data%22%7D%2C%22flag%22%3Afalse%2C%22zero%22%3A0%2C%22nil%22%3Anull%7D&opaqueRows=%7B%22n%22%3A9007199254740993.00%7D&opaqueRows=%5Bfalse%2C0%2Cnull%2C%22%E9%9B%AA%22%5D&nothing=null${arrays ? '&multi=one&multi=two&csv=one,two&ssv=one%20two&pipes=one%7Ctwo' : ''}',
             );
             expect(
               utf8.decode(seen[2].$5),
-              'count=-1&name=&flag=false&exact=9007199254740993.00&label=caf%C3%A9+%E9%9B%AA&%24ref=.%2Fliteral.json%23%2Fexample${arrays ? '&multi=one&multi=two&csv=one,two&ssv=one%20two&pipes=one%7Ctwo' : ''}',
+              'count=-1&name=&flag=false&exact=9007199254740993.00&label=caf%C3%A9+%E9%9B%AA&%24ref=.%2Fliteral.json%23%2Fexample&opaque=%7B%22n%22%3A9007199254740993.00%2C%22s%22%3A%22%E9%9B%AA%22%2C%22literal%22%3A%7B%22%24ref%22%3A%22data%22%7D%2C%22flag%22%3Afalse%2C%22zero%22%3A0%2C%22nil%22%3Anull%7D&opaqueRows=%7B%22n%22%3A9007199254740993.00%7D&opaqueRows=%5Bfalse%2C0%2Cnull%2C%22%E9%9B%AA%22%5D&nothing=null${arrays ? '&multi=one&multi=two&csv=one,two&ssv=one%20two&pipes=one%7Ctwo' : ''}',
             );
             if (arrays) {
               for (final index in [1, 3]) {

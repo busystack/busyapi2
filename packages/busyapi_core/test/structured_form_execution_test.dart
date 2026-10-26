@@ -136,7 +136,7 @@ ${swagger ? '''      parameters:
 
 String _data(String version, {bool invalid = false}) =>
     '{"big":$_large,"zero":0,"flag":${invalid ? 'null' : 'false'},"tag":["a,b","雪"],"optional":[],"empty":"","literal":"0"'
-    '${version == '2.0' ? '' : ',"nil":null,"payload":{"\$ref":"ordinary data","n":$_large}'}'
+    '${version == '2.0' ? ',"freePayload":{"\$ref":"ordinary data","n":$_large,"nil":null,"flag":false},"freeRows":[{"n":$_large},[false,0,null,"雪"]]' : ',"nil":null,"payload":{"\$ref":"ordinary data","n":$_large}'}'
     '}';
 
 class _DelayedFormEngine extends EngineProcess {
@@ -270,6 +270,17 @@ void main() {
             ]),
           );
           expect(pairs.where((pair) => pair.$1 == 'optional'), isEmpty);
+          if (version == '2.0') {
+            expect(
+              pairs,
+              contains((
+                'freePayload',
+                '{"\$ref":"ordinary data","n":$_large,"nil":null,"flag":false}',
+              )),
+            );
+            expect(pairs, contains(('freeRows', '{"n":$_large}')));
+            expect(pairs, contains(('freeRows', '[false,0,null,"雪"]')));
+          }
           if (version != '2.0') {
             expect(pairs, contains(('nil', 'null')));
             expect(

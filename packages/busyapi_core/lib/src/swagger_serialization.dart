@@ -194,13 +194,27 @@ List<(String, String)> swaggerFormDataFields(
   }
   return [
     for (final entry in data.fields.entries)
-      ...serializeSwaggerParameter({
-        'collectionFormat': 'multi',
-        ...?declarations
+      ...() {
+        final declaration = declarations
             .where((declaration) => declaration['name'] == entry.key)
-            .firstOrNull,
-        'name': entry.key,
-        'in': 'formData',
-      }, entry.value.value),
+            .firstOrNull;
+        // Undeclared fields have no flat Parameter/Items restrictions. Keep
+        // structured text and decimal lexemes from the strict data capture.
+        if (declaration == null) {
+          return [
+            for (final value
+                in entry.value.kind == RequestDataKind.array
+                    ? entry.value.items
+                    : [entry.value])
+              (entry.key, value.text),
+          ];
+        }
+        return serializeSwaggerParameter({
+          'collectionFormat': 'multi',
+          ...declaration,
+          'name': entry.key,
+          'in': 'formData',
+        }, entry.value.value);
+      }(),
   ];
 }

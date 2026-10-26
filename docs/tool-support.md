@@ -180,6 +180,11 @@ when `allowEmptyValue` is true; Swagger query values additionally require that
 permission. This is BusyAPI's documented conversion policy under
 [OAS 3.0 Appendix B](https://spec.openapis.org/oas/v3.0.4.html#appendix-b-data-type-conversion),
 not a guarantee about another server's ambiguous parameter decoding.
+For Swagger form fields without a Parameter definition, BusyAPI sends scalar
+text, repeats top-level array entries, and uses exact JSON text for structured
+entries. Numbers retain their source decimal text inside objects and arrays.
+This is BusyAPI's encoding policy for undeclared input; declared Parameter and
+Items Objects continue to use their native restrictions and collectionFormat.
 Swagger Parameter, Header and recursive Items Objects retain each layer's
 `collectionFormat`. Nested collections use the original schema to prove a bounded
 wire interpretation, including identical delimiters at adjacent layers. Response
