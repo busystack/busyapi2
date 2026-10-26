@@ -49,7 +49,7 @@ from native_focus import (
 )
 
 
-def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False, schema_definitions=False, multipart=None):
+def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False, schema_definitions=False, multipart=None, source_file_choice=False):
     swagger = version == '2.0'
     schema = {
         'type': 'object',
@@ -93,6 +93,10 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
         'Item': schema,
         'x-literal': {'$ref': 'literal', 'number': 'EXACT'},
     }
+    if source_file_choice:
+        assert swagger and not multipart
+        document['paths']['/items']['get']['responses']['200']['schema'] = {'$ref': './model.' + format + '#/File'}
+        model['File'] = {'type': 'string'}
     if swagger and multipart:
         model['File'] = {'type': 'file'}
     if getattr(multipart, 'header_content', False):
@@ -171,6 +175,9 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
         ).replace('\n', '\r\n')
         if swagger and multipart:
             shared += 'File:\r\n  type: file\r\n'
+        if source_file_choice:
+            source = source.replace('./model.yaml#/Item', './model.yaml#/File', 1)
+            shared += 'File:\r\n  type: string\r\n'
         if getattr(multipart, 'header_content', False):
             shared += 'Meta: ' + json.dumps(multipart.header()) + '\r\n'
         if schema_definitions:
@@ -563,6 +570,7 @@ def main():
     parser.add_argument('--mock-nested', action='store_true')
     parser.add_argument('--documentation', action='store_true')
     parser.add_argument('--schema-definitions', action='store_true')
+    parser.add_argument('--source-file-choice', action='store_true')
     parser.add_argument('--operations', action='store_true')
     parser.add_argument('--migrate-target', choices=['2.0', '3.0.4', '3.1.2', '3.2.1'])
     parser.add_argument('--multipart', choices=['ordered', 'nested', 'named'])
@@ -576,6 +584,12 @@ def main():
     parser.add_argument('--version', default='3.0.4', choices=['2.0', '3.0.0', '3.0.1', '3.0.2', '3.0.3', '3.0.4', '3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1'])
     parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
     args = parser.parse_args()
+    if args.source_file_choice and (not args.edit or args.version != '2.0'
+                                    or args.operations or args.schema_definitions or args.documentation
+                                    or args.mock_samples or args.mock_nested or args.mock_methods
+                                    or args.migrate_target or args.multipart or args.binary
+                                    or args.swagger_form or args.header_content or args.generated_headers):
+        parser.error('--source-file-choice requires --edit, Swagger 2.0 and its dedicated completion journey')
     if args.generated_headers and (not args.edit or args.version == '2.0'
                                     or args.generated_headers == 'generic' and not args.version.startswith(('3.0.', '3.1.'))
                                     or args.operations or args.schema_definitions or args.documentation
@@ -634,6 +648,7 @@ def main():
                 *(['--mock-nested'] if args.mock_nested else []),
                 *(['--documentation'] if args.documentation else []),
                 *(['--schema-definitions'] if args.schema_definitions else []),
+                *(['--source-file-choice'] if args.source_file_choice else []),
                 *(['--operations'] if args.operations else []),
                 *(['--migrate-target', args.migrate_target] if args.migrate_target else []),
                 *(['--multipart', args.multipart] if args.multipart else []),
@@ -653,7 +668,7 @@ def main():
                     # Multipart adds two HTTP requests and two native export
                     # dialogs per opening. Keep each control's existing bound;
                     # allocate the original journey budget to each opening.
-                    return session.wait(timeout=180 if args.multipart or args.binary or args.swagger_form or args.header_content or args.generated_headers else 90)
+                    return session.wait(timeout=180 if args.multipart or args.binary or args.swagger_form or args.header_content or args.generated_headers or args.source_file_choice else 90)
                 except subprocess.TimeoutExpired:
                     os.killpg(session.pid, signal.SIGTERM)
                     session.wait(timeout=5)
@@ -690,6 +705,7 @@ def main():
             + ('-nested' if args.mock_nested else '')
             + ('-documentation' if args.documentation else '')
             + ('-schema-definitions' if args.schema_definitions else '')
+            + ('-source-file-choice' if args.source_file_choice else '')
             + ('-operations' if args.operations else '')
             + ('-migrate-' + args.migrate_target if args.migrate_target else '')
             + ('-multipart-' + args.multipart if args.multipart else '')
@@ -720,7 +736,7 @@ def main():
         elif args.multipart:
             from native_multipart import MultipartFixture
             multipart = fixtures.enter_context(MultipartFixture(args.multipart))
-        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested, args.schema_definitions, multipart)
+        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested, args.schema_definitions, multipart, args.source_file_choice)
         file.write_bytes(source)
         fragment.write_bytes(shared)
         files = [file, fragment]
@@ -758,6 +774,7 @@ def main():
         expected_sources = dict(original)
         documentation_result = None
         schema_definition_result = None
+        source_file_result = None
         operation_result = None
         migration_result = None
         multipart_results = []
@@ -808,6 +825,11 @@ def main():
                 if args.edit:
                     edited, nodes = edit(native, process, file, fragment, original, args.version)
                     expected_sources[str(file)] = edited
+                    if args.source_file_choice:
+                        from native_source_file_choices import complete_file_type
+                        changed, source_file_result = complete_file_type(native, process, file, fragment, expected_sources, args.version)
+                        expected_sources.update(changed)
+                        nodes = tree(process.pid, details=True)
                     if args.migrate_target:
                         from native_migration import migrate
                         migration_result = migrate(native, process, file, fragment,
@@ -904,6 +926,7 @@ def main():
                     'nativeMockNested': args.mock_nested,
                     'nativeDocumentation': documentation_result,
                     'nativeSchemaDefinitions': schema_definition_result,
+                    'nativeSourceFileChoice': source_file_result,
                     'nativeOperations': operation_result,
                     'nativeMigration': migration_result,
                     'nativeMultipart': multipart_results,
