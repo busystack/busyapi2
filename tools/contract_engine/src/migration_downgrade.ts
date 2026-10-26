@@ -3,6 +3,8 @@ import {MigrationSource} from './migration_source';
 import type {MigrationIssue} from './migration_schema';
 import {escape} from './document';
 import {downgradeFormBody} from './migration_form_downgrade';
+import {formBinding} from './form_semantics';
+import {isNativeFamily} from './specification';
 
 /** Evaluate actual target representation. A simple 3.x API can be faithfully
  * represented in Swagger; newer-only constructs receive located blockers. */
@@ -30,12 +32,14 @@ export function downgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migrati
             for(const name of ['deprecated','allowReserved','example','examples'])if(Object.hasOwn(value,name))issue({...scope,pointer:scope.pointer+'/'+name},'migration.parameter.metadata','This authored parameter field needs an explicit Swagger mapping','implementation');
         }
         if(scope.kind==='request-body'&&typeof value?.$ref!=='string'){
+            const family=scope.family;
+            if(!isNativeFamily(family)){issue(scope,'migration.body.family','This request body has no supported owning specification family','source-incomplete');continue;}
             const content=source.doc.dataNode(pointer+'/content'),media=[...content?.children.keys()??[]];
             if(!media.length){issue(scope,'migration.body.content','A Swagger body needs a schema-bearing representation','implementation');continue;}
             const shapes=media.map(name=>source.doc.dataNode(pointer+'/content/'+escape(name)+'/schema')?source.doc.dataJson(pointer+'/content/'+escape(name)+'/schema'):undefined);
             if(shapes.some(shape=>shape===undefined||shape!==shapes[0])){issue(scope,'migration.body.media-schema','Swagger has one body schema; these media representations need a common faithful schema','target-representation');continue;}
-            if(media.length===1&&media[0]==='application/x-www-form-urlencoded'){downgradeFormBody(graph,source,scope,pointer,issue);continue;}
-            if(media.some(name=>['multipart/form-data','application/x-www-form-urlencoded'].includes(name))){issue(scope,'migration.body.form','Form bodies need a field-preserving formData parameter mapping','implementation');continue;}
+            if(media.length===1&&formBinding(family,media[0])==='urlencoded'){downgradeFormBody(graph,source,scope,pointer,media[0],issue);continue;}
+            if(media.some(name=>formBinding(family,name)!==undefined)){issue(scope,'migration.body.form','Form bodies need a field-preserving formData parameter mapping','implementation');continue;}
             source.move(pointer+'/content/'+escape(media[0])+'/schema',pointer+'/schema');
             if(media.some(name=>Object.keys(value.content[name]).some(field=>field!=='schema')))issue(scope,'migration.body.media-metadata','Request media annotations/examples need an explicit Swagger representation','implementation');
             source.remove(pointer+'/content');source.set(pointer+'/name','body');source.set(pointer+'/in','body');

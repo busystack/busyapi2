@@ -10,9 +10,9 @@ const primitiveTypes:ReadonlySet<string>=new Set(['string','number','integer','b
 
 /** OAS 3.0 §4.7.15 and Swagger 2.0 §6.4.9. Flatten only independently
  * described fields; object-wide constraints are not parameter rules. */
-export function downgradeFormBody(graph:ReferenceGraph,source:MigrationSource,scope:GraphScope,pointer:string,issue:MigrationIssue):void {
+export function downgradeFormBody(graph:ReferenceGraph,source:MigrationSource,scope:GraphScope,pointer:string,media:string,issue:MigrationIssue):void {
     const body=source.doc.dataNode(pointer)!;
-    const media='application/x-www-form-urlencoded',at=pointer+'/content/'+escape(media),schema=source.doc.dataNode(at+'/schema');
+    const at=pointer+'/content/'+escape(media),schema=source.doc.dataNode(at+'/schema');
     const origin=scope.pointer+'/content/'+escape(media)+'/schema';
     let valid=true;
     const block=(pointer:string,code:string,message:string,reason:'implementation'|'target-representation'='implementation')=>{

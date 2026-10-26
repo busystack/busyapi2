@@ -37,7 +37,8 @@ located findings and no publishable output. Target validation and request
 invariants supplement the structural mappings.
 
 URL-encoded forms with independent scalar fields can be downgraded to Swagger
-`formData` parameters. Primitive arrays use their declared encoding, including
+`formData` parameters. Media type casing and explicit UTF-8 charset parameters
+are preserved in the target media declaration. Primitive arrays use their declared encoding, including
 the repeated text-field default for named primitive-array properties. Separated string items
 need a finite enum that excludes their separator. Joint object constraints,
 shared form schema owners and other encodings can still require additional
