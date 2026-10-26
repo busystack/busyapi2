@@ -309,6 +309,20 @@ produce advisory findings. Positional, nested and ambiguous conditional binding
 remain incomplete. OpenAPI 3.0 multipart request content requires a schema;
 response content and the modern families retain their own rules.
 
+Generic MIME part Header Objects can use native `schema` or single-media `content`.
+Content values use the same captured media codecs and exact schema evaluator;
+references, dialects, numeric tokens and 3.2 `itemSchema` retain their owners.
+Multiple content-based field values and ambiguous simple-style interpretations
+remain explicit incomplete checks. RFC 7578's ignored additional form-data headers
+retain their separate advisory policy.
+
+For form and named multipart media, **Use a serialized entity** switches Try
+between field/part construction and authored text or one complete selected file.
+This accepts a complete MIME entity with its authored part headers and boundary.
+The draft keeps its current text and attachments when changing input mode or
+environment. Clear the selected complete file to return to authored text.
+Generated content-based part headers remain separate required work.
+
 **Use an exact JSON value** accepts an object for form or multipart data without
 passing through literal `name=value` rows. Saved contract cases with object
 values use that same headless path, including in the installed CLI. Explicit
