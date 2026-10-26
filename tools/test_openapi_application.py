@@ -245,9 +245,9 @@ def design_values(nodes, title, api_version):
     )
 
 
-def complete_problems(nodes):
+def complete_problems(nodes, expected=0):
     return any(
-        node['name'] == 'Problems · Complete for captured scope · 0'
+        node['name'] == 'Problems · Complete for captured scope · ' + str(expected)
         for node in nodes
     )
 
@@ -719,6 +719,17 @@ def main():
             ).encode())
             files.append(manifest)
         original = {str(p): p.read_bytes() for p in files}
+        authored_examples = None
+        problem_count = 0
+        if args.multipart in ['ordered', 'nested']:
+            cli = subprocess.run([str(ROOT / 'build/linux/x64/release/bundle/busyapi'),
+                                  'check', str(file), '--json'],
+                                 env={'PATH': '', 'LANG': 'C.UTF-8'},
+                                 capture_output=True, text=True, timeout=30)
+            assert cli.returncode == 0, cli.stderr
+            authored_examples = multipart.verify_authored_examples(json.loads(cli.stdout), file.as_uri())
+            problem_count = authored_examples['warningCount']
+            assert all(Path(name).read_bytes() == raw for name, raw in original.items())
         startup = project_directory if args.project else file
         env = dict(os.environ, LC_ALL='C.UTF-8', **{
             key: str(directory / 'profile' / name)
@@ -757,7 +768,7 @@ def main():
                 while time.monotonic() < deadline:
                     nodes = tree(process.pid)
                     if (contains(nodes, 'format version: ' + args.version)
-                            and complete_problems(nodes)):
+                            and complete_problems(nodes, problem_count)):
                         break
                     if process.poll() is not None:
                         raise RuntimeError('Production entry exited before inspection')
@@ -850,7 +861,7 @@ def main():
                         native, process.pid,
                         lambda nodes: design_values(
                             nodes, 'edited ' + args.version, 'api-version2',
-                        ) and complete_problems(nodes),
+                        ) and complete_problems(nodes, problem_count),
                         'Production reopen did not retain the saved native contract',
                     )
                     assert (
@@ -883,6 +894,7 @@ def main():
                     'nativeOperations': operation_result,
                     'nativeMigration': migration_result,
                     'nativeMultipart': multipart_results,
+                    'nativeAuthoredExamples': authored_examples,
                     'files': {
                         str(Path(name).relative_to(project_directory)):
                             hashlib.sha256(raw).hexdigest()

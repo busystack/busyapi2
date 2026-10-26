@@ -113,6 +113,30 @@ class MultipartFixture(AbstractContextManager):
         self.port = self.server.server_port
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
+    @property
+    def expected_problem_count(self):
+        return 0 if self.named else 2
+
+    def verify_authored_examples(self, report, resource):
+        assert not self.named and report['complete'] is True
+        field = MEDIA.replace('~', '~0').replace('/', '~1')
+        owners = ['/paths/~1items/post/requestBody/content/' + field,
+                  '/paths/~1items/post/responses/200/content/' + field]
+        expected = {owner + '/examples/rounded/serializedValue' for owner in owners}
+        findings = report['findings']
+        assert len(findings) == self.expected_problem_count
+        assert all(value['code'] == 'example.serialization.incompatible'
+                   and value['severity'] == 'warning' and value['resource'] == resource
+                   for value in findings)
+        assert {value['pointer'] for value in findings} == expected
+        schemas = report['categories'][0]['results']['openapi']['schema']
+        checks = schemas['serializedExamples']
+        assert len(checks) == 4 and all(value['complete'] is True for value in checks)
+        assert {value['pointer'] for value in checks if value['valid'] is False} == expected
+        assert len([value for value in checks if value['valid'] is True]) == 2
+        return {'complete': True, 'warningCount': len(findings), 'evaluated': len(checks),
+                'sources': sorted(expected), 'producerVersion': schemas['producerVersion']}
+
     def operation(self, format):
         return named_multipart_operation(format) if self.named else multipart_operation(format, self.nested)
 
@@ -246,7 +270,7 @@ def execute_multipart(native, process, file, baseline, version, fixture, evidenc
         print('Native multipart request: ' + json.dumps(checks[-1]), flush=True)
     native.perform({'kind': 'click', 'scale': 1, 'point': [110, 215], 'viewport': [1280, 720]})
     wait_tree(native, process.pid,
-              lambda nodes: design_values(nodes, 'edited ' + version, 'api-version2') and complete_problems(nodes),
+              lambda nodes: design_values(nodes, 'edited ' + version, 'api-version2') and complete_problems(nodes, fixture.expected_problem_count),
               'Overview did not retain source after native multipart execution')
     result = {'complete': True, 'kind': fixture.kind, 'phase': phase,
               'requests': checks, 'sourceUnchanged': True}
