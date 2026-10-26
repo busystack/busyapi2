@@ -331,14 +331,19 @@ the report distinguishes invalid representations from incomplete decoding.
 Opaque binary data does not establish the Unicode representation required for
 `serializedValue`; use an external serialized resource. External examples are
 not fetched automatically. An unevaluated associated external serialization,
-Parameter/Header style serialization, or reusable Media Type serialization without a content-type occurrence makes
+or reusable Media Type serialization without a content-type occurrence makes
 the check incomplete and produces a source-located finding. A separately checked
 `dataValue` does not establish serialization compatibility. CLI checks return 2
 for incomplete evaluation. Acquiring external examples and evaluating the
 remaining representation contexts remain required work. A standalone reusable
 Example with no associated representation is reported as unbound metadata, with
 an informational finding and no compatibility proof. Proofs remain separate for
-each use of a shared example. The pinned Spectral OAS example rules select
+each use of a shared example. Native Parameter and Header serialized examples
+use the existing HTTP wire codecs, with separate source-located proof owners.
+This includes finite style/content parameters, response and MIME Header fields,
+querystring media and Set-Cookie field lines. Invalid representations remain
+advisory findings; unsupported contexts and omitted values without a complete
+interpretation remain incomplete. The pinned Spectral OAS example rules select
 schema annotations and authored data; their separate completeness result does
 not claim serialized or external-example validation. A complete policy category
 therefore cannot make an incomplete native check successful. See

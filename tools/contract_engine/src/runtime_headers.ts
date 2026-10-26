@@ -12,9 +12,27 @@ import {headerWireValues} from './header_wire_values';
 export type RuntimeHeaderTarget={resource:string;pointer:string;name:string;values:string[]};
 type DecodedHeader={instance:NativeRuntimeInstance;complete:boolean};
 
+function headerName(graph:ReferenceGraph,target:{resource:string;pointer:string},example:boolean):string|undefined {
+    const owner=graph.scopes.get(target.resource+'#'+target.pointer),parts=segments(target.pointer);
+    if(owner?.kind!=='header'||parts.at(-2)!=='headers')return;
+    const parent=parts.length===2?'':'/'+parts.slice(0,-2).map(escape).join('/');
+    const kind=graph.scopes.get(target.resource+'#'+parent)?.kind;
+    return kind==='response'||example&&kind==='encoding'?parts.at(-1):undefined;
+}
+
+export const responseHeaderName=(graph:ReferenceGraph,target:{resource:string;pointer:string})=>headerName(graph,target,false);
+export const exampleHeaderName=(graph:ReferenceGraph,target:{resource:string;pointer:string})=>headerName(graph,target,true);
+
 /** Raw field lines refer to the original response-header occurrence. A caller
  * cannot supply a family, schema, style or replacement resolved declaration. */
-export function capturedRuntimeHeaders(graph:ReferenceGraph) {
+export const capturedRuntimeHeaders=(graph:ReferenceGraph)=>captureHeaders(graph,false);
+
+/** Examples also occur in MIME Encoding headers and require an explicit proof
+ * when their schema has no constraints. Runtime HTTP response ownership remains
+ * restricted to response fields. */
+export const capturedExampleHeaders=(graph:ReferenceGraph)=>captureHeaders(graph,true);
+
+function captureHeaders(graph:ReferenceGraph,example:boolean) {
     const edges=new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]));
     const shapeFor=headerShapes(graph),projections=new Map<string,Record<string,unknown>>();
     const follow=(target:GraphTarget)=>{
@@ -38,9 +56,8 @@ export function capturedRuntimeHeaders(graph:ReferenceGraph) {
         return {resource,pointer,unconstrained:supportedSchemaDialect(graph.scope(resource,pointer))&&annotationOnlySchema(node.value)};
     };
     return (target:RuntimeHeaderTarget):DecodedHeader|undefined=>{
-        const owner=graph.scopes.get(target.resource+'#'+target.pointer),parts=segments(target.pointer);
-        const parent=target.pointer.slice(0,target.pointer.lastIndexOf('/headers/'));
-        if(owner?.kind!=='header'||parts.at(-1)!==target.name||graph.scopes.get(target.resource+'#'+parent)?.kind!=='response')
+        const owner=graph.scopes.get(target.resource+'#'+target.pointer);
+        if(headerName(graph,target,example)!==target.name)
             throw new SourceError('runtime.instance','Header wire evaluation requires its original response-header occurrence and field name');
         const identity=JSON.stringify([target.resource,target.pointer]);
         let projection=projections.get(identity);
@@ -62,7 +79,7 @@ export function capturedRuntimeHeaders(graph:ReferenceGraph) {
                 schema:schema(header.resource,owner.family==='2.0'?header.pointer:header.pointer+'/schema')};
             projections.set(identity,projection);
         }
-        return decodeRuntimeHeader(shapeFor,projection,target.values);
+        return decodeRuntimeHeader(shapeFor,projection,target.values,example);
     };
 }
 
@@ -78,7 +95,7 @@ export function nativeHeaderParts(text:string):string[] {
  * become JavaScript numbers. This transport codec does not evaluate schemas.
  * Header Objects use simple style; Swagger Header/Items use collectionFormat.
  * OAS 3.2 §4.21.3 keeps each Set-Cookie line separate, including its commas. */
-function decodeRuntimeHeader(shapeFor:ReturnType<typeof headerShapes>,declaration:unknown,values:readonly string[]):DecodedHeader|undefined {
+function decodeRuntimeHeader(shapeFor:ReturnType<typeof headerShapes>,declaration:unknown,values:readonly string[],example=false):DecodedHeader|undefined {
     if(!record(declaration)||typeof declaration.name!=='string'||typeof declaration.family!=='string'||!isNativeFamily(declaration.family))
         throw new SourceError('mock.validation.protocol','The native header projection is malformed');
     const name=declaration.name,family=declaration.family,cookie=name.toLowerCase()==='set-cookie';
@@ -87,12 +104,12 @@ function decodeRuntimeHeader(shapeFor:ReturnType<typeof headerShapes>,declaratio
         if(content.length!==1)unsupported('A header has more than one content representation');
         if(values.length!==1&&(!cookie||family!=='3.2'))unsupported('A content-based header has multiple wire values');
         const media=content[0];
-        if(!media.schema&&!media.itemSchema&&runtimeMediaKind(media.mediaType)==='opaque')return;
+        if(!example&&!media.schema&&!media.itemSchema&&runtimeMediaKind(media.mediaType)==='opaque')return;
         return {complete:true,instance:{subject:'response-header',location:name,text:values.join('\n'),mediaType:media.mediaType,schema:media.schema,itemSchema:media.itemSchema,
             ...(runtimeFormMedia(media.mediaType)&&media.formOwner?{form:media.formOwner}:{})}};
     }
     const schema=schemaLocation(declaration.schema);
-    if(!schema||record(declaration.schema)&&declaration.schema.unconstrained===true)return;
+    if(!schema||!example&&record(declaration.schema)&&declaration.schema.unconstrained===true)return;
     if(family==='2.0'){
         return {complete:true,instance:{subject:'response-header',location:name,text:values.join(','),schema,swaggerHeader:{...schema,name,values:[...values]}}};
     }

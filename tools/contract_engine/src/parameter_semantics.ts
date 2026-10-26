@@ -1,5 +1,6 @@
 import {escape, segments} from './document';
 import {GraphTarget, ReferenceGraph} from './reference_graph';
+import type {SpecificationFamily} from './specification';
 
 export type ParameterOccurrence = {
     source: GraphTarget; definition?: GraphTarget; inherited: boolean;
@@ -9,6 +10,12 @@ export type ParameterOccurrence = {
 type ParameterList = {source?: GraphTarget; entries: ParameterOccurrence[]; valid: boolean; complete: boolean};
 export type ParameterIssue = GraphTarget & {code: string; message: string; incomplete?: boolean; severity?: string; range?: number[]};
 const key = (target: {resource:string;pointer:string}) => JSON.stringify([target.resource,target.pointer]);
+
+export function parameterStyle(family:SpecificationFamily,location:string,value:{style?:unknown;explode?:unknown}) {
+    const style=typeof value.style==='string'?value.style:location==='query'||location==='cookie'?'form':'simple';
+    const defaultExplode=(location==='query'||location==='cookie')&&(value.style===undefined||value.style==='form'||family==='3.2'&&value.style==='cookie');
+    return {style,explode:typeof value.explode==='boolean'?value.explode:defaultExplode};
+}
 
 /** Located consumers of the canonical graph, not another resolver or merged
  * document model. Reference occurrences and definitions retain their separate

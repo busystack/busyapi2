@@ -37,7 +37,7 @@ part 'migration.dart';
 
 // Semantic revisions are part of captured evaluator ownership, alongside the
 // wire protocol and snapshot identity.
-const _schemaProducerVersion = '1.18.0+30';
+const _schemaProducerVersion = '1.18.0+31';
 
 // Keep native-isolate IO wakeups bounded without serializing every resource.
 // Each batch finishes (including failures) before access can be released.
@@ -1661,6 +1661,19 @@ class BusyProject {
         resources.containsKey(value['resource']) &&
         value['pointer'] is String &&
         (value['pointer'] as String).length <= 16384;
+    bool serializedOwner(dynamic value) {
+      if (value is! Map) return false;
+      final owners = [
+        for (final field in const ['media', 'parameter', 'header'])
+          if (value[field] != null) field,
+      ];
+      if (owners.length != 1 || !located(value[owners.single])) return false;
+      return owners.single == 'media'
+          ? value['mediaType'] is String &&
+                (value['mediaType'] as String).length <= 16384
+          : value['mediaType'] == null;
+    }
+
     final valid =
         result['version'] == 1 &&
         result['snapshot'] == snapshot.identity &&
@@ -1685,9 +1698,7 @@ class BusyProject {
         (result['serializedEvaluations'] as List).every(
           (value) =>
               located(value) &&
-              located(value['media']) &&
-              value['mediaType'] is String &&
-              (value['mediaType'] as String).length <= 16384 &&
+              serializedOwner(value) &&
               (value['occurrencePointer'] == null ||
                   value['occurrencePointer'] is String &&
                       (value['occurrencePointer'] as String).length <= 16384) &&

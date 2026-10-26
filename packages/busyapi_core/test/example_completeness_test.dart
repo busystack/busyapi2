@@ -73,22 +73,26 @@ void main() {
           final buffer = await project.buffer(file.uri.toString());
           Future<void> check(bool both) async {
             final result = await project.check(buffer.id);
-            expect(result['complete'], !both, reason: jsonEncode(result));
-            expect(result['status'], both ? 'incomplete' : 'complete');
+            expect(result['complete'], true, reason: jsonEncode(result));
+            expect(result['status'], 'complete');
             final schema = result['categories']['openapi']['schema'];
             expect(schema['coverage']['unboundExampleSerializations'], 0);
             final evaluations = schema['serializedExamples'] as List;
-            expect(evaluations, hasLength(1));
-            expect(evaluations.single['complete'], true);
-            expect(evaluations.single['valid'], true);
+            expect(evaluations, hasLength(both ? 2 : 1));
+            expect(
+              evaluations.every((value) => value['complete'] == true),
+              true,
+            );
+            expect(evaluations.first['valid'], true);
+            if (both) expect(evaluations.last['valid'], kind == 'header');
             final findings = (result['findings'] as List)
                 .where(
                   (value) =>
-                      value['code'] == 'example.serialization.incomplete',
+                      value['code'] == 'example.serialization.incompatible',
                 )
                 .toList();
-            expect(findings, hasLength(both ? 1 : 0));
-            if (both)
+            expect(findings, hasLength(both && kind == 'parameter' ? 1 : 0));
+            if (both && kind == 'parameter')
               expect(
                 findings.single['pointer'],
                 '/components/examples/Shared/serializedValue',
@@ -103,7 +107,7 @@ void main() {
           ]);
           expect(
             before.exitCode,
-            2,
+            0,
             reason: '${before.stdout}\n${before.stderr}',
           );
           if (kind == 'parameter')
@@ -176,7 +180,7 @@ void main() {
             expect(result['complete'], !bound, reason: jsonEncode(result));
             expect(result['status'], bound ? 'incomplete' : 'complete');
             final schema = result['categories']['openapi']['schema'];
-            expect(schema['producerVersion'], '1.18.0+30');
+            expect(schema['producerVersion'], '1.18.0+31');
             expect(
               schema['coverage']['unboundExampleSerializations'],
               bound ? 0 : 1,
@@ -272,7 +276,7 @@ void main() {
         'externalValue',
         if (version.startsWith('3.2.')) 'serializedValue',
       ]) {
-        test('$version $format $field cannot report complete validation', () async {
+        test('$version $format $field retains explicit serialization coverage', () async {
           final directory = await Directory.systemTemp.createTemp(
             'busyapi-example-coverage-',
           );
@@ -317,30 +321,38 @@ void main() {
           final buffer = await project.buffer(file.uri.toString());
           final pointer =
               '/paths/~1check/get/parameters/0/examples/Case/$field';
-          Future<void> incomplete() async {
+          final supported = field == 'serializedValue';
+          Future<void> verifyOriginal() async {
             final result = await project.check(buffer.id);
-            expect(result['complete'], false, reason: jsonEncode(result));
-            expect(result['status'], 'incomplete');
-            final findings = result['findings'] as List;
-            final finding = findings.singleWhere(
-              (value) => value['code'] == 'example.serialization.incomplete',
-            );
-            expect(finding['resource'], buffer.id);
-            expect(finding['pointer'], pointer);
-            expect(finding['severity'], 'warning');
-            expect(
-              finding['detailCode'],
-              field == 'externalValue'
-                  ? 'example.external-value.unavailable'
-                  : 'example.serialization.context-unchecked',
-            );
-            expect(
-              result['categories']['openapi']['schema']['producerVersion'],
-              '1.18.0+30',
-            );
+            expect(result['complete'], supported, reason: jsonEncode(result));
+            expect(result['status'], supported ? 'complete' : 'incomplete');
+            final findings = (result['findings'] as List)
+                .where(
+                  (value) =>
+                      value['code'] == 'example.serialization.incomplete',
+                )
+                .toList();
+            expect(findings, hasLength(supported ? 0 : 1));
+            final schema = result['categories']['openapi']['schema'];
+            if (supported) {
+              final proof = (schema['serializedExamples'] as List).single;
+              expect(proof['complete'], true);
+              expect(proof['valid'], true);
+              expect(proof['pointer'], pointer);
+            } else {
+              final finding = findings.single;
+              expect(finding['resource'], buffer.id);
+              expect(finding['pointer'], pointer);
+              expect(finding['severity'], 'warning');
+              expect(
+                finding['detailCode'],
+                'example.external-value.unavailable',
+              );
+            }
+            expect(schema['producerVersion'], '1.18.0+31');
           }
 
-          await incomplete();
+          await verifyOriginal();
           final before = await Process.run('$testBundle/busyapi', [
             'check',
             file.path,
@@ -348,10 +360,13 @@ void main() {
           ]);
           expect(
             before.exitCode,
-            2,
+            supported ? 0 : 2,
             reason: '${before.stdout}\n${before.stderr}',
           );
-          expect(jsonDecode(before.stdout as String)['status'], 'incomplete');
+          expect(
+            jsonDecode(before.stdout as String)['status'],
+            supported ? 'complete' : 'incomplete',
+          );
           expect(await file.readAsBytes(), bytes);
           final repaired = version.startsWith('3.2.')
               ? original.replaceFirst(
@@ -370,7 +385,7 @@ void main() {
           expect(await file.readAsBytes(), bytes);
           project.store.undo();
           expect(buffer.bytes(), bytes);
-          await incomplete();
+          await verifyOriginal();
           project.store.redo();
           expect(buffer.text, repaired);
           await project.save(buffer);

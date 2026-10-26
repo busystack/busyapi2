@@ -5,7 +5,7 @@ import {escape,SourceDocument,SourceError,type Range} from './document';
 import {GraphTarget, ReferenceGraph, supportedSchemaDialect} from './reference_graph';
 import {decimal} from './exact_numbers';
 import {headerShapes} from './header_serialization';
-import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
+import {ParameterOccurrence, ParameterSemantics, parameterStyle} from './parameter_semantics';
 import {responseStatusNamePolicy} from './member_names';
 import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './swagger_operation';
 import {responseAllowsContent} from './response_content';
@@ -400,11 +400,9 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   const parameter=(entry:ParameterOccurrence)=>{
     if(entry.state!=='resolved'||!entry.definition||entry.name===undefined||!entry.location)throw new SourceError('request.parameter','An effective parameter is incomplete');
     const selected=follow(entry.definition,'parameter'),v=selected.node.value;
-    const defaultStyle=entry.location==='query'||entry.location==='cookie'?'form':'simple';
-    const defaultExplode=(entry.location==='query'||entry.location==='cookie')&&(v.style===undefined||v.style==='form'||family==='3.2'&&v.style==='cookie');
     const content=v.content&&typeof v.content==='object'?media(selected.resource,selected.pointer+'/content',v.content):[];
     return {name:entry.name,in:entry.location,family,type:typeof v.schema?.type==='string'?v.schema.type:undefined,description:v.description,required:v.required===true||entry.location==='path',deprecated:v.deprecated===true,
-      style:typeof v.style==='string'?v.style:defaultStyle,explode:typeof v.explode==='boolean'?v.explode:defaultExplode,
+      ...parameterStyle(family,entry.location,v),
       allowReserved:v.allowReserved===true,allowEmptyValue:v.allowEmptyValue===true,source:location(entry.source.resource,entry.source.pointer),definition:selected.source,
       schema:schema(selected.resource,selected.pointer,v),content,example:example(selected.resource,selected.pointer,v),examples:examples(selected.resource,selected.pointer,v),
       ...(family==='2.0'&&entry.location!=='body'?swaggerFlat(v,selected.source):{})};

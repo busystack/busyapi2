@@ -43,7 +43,35 @@ class _EvaluationEngine extends EngineProcess {
           'findings': [],
         };
     }
-    return super.request(method, params, requestId: requestId);
+    final result = await super.request(method, params, requestId: requestId);
+    if (method == 'evaluateSchemas' && fault?.startsWith('example-') == true) {
+      final location = {'resource': params['root'], 'pointer': ''};
+      final proof = <String, Object?>{
+        ...location,
+        'complete': true,
+        'valid': true,
+      };
+      switch (fault) {
+        case 'example-mixed-owners':
+          proof.addAll({'parameter': location, 'header': location});
+        case 'example-missing-owner':
+          break;
+        case 'example-unknown-owner':
+          proof['header'] = {
+            'resource': 'file:///uncaptured.json',
+            'pointer': '',
+          };
+        case 'example-forged-media':
+          proof.addAll({
+            'parameter': location,
+            'mediaType': 'application/json',
+          });
+        case 'example-invalid-status':
+          proof.addAll({'header': location, 'complete': false});
+      }
+      result['serializedEvaluations'] = [proof];
+    }
+    return result;
   }
 }
 
@@ -335,7 +363,15 @@ void main() {
     cancelGate.complete();
     await expected;
   });
-  for (final fault in ['crash', 'malformed']) {
+  for (final fault in [
+    'crash',
+    'malformed',
+    'example-mixed-owners',
+    'example-missing-owner',
+    'example-unknown-owner',
+    'example-forged-media',
+    'example-invalid-status',
+  ]) {
     test(
       'failed or malformed schema adapter is incomplete, never empty success: $fault',
       () async {

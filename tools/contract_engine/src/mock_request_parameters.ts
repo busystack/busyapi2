@@ -159,9 +159,9 @@ function data(parameter:Parameter,values:readonly string[],raw:boolean,fields:re
 
 /** Decode wire parameters using graph-owned effective definitions, including
  * inheritance and references. These codecs never resolve or evaluate schemas. */
-export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,template:string,path:string,query:string,headers:Readonly<Record<string,string>>,evaluate:Evaluate):Promise<NativeMockCheck> {
+export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,template:string,path:string,query:string,headers:Readonly<Record<string,string>>,evaluate:Evaluate,parameterShapes?:FormSemantics):Promise<NativeMockCheck> {
     if(!record(plan)||!Array.isArray(plan.parameters)||plan.parameters.length>maximumInstances)throw new SourceError('mock.validation.protocol','The native parameter projection is malformed');
-    const shapes=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+    const shapes=parameterShapes??new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
     const parameters:Parameter[]=plan.parameters.map(value=>{
         if(!record(value)||typeof value.name!=='string'||typeof value.in!=='string'||typeof value.style!=='string'||typeof value.explode!=='boolean'||typeof value.required!=='boolean'||typeof value.family!=='string')throw new SourceError('mock.validation.protocol','A native parameter is malformed');
         const source=sourceLocation(value.definition)??sourceLocation(value.source),schema=schemaLocation(value.schema);

@@ -34,6 +34,11 @@ for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(c
   assert.equal(result.instances,0);assert.deepEqual(result.serializedEvaluations,[]);
   assert.equal(result.findings.length,1);assert.equal(result.findings[0].code,'example.serialization.unbound');assert.equal(result.findings[0].severity,'information');return;
  }
+ if(owner==='parameter'||owner==='header'){
+  assert.equal(result.complete,true,JSON.stringify(result.findings));assert.equal(result.serializedEvaluations.length,1);
+  assert.equal(result.serializedEvaluations[0].valid,owner==='parameter');
+  assert.equal(result.findings.filter(value=>value.code==='example.serialization.incompatible').length,owner==='parameter'?0:1);return;
+ }
  assert.equal(result.complete,false,JSON.stringify({skipped:result.skipped,findings:result.findings}));
  const finding=result.findings.find(value=>value.code==='example.serialization.incomplete');
  assert(finding,JSON.stringify(result.findings));assert(finding.pointer.endsWith('/serializedValue'));
@@ -66,9 +71,17 @@ for(const version of ['3.0.4','3.1.2','3.2.1'])for(const format of ['yaml','json
 });
 for(const version of ['3.2.0','3.2.1'])test(`${version} shared YAML aliases report the physical serialization once`,async()=>{
  const root='file:///approved/api.yaml',text=`openapi: ${version}\ninfo: {title: Keep, version: unchanged}\nx-value: &shared\n  serializedValue: 'id=0'\npaths:\n  /check:\n    get:\n      parameters:\n        - name: id\n          in: query\n          schema: {type: integer}\n          examples: {First: *shared, Second: *shared}\n      responses: {'204': {description: Empty}}\n`;
- const resources=[{id:root,text,generation:1}],result=await evaluateSchemas({root,snapshot:'alias',resources});
- assert.equal(result.complete,false);const findings=result.findings.filter(value=>value.code==='example.serialization.incomplete');
- assert.equal(findings.length,1,JSON.stringify(findings));assert.equal(findings[0].pointer,'/x-value/serializedValue');assert.equal(resources[0].text,text);
+ for(const valid of [true,false]){
+  const supplied=valid?text:text.replace('id=0','id=wrong'),resources=[{id:root,text:supplied,generation:1}];
+  const result=await evaluateSchemas({root,snapshot:'alias',resources});
+  assert.equal(result.complete,true,JSON.stringify(result.findings));assert.equal(result.serializedEvaluations.length,2);
+  assert(result.serializedEvaluations.every(value=>value.pointer==='/x-value/serializedValue'&&value.complete&&value.valid===valid));
+  assert.equal(new Set(result.serializedEvaluations.map(value=>value.occurrencePointer)).size,2);
+  const findings=result.findings.filter(value=>value.code==='example.serialization.incompatible');
+  assert.equal(findings.length,valid?0:1,JSON.stringify(findings));
+  if(!valid){assert.equal(findings[0].pointer,'/x-value/serializedValue');assert.equal(findings[0].contexts.length,2);}
+  assert.equal(resources[0].text,supplied);
+ }
 });
 for(const version of versions)for(const format of ['yaml','json'])test(`${version} ${format} Reference Object serialization siblings do not become example data`,async()=>{
  const document=api(version);document.components={examples:{Actual:{value:0}}};
@@ -102,17 +115,19 @@ for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(c
  else operation.responses[200].headers={'X-Id':{schema:{type:'integer'},examples:{Shared:example}}};
  document.paths['/check']={post:operation};
  const {result}=await check(document,format);
- assert.equal(result.complete,false,JSON.stringify(result));
- assert.deepEqual(result.serializedEvaluations.map(value=>[value.complete,value.valid]),[[true,true]]);
+ assert.equal(result.complete,true,JSON.stringify(result));
+ assert.deepEqual(result.serializedEvaluations.map(value=>[value.complete,value.valid]),[[true,true],[true,kind==='header']]);
  assert.equal(result.coverage.unboundExampleSerializations,0);
- assert.equal(result.findings.find(value=>value.code==='example.serialization.incomplete')?.pointer,'/components/examples/Shared/serializedValue');
+ assert.equal(result.findings.filter(value=>value.code==='example.serialization.incompatible').length,kind==='parameter'?1:0);
+ if(kind==='parameter')assert.equal(result.findings.find(value=>value.code==='example.serialization.incompatible')?.pointer,'/components/examples/Shared/serializedValue');
 });
 for(const version of ['3.2.0','3.2.1'])for(const kind of ['parameter','header'])test(`${version} alias media proof retains independent ${kind} coverage`,async()=>{
  const root='file:///approved/api.yaml';
  const other=kind==='parameter'?'      parameters:\n        - name: id\n          in: query\n          schema: {type: integer}\n          examples: {Shared: *shared}\n':'      responses:\n        200:\n          description: Read\n          headers:\n            X-Id:\n              schema: {type: integer}\n              examples: {Shared: *shared}\n';
  const text=`openapi: ${version}\ninfo: {title: Keep, version: unchanged}\nx-value: &shared\n  serializedValue: '0'\npaths:\n  /check:\n    post:\n${other}      requestBody:\n        content:\n          application/json:\n            schema: {type: integer}\n            examples: {Shared: *shared}\n${kind==='parameter'?'      responses: {200: {description: Read}}\n':''}`;
  const resources=[{id:root,text,generation:1}],result=await evaluateSchemas({root,snapshot:'alias-contexts',resources});
- assert.equal(result.complete,false,JSON.stringify(result));
- assert.deepEqual(result.serializedEvaluations.map(value=>[value.complete,value.valid]),[[true,true]]);
- assert.equal(result.findings.find(value=>value.code==='example.serialization.incomplete')?.pointer,'/x-value/serializedValue');assert.equal(resources[0].text,text);
+ assert.equal(result.complete,true,JSON.stringify(result));
+ assert.deepEqual(result.serializedEvaluations.map(value=>[value.complete,value.valid]),[[true,true],[true,kind==='header']]);
+ assert.equal(result.findings.filter(value=>value.code==='example.serialization.incompatible').length,kind==='parameter'?1:0);
+ if(kind==='parameter')assert.equal(result.findings.find(value=>value.code==='example.serialization.incompatible')?.pointer,'/x-value/serializedValue');assert.equal(resources[0].text,text);
 });
