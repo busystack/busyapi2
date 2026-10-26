@@ -2,6 +2,7 @@
 from contextlib import AbstractContextManager
 import hashlib
 import http.server
+import json
 from pathlib import Path
 import threading
 
@@ -68,15 +69,17 @@ class FormMigrationFixture(AbstractContextManager):
 
 
 def execute_form_migration(native, process, file, baseline, version, fixture, evidence, case, phase):
-    from test_openapi_application import activate_control, contains, keys, mode, wait_tree
+    from test_openapi_application import activate_control, contains, field_matches, focus_control, keys, mode, wait_tree
     from native_swagger_forms import _focus_entry, _json_keys
     from native_multipart import edit_named_body
 
     activate_control(native, process.pid, 'POST /items')
     mode(native, process.pid, 'reference')
-    wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Try') and contains(nodes, 'Inspect items'),
+    nodes = wait_tree(native, process.pid, lambda nodes: field_matches(nodes, 'Search', editable=True) and contains(nodes, 'Try') and contains(nodes, 'Inspect items'),
               'Migrated form operation did not retain native request navigation')
-    activate_control(native, process.pid, 'Try')
+    (evidence / (case + '-' + phase + '-request-controls.json')).write_text(json.dumps(nodes, ensure_ascii=False, indent=2) + '\n')
+    focus_control(native, process.pid, 'Try', tabs=128, backwards=True)
+    keys(native, ['Return'])
     nodes = wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Send'), 'Native form request controls are unavailable')
     if not contains(nodes, 'Use an exact JSON value'):
         activate_control(native, process.pid, 'Include request body')
