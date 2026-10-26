@@ -128,7 +128,7 @@ class MultipartFixture(AbstractContextManager):
             raise RuntimeError('Owned multipart server did not stop')
 
 
-def edit_named_body(native, pid, original):
+def edit_named_body(native, pid, original, *, backwards=True):
     from test_openapi_application import keys, tree, wait_tree
 
     for _ in range(64):
@@ -140,7 +140,7 @@ def edit_named_body(native, pid, original):
             break
         if len(matches) > 1:
             raise RuntimeError('More than one owned body field claims keyboard focus')
-        keys(native, ['Shift_L+Tab'])
+        keys(native, ['Shift_L+Tab' if backwards else 'Tab'])
     else:
         raise RuntimeError('Bounded reverse traversal did not reach the exact body draft')
     assert value.count(original) == 1

@@ -104,7 +104,7 @@ class BinaryFixture(AbstractContextManager):
 
 
 def execute_binary(native, process, file, baseline, version, fixture, evidence, case, phase):
-    from test_openapi_application import activate_control, complete_problems, contains, design_values, keys, text_keys, wait_tree
+    from test_openapi_application import activate_control, complete_problems, contains, design_values, focus_control, keys, text_keys, wait_tree
     from native_focus import wait_for_initial_focus
     from native_multipart import edit_named_body
 
@@ -124,7 +124,8 @@ def execute_binary(native, process, file, baseline, version, fixture, evidence, 
     for name, number in [('exact', '9007199254740993'), ('rounded', '9007199254740992')]:
         path, original = fixture.payloads[name]
         if fixture.kind == 'named' and name == 'rounded':
-            edit_named_body(native, process.pid, '9007199254740993')
+            focus_control(native, process.pid, 'Include request body')
+            edit_named_body(native, process.pid, '9007199254740993', backwards=False)
         else:
             activate_control(native, process.pid, 'Add binary file' if fixture.kind == 'named' else 'Use binary file')
             with native.transient_dialog():
