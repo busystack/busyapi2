@@ -222,6 +222,13 @@ valid, including without Content-Type, and nonempty bodies receive a located
 violation. Direct requests, saved cases and native mock proxies use the same
 captured response policy. See [Swagger §6.4.12](https://spec.openapis.org/oas/v2.0.html#response-object).
 
+Swagger file responses retain opaque bytes for JSON, URL-encoded and multipart
+media as well. An absent response schema keeps its no-content policy for those
+media. Native Swagger form-data input uses its own parameter and file rules;
+empty multipart generation is refused before dispatch. MIME decoding requires
+an opening part and rejects reserved boundary prefixes, including nested boundary
+collisions. Explicit serialized entities retain their exact bytes for findings.
+
 Finite JSONL/NDJSON, JSON text sequences and server-sent events map to ordered
 arrays. In 3.2, `schema` checks the complete array and `itemSchema` checks each
 item separately, including parameter/header content and saved cases. Numeric
