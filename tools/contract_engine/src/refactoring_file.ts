@@ -10,7 +10,7 @@ import {coldGraph} from './reference_selection';
 import {editsFor} from './refactoring_copy';
 import {serverTemplate} from './derived_bundle';
 import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
-import {caseFileLocators,movedCaseFilePath} from './case_file_configuration';
+import {caseFileLocators,movedCaseFileSource} from './case_file_configuration';
 
 const same=(a:any,b:any)=>a?.resource===b?.resource&&a?.pointer===b?.pointer;
 
@@ -421,8 +421,7 @@ export function planFileMove(input:any) {
    if((outputs.get(source.id)??source.text)!==source.text)
     throw new SourceError('file.move.case-file.content','This source is also a saved upload; repairing its contract text would change the uploaded bytes. Retain its original URI context instead',locator.range,undefined,{resource:manifest.id,pointer:locator.pointer,range:locator.range});
    if(resources.some(resource=>resource.id===manifest.id))throw new SourceError('refactor.configuration.ownership','Project configuration cannot also be an edited API graph resource',locator.range,undefined,{resource:manifest.id,pointer:locator.pointer,range:locator.range});
-   const value=movedCaseFilePath(doc,locator,destination);
-   doc=new SourceDocument(doc.set(locator.pointer,value),manifest.id);
+   doc=new SourceDocument(movedCaseFileSource(doc,locator,destination),manifest.id);
    usages.set(JSON.stringify([manifest.id,locator.pointer,'case-file']),{resource:manifest.id,pointer:locator.pointer,range:locator.range,connection:'case-file',target:{resource:source.id,pointer:''},roots:input.contexts.map((context:any)=>context.root)});
   }
   for(let i=0;i<doc.root.value.roots.length;i++) {

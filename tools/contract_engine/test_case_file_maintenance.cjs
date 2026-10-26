@@ -73,7 +73,7 @@ test('all matching case entries are source-edited and lookalike payloads remain 
 });
 test('shared YAML upload ownership refuses ambiguous edits but still protects deletion',()=>{
  const shared={...manifest,text:'version: 1\nroots: [{name: Main, path: api.json}]\nx-copy: &file {name: asset, path: "./payload.json"}\ntests: [{body: {files: [*file]}}]\n'};
- assert.throws(()=>move({manifest:shared}),e=>e.code.startsWith('yaml.')||e.code.startsWith('edit.'));
+ assert.throws(()=>move({manifest:shared}),e=>(e.code.startsWith('yaml.')||e.code.startsWith('edit.'))&&e.source?.resource===manifest.id&&e.source?.pointer==='/tests/0/body/files/0/path');
  assert(remove({manifest:shared}).blockers.some(e=>e.code==='file.delete.case-file'));
 });
 test('deletion identity captures configuration revisions independently of the API graph',()=>{

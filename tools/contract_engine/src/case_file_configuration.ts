@@ -41,9 +41,20 @@ export function caseFileLocators(doc:SourceDocument):CaseFileLocator[] {
 
 /** Configuration uploads use physical paths, independently of retained API
  * retrieval aliases. A reviewed move cannot expand their filesystem boundary. */
-export function movedCaseFilePath(doc:SourceDocument,locator:CaseFileLocator,destination:string):string {
+function movedCaseFilePath(doc:SourceDocument,locator:CaseFileLocator,destination:string):string {
     const base=posix.dirname(fileURLToPath(doc.id)),relative=posix.relative(base,fileURLToPath(destination));
     if(!relative||posix.isAbsolute(relative)||relative.split('/').includes('..'))
         throw new SourceError('file.move.case-file.boundary','The saved input would leave its project boundary; choose a destination inside the project',locator.range,undefined,{resource:doc.id,pointer:locator.pointer,range:locator.range});
     return (locator.path.startsWith('./')?'./':'')+relative;
+}
+
+/** A rejected CST edit belongs to the captured configuration occurrence, even
+ * when its value is supplied by a shared YAML node. */
+export function movedCaseFileSource(doc:SourceDocument,locator:CaseFileLocator,destination:string):string {
+    const value=movedCaseFilePath(doc,locator,destination);
+    try{return doc.set(locator.pointer,value);}
+    catch(error){
+        if(error instanceof SourceError&&!error.source)error.source={resource:doc.id,pointer:locator.pointer,range:locator.range};
+        throw error;
+    }
 }

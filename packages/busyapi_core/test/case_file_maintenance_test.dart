@@ -332,4 +332,35 @@ void main() {
       );
     }
   }
+
+  test('shared YAML case paths retain their configuration source on refusal', () async {
+    final f = await fixture(temp, engine);
+    final project = f.project;
+    addTearDown(project.close);
+    final text =
+        'version: 1\nroots: [{name: Main, path: api.yaml}]\nx-file: &file {name: asset, path: "./payload.yaml"}\ntests: [{name: Upload, operation: {method: post, path: /items}, body: {files: [*file]}}]\n';
+    final config = await project.buffer(f.manifest.uri.toString());
+    project.store.replace(config.id, text);
+    final before = await f.data.readAsBytes();
+    await expectLater(
+      project.planFileMove(f.data.uri.toString(), '${temp.path}/new.yaml'),
+      throwsA(
+        isA<CoreFailure>()
+            .having((e) => e.code, 'code', 'edit.shared')
+            .having(
+              (e) => e.source?.resource,
+              'resource',
+              f.manifest.uri.toString(),
+            )
+            .having(
+              (e) => e.source?.pointer,
+              'pointer',
+              '/tests/0/body/files/0/path',
+            ),
+      ),
+    );
+    expect(config.text, text);
+    expect(await f.data.readAsBytes(), before);
+    expect(await File('${temp.path}/new.yaml').exists(), false);
+  });
 }
