@@ -25,11 +25,11 @@ import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,sw
 import {swaggerFileContexts} from './swagger_file';
 import {evaluateSerializedExamples} from './serialized_examples';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+29',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+30',configuration:[
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',
- 'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2',
+ 'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1',
  'reference-family-v1','reference-position-v1','schema-context-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','serialized-media-examples-v1','multipart-header-values-v1','multipart-file-shapes-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1','response-content-presence-v1',
 ].join(':')};
 let configured=false,running=false;
@@ -342,6 +342,9 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
     add(doc,pointer,'discriminator.required.incomplete','The bounded schema proof could not establish whether the discriminating property is required; defaultMapping completeness is not claimed.','warning');
    }
   }
+  // Authored-data policy rules do not select serialized or runtime instances.
+  // Capture their completeness before those independently requested stages.
+  const authoredData={complete,instances};
   const runtime=input.runtimeInstances??[];
   const runtimeOwner={snapshot:input.snapshot,graph,scopes:evaluationScopes,exact,compile:getCompiled,schemaReady:(scope:SchemaEvaluationScope)=>!states.get(scopeId(scope)),producer:schemaProducer,observeFailure};
   const serialized=await evaluateSerializedExamples(graph,values=>evaluateRuntimeInstances(values,runtimeOwner));
@@ -352,7 +355,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   runtimeEvaluations.push(...checkedRuntime.evaluations);runtimeFindings.push(...checkedRuntime.findings);
   if(limited)add(root,'','limit.schema.findings','Schema evaluation reached its bounded work or finding limit. Shown results are not exhaustive.','warning');
   return {version:1,snapshot:input.snapshot,root:input.root,producer:schemaProducer.name,producerVersion:schemaProducer.version,configuration:schemaProducer.configuration+(input.policyAnnotations===true?':policy-annotations':''),
-   complete,findings,evaluations,serializedEvaluations:serialized.evaluations,runtimeEvaluations,runtimeFindings,skipped,schemas,instances,coverage:{schemaKeywords:'dated-oas-and-draft2020-12-meta',instances:runtime.length?'selected-runtime-values-and-authored-examples':'authored-examples',serializedMediaExamples:{complete:serialized.complete,evaluated:serialized.evaluations.length},unboundExampleSerializations:serialized.unbound,numbers:'exact-cst-decimal',dynamicScope:'validator-evaluation-stack',format:'annotation-only',runtime:runtime.length?'selected-operation-values':'not-requested'}};
+   complete,findings,evaluations,serializedEvaluations:serialized.evaluations,runtimeEvaluations,runtimeFindings,skipped,schemas,instances,coverage:{schemaKeywords:'dated-oas-and-draft2020-12-meta',instances:runtime.length?'selected-runtime-values-and-authored-examples':'authored-examples',authoredData,serializedMediaExamples:{complete:serialized.complete,evaluated:serialized.evaluations.length},unboundExampleSerializations:serialized.unbound,numbers:'exact-cst-decimal',dynamicScope:'validator-evaluation-stack',format:'annotation-only',runtime:runtime.length?'selected-operation-values':'not-requested'}};
  }finally {
   open=false;documents.clear();exact.dispose();
   for(const uri of ownedIds)unloadDialect(uri);

@@ -16,7 +16,7 @@ import type {ExecutedPolicyCode} from './policy_code_loader';
 import {policyFunctionContext} from './policy_function_context';
 import {policyExpressionNeedsIsolation as needsIsolation} from './policy_expression';
 
-export const policyProducer={name:'spectral+busyapi-graph',version:'1.24.0+7'};
+export const policyProducer={name:'spectral+busyapi-graph',version:'1.24.0+8'};
 const formats={oas2,oas3,oas3_1,oas3_2};
 const levels=['error','warning','information','hint'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -449,7 +449,9 @@ export async function govern(input:any,observeFailure?:(error:unknown)=>void,exe
                         if(media?!['media','parameter','header'].includes(kind):kind!=='schema')return;
                         instanceEvaluation??=evaluateSchemas({...input,policyAnnotations:true},undefined,{docs,graph,family});
                         return instanceEvaluation.then(evaluated=>{
-                            if(evaluated.complete!==true) {
+                            // Pinned Spectral oasExample skips externalValue; its data selectors
+                            // do not request serialized-media or runtime conformance.
+                            if(evaluated.coverage.authoredData.complete!==true) {
                                 const key=name+':incomplete';
                                 if(!instanceFindings.has(key)){instanceFindings.add(key);complete=false;add(origin,'policy.schema.execution.incomplete','warning',{rule:name});}
                             }

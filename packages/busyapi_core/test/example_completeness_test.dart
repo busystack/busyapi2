@@ -176,7 +176,7 @@ void main() {
             expect(result['complete'], !bound, reason: jsonEncode(result));
             expect(result['status'], bound ? 'incomplete' : 'complete');
             final schema = result['categories']['openapi']['schema'];
-            expect(schema['producerVersion'], '1.18.0+29');
+            expect(schema['producerVersion'], '1.18.0+30');
             expect(
               schema['coverage']['unboundExampleSerializations'],
               bound ? 0 : 1,
@@ -336,7 +336,7 @@ void main() {
             );
             expect(
               result['categories']['openapi']['schema']['producerVersion'],
-              '1.18.0+29',
+              '1.18.0+30',
             );
           }
 

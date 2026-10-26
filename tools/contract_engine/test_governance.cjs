@@ -229,6 +229,27 @@ test('reserved identifiers fail closed rather than changing a ruleset prototype 
  const result=await govern(snapshot(minimal('3.2.1'),{source:rules,entries:[rules],resources:[{id:rules,text}]}));
  assert.equal(result.complete,false);assert(result.findings.some(f=>f.code==='policy.rule.identifier'));
 });
+for(const version of ['3.0.0','3.0.4','3.1.2','3.2.1'])for(const json of [false,true])for(const unsupportedDialect of version.startsWith('3.0.')?[false]:[false,true])test(`authored-data policy completeness is separate from serialized examples ${version} ${json?'JSON':'YAML'} dialect=${unsupportedDialect}`,async()=>{
+ const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
+ const id='file:///p/stages.'+(json?'json':'yaml'),value=minimal(version);
+ const schema={type:'integer',enum:[0]};
+ if(unsupportedDialect)schema.$schema='https://example.invalid/unsupported-dialect';
+ value.paths['/p'].get.responses[200]={description:'OK',content:{'application/json':{schema,examples:{good:{value:0},bad:{value:false},external:{externalValue:'https://example.invalid/not-acquired'}}}}};
+ const text=json?JSON.stringify(value):YAML.stringify(value),input={root:id,snapshot:'policy-stages',resources:[{id,text,generation:2}],policy:{entries:['spectral:oas']}};
+ const evaluation=await evaluateSchemas({...input,policyAnnotations:true});
+ assert.equal(evaluation.complete,false,'unacquired associated external bytes remain incomplete');
+ assert.equal(evaluation.coverage.authoredData.complete,!unsupportedDialect);
+ assert.equal(evaluation.coverage.serializedMediaExamples.complete,false);
+ assert(evaluation.findings.some(f=>f.code==='example.serialization.incomplete'));
+ const result=await govern(input);
+ assert.equal(result.complete,!unsupportedDialect,JSON.stringify(result.findings));
+ assert.equal(result.findings.some(f=>f.code==='policy.schema.execution.incomplete'),unsupportedDialect);
+ if(!unsupportedDialect){
+  const failures=result.findings.filter(f=>f.code==='policy.rule.oas3-valid-media-example');
+  assert.equal(failures.length,1,JSON.stringify(failures));assert(failures[0].pointer.endsWith('/examples/bad/value'));
+ }
+ assert.equal(input.resources[0].text,text);
+});
 for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`preset example checks share exact schema evaluation, nested identities and recursion ${version} ${json?'JSON':'YAML'}`,async()=>{
  const id='file:///p/root.'+(json?'json':'yaml'),model='file:///p/model.'+(json?'json':'yaml');
  const value=minimal(version);

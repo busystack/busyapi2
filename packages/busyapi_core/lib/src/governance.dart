@@ -1,7 +1,7 @@
 part of 'project.dart';
 
 const _policySeverities = ['error', 'warning', 'information', 'hint'];
-const _policyProducerVersion = '1.24.0+7';
+const _policyProducerVersion = '1.24.0+8';
 
 /// Required categories dominate findings when aggregating CLI/GUI outcomes.
 /// Display filters never enter this decision or mutate project configuration.
