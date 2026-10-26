@@ -3829,7 +3829,8 @@ class ContractRequestExecutor {
           ),
         );
       }
-      if (schema is Map && schema['unconstrained'] != true ||
+      if (media != null ||
+          schema is Map && schema['unconstrained'] != true ||
           media?['itemSchema'] is Map ||
           _nativeMedia(media) ||
           wireForm ||
@@ -3884,7 +3885,8 @@ class ContractRequestExecutor {
               formOccurrence: plan.operation['occurrence'] as String?,
             ),
           );
-        } else if (_nativeMedia(media) ||
+        } else if (media != null ||
+            _nativeMedia(media) ||
             wireForm ||
             _jsonMedia(draft.body.mediaType ?? '') ||
             schema?['unconstrained'] != true ||
@@ -4060,11 +4062,13 @@ class ContractRequestExecutor {
       );
     }
     final contentType = receivedHeaders['content-type']?.first;
+    final declaresNoContent = declaration['bodyAllowed'] == false;
     final media = selectDeclaredMedia(
       (declaration['content'] as List? ?? const []).whereType<Map>(),
       contentType,
     );
     if (bodyPermitted &&
+        !declaresNoContent &&
         (declaration['content'] as List? ?? const []).isNotEmpty &&
         media == null) {
       findings.add(
@@ -4090,7 +4094,10 @@ class ContractRequestExecutor {
     }
     final supportedCharset =
         validContentType &&
-        (media?['dataModel'] == 'event-stream' ||
+        (declaresNoContent ||
+            schema?['file'] == true ||
+            schema?['fileIssue'] != null ||
+            media?['dataModel'] == 'event-stream' ||
             charset == null ||
             charset == 'utf-8' ||
             charset == 'utf8' ||
@@ -4119,9 +4126,12 @@ class ContractRequestExecutor {
     }
     var invalidTextEncoding = false;
     if (bodyPermitted &&
+        !declaresNoContent &&
         response.receiptComplete &&
         response.decodingComplete &&
         supportedCharset &&
+        schema?['file'] != true &&
+        schema?['fileIssue'] == null &&
         media?['dataModel'] != 'event-stream' &&
         isInspectableTextMedia(contentType)) {
       try {
@@ -4162,9 +4172,10 @@ class ContractRequestExecutor {
     if (bodyPermitted &&
         response.decodingComplete &&
         !invalidTextEncoding &&
-        schema?['file'] != true &&
         supportedCharset &&
-        (_jsonMedia(contentType ?? '') ||
+        (declaresNoContent ||
+            media != null ||
+            _jsonMedia(contentType ?? '') ||
             _nativeMedia(media) ||
             _formMedia(contentType) ||
             media?['itemSchema'] is Map ||
@@ -4192,7 +4203,13 @@ class ContractRequestExecutor {
       } else {
         instances.add(
           _mediaInstance(
-            media,
+            declaresNoContent
+                ? {
+                    'source':
+                        declaration['definition'] ?? declaration['source'],
+                    'bodyAllowed': false,
+                  }
+                : media,
             subject: 'response-body',
             location: contentType ?? '',
             mediaType: contentType,
@@ -4215,6 +4232,8 @@ class ContractRequestExecutor {
             ? 'forbidden-content'
             : !bodyPermitted
             ? 'not-applicable'
+            : declaresNoContent
+            ? 'no-response-content'
             : _bodyCoverage(
                 instances,
                 'response-body',
@@ -4273,6 +4292,7 @@ class ContractRequestExecutor {
     final schema = media?['schema'] as Map?,
         itemSchema = media?['itemSchema'] as Map?;
     RuntimeFormTarget? form;
+    RuntimeMediaTarget? capturedMedia;
     if (_formMedia(mediaType) && media != null) {
       final owner = media['definition'] ?? media['source'];
       if (owner case {'resource': String resource, 'pointer': String pointer}) {
@@ -4288,6 +4308,24 @@ class ContractRequestExecutor {
         );
       }
     }
+    if ((mediaType != null ||
+            subject == 'response-body' && media?['bodyAllowed'] == false) &&
+        form == null &&
+        media != null &&
+        (subject == 'request-body' || subject == 'response-body')) {
+      final owner = media['definition'] ?? media['source'];
+      if (owner case {'resource': String resource, 'pointer': String pointer}) {
+        capturedMedia = RuntimeMediaTarget(
+          resource: resource,
+          pointer: pointer,
+        );
+      } else {
+        throw CoreFailure(
+          'runtime.media.owner',
+          'The captured body media omitted its source owner.',
+        );
+      }
+    }
     return RuntimeSchemaInstance(
       subject: subject,
       location: location,
@@ -4295,6 +4333,7 @@ class ContractRequestExecutor {
       mediaType: mediaType,
       mediaBase64: mediaBase64,
       form: form,
+      media: capturedMedia,
       schemaResource: schema?['resource'] as String?,
       schemaPointer: schema?['pointer'] as String?,
       itemSchemaResource: itemSchema?['resource'] as String?,

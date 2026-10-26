@@ -33,8 +33,10 @@ def binary_wire(kind, number, boundary='Fixture', metadata=None):
 class BinaryFixture(AbstractContextManager):
     binary = True
 
-    def __init__(self, kind):
+    def __init__(self, kind, version='3.2.1', schema_free=False):
         self.kind = kind
+        self.version = version
+        self.schema_free = schema_free
         self.media = ('application/octet-stream' if kind == 'raw' else
                       'multipart/form-data' if kind == 'named' else 'multipart/mixed; boundary=Fixture')
         self.records = []
@@ -60,10 +62,11 @@ class BinaryFixture(AbstractContextManager):
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
     def operation(self, format):
-        binary = {'not': {'type': 'null'}}
+        binary = ({'type': 'string', 'maxLength': 4} if self.version == '2.0' or self.version.startswith('3.0.')
+                  else {'not': {'type': 'null'}})
         metadata = {'$ref': './model.' + format + '#/Item'}
         if self.kind == 'raw':
-            media = {'schema': binary}
+            media = {} if self.schema_free else {'schema': binary}
         elif self.kind == 'named':
             media = {'schema': {'type': 'object', 'required': ['metadata'],
                                'properties': {'file': binary, 'metadata': metadata}},
@@ -79,6 +82,11 @@ class BinaryFixture(AbstractContextManager):
                          ({'contentType': 'multipart/mixed', 'itemEncoding': {'contentType': 'application/octet-stream'}}
                           if self.kind == 'nested' else {'contentType': 'application/octet-stream'}),
                          {'contentType': 'application/json'}]}
+        if self.version == '2.0':
+            return {'operationId': 'postItems', 'summary': 'Inspect items',
+                    'consumes': ['application/octet-stream'], 'produces': ['application/octet-stream'],
+                    'parameters': [{'name': 'payload', 'in': 'body', 'required': True, 'schema': binary}],
+                    'responses': {'200': {'description': 'File response', 'schema': {'$ref': './model.' + format + '#/File'}}}}
         return {'operationId': 'postItems', 'summary': 'Inspect items',
                 'requestBody': {'required': True, 'content': {self.media: media}},
                 'responses': {'200': {'description': 'Actual response', 'content': {self.media: media}}}}

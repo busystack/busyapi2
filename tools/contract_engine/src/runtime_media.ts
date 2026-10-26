@@ -3,7 +3,7 @@ import {mediaTypes} from './media_types';
 import {runtimeBinaryMedia,type BinaryDocuments} from './runtime_binary';
 
 export type RuntimeMediaKind='json'|'text'|'json-lines'|'json-sequence'|'event-stream'|'opaque';
-export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];binaryInstances?:BinaryDocuments;kind:RuntimeMediaKind|'binary'|'octets'|'form-urlencoded'|'multipart-form'|'multipart-sequence'};
+export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];binaryInstances?:BinaryDocuments;kind:RuntimeMediaKind|'binary'|'file'|'octets'|'form-urlencoded'|'multipart-form'|'multipart-sequence'};
 export type RuntimeMediaDescription=
  {dataModelStatus:'classified'|'opaque';dataModel:RuntimeMediaKind}|
  {dataModelStatus:'invalid'|'unsupported';dataModelIssue:{code:string;message:string}};
@@ -55,7 +55,7 @@ export function runtimeMediaKind(contentType:string,ranges=false):RuntimeMediaKi
  return 'opaque';
 }
 
-export function decodeRuntimeMedia(text:string,id:string,contentType?:string,base64=false,opaque:'unsupported'|'octets'|'binary'='unsupported'):RuntimeMediaData {
+export function decodeRuntimeMedia(text:string,id:string,contentType?:string,base64=false,opaque:'unsupported'|'octets'|'binary'|'legacy-octets'|'file'='unsupported'):RuntimeMediaData {
  const type=contentType===undefined?undefined:mediaTypes(contentType,false);
  if(type&&type.length!==1)throw new SourceError('runtime.media.type','Runtime content requires one concrete media type');
  const kind=contentType===undefined?'json':runtimeMediaKind(contentType);
@@ -66,16 +66,21 @@ export function decodeRuntimeMedia(text:string,id:string,contentType?:string,bas
   if(doc.issues.length)throw doc.issues[0];
   return doc;
  };
+ if(opaque==='file'){
+  if(bytes===undefined)runtimeMediaBytes(text,false);
+  return {document:parse('null'),kind:'file'};
+ }
  if(kind==='opaque'){
-  if(opaque==='binary'&&contentType!==undefined&&runtimeBinaryMedia(contentType)){
+  const binary=contentType!==undefined&&runtimeBinaryMedia(contentType);
+  if(opaque==='binary'&&binary){
    const document=parse('null');
    return {document,kind:'binary',binaryInstances:new Map([[document,new Map([['',bytes??runtimeMediaBytes(text,false)]])]])};
   }
-  if(opaque!=='octets')throw new SourceError('runtime.media.unsupported','This media type has no native data-model decoder',[0,0],'unsupported');
-  // OAS 3.0 §4.4.2 extends string to arbitrary octets. The one-to-one
+  if(opaque!=='octets'&&!(opaque==='legacy-octets'&&binary))throw new SourceError('runtime.media.unsupported','This media type has no native data-model decoder',[0,0],'unsupported');
+  // Swagger §6.3 / OAS 3.0 §4.4.2 extend string to arbitrary octets. The one-to-one
   // U+0000–U+00FF view preserves every byte and counts length in octets. It is
-  // confined to a graph-proven native binary string, never inferred from a
-  // modern format annotation or a file extension.
+  // selected by captured legacy schema semantics or known binary media, never by
+  // a modern format annotation or a file extension.
   const value=(bytes??Buffer.from(text,'utf8')).toString('latin1');
   return {document:parse(JSON.stringify(value)),kind:'octets'};
  }

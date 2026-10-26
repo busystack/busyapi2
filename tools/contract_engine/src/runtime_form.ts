@@ -147,7 +147,8 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         if(subject==='request-body'&&(node.value?.prefixEncoding!==undefined||node.value?.itemEncoding!==undefined))
             failure('runtime.form.positional.unsupported','This media description requires positional multipart decoding');
         const schema:GraphTarget={resource:target.resource,pointer:target.pointer+'/schema',kind:'schema'},shape=forms.shape(schema.resource,schema.pointer),properties=shape.properties??{};
-        const encoding=media&&(subject==='request-body'||scope.family==='3.2')&&object(node.value?.encoding)?node.value.encoding:{};
+        const encodingApplies=subject==='request-body'||scope.family==='3.2';
+        const encoding=media&&encodingApplies&&object(node.value?.encoding)?node.value.encoding:{};
         const styled=(rule:Record<string,unknown>)=>(!multipart||scope.family!=='3.0')&&['style','explode','allowReserved'].some(key=>Object.hasOwn(rule,key));
         const partHeaders=(part:Part,rule:Record<string,unknown>,name:string)=>{
             if(!multipart||!object(rule.headers))return;
@@ -173,7 +174,10 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             if(rule.encoding!==undefined||rule.prefixEncoding!==undefined||rule.itemEncoding!==undefined)
                 failure('runtime.form.nested.unsupported','This field requires nested multipart decoding',{resource:target.resource,pointer:target.pointer+'/encoding/'+escape(name)});
             const undeclared=!Object.hasOwn(properties,name)&&!Object.hasOwn(encoding,name);
-            const type=formLiteralType(field),declared=typeof rule.contentType==='string'?rule.contentType:
+            // 3.0/3.1 Encoding belongs to requests. A response's actual MIME
+            // field line selects its decoder; an inferred request default is
+            // not a response media restriction (3.0 §4.7.14.1 / RFC 7578 §4.4).
+            const type=formLiteralType(field),declared=multipart&&!encodingApplies?singleton(part.headers,'content-type')??'text/plain':typeof rule.contentType==='string'?rule.contentType:
                 undeclared&&multipart?singleton(part.headers,'content-type')??'text/plain':field.defaultContentType??(undeclared||scope.family==='3.0'?'text/plain':'application/octet-stream');
             const concrete=multipart?singleton(part.headers,'content-type')??'text/plain':mediaTypeChoice(declared);
             if(multipart)mediaTypeChoice(declared,concrete);
@@ -192,6 +196,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             const essence=mediaTypes(concrete,false)[0],json=essence.subtype==='json'||essence.subtype.endsWith('+json');
             if(json)return decodeRuntimeMedia(bytes.toString('base64'),id+'/json',concrete,true).document.dataJson('');
             if(essence.type==='text'&&essence.subtype==='plain')return scalar(bytesText(bytes,decodingType),type);
+            if(scope.family==='3.0')return decodeRuntimeMedia(bytes.toString('base64'),id+'/octets',concrete,true,'legacy-octets').document.dataJson('');
             if(scope.family==='3.1'||scope.family==='3.2'){
                 const value=decodeRuntimeMedia(bytes.toString('base64'),id+'/binary',concrete,true,'binary');
                 const leaf=value.binaryInstances?.get(value.document)?.get('');

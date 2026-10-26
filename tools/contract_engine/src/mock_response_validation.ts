@@ -64,7 +64,17 @@ export async function validateMockResponse(graph:ReferenceGraph,plan:unknown,met
     }
     const permitted=method!=='HEAD'&&status>=200&&![204,205,304].includes(status);
     if(!permitted&&bytes.length)issue('runtime.response.body.forbidden','This method and status do not permit response content','response-body','body',source);
-    if(permitted){
+    if(permitted&&declaration.bodyAllowed===false){
+        const types=received.get('content-type');
+        if(types)try{
+            if(types.length!==1||mediaTypes(types[0],false).length!==1)throw new SourceError('runtime.response.media-type','A response requires one concrete Content-Type');
+        }catch(error){
+            if(!(error instanceof SourceError))throw error;
+            issue('runtime.response.media-type',error.message,'response-body','content-type',source,error.kind==='unsupported'?'warning':'error');
+        }
+        const owner=sourceLocation(declaration.definition)??source;
+        add({subject:'response-body',location:'body',text:bytes.toString('base64'),mediaBase64:true,media:{resource:owner.resource,pointer:owner.pointer}},source);
+    }else if(permitted){
         const content=nativeMedia(declaration.content),types=received.get('content-type');
         if(types&&types.length!==1)issue('runtime.response.media-type','A response requires one concrete Content-Type','response-body','content-type',source);
         else if(!types?.length){if(content.length)issue('runtime.response.media-type','The response has no Content-Type for its declared content','response-body','content-type',source);}
@@ -73,9 +83,9 @@ export async function validateMockResponse(graph:ReferenceGraph,plan:unknown,met
             if(parsed.length!==1)throw new SourceError('runtime.response.media-type','A response requires one concrete Content-Type');
             const media=selectNativeMedia(content,actual);
             if(content.length&&!media)issue('runtime.response.media-type','The actual response Content-Type does not match its captured declaration','response-body','content-type',source);
-            else if(media?.schema||media?.itemSchema||runtimeFormMedia(actual)&&media?.formOwner||runtimeMediaKind(actual)!=='opaque'){
+            else if(media?.schema||media?.itemSchema||media?.mediaOwner||runtimeFormMedia(actual)&&media?.formOwner||runtimeMediaKind(actual)!=='opaque'){
                 const form=runtimeFormMedia(actual)?media?.formOwner:undefined;
-                add({subject:'response-body',location:actual,text:bytes.toString('base64'),mediaType:actual,mediaBase64:true,schema:media?.schema,itemSchema:media?.itemSchema,...(form?{form}:{})},source);
+                add({subject:'response-body',location:actual,text:bytes.toString('base64'),mediaType:actual,mediaBase64:true,schema:media?.schema,itemSchema:media?.itemSchema,...(form?{form}:media?.mediaOwner?{media:media.mediaOwner}:{})},source);
             }
         }catch(error){
             if(!(error instanceof SourceError))throw error;

@@ -7,17 +7,19 @@ import type {ReferenceGraph} from './reference_graph';
 import type {SchemaEvaluationScope} from './swagger_schema';
 import {FormSemantics} from './form_semantics';
 import {createExactNumericAdapter} from './exact_numbers';
-import {decodeRuntimeMedia} from './runtime_media';
+import {decodeRuntimeMedia,runtimeMediaBytes} from './runtime_media';
 import {decodeRuntimeForm,type RuntimeFormTarget,type RuntimeFormData} from './runtime_form';
 import {swaggerWireShape,swaggerWireValues,type SwaggerHeaderTarget} from './swagger_wire';
 import {headerValueParts} from './header_values';
 import {capturedRuntimeHeaders,type RuntimeHeaderTarget} from './runtime_headers';
+import {capturedRuntimeMedia,type RuntimeMediaTarget} from './runtime_media_owner';
+import {swaggerFileSchemas} from './swagger_file';
 
 type SchemaLocation={resource:string;pointer:string};
-type RuntimeInstance={text:string;subject:string;location:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
+type RuntimeInstance={text:string;subject:string;location:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;media?:RuntimeMediaTarget;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
 type Finding=Record<string,unknown>;
 type Owner={snapshot:string;graph:ReferenceGraph;scopes:ReadonlyMap<string,SchemaEvaluationScope>;
- exact:ReturnType<typeof createExactNumericAdapter>;compile:(scope:SchemaEvaluationScope)=>Promise<CompiledSchema|undefined>;
+ exact:ReturnType<typeof createExactNumericAdapter>;compile:(scope:SchemaEvaluationScope)=>Promise<CompiledSchema|undefined>;schemaReady:(scope:SchemaEvaluationScope)=>boolean;
  producer:{name:string;version:string};observeFailure?:(error:unknown)=>void};
 
 function suppliedInstance(value:unknown):RuntimeInstance {
@@ -30,10 +32,11 @@ function suppliedInstance(value:unknown):RuntimeInstance {
  if(typeof item.text!=='string'||item.text.length>64*1024*1024||typeof item.subject!=='string'||item.subject.length>1024||
   typeof item.location!=='string'||item.location.length>4096||item.schema!==undefined&&!schema(item.schema)||
   item.itemSchema!==undefined&&!schema(item.itemSchema)||item.mediaType!==undefined&&(typeof item.mediaType!=='string'||item.mediaType.length>16384)||
+  item.media!==undefined&&(!schema(item.media)||item.mediaType===undefined&&item.subject!=='response-body'||item.form!==undefined||!['request-body','response-body'].includes(item.subject))||
   item.form!==undefined&&(!schema(item.form)||'occurrence' in item.form&&(typeof item.form.occurrence!=='string'||item.form.occurrence.length>4096)||item.mediaType===undefined)||
-  item.mediaBase64!==undefined&&typeof item.mediaBase64!=='boolean'||item.mediaBase64===true&&item.mediaType===undefined||
+  item.mediaBase64!==undefined&&typeof item.mediaBase64!=='boolean'||item.mediaBase64===true&&item.mediaType===undefined&&item.media===undefined||
   item.alternatives!==undefined&&(!Array.isArray(item.alternatives)||item.alternatives.length>255||!item.alternatives.every(text=>typeof text==='string'&&text.length<=64*1024*1024)||
-   item.mediaType!==undefined||item.itemSchema!==undefined||item.form!==undefined||item.mediaBase64===true)||
+   item.mediaType!==undefined||item.itemSchema!==undefined||item.media!==undefined||item.form!==undefined||item.mediaBase64===true)||
   item.swaggerHeader!==undefined&&(!header(item.swaggerHeader)||item.subject!=='response-header'||item.alternatives!==undefined||item.mediaType!==undefined||item.itemSchema!==undefined||item.form!==undefined||item.mediaBase64===true)||
   item.header!==undefined&&(!header(item.header)||item.subject!=='response-header'||item.text!==''||item.schema!==undefined||item.swaggerHeader!==undefined||item.alternatives!==undefined||item.mediaType!==undefined||item.itemSchema!==undefined||item.form!==undefined||item.mediaBase64===true))
   throw new SourceError('runtime.instance','Runtime conformance requires bounded text, media, subject, location and schema identities');
@@ -48,6 +51,8 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
  const evaluations:Finding[]=[],findings:Finding[]=[];
  let complete=true,instances=0,work=0,findingsLimited=false;
  const forms=new FormSemantics(owner.graph,new Map(owner.graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+ const mediaOwner=capturedRuntimeMedia(owner.graph);
+ const fileSchemaFor=swaggerFileSchemas(owner.graph);
  const diagnosed=new Set<string>();
  const add=(finding:Finding)=>{
   // Alternative candidates are internal proofs, not separate user fields.
@@ -64,15 +69,34 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
   findings.push({version:1,category:'runtime',producer:owner.producer.name,producerVersion:owner.producer.version,snapshot:owner.snapshot,...finding});
  };
  for(let index=0;index<runtime.length;index++){
-  const supplied=suppliedInstance(runtime[index]),scope=supplied.schema&&owner.scopes.get(supplied.schema.resource+'#'+supplied.schema.pointer);
-  const shape=scope?.family==='3.0'?forms.shape(scope.resource,scope.pointer):undefined;
-  const octets=shape?.types?.includes('string')===true&&shape.format==='binary';
+  let supplied=suppliedInstance(runtime[index]);
   let decoded:ReturnType<typeof decodeRuntimeMedia>;
+  let fileSchema:SchemaEvaluationScope|undefined;
   let form:RuntimeFormData|undefined;
   try{
+   const captured=supplied.media&&mediaOwner(supplied.media);
+   if(captured){
+    for(const key of ['schema','itemSchema'] as const){
+     const requested=supplied[key],actual=captured[key];
+     if(requested&&(requested.resource!==actual?.resource||requested.pointer!==actual?.pointer))throw new SourceError('runtime.media.owner','The body schema does not belong to its captured media declaration',[0,0],'unsupported',{...supplied.media,range:owner.graph.docs.get(supplied.media.resource)?.dataNode(supplied.media.pointer)?.range??[0,0]});
+    }
+    supplied={...supplied,schema:captured.schema,itemSchema:captured.itemSchema};
+   }
+   if(captured?.bodyAllowed===false){
+    const valid=runtimeMediaBytes(supplied.text,supplied.mediaBase64===true).length===0;
+    evaluations.push({subject:supplied.subject,location:supplied.location,complete:true,valid,syntax:'no-response-content'});instances++;
+    if(!valid)add({code:'runtime.response.body.forbidden',severity:'error',subject:supplied.subject,location:supplied.location,pointer:'',source:captured.source,range:captured.source.range,message:'The captured Swagger response has no schema and permits no response content.'});
+    continue;
+   }
+   if(captured&&supplied.mediaType===undefined)throw new SourceError('runtime.media.type','A response with declared content requires its actual media type',captured.source.range,'unsupported',captured.source);
+   const scope=supplied.schema&&owner.scopes.get(supplied.schema.resource+'#'+supplied.schema.pointer),family=scope?.family??captured?.family;
+   const fileTarget=scope&&supplied.subject==='response-body'?fileSchemaFor(scope):undefined;
+   fileSchema=fileTarget&&owner.scopes.get(fileTarget.resource+'#'+fileTarget.pointer);
+   const shape=scope&&!fileSchema&&(family==='2.0'||family==='3.0')?forms.shape(scope.resource,scope.pointer):undefined;
+   const octets=shape?.types?.includes('string')===true&&shape.format==='binary';
    const identity=createHash('sha256').update(JSON.stringify([owner.snapshot,index,supplied.subject,supplied.mediaType])).digest('hex');
    if(supplied.form){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
-   else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,octets?'octets':scope?.family==='3.1'||scope?.family==='3.2'?'binary':'unsupported');
+   else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,fileSchema?'file':octets?'octets':family==='2.0'||family==='3.0'?'legacy-octets':family==='3.1'||family==='3.2'?'binary':'unsupported');
   }catch(error){
    const limited=error instanceof SourceError&&error.code.startsWith('limit.');
    const unsupported=error instanceof SourceError&&error.kind==='unsupported';
@@ -117,6 +141,10 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
     complete=false;evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:false,valid:false,reason:'schema-unavailable'});continue;
    }
    try{
+    if(fileSchema&&decoded.kind==='file'){
+     if(!owner.schemaReady(scope)||!owner.schemaReady(fileSchema)){complete=false;evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:false,valid:false,reason:'schema-incomplete'});continue;}
+     evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:true,valid:true,syntax:'file-entity-bytes',schema:check.schema});instances++;continue;
+    }
     const ast=await owner.compile(scope);
     if(!ast){complete=false;evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:false,valid:false,reason:'schema-incomplete'});continue;}
     owner.exact.setDirection(supplied.subject.startsWith('request-')?'request':supplied.subject.startsWith('response-')?'response':undefined);

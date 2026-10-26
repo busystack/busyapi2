@@ -772,6 +772,13 @@ class RuntimeFormTarget {
   };
 }
 
+/// The original media declaration owns body semantics when schema is absent.
+class RuntimeMediaTarget {
+  const RuntimeMediaTarget({required this.resource, required this.pointer});
+  final String resource, pointer;
+  Map<String, String> toJson() => {'resource': resource, 'pointer': pointer};
+}
+
 /// Actual field lines and their captured response-header occurrence. The
 /// contract engine owns reference following, family rules and representation.
 class RuntimeHeaderTarget {
@@ -820,6 +827,7 @@ class RuntimeSchemaInstance {
     this.mediaType,
     this.mediaBase64 = false,
     this.form,
+    this.media,
     this.alternatives = const [],
     this.swaggerHeader,
     this.header,
@@ -829,6 +837,7 @@ class RuntimeSchemaInstance {
   final String? itemSchemaResource, itemSchemaPointer, mediaType;
   final bool mediaBase64;
   final RuntimeFormTarget? form;
+  final RuntimeMediaTarget? media;
   final List<String> alternatives;
   final RuntimeSwaggerHeaderTarget? swaggerHeader;
   final RuntimeHeaderTarget? header;
@@ -846,6 +855,7 @@ class RuntimeSchemaInstance {
     if (mediaType != null) 'mediaType': mediaType,
     if (mediaBase64) 'mediaBase64': true,
     if (form != null) 'form': form!.toJson(),
+    if (media != null) 'media': media!.toJson(),
     if (alternatives.isNotEmpty)
       'alternatives': List<String>.of(alternatives, growable: false),
     if (swaggerHeader != null) 'swaggerHeader': swaggerHeader!.toJson(),

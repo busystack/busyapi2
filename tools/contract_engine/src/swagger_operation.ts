@@ -1,5 +1,6 @@
 import {escape,SourceError} from './document';
 import type {ReferenceGraph} from './reference_graph';
+import {swaggerFileSchemas} from './swagger_file';
 
 export type LocatedSource={resource:string;pointer:string;generation:number;range:number[]};
 type Locate=(resource:string,pointer:string)=>LocatedSource;
@@ -39,9 +40,15 @@ export function swaggerResponseContent(graph:ReferenceGraph,resource:string,poin
     const doc=graph.docs.get(resource)!,node=doc.dataNode(pointer)!,value=node.value;
     const examples=doc.dataNode(pointer+'/examples');
     const names=[...new Set([...media,...(examples?.children.keys()??[])])];
+    const scope=graph.scopes.get(resource+'#'+pointer+'/schema');
+    let file=false,fileIssue:{code:string;message:string;source:LocatedSource}|undefined;
+    if(scope)try{file=swaggerFileSchemas(graph)(scope)!==undefined;}catch(error){
+        if(!(error instanceof SourceError)||error.kind!=='unsupported')throw error;
+        fileIssue={code:error.code,message:error.message,source:locate(scope.resource,scope.pointer)};
+    }
     return names.map(mediaType=>{
         const examplePointer=pointer+'/examples/'+escape(mediaType),entry=doc.dataNode(examplePointer);
         const example=entry?{mediaType,source:locate(resource,examplePointer),raw:doc.dataJson(examplePointer),text:typeof entry.value==='string'?entry.value:doc.dataJson(examplePointer),dataKind:entry.kind,representation:'json',level:'media'}:undefined;
-        return {mediaType,source:locate(resource,pointer),definition:locate(resource,pointer),schema:Object.hasOwn(value,'schema')?{...locate(resource,pointer+'/schema'),kind:'schema',file:value.schema?.type==='file',unconstrained:Object.keys(value.schema??{}).length===0}:undefined,example,examples:example?[example]:[]};
+        return {mediaType,source:locate(resource,pointer),definition:locate(resource,pointer),schema:Object.hasOwn(value,'schema')?{...locate(resource,pointer+'/schema'),kind:'schema',file,...(fileIssue?{fileIssue}:{}),unconstrained:Object.keys(value.schema??{}).length===0}:undefined,example,examples:example?[example]:[]};
     });
 }

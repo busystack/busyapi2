@@ -199,8 +199,8 @@ annotation-based assertions. This follows the distinction described in
 
 Runtime body checks decode captured HTTP bytes through the shared engine before
 applying the captured schema. `text/plain` uses its Unicode string value. Native
-3.0 `type: string, format: binary` uses an exact one-octet-per-character view for
-raw binary media, so length counts octets; byte values map to U+0000–U+00FF for
+Swagger and OpenAPI 3.0 use an exact one-octet-per-character view for known
+binary media, including schemas without redundant type/format hints, so length counts octets; byte values map to U+0000–U+00FF for
 enum and pattern assertions. A modern `format: binary` annotation does not select
 this legacy interpretation. In 3.1/3.2, raw binary remains outside JSON Schema's
 six JSON types. Use an unconstrained schema or appropriate annotations for raw
@@ -208,8 +208,18 @@ octets; `type: string` rejects them. Known binary media and binary multipart
 leaves retain byte identity through whole-value, nested and item checks, including
 conditionals and equality. JSON string assertions do not apply to these finite
 binary values. Unknown representations remain explicitly incomplete. Use **Use
-binary file** for a complete body or **Add binary file** for a named part; the
-native binary journeys remain under qualification in the implementation record.
+binary file** for a complete body or **Add binary file** for a named part. The
+[implementation record](implementation/native-openapi-support.md) distinguishes
+the completed modern binary native journeys from current legacy qualification.
+
+Swagger response schemas permit `type: file` only at their root. Native checks
+validate the captured file entity's byte framing without treating it as JSON or
+claiming a decoder for its internal file format. References retain that response
+context; ignored reference siblings cannot turn an ordinary schema into a file.
+An absent Swagger response schema declares no response content: zero bytes are
+valid, including without Content-Type, and nonempty bodies receive a located
+violation. Direct requests, saved cases and native mock proxies use the same
+captured response policy. See [Swagger §6.4.12](https://spec.openapis.org/oas/v2.0.html#response-object).
 
 Finite JSONL/NDJSON, JSON text sequences and server-sent events map to ordered
 arrays. In 3.2, `schema` checks the complete array and `itemSchema` checks each
@@ -230,6 +240,13 @@ OpenAPI 3.2 serialized multipart requests and responses can map ordered JSON/tex
 parts to arrays, including nested multipart, whole-array `schema` and independent
 `itemSchema` checks. `prefixEncoding` selects each corresponding position and
 `itemEncoding` applies to the remainder; unused encoding entries are ignored.
+For 3.0/3.1 named multipart responses, native decoding uses each actual part's
+Content-Type, defaulting to text/plain when absent. Request-only Encoding and
+its inferred request defaults do not restrict those response headers. The
+captured schema still checks every decoded value. Request Encoding restrictions
+and 3.2 response Encoding keep their own rules. This response mapping policy
+follows [3.0 Media Types](https://spec.openapis.org/oas/v3.0.4.html#media-type-object)
+and [RFC 7578 §4.4](https://www.rfc-editor.org/rfc/rfc7578#section-4.4).
 Ordered form-data retains one named object per part. Exact numeric text, empty
 values, declared part headers and transfer encodings use the captured graph and
 the existing native evaluator. Decoding is bounded to eight nested levels and

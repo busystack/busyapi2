@@ -4,6 +4,7 @@ import {escape,RawJsonValue,SourceDocument,SourceError} from './document';
 import {documentUriBase,GraphScope,resolveUri} from './reference_graph';
 import {documentUriFields,componentLocation} from './authoring';
 import {modernFamily} from './specification';
+import {swaggerFileContexts} from './swagger_file';
 
 const within=(pointer:string,parent:string)=>pointer===parent||pointer.startsWith(parent+'/');
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
@@ -84,6 +85,7 @@ export function deriveBundle(input:any) {
  if(graph.issues.length)throw new SourceError('bundle.graph','The approved reference graph must be complete and unambiguous before bundling');
  if(graph.references.length>20000)throw new SourceError('limit.bundle.references','Bundle exceeds 20000 semantic connections');
  const schemaScopes=[...graph.scopes.values()].filter(scope=>scope.kind==='schema');
+ const fileSchemas=swaggerFileContexts(graph).fileSchemas;
  const placements:Placement[]=[],imports=new Map<string,Map<string,string>>(),patches=new Map<string,string>();
  const entryBase=graph.scope(input.root,'').base;
  const defaultServer=family!=='2.0'&&(!root.root.children.has('servers')||Array.isArray(root.root.value.servers)&&root.root.value.servers.length===0);
@@ -115,7 +117,7 @@ export function deriveBundle(input:any) {
  });
  const topByResource=new Map<string,GraphScope[]>();
  for(const scope of roots){const values=topByResource.get(scope.resource)??[];values.push(scope);topByResource.set(scope.resource,values);}
- const schemaCopies:{scope:GraphScope;to:string;entryContext?:boolean}[]=[],envelopes:{resource:string;to:string;name:string;scopes:GraphScope[];dialect:string}[]=[];
+ const schemaCopies:{scope:GraphScope;to:string;entryContext?:boolean;fileResponse?:string}[]=[],envelopes:{resource:string;to:string;name:string;scopes:GraphScope[];dialect:string}[]=[];
  const dialectDeclarations=new Map<string,string>();
  for(const [resource,scopes]of [...topByResource].sort(([a],[b])=>compare(a,b))) {
   scopes.sort((a,b)=>compare(a.pointer,b.pointer));
@@ -127,6 +129,13 @@ export function deriveBundle(input:any) {
   if(!modernFamily(family)) {
    for(const scope of scopes) {
     if(scope.family!==family)throw new SourceError('bundle.object.version','A schema belongs to a different specification family');
+    if(fileSchemas.has(scope.resource+'#'+scope.pointer)){
+     // Swagger file is a response-root extension, not a definitions type.
+     // Retain that context in an unused reusable Response, never a new route.
+     const fileResponse=name('responses',key(resource,scope.pointer)),to=collection('responses')+'/'+fileResponse+'/schema';
+     placements.push({resource,from:scope.pointer,to,kind:'schema',schema:true,entryContext:true});
+     schemaCopies.push({scope,to,entryContext:true,fileResponse});continue;
+    }
     const to=schemaCollection+'/'+name('schemas',key(resource,scope.pointer));
     placements.push({resource,from:scope.pointer,to,kind:'schema',schema:true,entryContext:true});
     schemaCopies.push({scope,to,entryContext:true});
@@ -308,7 +317,9 @@ export function deriveBundle(input:any) {
  const effectiveDialectKeys=new Set(effectiveDialects.map(copy=>key(copy.scope.resource,copy.scope.pointer)));
  const assemble=()=>{
   imports.clear();
-  for(const {scope,to,entryContext}of schemaCopies)if(to.slice(schemaCollection.length+1).indexOf('/')===-1) {
+  for(const {scope,to,entryContext,fileResponse}of schemaCopies) {
+   if(fileResponse){put('responses',fileResponse,'{"description":"Bundled file schema","schema":'+render(scope.resource,scope.pointer,true)+'}');continue;}
+   if(to.slice(schemaCollection.length+1).indexOf('/')!==-1)continue;
    let raw=render(scope.resource,scope.pointer,true);
    if(!entryContext&&!docs.get(scope.resource)!.dataNode(scope.pointer)!.children.has('$id'))raw=new SourceDocument(raw,outputId).set('/$id',scope.base);
    // An imported standalone resource used its original containing document's

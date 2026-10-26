@@ -2,6 +2,7 @@ import {SourceError,type Range} from './document';
 import {record} from './engine_worker_client';
 import {mediaTypeChoice,mediaTypes} from './media_types';
 import type {RuntimeFormTarget} from './runtime_form';
+import type {RuntimeMediaTarget} from './runtime_media_owner';
 import type {SwaggerHeaderTarget} from './swagger_wire';
 import type {RuntimeHeaderTarget} from './runtime_headers';
 
@@ -10,8 +11,8 @@ export type SourceLocation=SchemaLocation&{range:Range};
 export type NativeMockCheck={complete:boolean;valid:boolean;findings:Record<string,unknown>[]};
 export type NativeRuntimeEvaluation={subject:string;location:string;complete:boolean;valid:boolean;chosen?:number};
 export type NativeRuntimeCheck=NativeMockCheck&{evaluations:NativeRuntimeEvaluation[]};
-export type NativeMedia={mediaType:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;formOwner?:RuntimeFormTarget};
-export type NativeRuntimeInstance={subject:string;location:string;text:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
+export type NativeMedia={mediaType:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaOwner?:RuntimeMediaTarget;formOwner?:RuntimeFormTarget};
+export type NativeRuntimeInstance={subject:string;location:string;text:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;media?:RuntimeMediaTarget;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
 
 export const schemaLocation=(value:unknown):SchemaLocation|undefined=>record(value)&&typeof value.resource==='string'&&typeof value.pointer==='string'
     ?{resource:value.resource,pointer:value.pointer}:undefined;
@@ -34,7 +35,7 @@ export function nativeMedia(value:unknown,occurrence?:string):NativeMedia[] {
             throw new SourceError('mock.validation.protocol','The native media projection omitted a schema identity');
         const formOwner=schemaLocation(media.definition??media.source);
         return {mediaType:media.mediaType,schema:record(media.schema)&&media.schema.unconstrained===true?undefined:schema,itemSchema,
-            ...(formOwner?{formOwner:{...formOwner,...(media.swaggerForm!==undefined&&occurrence!==undefined?{occurrence}:{})}}:{})};
+            ...(formOwner?{mediaOwner:formOwner,formOwner:{...formOwner,...(media.swaggerForm!==undefined&&occurrence!==undefined?{occurrence}:{})}}:{})};
     });
 }
 

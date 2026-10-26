@@ -4,6 +4,8 @@ import schema20 from '../schemas/oas20.json';
 import {swaggerSchemaDialect} from './specification';
 import type {GraphScope,ReferenceGraph} from './reference_graph';
 import {swaggerDiscriminatorKeyword} from './swagger_discriminator';
+import {isReferenceObject} from './contexts';
+import {swaggerFileContexts} from './swagger_file';
 
 export const swaggerMetaIdentity='http://swagger.io/v2/schema.json';
 
@@ -28,12 +30,13 @@ export type SchemaEvaluationScope=GraphScope&{objectKind:string;file?:boolean};
  * This projection selects an evaluator address; it adds no reference edges,
  * identities, source objects or competing API model. */
 export function schemaEvaluationScopes(graph:ReferenceGraph):SchemaEvaluationScope[] {
-    const scopes:SchemaEvaluationScope[]=[];
+    const scopes:SchemaEvaluationScope[]=[],{contexts}=swaggerFileContexts(graph);
     for(const scope of graph.scopes.values()) {
         const value=graph.docs.get(scope.resource)!.dataNode(scope.pointer)?.value;
         const flat=scope.family==='2.0'&&(scope.kind==='parameter'&&value?.in!=='body'&&typeof value?.$ref!=='string'||['header','items'].includes(scope.kind));
         if(scope.kind!=='schema'&&!flat)continue;
-        scopes.push({...scope,kind:'schema',objectKind:scope.kind,file:scope.family==='2.0'&&value?.type==='file'});
+        const fileContext=scope.kind==='parameter'&&value?.in==='formData'||contexts.has(scope.resource+'#'+scope.pointer);
+        scopes.push({...scope,kind:'schema',objectKind:scope.kind,file:scope.family==='2.0'&&fileContext&&value?.type==='file'&&!isReferenceObject(value,'schema',scope.family)});
     }
     return scopes;
 }

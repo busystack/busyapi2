@@ -282,7 +282,7 @@ paths:
         - {in: formData, name: multi, type: array, collectionFormat: multi, items: {type: integer}}
         - {in: formData, name: zero, type: integer}
         - {in: formData, name: no, type: boolean}
-        - {in: formData, name: empty, type: string}
+        - {in: formData, name: empty, type: string, allowEmptyValue: true}
       responses: {'204': {description: ok}}
   /upload:
     post:
@@ -385,5 +385,46 @@ paths:
       ...utf8.encode('\r\n--$boundary--\r\n'),
     ]);
     expect(await file.readAsString(), original);
+    final buffer = await project.buffer(file.uri.toString());
+    project.store.replace(
+      buffer.id,
+      original.replaceFirst('allowEmptyValue: true', 'allowEmptyValue: false'),
+    );
+    final invalidPlan = await project.prepareRequest(
+      buffer.id,
+      resource: buffer.id,
+      pointer: '/paths/~1form/post',
+    );
+    addTearDown(invalidPlan.close);
+    final invalid = await const ContractRequestExecutor().execute(
+      invalidPlan,
+      OperationRequestDraft(
+        planIdentity: invalidPlan.identity,
+        body: const RequestBodyDraft.form([
+          RequestFormField('csv', 'a&b'),
+          RequestFormField('csv', '雪'),
+          RequestFormField('multi', '9007199254740993'),
+          RequestFormField('multi', '0'),
+          RequestFormField('zero', '0'),
+          RequestFormField('no', 'false'),
+          RequestFormField('empty', ''),
+        ]),
+      ),
+      resolveSecret: (_) async => null,
+    );
+    try {
+      expect(invalid.outgoing.complete, isTrue);
+      expect(invalid.outgoing.valid, isFalse);
+      expect(
+        invalid.outgoing.findings.any(
+          (finding) => finding['code'] == 'runtime.request.form.empty',
+        ),
+        isTrue,
+      );
+      expect(seen.last.$4, seen.first.$4);
+      expect(await file.readAsString(), original);
+    } finally {
+      await invalid.close();
+    }
   });
 }

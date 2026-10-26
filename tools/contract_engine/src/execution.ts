@@ -8,6 +8,7 @@ import {headerShapes} from './header_serialization';
 import {ParameterOccurrence, ParameterSemantics} from './parameter_semantics';
 import {responseStatusNamePolicy} from './member_names';
 import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './swagger_operation';
+import {swaggerResponseAllowsContent} from './swagger_file';
 import {componentLocation} from './authoring';
 import {formBinding,FormSemantics} from './form_semantics';
 import {selectNativeMedia} from './mock_projection';
@@ -452,7 +453,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const hp=selected.pointer+'/headers/'+escape(name),header=follow({resource:selected.resource,pointer:hp,kind:'header'},'header'),hv=header.node.value;
       headers.push({name,family,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv),shape:headerShape({resource:header.resource,pointer:family==='2.0'?header.pointer:header.pointer+'/schema',kind:'schema'}),...(family==='2.0'?swaggerFlat(hv,header.source):{})});
     }
-    responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location).map(item=>({...item,...runtimeMediaDescription(item.mediaType)})):media(selected.resource,selected.pointer+'/content',v?.content)});
+    responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,...(family==='2.0'?{bodyAllowed:swaggerResponseAllowsContent(v)}:{}),content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location).map(item=>({...item,...runtimeMediaDescription(item.mediaType)})):media(selected.resource,selected.pointer+'/content',v?.content)});
   }
   const identity=createHash('sha256').update(JSON.stringify([input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
   return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method,customMethod:context.customMethod===true,path:context.path,

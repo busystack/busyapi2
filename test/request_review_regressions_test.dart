@@ -2886,7 +2886,7 @@ paths:
       parameters:
         - {in: formData, name: n, type: integer, required: true}
         - {in: formData, name: flag, type: boolean, required: true}
-        - {in: formData, name: empty, type: string, required: true}
+        - {in: formData, name: empty, type: string, required: true, allowEmptyValue: true}
       responses: {'204': {description: ok}}
 '''
                 : '''openapi: $version
@@ -2951,9 +2951,42 @@ paths:
             ('POST', '/form', 'n=9007199254740993&flag=false&empty='),
           ]);
           expect(f.run.result!.outgoing.complete, isTrue);
-          expect(f.run.result!.outgoing.valid, isTrue);
+          expect(
+            f.run.result!.outgoing.valid,
+            isTrue,
+            reason: '${f.run.result!.outgoing.findings}',
+          );
           expect(f.file.readAsStringSync(), original);
           expect(f.c.buffer!.text, original);
+          if (version == '2.0') {
+            await tester.runAsync(() async {
+              f.c.sourceEdit(
+                f.c.active!,
+                original.replaceFirst(
+                  'allowEmptyValue: true',
+                  'allowEmptyValue: false',
+                ),
+              );
+              await f.c.analyse();
+              await f.run.reconcileDraft();
+              await HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp());
+            });
+            expect(f.run.failure, isNull, reason: f.run.failureMessage);
+            expect(received, [
+              ('POST', '/form', 'n=9007199254740993&flag=false&empty='),
+              ('POST', '/form', 'n=9007199254740993&flag=false&empty='),
+            ]);
+            expect(f.run.bodyText, data);
+            expect(f.run.result!.outgoing.complete, isTrue);
+            expect(f.run.result!.outgoing.valid, isFalse);
+            expect(
+              f.run.result!.outgoing.findings.any(
+                (finding) => finding['code'] == 'runtime.request.form.empty',
+              ),
+              isTrue,
+            );
+            expect(f.file.readAsStringSync(), original);
+          }
         } finally {
           await tester.pumpWidget(const SizedBox.shrink());
           await tester.runAsync(() async {

@@ -80,7 +80,10 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
         }}},
     }
     if multipart:
-        document['servers'] = [{'url': 'http://127.0.0.1:' + str(multipart.port)}]
+        if swagger:
+            document['host'] = '127.0.0.1:' + str(multipart.port)
+        else:
+            document['servers'] = [{'url': 'http://127.0.0.1:' + str(multipart.port)}]
         document['paths']['/items'] = {'post': multipart.operation(format)}
     if mock_methods:
         document['paths']['/items'] = {
@@ -90,6 +93,8 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
         'Item': schema,
         'x-literal': {'$ref': 'literal', 'number': 'EXACT'},
     }
+    if swagger and multipart:
+        model['File'] = {'type': 'file'}
     if schema_definitions:
         document['components'] = {'schemas': {
             'Envelope': {'$ref': './model.' + format + '#/Envelope'},
@@ -137,11 +142,12 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
         if multipart:
             source = (
                 '# Retain source organization\r\n'
-                f'openapi: "{version}"\r\n'
+                f'{declaration}: "{version}"\r\n'
                 'info:\r\n'
                 f"  title: 'Production {version}'\r\n"
                 '  version: api-version\r\n'
-                f'servers: [{{url: "http://127.0.0.1:{multipart.port}"}}]\r\n'
+                + (f'host: "127.0.0.1:{multipart.port}"\r\nschemes: [http]\r\nproduces: [application/json]\r\n' if swagger
+                   else f'servers: [{{url: "http://127.0.0.1:{multipart.port}"}}]\r\n') +
                 'paths:\r\n  /items:\r\n    post: '
                 + json.dumps(document['paths']['/items']['post'], ensure_ascii=False) + '\r\n'
             )
@@ -161,6 +167,8 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
             '  number: 9007199254740993.00\n'
             "  text: 'café 東京'\n"
         ).replace('\n', '\r\n')
+        if swagger and multipart:
+            shared += 'File:\r\n  type: file\r\n'
         if schema_definitions:
             source += (
                 'components:\r\n  schemas:\r\n'
@@ -555,6 +563,7 @@ def main():
     parser.add_argument('--migrate-target', choices=['2.0', '3.0.4', '3.1.2', '3.2.1'])
     parser.add_argument('--multipart', choices=['ordered', 'nested', 'named'])
     parser.add_argument('--binary', choices=['raw', 'named', 'ordered', 'nested'])
+    parser.add_argument('--binary-schema-free', action='store_true')
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['2.0', '3.0.0', '3.0.1', '3.0.2', '3.0.3', '3.0.4', '3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1'])
@@ -582,11 +591,13 @@ def main():
                           or args.schema_definitions or args.documentation or args.mock_samples
                           or args.migrate_target or args.binary):
         parser.error('--multipart requires --edit, an applicable family (named: 3.0/3.1; ordered/nested: 3.2), and its dedicated execution journey')
-    if args.binary and (not args.edit or not args.version.startswith(('3.1.', '3.2.'))
+    if args.binary_schema_free and (args.binary != 'raw' or args.version == '2.0'):
+        parser.error('--binary-schema-free requires a 3.x raw binary media declaration')
+    if args.binary and (not args.edit or args.version == '2.0' and args.binary != 'raw'
                         or args.binary in ['ordered', 'nested'] and not args.version.startswith('3.2.')
                         or args.operations or args.schema_definitions or args.documentation
                         or args.mock_samples or args.migrate_target or args.multipart):
-        parser.error('--binary requires --edit, an applicable modern family, and its dedicated execution journey')
+        parser.error('--binary requires --edit, an applicable family, and its dedicated execution journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:
@@ -605,6 +616,7 @@ def main():
                 *(['--migrate-target', args.migrate_target] if args.migrate_target else []),
                 *(['--multipart', args.multipart] if args.multipart else []),
                 *(['--binary', args.binary] if args.binary else []),
+                *(['--binary-schema-free'] if args.binary_schema_free else []),
             ]
             # Own the complete private session, including accessibility and
             # the application, so a timed-out journey leaves no native fixture.
@@ -657,13 +669,14 @@ def main():
             + ('-migrate-' + args.migrate_target if args.migrate_target else '')
             + ('-multipart-' + args.multipart if args.multipart else '')
             + ('-binary-' + args.binary if args.binary else '')
+            + ('-schema-free' if args.binary_schema_free else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
         multipart = None
         if args.binary:
             from native_binary import BinaryFixture
-            multipart = fixtures.enter_context(BinaryFixture(args.binary))
+            multipart = fixtures.enter_context(BinaryFixture(args.binary, args.version, args.binary_schema_free))
             multipart.prepare(project_directory)
         elif args.multipart:
             from native_multipart import MultipartFixture

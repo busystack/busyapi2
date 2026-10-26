@@ -141,8 +141,9 @@ export class MockNativeValidation {
         if(!media)return invalid('runtime.request.content-type','The request Content-Type does not match the captured operation');
         const {schema,itemSchema}=media;
         const form=runtimeFormMedia(actual)?media.formOwner:undefined;
-        if(!schema&&!itemSchema&&!form&&runtimeMediaKind(actual)==='opaque')return {complete:true,valid:true,findings:[]};
-        return this.evaluate(bytes,actual,signal,schema,itemSchema,form);
+        const mediaOwner=form?undefined:media.mediaOwner;
+        if(!schema&&!itemSchema&&!form&&!mediaOwner&&runtimeMediaKind(actual)==='opaque')return {complete:true,valid:true,findings:[]};
+        return this.evaluate(bytes,actual,signal,schema,itemSchema,form,mediaOwner);
     }
 
     isAdditional(path:string,method:string):boolean {
@@ -184,10 +185,10 @@ export class MockNativeValidation {
         }))};
     }
 
-    private async evaluate(bytes:Buffer,actual:string,signal:AbortSignal,schema?:SchemaLocation,itemSchema?:SchemaLocation,form?:RuntimeFormTarget):Promise<NativeMockCheck> {
+    private async evaluate(bytes:Buffer,actual:string,signal:AbortSignal,schema?:SchemaLocation,itemSchema?:SchemaLocation,form?:RuntimeFormTarget,media?:SchemaLocation):Promise<NativeMockCheck> {
         return this.evaluateInstances([{
             subject:'request-body',location:actual,text:bytes.toString('base64'),mediaType:actual,mediaBase64:true,
-            ...(schema?{schema}:{}),...(itemSchema?{itemSchema}:{}),...(form?{form}:{})}],signal);
+            ...(schema?{schema}:{}),...(itemSchema?{itemSchema}:{}),...(form?{form}:{}),...(media?{media}:{})}],signal);
     }
 
     private async evaluateInstances(runtimeInstances:NativeRuntimeInstance[],signal:AbortSignal):Promise<NativeRuntimeCheck> {
