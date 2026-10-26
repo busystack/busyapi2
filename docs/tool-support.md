@@ -399,6 +399,12 @@ The selected files are captured privately before dispatch; source and input
 files remain unchanged. `fileShapes` applies only to selected file names with
 captured 3.0/3.1 MIME content bindings; it is not an OpenAPI extension.
 
+An explicit `body.files[].mediaType` selects the type for that file and overrides
+a shared `body.partMediaTypes` choice. It must satisfy the captured declaration.
+This allows files under one multipart field to use different declared types.
+Omitting it retains the native default; file contents and extensions are not
+used to infer a choice.
+
 The form-part controls provide explicit Content-Type selection for declared
 lists and media ranges. A concrete choice must match a declared range and its
 parameters. File overrides allow different types for files under the same field;

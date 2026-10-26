@@ -599,6 +599,7 @@ class ContractTestRunner {
             filename: value['filename'] as String?,
             mediaType:
                 value['mediaType'] as String? ?? 'application/octet-stream',
+            selectedMediaType: value['mediaType'] as String?,
             access: access,
           ),
       ];
