@@ -14,6 +14,9 @@ String refactoringFailureMessage(
   AppLocalizations l,
   String code,
 ) => switch (code) {
+  'file.move.case-file.content' => l.fileMoveCaseContent,
+  'file.move.case-file.boundary' => l.fileMoveCaseBoundary,
+  'file.configuration.conflict' => l.fileConfigurationConflict,
   'refactor.configuration.collision' => l.securityRefactoringSettingsConflict,
   'refactor.configuration.ambiguous' => l.securityRefactoringSettingsAmbiguous,
   'refactor.configuration.syntax' || 'refactor.configuration.authentication' =>
@@ -240,6 +243,13 @@ class _RefactoringReviewState extends State<_RefactoringReview> {
                 kind: BusyApiStatusKind.error,
               ),
             if (blockers.any(
+              (entry) => entry['code'] == 'file.delete.case-file',
+            ))
+              BusyApiStatusBox(
+                message: l.fileDeletionCaseBlocked,
+                kind: BusyApiStatusKind.error,
+              ),
+            if (blockers.any(
               (entry) => entry['code'] == 'file.delete.mapping-consumer',
             ))
               BusyApiStatusBox(
@@ -382,6 +392,8 @@ class _RefactoringReviewState extends State<_RefactoringReview> {
                         subtitle:
                             '${reference['pointer']}\n${reference['connection'] == 'policy-input'
                                 ? l.filePolicyInput
+                                : reference['connection'] == 'case-file'
+                                ? l.fileCaseInput
                                 : reference['connection'] == 'root-analysis'
                                 ? l.rootRemovalAnalysis
                                 : reference['connection']} → ${reference['target']['pointer']}'

@@ -47,6 +47,35 @@ class FileDeletionPlan extends RefactoringPlan {
 }
 
 extension FileRefactoring on BusyProject {
+  Future<Map<String, Object?>?> _captureFileConfiguration({
+    void Function(String resource)? onResourceRefreshed,
+  }) async {
+    final path = p.join(access.boundary, 'busyapi.yaml');
+    final id = Uri.file(path).toString();
+    final existing = store.buffers[id];
+    if (existing == null && await access.missing(path)) return null;
+    final source = existing ?? await buffer(id);
+    if (!source.dirty && !source.externalConflict) {
+      final before = (source.generation, source.externalConflict);
+      await refreshDisk(source);
+      if (before != (source.generation, source.externalConflict))
+        onResourceRefreshed?.call(source.id);
+    }
+    if (source.externalConflict) {
+      throw CoreFailure(
+        'file.configuration.conflict',
+        'Reconcile the changed project configuration before reviewing file maintenance.',
+      );
+    }
+    if (utf8.encode(source.text).length > 65536) {
+      throw CoreFailure(
+        'limit.manifest',
+        'Project configuration exceeds 64 KiB',
+      );
+    }
+    return source.snapshotAsync();
+  }
+
   Future<({_PolicyInputs? inputs, String? failure})> _captureFilePolicy({
     void Function(String resource)? onResourceRefreshed,
   }) async {
@@ -677,10 +706,13 @@ extension FileRefactoring on BusyProject {
         onResourceRefreshed?.call(source.id);
     }
     final captured = await source.snapshotAsync();
+    final manifest = await _captureFileConfiguration(
+      onResourceRefreshed: onResourceRefreshed,
+    );
     final plan = await _planSemantic(
       'planFileDeletion',
       {'resource': source.id, 'generation': captured['generation']},
-      {'deletionSource': captured},
+      {'deletionSource': captured, if (manifest != null) 'manifest': manifest},
       onResourceRefreshed: onResourceRefreshed,
     );
     final impact = await _captureFilePolicy(
@@ -688,7 +720,10 @@ extension FileRefactoring on BusyProject {
         ),
         policy = impact.inputs,
         policyFailure = impact.failure;
-    final extra = AnalysisSnapshot(root: source.id, resources: [captured]);
+    final extra = AnalysisSnapshot(
+      root: source.id,
+      resources: [captured, if (manifest != null) manifest],
+    );
     if (!extra.current(store))
       throw CoreFailure(
         'refactor.stale',
@@ -818,14 +853,9 @@ extension FileRefactoring on BusyProject {
         'file.move.loading',
         'Wait for pending resource opens before reviewing a move',
       );
-    Map<String, Object?>? manifest;
-    final manifestPath = p.join(access.boundary, 'busyapi.yaml');
-    if (!await access.missing(manifestPath)) {
-      final b = await buffer(Uri.file(manifestPath).toString());
-      if (b.text.length > 65536)
-        throw CoreFailure('limit.manifest', 'Project manifest exceeds 64 KiB');
-      manifest = await b.snapshotAsync();
-    }
+    final manifest = await _captureFileConfiguration(
+      onResourceRefreshed: onResourceRefreshed,
+    );
     final aliases =
         _resourceMappings.entries
             .where((entry) => entry.value == source.id)

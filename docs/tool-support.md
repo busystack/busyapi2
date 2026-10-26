@@ -405,6 +405,13 @@ This allows files under one multipart field to use different declared types.
 Omitting it retains the native default; file contents and extensions are not
 used to infer a choice.
 
+For YAML/JSON uploads maintained through Files, reviewed moves also repair
+`tests[].body.files[].path` in the current `busyapi.yaml` buffer. Saved-case
+usages block deletion. The path stays relative to the project even when an API
+resource retains its original URI context. Undo/Redo and grouped Save include
+the configuration repair; a later configuration change invalidates the review.
+Payload values and extensions with similar strings are not file usages.
+
 The form-part controls provide explicit Content-Type selection for declared
 lists and media ranges. A concrete choice must match a declared range and its
 parameters. File overrides allow different types for files under the same field;

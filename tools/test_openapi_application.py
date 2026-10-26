@@ -224,6 +224,7 @@ def tree(pid, details=False):
             'caret': caret,
             'editable': editable,
             'focused': node.get_state_set().contains(Atspi.StateType.FOCUSED),
+            'enabled': node.get_state_set().contains(Atspi.StateType.ENABLED),
         })
         count = node.get_child_count()
         if count > 512:
@@ -581,11 +582,14 @@ def main():
     parser.add_argument('--generated-headers', choices=['generic', 'transfer'])
     parser.add_argument('--file-shapes', action='store_true')
     parser.add_argument('--saved-file-media', action='store_true')
+    parser.add_argument('--case-file-maintenance', action='store_true')
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['2.0', '3.0.0', '3.0.1', '3.0.2', '3.0.3', '3.0.4', '3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1'])
     parser.add_argument('--format', default='yaml', choices=['yaml', 'json'])
     args = parser.parse_args()
+    if args.case_file_maintenance:
+        args.saved_file_media = True
     if args.saved_file_media and (not args.edit or not args.project
                                  or args.operations or args.schema_definitions or args.documentation
                                  or args.mock_samples or args.mock_nested or args.mock_methods
@@ -675,6 +679,7 @@ def main():
                 *(['--generated-headers', args.generated_headers] if args.generated_headers else []),
                 *(['--file-shapes'] if args.file_shapes else []),
                 *(['--saved-file-media'] if args.saved_file_media else []),
+                *(['--case-file-maintenance'] if args.case_file_maintenance else []),
             ]
             # Own the complete private session, including accessibility and
             # the application, so a timed-out journey leaves no native fixture.
@@ -733,12 +738,16 @@ def main():
             + ('-header-content' if args.header_content else '')
             + ('-generated-headers-' + args.generated_headers if args.generated_headers else '')
             + ('-file-shapes' if args.file_shapes else '')
-            + ('-saved-file-media' if args.saved_file_media else '')
+            + ('-case-file-maintenance' if args.case_file_maintenance else '-saved-file-media' if args.saved_file_media else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
         multipart = None
-        if args.saved_file_media:
+        if args.case_file_maintenance:
+            from native_case_file_maintenance import CaseFileMaintenanceFixture
+            multipart = fixtures.enter_context(CaseFileMaintenanceFixture(args.version))
+            multipart.prepare(project_directory)
+        elif args.saved_file_media:
             from native_saved_file_media import SavedFileMediaFixture
             multipart = fixtures.enter_context(SavedFileMediaFixture(args.version))
             multipart.prepare(project_directory)
@@ -809,6 +818,7 @@ def main():
         operation_result = None
         migration_result = None
         multipart_results = []
+        case_file_result = None
         binary = ROOT / 'build/linux/x64/release/bundle/busyapi-desktop'
         log = evidence / (case + '.log')
         with log.open('w') as stream:
@@ -884,6 +894,9 @@ def main():
                         nodes = tree(process.pid, details=True)
                     if args.mock_samples:
                         mock_samples(native, process, args.format, 'get' if args.mock_methods else 'GET', args.mock_nested)
+                    if args.case_file_maintenance:
+                        from native_case_file_maintenance import maintain_case_file
+                        case_file_result = maintain_case_file(native, process, file, expected_sources, multipart)
                     if multipart:
                         from native_multipart import execute_multipart
                         multipart_results.append(execute_multipart(native, process, file, expected_sources,
@@ -961,6 +974,7 @@ def main():
                     'nativeOperations': operation_result,
                     'nativeMigration': migration_result,
                     'nativeMultipart': multipart_results,
+                    'nativeCaseFileMaintenance': case_file_result,
                     'nativeAuthoredExamples': authored_examples,
                     'files': {
                         str(Path(name).relative_to(project_directory)):

@@ -10,6 +10,7 @@ import {coldGraph} from './reference_selection';
 import {editsFor} from './refactoring_copy';
 import {serverTemplate} from './derived_bundle';
 import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
+import {caseFileLocators,movedCaseFilePath} from './case_file_configuration';
 
 const same=(a:any,b:any)=>a?.resource===b?.resource&&a?.pointer===b?.pointer;
 
@@ -148,11 +149,25 @@ export function planFileDeletion(input:any) {
    if(!usage.roots.includes(context.root))usage.roots.push(context.root);
   }
  }
+ const manifest=input.manifest as Resource|undefined;
+ if(manifest){
+  if(typeof manifest.id!=='string'||typeof manifest.text!=='string'||Buffer.byteLength(manifest.text)>65536||!Number.isInteger(manifest.generation)||manifest.generation<0)
+   throw new SourceError('file.delete.snapshot','Choose a bounded captured project configuration');
+  const shared=resources.find(value=>value.id===manifest.id);
+  if(shared&&(shared.text!==manifest.text||shared.generation!==manifest.generation||shared.identity!==manifest.identity))
+   throw new SourceError('file.delete.snapshot','Root contexts disagree about the captured project configuration');
+  const doc=new SourceDocument(manifest.text,manifest.id);
+  if(doc.issues.length||doc.root.value?.version!==1)throw new SourceError('manifest.version','Expected a version-1 project configuration');
+  for(const locator of caseFileLocators(doc))if(locator.resource===source.id){
+   const usage={resource:manifest.id,pointer:locator.pointer,range:locator.range,connection:'case-file',target:{resource:source.id,pointer:''},roots:contexts.map((context:any)=>context.root)};
+   usages.set(JSON.stringify([manifest.id,locator.pointer,'case-file']),usage);
+  }
+ }
  const compare=(a:string,b:string)=>a<b?-1:a>b?1:0;
  const resolved=[...usages.values()].sort((a,b)=>compare(a.resource,b.resource)||compare(a.pointer,b.pointer));
- for(const usage of resolved){usage.roots.sort();blockers.push({...usage,code:'file.delete.consumer'});}
+ for(const usage of resolved){usage.roots.sort();blockers.push({...usage,code:usage.connection==='case-file'?'file.delete.case-file':'file.delete.consumer'});}
  return {version:1,snapshot:input.snapshot,kind:'file-delete',checkedRoots:contexts.map((context:any)=>context.root),
-  identity:createHash('sha256').update(JSON.stringify({snapshot:input.snapshot,resource:source.id,generation:source.generation,identity:source.identity,kind:'file-delete'})).digest('hex'),
+  identity:createHash('sha256').update(JSON.stringify({snapshot:input.snapshot,resource:source.id,generation:source.generation,identity:source.identity,kind:'file-delete',...(manifest?{configuration:{resource:manifest.id,generation:manifest.generation,identity:createHash('sha256').update(manifest.text).digest('hex')}}:{})})).digest('hex'),
   from:{resource:source.id,pointer:''},to:{resource:source.id,pointer:''},edits:[],usages:resolved,blockers,
   changes:[{resource:source.id,before:source.text,after:'',fileAction:'delete'}],
   transitions:[{resource:source.id,from:'',to:'',mode:'removal'}]};
@@ -402,6 +417,14 @@ export function planFileMove(input:any) {
  if(manifest&&destination!==source.id) {
   let doc=new SourceDocument(manifest.text,manifest.id);
   if(doc.issues.length||doc.root.value?.version!==1||!Array.isArray(doc.root.value?.roots))throw new SourceError('manifest.version','Expected a version-1 project manifest');
+  for(const locator of caseFileLocators(doc))if(locator.resource===source.id){
+   if((outputs.get(source.id)??source.text)!==source.text)
+    throw new SourceError('file.move.case-file.content','This source is also a saved upload; repairing its contract text would change the uploaded bytes. Retain its original URI context instead',locator.range,undefined,{resource:manifest.id,pointer:locator.pointer,range:locator.range});
+   if(resources.some(resource=>resource.id===manifest.id))throw new SourceError('refactor.configuration.ownership','Project configuration cannot also be an edited API graph resource',locator.range,undefined,{resource:manifest.id,pointer:locator.pointer,range:locator.range});
+   const value=movedCaseFilePath(doc,locator,destination);
+   doc=new SourceDocument(doc.set(locator.pointer,value),manifest.id);
+   usages.set(JSON.stringify([manifest.id,locator.pointer,'case-file']),{resource:manifest.id,pointer:locator.pointer,range:locator.range,connection:'case-file',target:{resource:source.id,pointer:''},roots:input.contexts.map((context:any)=>context.root)});
+  }
   for(let i=0;i<doc.root.value.roots.length;i++) {
    const pointer='/roots/'+i+'/path',value=doc.nodes.get(pointer)?.value;
    if(typeof value!=='string')throw new SourceError('manifest.root','A configured root has no source path');
