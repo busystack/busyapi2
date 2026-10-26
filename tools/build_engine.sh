@@ -10,6 +10,7 @@ SCARF_ANALYTICS=false npm_config_update_notifier=false "$node_bin" "$npm_cli" "$
 case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/linux-x64/bin/esbuild";; *) echo 'Only the pinned Linux amd64 build is currently supported' >&2; exit 1;; esac
 "$esbuild_bin" "$engine_dir/src/server.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/engine.cjs"
 "$esbuild_bin" "$engine_dir/src/engine.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/model.cjs"
+"$esbuild_bin" "$engine_dir/src/reference_graph.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/reference_graph.cjs"
 "$esbuild_bin" "$engine_dir/src/document.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/document.cjs"
 "$esbuild_bin" "$engine_dir/src/refactoring.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/refactoring.cjs"
 "$esbuild_bin" "$engine_dir/src/refactoring_delete.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/refactoring_delete.cjs"
@@ -102,6 +103,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_migration_form_media.cjs"
 "$node_bin" "$engine_dir/test_migration_bodyless_responses.cjs"
 "$node_bin" "$engine_dir/test_migration_yaml_ownership.cjs"
+"$node_bin" "$engine_dir/test_migration_markdown_identity.cjs"
 "$node_bin" "$engine_dir/test_migration_swagger_media.cjs"
 "$node_bin" "$engine_dir/test_operation_body_semantics.cjs"
 "$node_bin" "$engine_dir/test_execution.cjs"
