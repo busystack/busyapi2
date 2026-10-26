@@ -11,7 +11,8 @@ import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './
 import {responseAllowsContent} from './response_content';
 import {componentLocation} from './authoring';
 import {formBinding,FormSemantics} from './form_semantics';
-import {selectNativeMedia,type NativeRuntimeInstance} from './mock_projection';
+import type {NativeRuntimeInstance} from './mock_projection';
+import {selectRequestMedia} from './request_media_selection';
 import {isNativeFamily} from './specification';
 import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
@@ -167,7 +168,7 @@ export function requestFormMediaTypes(input:any){
       !input.choices||typeof input.choices!=='object'||Array.isArray(input.choices)||Object.keys(input.choices).length>maximumItems||
       Object.values(input.choices).some(value=>typeof value!=='string'))
     throw new SourceError('request.form.content-type','Expected bounded named part media selections');
-  const captured=createGraph(input),plan=requestOperation(input,captured),content=selectNativeMedia<Record<string,any>&{mediaType:string}>(plan.requestBody?.content??[],input.mediaType);
+  const captured=createGraph(input),plan=requestOperation(input,captured),content=selectRequestMedia<Record<string,any>&{mediaType:string}>(plan.requestBody?.content??[],input.mediaType);
   if(!content||content.formBinding===undefined)
     throw new SourceError('request.form.content-type','Select a captured form media declaration');
   const multipart=content.formBinding==='multipart-named',types:Record<string,string>=Object.create(null);
@@ -213,7 +214,7 @@ export async function requestMultipartEncoding(input:any){
   if(!Array.isArray(input.parts)||input.parts.length>maximumItems||input.parts.some((part:any)=>!part||typeof part.name!=='string'||!['literal','string','other','item-string','item-other'].includes(part.kind))||
      !Array.isArray(input.files)||input.files.length>maximumItems||input.files.some((name:unknown)=>typeof name!=='string'))
     throw new SourceError('request.multipart.encoding','Expected bounded captured multipart field kinds');
-  const captured=createGraph(input),plan=requestOperation(input,captured),content=selectNativeMedia<Record<string,any>&{mediaType:string}>(plan.requestBody?.content??[],input.mediaType);
+  const captured=createGraph(input),plan=requestOperation(input,captured),content=selectRequestMedia<Record<string,any>&{mediaType:string}>(plan.requestBody?.content??[],input.mediaType);
   if(!content||content.formBinding!=='multipart-named')
     throw new SourceError('request.multipart.encoding','Select a captured named multipart declaration');
   const projection=new MultipartEncoding(captured.graph),media={...content.definition,kind:'media'},schema={...content.schema,kind:'schema'};
