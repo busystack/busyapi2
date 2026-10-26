@@ -1102,6 +1102,8 @@
   "requestHeaderEnvironmentOrigin": "Environment setting",
   "requestHeaderDeclaredOrigin": "Declared parameter · edit its inclusion and value above",
   "requestHeaderCustomOrigin": "Custom input",
+  "requestPartHeaders": "Part headers",
+  "requestPartHeadersHelp": "Header values are sent literally for every part with the given name. Generic MIME headers require ASCII. Use the media, filename and transfer controls for structural fields.",
   "requestPartEncoding": "Declared form parts",
   "requestPartEncodingHelp": "Choose a Content-Type for parts that declare several types or a media range. Literal fields send serialized text; exact JSON values use the selected serializer. Enter encoded values as encoded text. Files are captured and encoded for the request.",
   "requestPartMediaChoose": "Choose a Content-Type",

@@ -281,7 +281,7 @@ generated and raw requests retain the declared family. Generic MIME text without
 a charset uses US-ASCII; form-data retains its separate UTF-8 policy. Declared
 simple part headers use their original Header Object schemas, references and
 exact numeric values. Unnamed older-family parts have no inferred positional
-mapping. Content-based or ambiguous MIME headers, additional codecs and advanced
+mapping. Ambiguous MIME headers, additional codecs and advanced
 representations still report incomplete checks. See the [support matrix](implementation/native-openapi-support.md) for
 representation coverage and verification status.
 
@@ -332,7 +332,31 @@ between field/part construction and authored text or one complete selected file.
 This accepts a complete MIME entity with its authored part headers and boundary.
 The draft keeps its current text and attachments when changing input mode or
 environment. Clear the selected complete file to return to authored text.
-Generated content-based part headers remain separate required work.
+For generated 3.0/3.1 generic multipart requests, expand **Declared form parts →
+Part headers** to enter a logical part name, header name and literal value.
+Repeated parts with that name receive the same lines. Empty and repeated header
+values are retained; generic MIME fields require printable ASCII. Content-Type,
+Content-Disposition and Content-Transfer-Encoding retain their dedicated controls
+and captured declarations. Extra form-data headers are rejected under RFC 7578
+§4.8. Header `schema` and single-media `content` use their original captured owners
+to check the emitted entity; changing environments or input modes retains the
+draft. Positional/per-item header generation remains required work.
+
+Saved contract cases use the same inputs, for example:
+
+```yaml
+body:
+  mediaType: multipart/mixed
+  value: {metadata: {id: 42}}
+  partHeaders:
+    - {part: metadata, name: X-Meta, value: '{"id":42}'}
+```
+
+Transfer Header Objects can also use `content` to constrain the selected token.
+An unsupported codec or incompletely evaluated declaration refuses dispatch.
+For generated structured data with headers, schema checks preserve the explicit
+data types and independently inspect the captured MIME bytes. Current installed
+and native qualification is recorded in the implementation matrix.
 
 **Use an exact JSON value** accepts an object for form or multipart data without
 passing through literal `name=value` rows. Saved contract cases with object

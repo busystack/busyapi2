@@ -1,5 +1,28 @@
 import 'model.dart';
 
+/// One explicit MIME field line attached to a logical multipart field.
+/// Repeated body parts retain their order and receive the same supplied lines.
+class RequestPartHeaderValue {
+  const RequestPartHeaderValue(this.part, this.name, this.value);
+  final String part, name, value;
+
+  factory RequestPartHeaderValue.fromJson(Object? raw) {
+    if (raw
+        case {'part': String part, 'name': String name, 'value': String value}
+        when part.length <= 1024 &&
+            name.length <= 1024 &&
+            value.length <= 8192) {
+      return RequestPartHeaderValue(part, name, value);
+    }
+    throw CoreFailure(
+      'request.multipart.headers',
+      'Invalid bounded multipart header input.',
+    );
+  }
+
+  Map<String, String> toJson() => {'part': part, 'name': name, 'value': value};
+}
+
 enum MultipartInstanceEncoding { octets }
 
 /// Serialization directives checked by the captured contract engine. Encoded
@@ -60,16 +83,52 @@ CoreFailureSource? _multipartSource(Object? source) {
   _invalid();
 }
 
+class MultipartHeaderLine {
+  const MultipartHeaderLine(this.name, this.value, this.source);
+  final String name, value;
+  final CoreFailureSource? source;
+
+  factory MultipartHeaderLine.fromJson(Object? raw) {
+    if (raw is! Map || raw['name'] is! String || raw['value'] is! String)
+      _invalid();
+    final name = raw['name'] as String, value = raw['value'] as String;
+    if (name.length > 1024 ||
+        value.length > 8192 ||
+        !RegExp(r"^[!#\$%&'*+.^_`|~0-9A-Za-z-]+$").hasMatch(name) ||
+        RegExp(r'[^\x20-\x7e]').hasMatch(value) ||
+        const [
+          'content-type',
+          'content-disposition',
+          'content-transfer-encoding',
+        ].contains(name.toLowerCase()))
+      _invalid();
+    return MultipartHeaderLine(name, value, _multipartSource(raw['source']));
+  }
+}
+
 class MultipartPartEncoding {
-  const MultipartPartEncoding({this.strings, this.other});
+  const MultipartPartEncoding({
+    this.strings,
+    this.other,
+    this.headers = const [],
+  });
   final MultipartTransferEncoding? strings, other;
+  final List<MultipartHeaderLine> headers;
 
   factory MultipartPartEncoding.fromJson(Object? raw) {
     if (raw is! Map ||
         raw.isEmpty ||
-        raw.keys.any((key) => key != 'string' && key != 'other'))
+        raw.keys.any(
+          (key) => key != 'string' && key != 'other' && key != 'headers',
+        ) ||
+        raw.containsKey('headers') &&
+            (raw['headers'] is! List || (raw['headers'] as List).length > 61))
       _invalid();
     return MultipartPartEncoding(
+      headers: List.unmodifiable([
+        for (final value in raw['headers'] as List? ?? const [])
+          MultipartHeaderLine.fromJson(value),
+      ]),
       strings: raw.containsKey('string')
           ? MultipartTransferEncoding.fromJson(raw['string'])
           : null,

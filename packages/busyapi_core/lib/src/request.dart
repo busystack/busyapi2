@@ -146,12 +146,14 @@ class RequestBodyDraft {
       text = null,
       file = null,
       partMediaTypes = const {},
+      partHeaders = const [],
       fields = const [],
       files = const [];
   const RequestBodyDraft.raw({required this.mediaType, required this.text})
     : kind = RequestBodyKind.raw,
       file = null,
       partMediaTypes = const {},
+      partHeaders = const [],
       fields = const [],
       files = const [];
   const RequestBodyDraft.form(
@@ -161,7 +163,8 @@ class RequestBodyDraft {
   }) : kind = RequestBodyKind.form,
        text = null,
        file = null,
-       files = const [];
+       files = const [],
+       partHeaders = const [];
   const RequestBodyDraft.formValue({
     required String json,
     this.mediaType = 'application/x-www-form-urlencoded',
@@ -170,12 +173,14 @@ class RequestBodyDraft {
        text = json,
        file = null,
        fields = const [],
-       files = const [];
+       files = const [],
+       partHeaders = const [];
   const RequestBodyDraft.multipart(
     this.fields,
     this.files, {
     this.mediaType = 'multipart/form-data',
     this.partMediaTypes = const {},
+    this.partHeaders = const [],
   }) : kind = RequestBodyKind.multipart,
        text = null,
        file = null;
@@ -184,6 +189,7 @@ class RequestBodyDraft {
     this.files = const [],
     this.mediaType = 'multipart/form-data',
     this.partMediaTypes = const {},
+    this.partHeaders = const [],
   }) : kind = RequestBodyKind.multipart,
        text = json,
        file = null,
@@ -194,6 +200,7 @@ class RequestBodyDraft {
   }) : kind = RequestBodyKind.binaryFile,
        text = null,
        partMediaTypes = const {},
+       partHeaders = const [],
        fields = const [],
        files = const [];
   final RequestBodyKind kind;
@@ -201,6 +208,7 @@ class RequestBodyDraft {
   final List<RequestFormField> fields;
   final List<MultipartFileValue> files;
   final Map<String, String> partMediaTypes;
+  final List<RequestPartHeaderValue> partHeaders;
 }
 
 class OperationRequestDraft {
@@ -1586,6 +1594,7 @@ class ContractRequestBuilder {
                         },
                   ],
             [for (final file in body.files) file.name],
+            headers: body.partHeaders,
             requestId: 'multipart-${_runIdentity()}',
             cancellation: cancellation,
           )
@@ -1807,6 +1816,10 @@ class ContractRequestBuilder {
               final validated = <(String, String)>[];
               _addHeader(validated, 'Content-Transfer-Encoding', value);
               output += 'Content-Transfer-Encoding: $value\r\n';
+            }
+            for (final header
+                in transfers[name]?.headers ?? const <MultipartHeaderLine>[]) {
+              output += '${header.name}: ${header.value}\r\n';
             }
             return output;
           }
@@ -3767,6 +3780,18 @@ class ContractRequestExecutor {
         draft.body.mediaType,
       );
       final schema = media?['schema'];
+      final encoding = media?['encoding'];
+      // A projected data instance cannot prove MIME field lines or required
+      // header presence. Evaluate the captured entity whenever headers apply.
+      final wireHeaders =
+          draft.body.kind == RequestBodyKind.multipart &&
+          (draft.body.partHeaders.isNotEmpty ||
+              encoding is Map &&
+                  encoding.values.whereType<Map>().any(
+                    (rule) =>
+                        rule['headers'] is Map &&
+                        (rule['headers'] as Map).isNotEmpty,
+                  ));
       final formDeclarations = (media?['swaggerForm'] as List?)
           ?.whereType<Map>();
       final wireForm =
@@ -3841,19 +3866,22 @@ class ContractRequestExecutor {
           _nativeMedia(media) ||
           wireForm ||
           _jsonMedia(draft.body.mediaType ?? '')) {
-        if (preparedBody?.formInstance != null &&
-            utf8.encode(preparedBody!.formInstance!).length <=
-                _evaluationLimit) {
+        final capturedData = preparedBody?.formInstance;
+        final dataChecked =
+            capturedData != null &&
+            utf8.encode(capturedData).length <= _evaluationLimit;
+        if (dataChecked) {
           instances.add(
             _mediaInstance(
               media,
               subject: 'request-body',
               location: draft.body.mediaType ?? '',
-              text: preparedBody.formInstance!,
+              text: capturedData,
             ),
           );
-        } else if (preparedBody != null &&
-            preparedBody.formInstance == null &&
+        }
+        if (preparedBody != null &&
+            (wireHeaders || preparedBody.formInstance == null) &&
             preparedBody.length <= _evaluationLimit) {
           final bytes = BytesBuilder(copy: false);
           await for (final chunk in preparedBody.open()) {
@@ -3876,6 +3904,7 @@ class ContractRequestExecutor {
               mediaType: preparedBody.mediaType ?? draft.body.mediaType,
               mediaBase64: true,
               formOccurrence: plan.operation['occurrence'] as String?,
+              rootSchemaAssertions: !dataChecked,
             ),
           );
         } else if (preparedBody == null &&
@@ -3891,12 +3920,13 @@ class ContractRequestExecutor {
               formOccurrence: plan.operation['occurrence'] as String?,
             ),
           );
-        } else if (media != null ||
-            _nativeMedia(media) ||
-            wireForm ||
-            _jsonMedia(draft.body.mediaType ?? '') ||
-            schema?['unconstrained'] != true ||
-            media?['itemSchema'] is Map) {
+        } else if ((!dataChecked || wireHeaders) &&
+            (media != null ||
+                _nativeMedia(media) ||
+                wireForm ||
+                _jsonMedia(draft.body.mediaType ?? '') ||
+                schema?['unconstrained'] != true ||
+                media?['itemSchema'] is Map)) {
           checksComplete = false;
           findings.add(
             _finding(
@@ -4272,6 +4302,12 @@ class ContractRequestExecutor {
   ) {
     final selected = instances.where((instance) => instance.subject == subject);
     if (selected.isEmpty) return absent;
+    if (selected.any((instance) => instance.mediaType == null) &&
+        selected.any(
+          (instance) =>
+              instance.form != null && instance.schemaResource == null,
+        ))
+      return 'captured-data-and-wire-media';
     return selected.any(
           (instance) =>
               instance.mediaType != null && !_jsonMedia(instance.mediaType!),
@@ -4294,6 +4330,7 @@ class ContractRequestExecutor {
     String? mediaType,
     bool mediaBase64 = false,
     String? formOccurrence,
+    bool rootSchemaAssertions = true,
   }) {
     final schema = media?['schema'] as Map?,
         itemSchema = media?['itemSchema'] as Map?;
@@ -4334,6 +4371,11 @@ class ContractRequestExecutor {
         );
       }
     }
+    if (!rootSchemaAssertions && form == null)
+      throw CoreFailure(
+        'runtime.form.owner',
+        'Wire encoding checks require a captured form owner.',
+      );
     return RuntimeSchemaInstance(
       subject: subject,
       location: location,
@@ -4342,8 +4384,12 @@ class ContractRequestExecutor {
       mediaBase64: mediaBase64,
       form: form,
       media: capturedMedia,
-      schemaResource: schema?['resource'] as String?,
-      schemaPointer: schema?['pointer'] as String?,
+      schemaResource: rootSchemaAssertions
+          ? (schema?['resource'] as String?)
+          : null,
+      schemaPointer: rootSchemaAssertions
+          ? (schema?['pointer'] as String?)
+          : null,
       itemSchemaResource: itemSchema?['resource'] as String?,
       itemSchemaPointer: itemSchema?['pointer'] as String?,
     );

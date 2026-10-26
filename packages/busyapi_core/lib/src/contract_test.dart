@@ -2,6 +2,7 @@ import 'model.dart';
 import 'project.dart';
 import 'request.dart';
 import 'form_media_types.dart';
+import 'multipart_encoding.dart';
 
 class ContractCaseResult {
   const ContractCaseResult({
@@ -399,21 +400,45 @@ class ContractTestRunner {
           'body/partMediaTypes',
           allowEmpty: true,
         );
-        if (![
-              'multipart/form-data',
-              'application/x-www-form-urlencoded',
-            ].contains(
-              (body['mediaType'] as String)
-                  .split(';')
-                  .first
-                  .trim()
-                  .toLowerCase(),
-            ) ||
+        final essence = (body['mediaType'] as String)
+            .split(';')
+            .first
+            .trim()
+            .toLowerCase();
+        if (!(essence == 'application/x-www-form-urlencoded' ||
+                essence.startsWith('multipart/')) ||
             body['value'] is! Map)
           invalid(
             'body/partMediaTypes',
             'Part media choices require object-valued form data.',
           );
+      }
+      if (body.containsKey('partHeaders')) {
+        final fields = body['partHeaders'];
+        if (fields is! List ||
+            fields.length > 2048 ||
+            body['value'] is! Map ||
+            !(body['mediaType'] as String)
+                .split(';')
+                .first
+                .trim()
+                .toLowerCase()
+                .startsWith('multipart/')) {
+          invalid(
+            'body/partHeaders',
+            'Part headers require object-valued multipart input and bounded field lines.',
+          );
+        }
+        for (var i = 0; i < fields.length; i++) {
+          try {
+            RequestPartHeaderValue.fromJson(fields[i]);
+          } on CoreFailure {
+            invalid(
+              'body/partHeaders/$i',
+              'Expected bounded part, name and value strings.',
+            );
+          }
+        }
       }
     }
     if (!value.containsKey('expect')) return;
@@ -484,6 +509,19 @@ class ContractTestRunner {
       final partMediaTypes = rawBody['partMediaTypes'] is Map
           ? (rawBody['partMediaTypes'] as Map).cast<String, String>()
           : const <String, String>{};
+      final partHeaders = [
+        for (final value in rawBody['partHeaders'] as List? ?? const [])
+          RequestPartHeaderValue.fromJson(value),
+      ];
+      final binding = plan.formBindingForMedia(media);
+      if ((partHeaders.isNotEmpty &&
+              binding != RequestFormBinding.namedMultipart) ||
+          (partMediaTypes.isNotEmpty && binding == null)) {
+        throw CoreFailure(
+          'request.multipart.header.owner',
+          'The captured body no longer supports these part inputs.',
+        );
+      }
       body = exact['body']['json'] == true
           ? switch (plan.formBindingForMedia(media)) {
               RequestFormBinding.urlEncoded => RequestBodyDraft.formValue(
@@ -496,6 +534,7 @@ class ContractTestRunner {
                   json: text,
                   mediaType: media,
                   partMediaTypes: partMediaTypes,
+                  partHeaders: partHeaders,
                 ),
               null => RequestBodyDraft.raw(mediaType: media, text: text),
             }

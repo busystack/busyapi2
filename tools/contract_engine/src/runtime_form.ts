@@ -167,7 +167,10 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
                 }
                 const definition=transfers.follow(declared,'header'),header=graph.docs.get(definition.resource)!.dataNode(definition.pointer)!.value,actual=singleton(part.headers,lower);
                 if(actual===undefined){if(header.required===true)issue('runtime.request.form.header.required','A required part header is absent',name,definition);continue;}
-                if(header.content!==undefined)failure('runtime.form.header.unsupported','This MIME token header requires a supported scalar schema representation',definition);
+                if(header.content!==undefined){
+                    const decoded=genericHeaders(part.headers,{[key]:rule.headers[key]},{...target,pointer:target.pointer+'/encoding/'+escape(name),kind:'encoding'},'/'+escape(name),true);
+                    checks.push(...decoded.checks);issues.push(...decoded.issues);continue;
+                }
                 if(Object.hasOwn(header,'schema'))checks.push({document:document(JSON.stringify(actual),'header/'+checks.length),schema:{...definition,pointer:definition.pointer+'/schema'},prefix:'/'+escape(name)+'/headers/'+escape(key)});
             }
         };

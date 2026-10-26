@@ -8,20 +8,28 @@ import type {FormCheck,FormIssue,RuntimeFormData,RuntimeFormTarget} from './runt
 
 export type MimeHeaderFormDecoder=(text:string,id:string,contentType:string,target:RuntimeFormTarget)=>RuntimeFormData;
 
-/** Header.content keeps the original Media Type/Schema Objects. The same
- * framing codecs and evaluator handle it; header text is never JSON.parsed.
- * OAS 3.0 §4.7.21 / 3.1 §4.8.21 / 3.2 Header Object. */
-export function mimeHeaderContent(graph:ReferenceGraph,id:string,transfers:MultipartEncoding,decodeForm:MimeHeaderFormDecoder) {
-    const capture=capturedRuntimeMedia(graph),forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
-    let serial=0;
-    return (header:GraphTarget,values:readonly string[],prefix:string):{checks:FormCheck[];issues:FormIssue[]}=>{
+export function capturedMimeHeaderContent(graph:ReferenceGraph,transfers:MultipartEncoding) {
+    const capture=capturedRuntimeMedia(graph);
+    return (header:GraphTarget)=>{
         const content=graph.docs.get(header.resource)?.dataNode(header.pointer+'/content');
         if(content?.kind!=='object')transfers.failure('runtime.form.header.content','A MIME Header content declaration must be a map',header);
         const entries=[...content.children].filter(([name])=>!name.startsWith('x-'));
         if(entries.length!==1)transfers.failure('runtime.form.header.content','A MIME Header content declaration requires exactly one media type',header);
-        if(values.length!==1)transfers.failure('runtime.form.header.unsupported','A content-based MIME header has multiple wire values',header);
         const [type]=entries[0],target=transfers.follow({...header,pointer:header.pointer+'/content/'+escape(type),kind:'media'},'media');
-        const captured=capture(target),source=captured.source;
+        return {type,captured:capture(target)};
+    };
+}
+
+/** Header.content keeps the original Media Type/Schema Objects. The same
+ * framing codecs and evaluator handle it; header text is never JSON.parsed.
+ * OAS 3.0 §4.7.21 / 3.1 §4.8.21 / 3.2 Header Object. */
+export function mimeHeaderContent(graph:ReferenceGraph,id:string,transfers:MultipartEncoding,decodeForm:MimeHeaderFormDecoder) {
+    const capture=capturedMimeHeaderContent(graph,transfers);
+    const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+    let serial=0;
+    return (header:GraphTarget,values:readonly string[],prefix:string):{checks:FormCheck[];issues:FormIssue[]}=>{
+        const {type,captured}=capture(header),source=captured.source;
+        if(values.length!==1)transfers.failure('runtime.form.header.unsupported','A content-based MIME header has multiple wire values',header);
         const schema=captured.schema,shape=schema&&captured.family==='3.0'?forms.shape(schema.resource,schema.pointer):undefined;
         const octets=shape?.types?.includes('string')===true&&shape.format==='binary';
         let decoded:ReturnType<typeof decodeRuntimeMedia>|RuntimeFormData;

@@ -487,9 +487,16 @@ class OperationRequestPlan {
     String mediaType,
     List<Map<String, String>> parts,
     List<String> files, {
+    List<RequestPartHeaderValue> headers = const [],
     required String requestId,
     RunCancellation? cancellation,
   }) async {
+    if (headers.length > 2048)
+      throw CoreFailure(
+        'request.multipart.headers.limit',
+        'Multipart header inputs exceed 2048 fields.',
+      );
+    final capturedHeaders = List<RequestPartHeaderValue>.unmodifiable(headers);
     final result = await _formProjection(
       'requestMultipartEncoding',
       {
@@ -500,10 +507,32 @@ class OperationRequestPlan {
         'mediaType': mediaType,
         'parts': parts,
         'files': files,
+        'headers': {
+          for (final name
+              in capturedHeaders.map((header) => header.part).toSet())
+            name: [
+              for (final header in capturedHeaders.where(
+                (header) => header.part == name,
+              ))
+                {'name': header.name, 'value': header.value},
+            ],
+        },
       },
       requestId,
       cancellation,
     );
+    if (headers.length != capturedHeaders.length ||
+        [
+          for (var i = 0; i < headers.length; i++)
+            headers[i].part != capturedHeaders[i].part ||
+                headers[i].name != capturedHeaders[i].name ||
+                headers[i].value != capturedHeaders[i].value,
+        ].any((changed) => changed)) {
+      throw CoreFailure(
+        'request.multipart.header.stale',
+        'Multipart header inputs changed during preparation.',
+      );
+    }
     final values = result['parts'];
     final names = {...parts.map((part) => part['name']), ...files};
     if (result['version'] != 1 ||
@@ -517,10 +546,28 @@ class OperationRequestPlan {
         'Invalid captured multipart transfer projection.',
       );
     }
-    return Map.unmodifiable({
+    final parsed = {
       for (final entry in values.entries)
         entry.key as String: MultipartPartEncoding.fromJson(entry.value),
-    });
+    };
+    for (final name in parsed.keys) {
+      final expected = capturedHeaders
+              .where((header) => header.part == name)
+              .toList(),
+          actual = parsed[name]!.headers;
+      if (expected.length != actual.length ||
+          [
+            for (var i = 0; i < expected.length; i++)
+              expected[i].name != actual[i].name ||
+                  expected[i].value != actual[i].value,
+          ].any((changed) => changed)) {
+        throw CoreFailure(
+          'request.multipart.protocol',
+          'The captured MIME headers differ from the supplied input.',
+        );
+      }
+    }
+    return Map.unmodifiable(parsed);
   }
 
   Future<Map<String, dynamic>> _formProjection(

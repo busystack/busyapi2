@@ -30,7 +30,11 @@ export function decodeMultipartTransfer(bytes:Buffer,encoding:string):DecodedMul
         const value=Buffer.from(encoded,codec==='base64'?'base64':'base64url');
         const canonical=codec==='base64'?value.toString('base64'):value.toString('base64url').padEnd(Math.ceil(value.length/3)*4,'=');
         if(canonical!==encoded)return invalid();
-        return {bytes:value,encoded};
+        // MIME decoding ignores non-alphabet input, but the OAS model's
+        // encoded string still retains its supplied spelling. CRLF is the
+        // transport line folding added by the native sender; other characters
+        // remain available to string assertions (RFC 2045 §6.8).
+        return {bytes:value,encoded:codec==='base64'?literal.replace(/\r\n/g,''):encoded};
     }
     if(codec==='base16'){
         if(literal.length%2||!/^[0-9A-Fa-f]*$/.test(literal))return invalid();

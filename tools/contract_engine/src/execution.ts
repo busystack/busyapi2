@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 
 import {createGraph, propose, Resource} from './engine';
-import {escape, SourceDocument, SourceError,type Range} from './document';
+import {escape,SourceDocument,SourceError,type Range} from './document';
 import {GraphTarget, ReferenceGraph, supportedSchemaDialect} from './reference_graph';
 import {decimal} from './exact_numbers';
 import {headerShapes} from './header_serialization';
@@ -11,12 +11,14 @@ import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './
 import {swaggerResponseAllowsContent} from './swagger_file';
 import {componentLocation} from './authoring';
 import {formBinding,FormSemantics} from './form_semantics';
-import {selectNativeMedia} from './mock_projection';
+import {selectNativeMedia,type NativeRuntimeInstance} from './mock_projection';
 import {isNativeFamily} from './specification';
 import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
 import {evaluateSchemas} from './schema_evaluation';
-import {runtimeMediaDescription} from './runtime_media';
+import {runtimeMediaDescription,runtimeFormMedia} from './runtime_media';
+import {capturedMimeHeaderContent} from './mime_header_content';
+import {multipartHeaderValues,type MultipartHeaderLine} from './multipart_header_values';
 import {ignoresRequestBody} from './operation_semantics';
 import {annotationOnlySchema} from './schema_boundaries';
 
@@ -207,23 +209,28 @@ export async function requestMultipartEncoding(input:any){
   if(!content||content.formBinding!=='multipart-named')
     throw new SourceError('request.multipart.encoding','Select a captured named multipart declaration');
   const projection=new MultipartEncoding(captured.graph),media={...content.definition,kind:'media'},schema={...content.schema,kind:'schema'};
-  const result:Record<string,{string?:MultipartTransfer;other?:MultipartTransfer}>=Object.create(null),candidates:{transfer:MultipartTransfer;header:MultipartHeaderCandidate;subjects:string[]}[]=[];
-  const runtime:any[]=[];
+  const result:Record<string,{string?:MultipartTransfer;other?:MultipartTransfer;headers?:MultipartHeaderLine[]}>=Object.create(null),candidates:{transfer:MultipartTransfer;header:MultipartHeaderCandidate;subjects:string[]}[]=[];
+  const runtime:NativeRuntimeInstance[]=[];
+  const headerContentFor=capturedMimeHeaderContent(captured.graph,projection);
   const part=(name:string,isString:boolean,array:boolean)=>{
     const output=result[name]??=(Object.create(null)),key=isString?'string':'other';
     if(output[key])return;
     if(content.swaggerForm){output[key]={schemaEncoded:false};return;}
     const transfer:MultipartTransfer=isString&&content.schema?projection.schemaEncoding(schema,name,array):{schemaEncoded:false};
     output[key]=transfer;
-    const header=projection.header(media,name,transfer);
+    const header=projection.header(media,name,transfer,input.mediaType.split(';')[0].trim().toLowerCase()==='multipart/form-data');
     if(!header){
       if(transfer.encoding!==undefined&&!supportsMultipartTransfer(transfer.encoding))projection.failure('request.multipart.encoding.unsupported','The native transport has no codec for the declared transfer encoding',transfer.source!);
       return;
     }
+    const headerContent=header.header?headerContentFor(header.header):undefined;
     const subjects=header.values.map(value=>{
       if(runtime.length>=maximumItems)throw new SourceError('limit.request.encoding','Multipart header evaluation exceeds 2048 candidates');
-      const subject='multipart-header:'+runtime.length;
-      runtime.push({subject,location:header.source.pointer,text:JSON.stringify(value),schema:header.schema});
+      const subject='request-part-header:'+runtime.length;
+      if(headerContent){
+        const {type,captured:headerMedia}=headerContent;
+        runtime.push({subject,location:header.source.pointer,text:value,mediaType:type,schema:headerMedia.schema,itemSchema:headerMedia.itemSchema,...(runtimeFormMedia(type)?{form:headerMedia.source}:{})});
+      }else runtime.push({subject,location:header.source.pointer,text:JSON.stringify(value),schema:header.schema});
       return subject;
     });
     candidates.push({transfer,header,subjects});
@@ -239,6 +246,8 @@ export async function requestMultipartEncoding(input:any){
       projection.failure('request.multipart.encoding.unsupported','A file under an array union requires an explicit part-shape selection',schema);
     part(name,true,property?.literalType==='array');
   }
+  const headers=multipartHeaderValues(captured.graph,media,new Set([...input.parts.map((part:{name:string})=>part.name),...input.files]),input.headers,input.mediaType.split(';')[0].trim().toLowerCase()==='multipart/form-data');
+  for(const [name,values]of headers)result[name].headers=values;
   if(runtime.length){
     const checked=await evaluateSchemas({...input,runtimeInstances:runtime},undefined,captured);
     const evaluations=new Map(checked.runtimeEvaluations.map((value:any)=>[value.subject,value]));

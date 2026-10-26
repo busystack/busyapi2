@@ -3,7 +3,7 @@ import {ReferenceGraph,supportedSchemaDialect,type GraphReference,type GraphTarg
 
 type MultipartSource={resource:string;pointer:string;range:number[]};
 export type MultipartTransfer={encoding?:string;schemaEncoded:boolean;instanceEncoding?:'octets';instanceSource?:MultipartSource;source?:MultipartSource};
-export type MultipartHeaderCandidate={name:string;values:string[];schema:GraphTarget;implicit:boolean;literalExample:boolean;source:GraphTarget};
+export type MultipartHeaderCandidate={name:string;values:string[];implicit:boolean;literalExample:boolean;source:GraphTarget}&({schema:GraphTarget;header?:never}|{header:GraphTarget;schema?:never});
 export type MultipartSchemaStep={property:string}|{item:number|undefined};
 
 /** MIME codecs implemented by the native transport. This is a serialization
@@ -110,7 +110,7 @@ export class MultipartEncoding {
         return {encoding,schemaEncoded:true,source:{resource:source.resource,pointer:source.pointer,range:this.graph.docs.get(source.resource)!.dataNode(source.pointer)!.range}};
     }
 
-    header(media:GraphTarget,name:string,implicit:MultipartTransfer):MultipartHeaderCandidate|undefined {
+    header(media:GraphTarget,name:string,implicit:MultipartTransfer,formData=true):MultipartHeaderCandidate|undefined {
         const at=media.pointer+'/encoding/'+escape(name),value=this.graph.docs.get(media.resource)?.dataNode(at)?.value;
         if(value===undefined)return;
         if(!value||typeof value!=='object'||Array.isArray(value)||value.encoding!==undefined||value.prefixEncoding!==undefined||value.itemEncoding!==undefined)
@@ -122,11 +122,13 @@ export class MultipartEncoding {
         for(const key of Object.keys(headers)){
             const source={...media,pointer:at+'/headers/'+escape(key),kind:'header'};
             if(key.toLowerCase()==='content-type')continue;
-            if(key.toLowerCase()!=='content-transfer-encoding')this.failure('request.multipart.headers','multipart/form-data forbids this additional part header',source);
+            if(key.toLowerCase()!=='content-transfer-encoding'){
+                if(formData)this.failure('request.multipart.headers','multipart/form-data forbids this additional part header',source);
+                continue;
+            }
             if(candidate)this.failure('request.multipart.headers','Part header names must be unique without regard to case',source);
             const target=this.follow(source,'header'),header=this.graph.docs.get(target.resource)!.dataNode(target.pointer)!.value;
-            if(header.content!==undefined)this.failure('request.multipart.encoding.unsupported','Transfer headers require a token representation',target);
-            if(!Object.hasOwn(header,'schema'))this.failure('request.multipart.headers','The transfer header has no Schema Object',target);
+            if(header.content===undefined&&!Object.hasOwn(header,'schema'))this.failure('request.multipart.headers','The transfer header has no Schema Object',target);
             let values:string[];
             if(implicit.encoding!==undefined)values=[implicit.encoding];
             else if(typeof header.example==='string')values=[header.example];
@@ -136,7 +138,7 @@ export class MultipartEncoding {
                 const own=header.schema,extra=[own?.const,own?.default,...(Array.isArray(own?.enum)?own.enum:[])].filter(value=>typeof value==='string');
                 values=[...new Set([...extra.filter(supportsMultipartTransfer),...multipartTransferEncodings,...extra])];
             }
-            candidate={name,values,schema:{...target,pointer:target.pointer+'/schema',kind:'schema'},implicit:implicit.encoding!==undefined,literalExample:typeof header.example==='string',source};
+            candidate={name,values,...(header.content!==undefined?{header:target}:{schema:{...target,pointer:target.pointer+'/schema',kind:'schema'}}),implicit:implicit.encoding!==undefined,literalExample:typeof header.example==='string',source};
         }
         return candidate;
     }

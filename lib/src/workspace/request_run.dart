@@ -26,6 +26,7 @@ import '../platform/external_uri_service.dart';
 import 'refactoring_review.dart';
 import 'workspace_controller.dart';
 import 'request_part_media.dart';
+import 'request_part_headers.dart';
 
 enum RequestTimeoutKind { connect, overall, inactivity }
 
@@ -85,6 +86,8 @@ class RequestRunController extends ChangeNotifier {
   bool bodyEnabled = false;
   bool bodyStructured = false;
   final Map<String, String> partMediaTypes = {};
+  final List<RequestPartHeaderValue> partHeaders = [];
+  String partHeaderPart = '', partHeaderName = '', partHeaderValue = '';
   int _epoch = 0;
   final Map<(BusyProject?, OperationRequestPlan?, String?), int>
   _credentialWrites = {};
@@ -290,12 +293,30 @@ class RequestRunController extends ChangeNotifier {
                       files: List.of(bodyFiles),
                       mediaType: bodyMediaType!,
                       partMediaTypes: Map.of(partMediaTypes),
+                      partHeaders: [
+                        ...partHeaders,
+                        if (partHeaderName.isNotEmpty)
+                          RequestPartHeaderValue(
+                            partHeaderPart,
+                            partHeaderName,
+                            partHeaderValue,
+                          ),
+                      ],
                     )
                   : RequestBodyDraft.multipart(
                       formRows(bodyText),
                       List.of(bodyFiles),
                       mediaType: bodyMediaType!,
                       partMediaTypes: Map.of(partMediaTypes),
+                      partHeaders: [
+                        ...partHeaders,
+                        if (partHeaderName.isNotEmpty)
+                          RequestPartHeaderValue(
+                            partHeaderPart,
+                            partHeaderName,
+                            partHeaderValue,
+                          ),
+                      ],
                     ),
             RequestBodyKind.binaryFile =>
               bodyFiles.length == 1
@@ -355,6 +376,34 @@ class RequestRunController extends ChangeNotifier {
       return;
     }
     bodyKind = serialized ? RequestBodyKind.raw : _kindForMedia(bodyMediaType);
+    refresh();
+  }
+
+  void addPartHeader() {
+    if (busy ||
+        hasComposingInput ||
+        partHeaderPart.isEmpty ||
+        partHeaderName.isEmpty) {
+      return;
+    }
+    if (partHeaders.length >= 2048) {
+      throw CoreFailure(
+        'request.multipart.headers',
+        'Multipart header inputs exceed their bounded size.',
+      );
+    }
+    partHeaders.add(
+      RequestPartHeaderValue(partHeaderPart, partHeaderName, partHeaderValue),
+    );
+    partHeaderName = partHeaderValue = '';
+    refresh();
+  }
+
+  void removePartHeader(int index) {
+    if (busy || hasComposingInput || index < 0 || index >= partHeaders.length) {
+      return;
+    }
+    partHeaders.removeAt(index);
     refresh();
   }
 
@@ -423,6 +472,8 @@ class RequestRunController extends ChangeNotifier {
     bodyKind = RequestBodyKind.raw;
     bodyStructured = false;
     partMediaTypes.clear();
+    partHeaders.clear();
+    partHeaderPart = partHeaderName = partHeaderValue = '';
     connectTimeout = const Duration(seconds: 15);
     overallTimeout = const Duration(seconds: 60);
     inactivityTimeout = const Duration(seconds: 15);
@@ -1337,6 +1388,12 @@ class _RequestDraftState {
       kind = run.bodyKind,
       bodyStructured = run.bodyStructured,
       partMediaTypes = Map.of(run.partMediaTypes),
+      partHeaders = List.of(run.partHeaders),
+      partHeaderDraft = (
+        run.partHeaderPart,
+        run.partHeaderName,
+        run.partHeaderValue,
+      ),
       timeoutInputs = Map.of(run.timeoutInputs),
       timeouts = (
         run.connectTimeout,
@@ -1362,6 +1419,8 @@ class _RequestDraftState {
   final RequestBodyKind kind;
   final bool bodyStructured;
   final Map<String, String> partMediaTypes;
+  final List<RequestPartHeaderValue> partHeaders;
+  final (String, String, String) partHeaderDraft;
   final (Duration, Duration, Duration) timeouts;
   final Map<RequestTimeoutKind, String> timeoutInputs;
   final Map<String, String> values, tls;
@@ -1373,6 +1432,13 @@ class _RequestDraftState {
   final int? security;
   int get bytes =>
       (body.length +
+          partHeaders.fold<int>(
+            0,
+            (n, h) => n + h.part.length + h.name.length + h.value.length,
+          ) +
+          partHeaderDraft.$1.length +
+          partHeaderDraft.$2.length +
+          partHeaderDraft.$3.length +
           partMediaTypes.entries.fold<int>(
             0,
             (n, entry) => n + entry.key.length + entry.value.length,
@@ -1408,6 +1474,10 @@ class _RequestDraftState {
     run.bodyKind = kind;
     run.bodyStructured = bodyStructured;
     run.partMediaTypes.addAll(partMediaTypes);
+    run.partHeaders.addAll(partHeaders);
+    run.partHeaderPart = partHeaderDraft.$1;
+    run.partHeaderName = partHeaderDraft.$2;
+    run.partHeaderValue = partHeaderDraft.$3;
     run.timeoutInputs.addAll(timeoutInputs);
     run.connectTimeout = timeouts.$1;
     run.overallTimeout = timeouts.$2;
@@ -3119,6 +3189,11 @@ class _BodyEditor extends StatelessWidget {
               children: [
                 BusyApiStatusBox(message: l.requestPartEncodingHelp),
                 RequestPartMediaEditor(run: run),
+                if (multipart &&
+                        formInput &&
+                        selectedMedia != 'multipart/form-data' ||
+                    run.partHeaders.isNotEmpty)
+                  RequestPartHeadersEditor(run: run),
               ],
             ),
           if (!form || entityInput) ...[
