@@ -37,7 +37,7 @@ part 'migration.dart';
 
 // Semantic revisions are part of captured evaluator ownership, alongside the
 // wire protocol and snapshot identity.
-const _schemaProducerVersion = '1.18.0+23';
+const _schemaProducerVersion = '1.18.0+24';
 
 // Keep native-isolate IO wakeups bounded without serializing every resource.
 // Each batch finishes (including failures) before access can be released.
@@ -314,6 +314,7 @@ Map<String, dynamic> _mergeSchemaEvaluation(
             'schemas': evaluated['schemas'],
             'instances': evaluated['instances'],
             'skipped': (evaluated['skipped'] as List).length,
+            'serializedExamples': evaluated['serializedEvaluations'],
           },
           'snapshot': snapshot.sourceIdentity,
         },
@@ -1678,6 +1679,21 @@ class BusyProject {
               located(value) &&
               value['valid'] is bool &&
               located(value['schema']),
+        ) &&
+        result['serializedEvaluations'] is List &&
+        (result['serializedEvaluations'] as List).length <= 20000 &&
+        (result['serializedEvaluations'] as List).every(
+          (value) =>
+              located(value) &&
+              located(value['media']) &&
+              value['mediaType'] is String &&
+              (value['mediaType'] as String).length <= 16384 &&
+              (value['occurrencePointer'] == null ||
+                  value['occurrencePointer'] is String &&
+                      (value['occurrencePointer'] as String).length <= 16384) &&
+              value['complete'] is bool &&
+              value['valid'] is bool &&
+              (value['complete'] == true || value['valid'] == false),
         ) &&
         result['skipped'] is List &&
         (result['skipped'] as List).length <= 20000 &&

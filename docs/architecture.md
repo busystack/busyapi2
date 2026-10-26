@@ -196,7 +196,26 @@ YAML uses `yaml` **2.9.0** Document/CST nodes with source tokens, core YAML 1.2 
 
 The checked-in OpenAPI structural artifacts come from the [OAI specification registry](https://github.com/OAI/spec.openapis.org): `oas/3.1/schema/2025-09-15` and `oas/3.2/schema/2025-09-17`. Ajv **8.20.0** retains the initial structural stage: a runtime copy binds the artifacts' `#meta` dynamic slot statically to `$defs/schema`; published artifacts remain untouched. This structural substitution is not the instance evaluator. The awaited `evaluateSchemas` stage uses Hyperjump **1.18.0** / Browser **1.6.0**, explicit dated OAS dialect meta-evaluation and its draft-2020-12 evaluation stack, including dynamic scope, composition and unevaluated assertions. Exported experimental keyword/instance APIs are pinned and tested. Exact numeric/equality handlers obtain lexemes from the existing CST, with bounded decimal/integer arithmetic; user schemas/examples never pass through lossy JSON serialization. Literal const/enum data retain their original meaning even when another occurrence explicitly references that value as a schema. YAML data aliases retain provenance without making shared syntax independently editable.
 
-`BusyProject.check` owns both stages for GUI and CLI. A coherent structural projection can be published while semantic work is still checking. Final evaluation rechecks buffer generations, approved-resource revision and disk identities; stale work cannot replace current results. Schema failures/malformed replies make the category incomplete, not empty-success. Native projection identity is independent of semantic completeness, so a failed evaluator cannot resurrect intentionally deleted operations. Assistance/refactoring snapshot collection does not wait for unrelated example evaluation. Checks report producer/configuration/source snapshot and stage coverage. Format remains annotation-only; supplied JSON-compatible example compatibility is advice, not runtime conformance. Serialized examples/externalValue are neither parsed nor fetched automatically. Unknown dialects/required vocabularies and bounded-work exhaustion remain explicit incomplete outcomes. Normative relationships use the canonical graph's version-aware checks; policy executes separately through `BusyProject.lint`, with its own completeness and reviewed-code restriction boundary.
+`BusyProject.check` owns both stages for GUI and CLI. A coherent structural
+projection can be published while semantic work is still checking. Final
+evaluation rechecks buffer generations, approved-resource revision and disk
+identities; stale work cannot replace current results. Schema failures/malformed
+replies make the category incomplete, not empty-success. Native projection
+identity is independent of semantic completeness, so a failed evaluator cannot
+resurrect intentionally deleted operations. Assistance/refactoring snapshot
+collection does not wait for unrelated example evaluation. Checks report
+producer/configuration/source snapshot and stage coverage. Format remains
+annotation-only; supplied example compatibility is advice, not runtime conformance.
+OpenAPI 3.2 Media Type `serializedValue` examples use the captured runtime codecs
+and exact schema evaluator, independently of an accompanying `dataValue`.
+Serialized evaluation results retain physical/occurrence source locations,
+the containing media occurrence and separate completeness/validity. External
+example values are not fetched automatically; Parameter/Header style examples
+remain separate required work. Unknown codecs, dialects/required vocabularies
+and bounded-work exhaustion remain explicit incomplete outcomes. Normative
+relationships use the canonical graph's version-aware checks; policy executes
+separately through `BusyProject.lint`, with its own completeness and reviewed-code
+restriction boundary.
 
 The awaited canonical schema stage also checks the 3.2 discriminator/defaultMapping relationship without changing instance validity. Required-property proofs follow canonical references and compositions; a valid object witness without the property proves optionality. Bounded or ambiguous proofs stay incomplete instead of inferring optionality from a missing local required keyword. 3.1 retains its own discriminator rules.
 

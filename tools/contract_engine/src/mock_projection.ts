@@ -12,7 +12,7 @@ export type NativeMockCheck={complete:boolean;valid:boolean;findings:Record<stri
 export type NativeRuntimeEvaluation={subject:string;location:string;complete:boolean;valid:boolean;chosen?:number};
 export type NativeRuntimeCheck=NativeMockCheck&{evaluations:NativeRuntimeEvaluation[]};
 export type NativeMedia={mediaType:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;mediaOwner?:RuntimeMediaTarget;formOwner?:RuntimeFormTarget};
-export type NativeRuntimeInstance={subject:string;location:string;text:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;media?:RuntimeMediaTarget;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
+export type NativeRuntimeInstance={subject:string;location:string;text:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;media?:RuntimeMediaTarget;mediaType?:string;mediaBase64?:boolean;unicodeSerialization?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
 
 export const schemaLocation=(value:unknown):SchemaLocation|undefined=>record(value)&&typeof value.resource==='string'&&typeof value.pointer==='string'
     ?{resource:value.resource,pointer:value.pointer}:undefined;

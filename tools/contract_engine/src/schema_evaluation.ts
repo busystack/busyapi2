@@ -20,16 +20,17 @@ import {typedSchemaDocument,embeddedSchemaDocument} from './schema_document';
 import {safeFinding} from './security_design';
 import {schemaRoots,nestedSchemaBoundaries} from './schema_boundaries';
 import {discriminatorRelationships} from './authoring_relationships';
-import {restrictedSchemaDialect,swaggerSchemaDialect} from './specification';
+import {restrictedSchemaDialect,swaggerSchemaDialect,modernFamily} from './specification';
 import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,swaggerMetaIdentity,SchemaEvaluationScope} from './swagger_schema';
 import {swaggerFileContexts} from './swagger_file';
+import {evaluateSerializedExamples} from './serialized_examples';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+23',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+24',configuration:[
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',
  'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1',
- 'reference-family-v1','reference-position-v1','schema-context-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1',
+ 'reference-family-v1','reference-position-v1','schema-context-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','serialized-media-examples-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1',
 ].join(':')};
 let configured=false,running=false;
 const standardIds=new Set<string>(),reservedIds=new Set<string>(),standardMetas=new Map<string,any>();
@@ -277,7 +278,8 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
     if(!value||typeof value!=='object'||typeof value.$ref==='string')continue;
     const field=graph.scope(owner.id,pointer).family==='3.2'&&Object.hasOwn(value,'dataValue')?'dataValue':Object.hasOwn(value,'value')?'value':undefined;
     if(field)append(schema,owner,pointer+'/'+escape(field),'authored-data');
-    else skip({resource:owner.id,pointer,reason:Object.hasOwn(value,'externalValue')?'external-value-not-retrieved':Object.hasOwn(value,'serializedValue')?'serialized-value-not-parsed':'no-authored-data'});
+    else if(!(modernFamily(scope.family)&&scope.kind==='media'&&graph.scope(owner.id,pointer).family==='3.2'&&Object.hasOwn(value,'serializedValue')))
+     skip({resource:owner.id,pointer,reason:Object.hasOwn(value,'externalValue')?'external-value-not-retrieved':Object.hasOwn(value,'serializedValue')?'serialized-value-not-parsed':'no-authored-data'});
    }
   }
   for(const example of examples) {
@@ -341,12 +343,16 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    }
   }
   const runtime=input.runtimeInstances??[];
-  const checkedRuntime=await evaluateRuntimeInstances(runtime,{snapshot:input.snapshot,graph,scopes:evaluationScopes,exact,compile:getCompiled,schemaReady:scope=>!states.get(scopeId(scope)),producer:schemaProducer,observeFailure});
+  const runtimeOwner={snapshot:input.snapshot,graph,scopes:evaluationScopes,exact,compile:getCompiled,schemaReady:(scope:SchemaEvaluationScope)=>!states.get(scopeId(scope)),producer:schemaProducer,observeFailure};
+  const serialized=await evaluateSerializedExamples(graph,values=>evaluateRuntimeInstances(values,runtimeOwner));
+  complete=complete&&serialized.complete;instances+=serialized.instances;
+  for(const finding of serialized.findings)add(finding.document,finding.pointer,finding.code,finding.message,'warning',finding.details);
+  const checkedRuntime=await evaluateRuntimeInstances(runtime,runtimeOwner);
   complete=complete&&checkedRuntime.complete;instances+=checkedRuntime.instances;
   runtimeEvaluations.push(...checkedRuntime.evaluations);runtimeFindings.push(...checkedRuntime.findings);
   if(limited)add(root,'','limit.schema.findings','Schema evaluation reached its bounded work or finding limit. Shown results are not exhaustive.','warning');
   return {version:1,snapshot:input.snapshot,root:input.root,producer:schemaProducer.name,producerVersion:schemaProducer.version,configuration:schemaProducer.configuration+(input.policyAnnotations===true?':policy-annotations':''),
-   complete,findings,evaluations,runtimeEvaluations,runtimeFindings,skipped,schemas,instances,coverage:{schemaKeywords:'dated-oas-and-draft2020-12-meta',instances:runtime.length?'selected-runtime-values-and-authored-json-compatible-examples':'authored-json-compatible-examples',numbers:'exact-cst-decimal',dynamicScope:'validator-evaluation-stack',format:'annotation-only',runtime:runtime.length?'selected-operation-values':'not-requested'}};
+   complete,findings,evaluations,serializedEvaluations:serialized.evaluations,runtimeEvaluations,runtimeFindings,skipped,schemas,instances,coverage:{schemaKeywords:'dated-oas-and-draft2020-12-meta',instances:runtime.length?'selected-runtime-values-and-authored-examples':'authored-examples',serializedMediaExamples:{complete:serialized.complete,evaluated:serialized.evaluations.length},numbers:'exact-cst-decimal',dynamicScope:'validator-evaluation-stack',format:'annotation-only',runtime:runtime.length?'selected-operation-values':'not-requested'}};
  }finally {
   open=false;documents.clear();exact.dispose();
   for(const uri of ownedIds)unloadDialect(uri);

@@ -302,6 +302,17 @@ produce advisory findings. Positional, nested and ambiguous conditional binding
 remain incomplete. OpenAPI 3.0 multipart request content requires a schema;
 response content and the modern families retain their own rules.
 
+OpenAPI 3.2 Media Type examples with `serializedValue` use those same native
+decoders and original schema assertions. An accompanying `dataValue` is checked
+independently; it does not hide an incompatible serialization. JSON numbers,
+false/empty/null values, references, reusable media and YAML aliases retain their
+captured semantics and source locations. Compatibility findings are advice, and
+the report distinguishes invalid representations from incomplete decoding.
+Opaque binary data does not establish the Unicode representation required for
+`serializedValue`; use an external serialized resource. External examples are
+not fetched automatically. Parameter/Header style example checks remain separate
+required work. See [3.2 Example validation](https://spec.openapis.org/oas/v3.2.1.html#validating-examples).
+
 **Use an exact JSON value** accepts an object for form or multipart data without
 passing through literal `name=value` rows. Saved contract cases with object
 values use that same headless path, including in the installed CLI. Explicit

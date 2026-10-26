@@ -16,7 +16,7 @@ import {capturedRuntimeMedia,type RuntimeMediaTarget} from './runtime_media_owne
 import {swaggerFileSchemas} from './swagger_file';
 
 type SchemaLocation={resource:string;pointer:string};
-type RuntimeInstance={text:string;subject:string;location:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;media?:RuntimeMediaTarget;mediaType?:string;mediaBase64?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
+type RuntimeInstance={text:string;subject:string;location:string;schema?:SchemaLocation;itemSchema?:SchemaLocation;media?:RuntimeMediaTarget;mediaType?:string;mediaBase64?:boolean;unicodeSerialization?:boolean;form?:RuntimeFormTarget;alternatives?:string[];swaggerHeader?:SwaggerHeaderTarget;header?:RuntimeHeaderTarget};
 type Finding=Record<string,unknown>;
 type Owner={snapshot:string;graph:ReferenceGraph;scopes:ReadonlyMap<string,SchemaEvaluationScope>;
  exact:ReturnType<typeof createExactNumericAdapter>;compile:(scope:SchemaEvaluationScope)=>Promise<CompiledSchema|undefined>;schemaReady:(scope:SchemaEvaluationScope)=>boolean;
@@ -35,6 +35,7 @@ function suppliedInstance(value:unknown):RuntimeInstance {
   item.media!==undefined&&(!schema(item.media)||item.mediaType===undefined&&item.subject!=='response-body'||item.form!==undefined||!['request-body','response-body'].includes(item.subject))||
   item.form!==undefined&&(!schema(item.form)||'occurrence' in item.form&&(typeof item.form.occurrence!=='string'||item.form.occurrence.length>4096)||item.mediaType===undefined)||
   item.mediaBase64!==undefined&&typeof item.mediaBase64!=='boolean'||item.mediaBase64===true&&item.mediaType===undefined&&item.media===undefined||
+  item.unicodeSerialization!==undefined&&typeof item.unicodeSerialization!=='boolean'||item.unicodeSerialization===true&&(item.mediaType===undefined||item.mediaBase64===true)||
   item.alternatives!==undefined&&(!Array.isArray(item.alternatives)||item.alternatives.length>255||!item.alternatives.every(text=>typeof text==='string'&&text.length<=64*1024*1024)||
    item.mediaType!==undefined||item.itemSchema!==undefined||item.media!==undefined||item.form!==undefined||item.mediaBase64===true)||
   item.swaggerHeader!==undefined&&(!header(item.swaggerHeader)||item.subject!=='response-header'||item.alternatives!==undefined||item.mediaType!==undefined||item.itemSchema!==undefined||item.form!==undefined||item.mediaBase64===true)||
@@ -99,6 +100,10 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
    // Its captured schema takes precedence over the media type's usual codec.
    if(supplied.form&&!fileSchema){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
    else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,fileSchema?'file':octets?'octets':family==='2.0'||family==='3.0'?'legacy-octets':family==='3.1'||family==='3.2'?'binary':'unsupported');
+   // OAS 3.2 §4.19.2.3 requires a defined Unicode serialization. Opaque
+   // binary instances, including nested parts, cannot supply that proof.
+   if(supplied.unicodeSerialization===true&&((decoded.binaryInstances?.size??0)>0||form?.checks.some(check=>(check.binary?.size??0)>0)))
+    throw new SourceError('runtime.media.unicode.unsupported','A serialized Unicode example contains an opaque binary representation; use an external serialized resource',[0,0],'unsupported');
   }catch(error){
    const limited=error instanceof SourceError&&error.code.startsWith('limit.');
    const unsupported=error instanceof SourceError&&error.kind==='unsupported';
