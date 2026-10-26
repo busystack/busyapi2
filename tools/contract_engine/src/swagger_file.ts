@@ -42,6 +42,25 @@ export function swaggerFileContexts(graph:ReferenceGraph):{contexts:ReadonlySet<
  return {contexts,fileSchemas:files,invalidReferences};
 }
 
+/** A file choice must keep every captured consumer in a response-root position.
+ * A body reference into any link of a shared chain also excludes its target.
+ * This uses the same graph ownership as file evaluation, before a type is edited. */
+export function swaggerFileChoiceTargets(graph:ReferenceGraph):ReadonlySet<string> {
+ const {contexts}=swaggerFileContexts(graph),blocked=new Set<string>(),pending:string[]=[];
+ const edges=new Map<string,string>();
+ for(const edge of graph.references){
+  if(edge.kind!=='schema'||edge.keyword!=='$ref'||edge.resolution!=='resolved')continue;
+  const source=identity(edge),target=edge.targetResource+'#'+edge.targetPointer;
+  edges.set(source,target);
+  if(contexts.has(target)&&!contexts.has(source)&&!blocked.has(target)){blocked.add(target);pending.push(target);}
+ }
+ for(let index=0;index<pending.length;index++){
+  const target=edges.get(pending[index]);
+  if(target&&contexts.has(target)&&!blocked.has(target)){blocked.add(target);pending.push(target);}
+ }
+ return new Set([...contexts].filter(target=>!blocked.has(target)));
+}
+
 /** Swagger §6.4.12 extends the response schema's root with file. This does
  * not introduce file as a JSON type or permit it in nested/body schemas. */
 export function swaggerFileSchemas(graph:ReferenceGraph) {

@@ -19,6 +19,14 @@ Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
 reference rules.
 
+Source type completions retain the containing schema rules: Swagger Schema
+Objects inherit Draft 4 types, including `null`; its non-body Parameter, Header
+and Items Objects have narrower choices. OpenAPI 3.0 uses its restricted type
+set. Swagger response roots also offer `file`, including captured unversioned
+reference chains. The choice is excluded when a captured body consumer shares
+that chain. Definitions and nested properties retain ordinary Schema Object
+rules. See [Swagger response schemas](https://spec.openapis.org/oas/v2.0.html#response-object).
+
 Security Requirement arrays contain OAuth/OpenID scopes or, in OpenAPI 3.1 and
 3.2, role names for other security schemes. Swagger 2.0 and OpenAPI 3.0 require
 empty arrays for non-OAuth schemes. Native editing and selection retain authored

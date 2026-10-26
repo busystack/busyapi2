@@ -4,6 +4,7 @@ import { escape, segments, SourceDocument, SourceError } from './document';
 import { GraphReference, supportedSchemaDialect } from './reference_graph';
 import { referenceValue, securityBindings, securitySelectionScope } from './reference_choices';
 import {isNativeFamily} from './specification';
+import {swaggerFileChoiceTargets} from './swagger_file';
 const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '2.0' ? '2.0' : family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
 function located(input: any, doc: SourceDocument, pointer: string, extra: any = {}) {
     const resource = (input.resources as Resource[]).find(r => r.id === doc.id)!;
@@ -100,8 +101,10 @@ export function assistSource(input: any) {
     // example strings are never mistaken for keys or reference applicators.
     if (!keyNode && field && node.kind !== 'object' && node.kind !== 'array') {
         let values = field.options ?? (field.type === 'boolean' ? [true, false] : []);
-        if (parentScope.kind === 'schema' && name === 'type')
-            values = ['object', 'array', 'string', 'number', 'integer', 'boolean', ...(family === '3.0' ? [] : ['null'])];
+        if (parentScope.kind === 'schema' && name === 'type') {
+            const file = family === '2.0' && swaggerFileChoiceTargets(graph).has(parentScope.resource+'#'+parentScope.pointer);
+            values = ['object', 'array', 'string', 'number', 'integer', 'boolean', ...(family === '3.0' ? [] : ['null']), ...(file ? ['file'] : [])];
+        }
         if (['$ref','$dynamicRef'].includes(name) && graph.references.some(r => r.resource === doc.id && r.pointer === parentPointer && r.keyword === name)) {
             const expectedKind = parentScope.kind;
             const compatible = (kind: string) => expectedKind === 'schema' ? kind === 'schema' : kind === expectedKind;
