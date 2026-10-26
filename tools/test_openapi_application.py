@@ -564,6 +564,7 @@ def main():
     parser.add_argument('--multipart', choices=['ordered', 'nested', 'named'])
     parser.add_argument('--binary', choices=['raw', 'named', 'ordered', 'nested'])
     parser.add_argument('--binary-schema-free', action='store_true')
+    parser.add_argument('--swagger-form', choices=['urlencoded', 'multipart'])
     parser.add_argument('--evidence', type=Path,
                         default=Path('/tmp/busyapi-production-main-evidence'))
     parser.add_argument('--version', default='3.0.4', choices=['2.0', '3.0.0', '3.0.1', '3.0.2', '3.0.3', '3.0.4', '3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1'])
@@ -584,20 +585,24 @@ def main():
     if args.operations and not args.edit:
         parser.error('--operations requires --edit for the save/reopen journey')
     if args.migrate_target and (not args.edit or args.operations or args.schema_definitions
-                               or args.documentation or args.mock_samples or args.multipart or args.binary):
+                               or args.documentation or args.mock_samples or args.multipart or args.binary or args.swagger_form):
         parser.error('--migrate-target requires --edit and its dedicated migration journey')
     if args.multipart and (not args.edit or (args.multipart != 'named' and not args.version.startswith('3.2.'))
                           or (args.multipart == 'named' and not args.version.startswith(('3.0.', '3.1.'))) or args.operations
                           or args.schema_definitions or args.documentation or args.mock_samples
-                          or args.migrate_target or args.binary):
+                          or args.migrate_target or args.binary or args.swagger_form):
         parser.error('--multipart requires --edit, an applicable family (named: 3.0/3.1; ordered/nested: 3.2), and its dedicated execution journey')
     if args.binary_schema_free and (args.binary != 'raw' or args.version == '2.0'):
         parser.error('--binary-schema-free requires a 3.x raw binary media declaration')
     if args.binary and (not args.edit or args.version == '2.0' and args.binary != 'raw'
                         or args.binary in ['ordered', 'nested'] and not args.version.startswith('3.2.')
                         or args.operations or args.schema_definitions or args.documentation
-                        or args.mock_samples or args.migrate_target or args.multipart):
+                        or args.mock_samples or args.migrate_target or args.multipart or args.swagger_form):
         parser.error('--binary requires --edit, an applicable family, and its dedicated execution journey')
+    if args.swagger_form and (not args.edit or args.version != '2.0'
+                              or args.operations or args.schema_definitions or args.documentation
+                              or args.mock_samples or args.migrate_target or args.multipart or args.binary):
+        parser.error('--swagger-form requires --edit, Swagger 2.0 and its dedicated formData journey')
     if not args.session:
         environment = dict(os.environ, BUSYAPI_NATIVE_DESKTOP_BUS=os.environ['DBUS_SESSION_BUS_ADDRESS'])
         with tempfile.TemporaryDirectory(prefix='busyapi-main-runtime-') as runtime:
@@ -617,6 +622,7 @@ def main():
                 *(['--multipart', args.multipart] if args.multipart else []),
                 *(['--binary', args.binary] if args.binary else []),
                 *(['--binary-schema-free'] if args.binary_schema_free else []),
+                *(['--swagger-form', args.swagger_form] if args.swagger_form else []),
             ]
             # Own the complete private session, including accessibility and
             # the application, so a timed-out journey leaves no native fixture.
@@ -628,7 +634,7 @@ def main():
                     # Multipart adds two HTTP requests and two native export
                     # dialogs per opening. Keep each control's existing bound;
                     # allocate the original journey budget to each opening.
-                    return session.wait(timeout=180 if args.multipart or args.binary else 90)
+                    return session.wait(timeout=180 if args.multipart or args.binary or args.swagger_form else 90)
                 except subprocess.TimeoutExpired:
                     os.killpg(session.pid, signal.SIGTERM)
                     session.wait(timeout=5)
@@ -670,11 +676,16 @@ def main():
             + ('-multipart-' + args.multipart if args.multipart else '')
             + ('-binary-' + args.binary if args.binary else '')
             + ('-schema-free' if args.binary_schema_free else '')
+            + ('-swagger-form-' + args.swagger_form if args.swagger_form else '')
         )
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
         multipart = None
-        if args.binary:
+        if args.swagger_form:
+            from native_swagger_forms import SwaggerFormFixture
+            multipart = fixtures.enter_context(SwaggerFormFixture(args.swagger_form))
+            multipart.prepare(project_directory)
+        elif args.binary:
             from native_binary import BinaryFixture
             multipart = fixtures.enter_context(BinaryFixture(args.binary, args.version, args.binary_schema_free))
             multipart.prepare(project_directory)

@@ -254,6 +254,16 @@ the existing native evaluator. Decoding is bounded to eight nested levels and
 resources produce incomplete checks. Typed positional/nested request generation
 and incremental streams remain incomplete; finite decoding does not establish them.
 
+Multipart framing follows [RFC 2046 §5.1.1](https://www.rfc-editor.org/rfc/rfc2046#section-5.1.1):
+a body has at least one part, and a complete boundary prefix is reserved at line
+starts. A nested boundary cannot begin with its enclosing boundary. A closing
+marker before any part is invalid; an explicitly empty field or file remains a
+part. Native generation refuses an empty multipart draft before dispatch, with
+an actionable error. Caller-supplied raw entities retain their exact bytes and
+receive framing findings. Text containing a boundary away from line starts, or
+a different boundary, remains payload data. These semantics use evaluator
+revision **1.18.0+21**; older readiness captures cannot be reused.
+
 OpenAPI 3.0/3.1 use the same named mapping for generic multipart types when
 parts carry `Content-Disposition: form-data` and a name. This is the policy
 permitted by [3.0 §4.7.15.3](https://spec.openapis.org/oas/v3.0.4.html#encoding-multipart-media-types)

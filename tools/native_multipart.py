@@ -158,6 +158,9 @@ def edit_named_body(native, pid, original, *, backwards=True):
 
 
 def execute_multipart(native, process, file, baseline, version, fixture, evidence, case, phase):
+    if getattr(fixture, 'swagger_forms', False):
+        from native_swagger_forms import execute_swagger_forms
+        return execute_swagger_forms(native, process, file, baseline, version, fixture, evidence, case, phase)
     if getattr(fixture, 'binary', False):
         from native_binary import execute_binary
         return execute_binary(native, process, file, baseline, version, fixture, evidence, case, phase)

@@ -145,11 +145,17 @@ test('MIME framing rejects malformed boundaries, singleton headers and escapes w
  }
 });
 
-test('a delimiter-looking file sequence is retained and MIME preambles/epilogues stay outside the instance',{timeout:20000},async t=>{
- const data=Buffer.from('before\r\n--native-file-boundary-is-data\r\nafter'),schema={type:'string',format:'binary',enum:[data.toString('latin1')]};
+test('non-boundary file sequences are retained and MIME preambles/epilogues stay outside the instance',{timeout:20000},async t=>{
+ const data=Buffer.from('before\r\n--another-file-boundary-is-data\r\nafter\r\ninside--native-file-boundary-is-data'),schema={type:'string',format:'binary',enum:[data.toString('latin1')]};
  const {port}=await startMock(t,mockStart(binaryContract('3.0.4',schema))),wire=multipart([{name:'file',data}]);
  const body=Buffer.concat([Buffer.from('preamble\r\n'),wire.body,Buffer.from('epilogue')]);
  const result=await mockRequest(port,'/form',body,{mediaType:wire.mediaType});assert.equal(result.status,204,result.text);
+});
+
+test('a complete MIME boundary prefix inside file data is invalid framing',{timeout:20000},async t=>{
+ const data=Buffer.from('before\r\n--native-file-boundary-is-data\r\nafter');
+ const {port}=await startMock(t,mockStart(binaryContract('3.0.4',{type:'string',format:'binary'}))),wire=multipart([{name:'file',data}]);
+ const result=await mockRequest(port,'/form',wire.body,{mediaType:wire.mediaType});assert.equal(result.status,422,result.text);
 });
 
 test('ignored MIME extension headers remain visible without blocking a valid native mock response',{timeout:20000},async t=>{

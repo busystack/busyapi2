@@ -97,7 +97,7 @@ test('unimplemented part media, unresolved annotations and bounded nesting stay 
  let rule={contentType:'text/plain'};
  for(let depth=0;depth<10;depth++)rule={contentType:'multipart/mixed',itemEncoding:rule};
  // Different boundaries avoid accepting a parent delimiter as a nested one.
- const make=(depth,boundary)=>depth===0?wire([{body:'x'}],boundary):wire([{headers:{'Content-Type':'multipart/mixed; boundary='+boundary+'x'},body:make(depth-1,boundary+'x')}],boundary);
+ const make=(depth,boundary)=>depth===0?wire([{body:'x'}],boundary):wire([{headers:{'Content-Type':'multipart/mixed; boundary=Level'+depth},body:make(depth-1,'Level'+depth)}],boundary);
  const deep=capture('3.2.1','json',{schema:{type:'array'},itemEncoding:rule});
  const limited=await run(deep,make(10,'Fixture'));assert.equal(limited.result.complete,false);assert.equal(limited.valid,false);assert(limited.findings.some(f=>f.code==='runtime.body.limit'));
 });

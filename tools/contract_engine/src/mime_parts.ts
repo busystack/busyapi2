@@ -35,12 +35,17 @@ export function mimeParts(bytes:Buffer,contentType:string):MimePart[] {
                 while(bytes[after]===32||bytes[after]===9)after++;
                 if(bytes.subarray(after,after+2).equals(line))return {at,after:after+2,closed};
                 if(closed&&after===bytes.length)return {at,after,closed};
+                // RFC 2046 §5.1.1 reserves the complete boundary prefix at
+                // line starts, including inside nested multiparts. A longer
+                // child boundary cannot turn this reserved prefix into data.
+                return syntax('A MIME boundary prefix has an invalid delimiter suffix');
             }
             at=bytes.indexOf(marker,at+marker.length);
         }
     };
     let current=delimiter(0);
     if(!current)return syntax('The multipart body has no initial delimiter');
+    if(current.closed)return syntax('A multipart body requires at least one part before its closing delimiter');
     const result:MimePart[]=[];
     while(!current.closed){
         const next=delimiter(current.after);

@@ -1751,6 +1751,12 @@ class ContractRequestBuilder {
           checkOwner: checkOwner,
         );
       case RequestBodyKind.multipart:
+        if (fields.isEmpty && body.files.isEmpty) {
+          throw CoreFailure(
+            'request.multipart.empty',
+            'A multipart body requires at least one part. Add a field or file, or omit the body when the contract permits it.',
+          );
+        }
         if (ContentType.parse(body.mediaType!).parameters
             .containsKey('boundary')) {
           throw CoreFailure(
