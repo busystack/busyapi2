@@ -367,7 +367,8 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       if(v&&typeof v==='object'&&typeof v.$ref==='string'){
         try{const selected=follow({resource:r,pointer:p,kind:'example'},'example');r=selected.resource;p=selected.pointer;v=selected.node.value;}catch{return;}
       }
-      const field=family==='3.2'&&Object.hasOwn(v??{},'dataValue')?'dataValue':Object.hasOwn(v??{},'value')?'value':family==='3.2'&&Object.hasOwn(v??{},'serializedValue')?'serializedValue':undefined;
+      const exampleFamily=graph.scope(r,p).family;
+      const field=exampleFamily==='3.2'&&Object.hasOwn(v??{},'dataValue')?'dataValue':Object.hasOwn(v??{},'value')?'value':exampleFamily==='3.2'&&Object.hasOwn(v??{},'serializedValue')?'serializedValue':undefined;
       if(field)return projected(r,p+'/'+escape(field),field,name);
     }
   };

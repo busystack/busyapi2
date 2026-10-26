@@ -3524,6 +3524,105 @@ paths:
   }
 
   testWidgets(
+    'shared Example family native actions retain bytes from a 3.1 root',
+    (tester) async {
+      final f = _Fixture();
+      HttpServer? endpoint;
+      const wire = '{"n":9007199254740993,"flag":false,"empty":"","text":"雪"}';
+      final observed = <(String, String, String?, List<int>)>[];
+      try {
+        await tester.runAsync(() async {
+          endpoint = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+          endpoint!.listen((request) async {
+            observed.add((
+              request.method,
+              request.uri.toString(),
+              request.headers.value('content-type'),
+              await request.fold<List<int>>(
+                [],
+                (all, part) => all..addAll(part),
+              ),
+            ));
+            request.response.statusCode = 204;
+            await request.response.close();
+          });
+          File('${f.dir.path}/examples.yaml')
+              .writeAsStringSync('''openapi: 3.2.1
+info: {title: Shared examples, version: '1'}
+paths: {}
+components:
+  examples:
+    Path: {serializedValue: '.9007199254740993.0'}
+    Body: {dataValue: $wire}
+''');
+          await f.open('''openapi: 3.1.2
+info: {title: Keep root family, version: '1'}
+servers: [{url: 'http://127.0.0.1:${endpoint!.port}'}]
+paths:
+  /items/{id}:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          style: label
+          schema: {type: array, items: {type: integer}}
+          examples: {Shared: {\$ref: './examples.yaml#/components/examples/Path'}}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, required: [n, flag, empty, text]}
+            examples: {Shared: {\$ref: './examples.yaml#/components/examples/Body'}}
+      responses: {'204': {description: None}}
+''');
+        });
+        final original = f.file.readAsStringSync();
+        final shared = File('${f.dir.path}/examples.yaml').readAsStringSync();
+        final parameter =
+            (f.run.plan!.result['parameters'] as List).single as Map;
+        final media =
+            (f.run.plan!.result['requestBody']['content'] as List).single
+                as Map;
+        expect(
+          parameter['example'],
+          isA<Map>(),
+          reason: 'The referenced 3.2 Parameter example must remain available',
+        );
+        expect(
+          media['example'],
+          isA<Map>(),
+          reason: 'The referenced 3.2 body example must remain available',
+        );
+        expect(parameter['example']['representation'], 'serialized');
+        expect(media['example']['representation'], 'json');
+        f.run.useExample(parameter);
+        f.run.useBodyExample(media);
+        expect(f.run.bodyText, wire);
+        await tester.pumpWidget(host(RequestRunPanel(run: f.run)));
+        await tester.pump();
+        await tester.runAsync(
+          () => HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp()),
+        );
+        expect(f.run.failure, isNull, reason: f.run.failureMessage);
+        expect(observed, hasLength(1));
+        expect(observed.single.$1, 'POST');
+        expect(observed.single.$2, '/items/.9007199254740993.0');
+        expect(observed.single.$3, 'application/json');
+        expect(observed.single.$4, utf8.encode(wire));
+        expect(f.file.readAsStringSync(), original);
+        expect(File('${f.dir.path}/examples.yaml').readAsStringSync(), shared);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.runAsync(() async {
+          await endpoint?.close(force: true);
+          await f.dispose();
+        });
+      }
+    },
+  );
+
+  testWidgets(
     'U7 native tool components retain reachable controls at narrow widths and large text in both appearances',
     (tester) async {
       tester.view.physicalSize = const Size(620, 820);

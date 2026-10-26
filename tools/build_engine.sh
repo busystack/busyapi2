@@ -40,6 +40,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_swagger_reference_positions.cjs"
 "$node_bin" "$engine_dir/test_authoring.cjs"
 "$node_bin" "$engine_dir/test_data_value.cjs"
+"$node_bin" "$engine_dir/test_example_reference_family.cjs"
 "$node_bin" "$engine_dir/test_document_integrity_review.cjs"
 "$node_bin" "$engine_dir/test_integrity_followup.cjs"
 "$node_bin" "$engine_dir/test_refactoring.cjs"
