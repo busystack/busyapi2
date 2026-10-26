@@ -69,11 +69,11 @@ export class MigrationSource {
         this.located(pointer,()=>this.update(this.doc.set(pointer,value)));
     }
     exact(pointer:string,text:string):void{this.set(pointer,new RawJsonValue(text));}
-    remove(pointer:string,retire=true):void {
+    remove(pointer:string,retire=true,preserveComments=true):void {
         if(!this.doc.nodes.has(pointer))return;
         const authored=this.doc.node(pointer),keyAt=authored.keyRange?.[0];
         let comment:string|undefined,commentAt:number|undefined;
-        if(this.doc.format==='yaml'&&keyAt!==undefined){
+        if(preserveComments&&this.doc.format==='yaml'&&keyAt!==undefined){
             const start=this.doc.lineStart(keyAt),prefix=this.doc.text.slice(start,keyAt);
             const line=(at:number)=>this.doc.text.slice(at).split(/\r\n|\r|\n/,1)[0];
             if(/^ *$/.test(prefix)){
@@ -84,6 +84,13 @@ export class MigrationSource {
             }
         }
         const parts=segments(pointer),name=parts.pop()!,parent=parts.length?'/'+parts.map(escape).join('/'):'',array=this.doc.node(parent).kind==='array';
+        if(preserveComments&&this.doc.format==='yaml'&&array&&!this.doc.node(parent).flow){
+            const comments=this.doc.comments(pointer,true).filter(range=>range[1]<=authored.range[0]);
+            if(comments.length){
+                const start=this.doc.lineStart(authored.entryStart??authored.range[0]),indent=' '.repeat(this.doc.indent(authored.entryStart??authored.range[0]));
+                comment=comments.map(range=>indent+this.doc.text.slice(...range)+this.doc.newline).join('');commentAt=start;
+            }
+        }
         let removed=this.located(pointer,()=>this.doc.remove(pointer));
         if(comment!==undefined&&commentAt!==undefined)removed=removed.slice(0,commentAt)+comment+removed.slice(commentAt);
         this.update(removed);
@@ -101,7 +108,7 @@ export class MigrationSource {
         for(const values of this.originSets())for(const at of [...values])if(inside(at,pointer)){values.delete(at);values.add(to+at.slice(pointer.length));}
         return to;
     }
-    copy(source:MigrationSource,from:string,to:string):void {
+    copy(source:MigrationSource,from:string,to:string,entryComments=false):void {
         const before=source.doc,node=before.node(from);
         source.located(from,()=>{before.assertSafe(from);before.assertUnshared(from,true);});
         const copied=[...[...source.origins].map(([origin,values])=>({origin:source.original.id+'#'+origin,values})),...[...source.foreignOrigins].map(([origin,values])=>({origin,values}))]
@@ -113,6 +120,14 @@ export class MigrationSource {
         // Collection ranges begin at their first value token. Comments between
         // the entry key and that token still belong to the copied occurrence.
         const leading=before.format==='yaml'?before.comments(from,true).filter(range=>range[1]<=node.range[0]).map(range=>before.text.slice(...range)):[];
+        if(entryComments&&before.format==='yaml'){
+            const sourceParent=from.slice(0,from.lastIndexOf('/')),siblings=[...before.node(sourceParent).children.values()];
+            const index=siblings.findIndex(sibling=>sibling.pointer===from),previous=index>0?siblings[index-1].end:before.node(sourceParent).entryStart??0;
+            const start=node.entryStart??node.range[0];
+            leading.unshift(...before.comments(sourceParent,true).filter(range=>range[0]>=previous&&range[1]<=start).map(range=>before.text.slice(...range)));
+        }
+        const outside=before.format==='yaml'?before.comments(from,true).filter(range=>range[0]>=node.range[1]).map(range=>before.text.slice(...range)):[];
+        leading.push(...outside);
         if(this.doc.format==='yaml'&&(!owner.flow||owner.children.size===0)&&this.blockParent(parent)&&block){
             const raw=before.text.slice(...node.range),indent=before.indent(node.range[0]);
             const local=(leading.length?leading.join(this.doc.newline)+this.doc.newline:'')+raw.replace(/(?:\r\n|\r|\n)([ \t]*)/g,(_match,space)=>this.doc.newline+space.slice(Math.min(indent,space.length)));
@@ -120,7 +135,10 @@ export class MigrationSource {
             const depth=this.doc.indent(owner.range[0]),entryIndent=depth+(owner.flow&&inline?2:0);
             if(owner.flow&&owner.children.size===0){
                 this.located(parent,()=>this.doc.assertUnshared(parent));
-                const text=JSON.stringify(name)+':'+this.doc.newline+' '.repeat(entryIndent+2)+local.replaceAll(this.doc.newline,this.doc.newline+' '.repeat(entryIndent+2));
+                if(owner.kind==='array'&&name!=='0')
+                    throw new SourceError('migration.array.index','An empty sequence can only receive its first element',owner.range);
+                const marker=owner.kind==='array'?'-':JSON.stringify(name)+':';
+                const text=marker+this.doc.newline+' '.repeat(entryIndent+2)+local.replaceAll(this.doc.newline,this.doc.newline+' '.repeat(entryIndent+2));
                 this.update(this.doc.replace(...owner.range,(inline?this.doc.newline+' '.repeat(entryIndent):'')+text));
             }else{
                 this.set(to,null);const slot=this.doc.node(to),depth=this.doc.indent(slot.range[0]);
@@ -133,6 +151,14 @@ export class MigrationSource {
             this.update(this.doc.replace(...slot.range,adjusted));
         }else{
             this.exact(to,expected);this.presentationChanges.push(to);
+            if(this.doc.format==='yaml'){
+                const comments=[...leading,...before.comments(from,true).filter(range=>range[0]>=node.range[0]&&range[1]<=node.range[1]).map(range=>before.text.slice(...range))];
+                if(comments.length){
+                    const slot=this.doc.node(to),depth=this.doc.indent(slot.range[0])+2;
+                    const prefix=this.doc.newline+' '.repeat(depth);
+                    this.update(this.doc.replace(slot.range[0],slot.range[0],prefix+comments.join(prefix)+prefix));
+                }
+            }
         }
         if(migrationValueIdentity(this.doc,to)!==identity)throw new SourceError('migration.fidelity','The mapped value changed its exact source meaning at '+to);
         for(const {origin,pointer}of copied){
@@ -140,10 +166,10 @@ export class MigrationSource {
             const values=map.get(key)??new Set<string>();values.add(pointer);map.set(key,values);
         }
     }
-    move(from:string,to:string):void {
+    move(from:string,to:string,entryComments=false):void {
         if(from===to)return;
-        this.copy(this,from,to);
+        this.copy(this,from,to,entryComments);
         for(const values of this.originSets())for(const at of [...values])if(inside(at,from)){values.delete(at);values.add(to+at.slice(from.length));}
-        this.remove(from,false);
+        this.remove(from,false,false);
     }
 }

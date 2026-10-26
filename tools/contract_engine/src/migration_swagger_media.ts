@@ -103,14 +103,18 @@ export function swaggerMediaMigration(graph:ReferenceGraph,sources:Map<string,Mi
             const source=sources.get(scope.resource)!,pointer=source.current(scope.pointer);
             if(pointer===undefined||typeof graph.docs.get(scope.resource)!.dataNode(scope.pointer)!.value?.$ref==='string')continue;
             const consumers=uses.get(key(scope))??[],media=consumers[0]?.media??swaggerMedia(graph,graph.root,'','produces');
-            const owner:MediaOwner={resource:scope.resource,pointer,schema:schemaOwner(scope,pointer),media};
+            const schema=schemaOwner(scope,pointer);
+            const owner:MediaOwner={resource:scope.resource,pointer,schema,media:schema?media:[]};
             primary.set(key(scope),owner);
             const examples=source.doc.dataNode(pointer+'/examples');
-            content(owner,[...new Set([...media,...examples?.children.keys()??[]])]);
+            // Swagger 2.0 §6.4.12: no schema means no response content.
+            // An unconstrained 3.x Media Type Object would activate a body.
+            if(schema)content(owner,[...new Set([...media,...examples?.children.keys()??[]])]);
+            else if(examples?.children.size)issue({...scope,pointer:scope.pointer+'/examples'},'migration.response.examples-without-schema','These authored examples need a target owner that does not activate response content','implementation');
             for(const name of [...examples?.children.keys()??[]])source.move(pointer+'/examples/'+escape(name),pointer+'/content/'+escape(name)+'/example');
             source.remove(pointer+'/examples');
             for(const consumer of consumers){
-                const selected=variant(owner,'responses',consumer.media);
+                const selected=variant(owner,'responses',schema?consumer.media:[]);
                 if(typeof graph.docs.get(consumer.occurrence.resource)!.dataNode(consumer.occurrence.pointer)!.value?.$ref==='string')retargets.set(key(consumer.occurrence),selected);
             }
         }

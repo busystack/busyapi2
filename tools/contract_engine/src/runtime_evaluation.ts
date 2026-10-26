@@ -87,7 +87,7 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
    if(captured?.bodyAllowed===false){
     const valid=runtimeMediaBytes(supplied.text,supplied.mediaBase64===true).length===0;
     evaluations.push({subject:supplied.subject,location:supplied.location,complete:true,valid,syntax:'no-response-content'});instances++;
-    if(!valid)add({code:'runtime.response.body.forbidden',severity:'error',subject:supplied.subject,location:supplied.location,pointer:'',source:captured.source,range:captured.source.range,message:'The captured Swagger response has no schema and permits no response content.'});
+    if(!valid)add({code:'runtime.response.body.forbidden',severity:'error',subject:supplied.subject,location:supplied.location,pointer:'',source:captured.source,range:captured.source.range,message:'The captured response declares no response content.'});
     continue;
    }
    if(captured&&supplied.mediaType===undefined)throw new SourceError('runtime.media.type','A response with declared content requires its actual media type',captured.source.range,'unsupported',captured.source);

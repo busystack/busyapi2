@@ -11,7 +11,11 @@ function formSignatures(media:any):unknown {
         const types=shape?.types??[],array=types.includes('array'),object=types.includes('object');
         const style=rule?.style??'form',explode=rule?.explode??(style==='form');
         if(styled&&(array||object))return {name,mode:'style',style,explode,allowReserved:multipart?false:rule?.allowReserved===true};
-        return {name,mode:'content',array,contentType:styled?'text/plain':rule?.contentType??content(array?shape.items:shape)};
+        const contentType=styled?'text/plain':rule?.contentType??content(array?shape.items:shape);
+        // Text-based array contents are repeated primitive fields. JSON
+        // contents keep their media representation instead of becoming style.
+        if(!multipart&&array&&contentType==='text/plain')return {name,mode:'style',style:'form',explode:true,allowReserved:false};
+        return {name,mode:'content',array,contentType};
     };
     if(media.swaggerForm)return media.swaggerForm.map((parameter:any)=>{
         const array=parameter.type==='array',format=parameter.collectionFormat??'csv';
@@ -40,6 +44,6 @@ export function migrationRequestSignatures(graph:ReferenceGraph,resources:Resour
         return JSON.stringify(normalize({method:plan.operation.method,path:plan.operation.path,
             servers:plan.servers.map((server:any)=>({url:serverTemplate(server.url,server.base,server.variables),variables:server.variables})),
             parameters,security:plan.security,body:plan.requestBody?{required:plan.requestBody.required,media:media(plan.requestBody.content),forms:plan.requestBody.content.map((value:any)=>({mediaType:value.mediaType,fields:formSignatures(value)})).sort((a:any,b:any)=>a.mediaType.localeCompare(b.mediaType))}:undefined,
-            responses:plan.responses.map((response:any)=>({status:response.status,headers:response.headers.map((header:any)=>({name:header.name,required:header.required})),media:media(response.content)}))}));
+            responses:plan.responses.map((response:any)=>({status:response.status,headers:response.headers.map((header:any)=>({name:header.name,required:header.required})),bodyAllowed:response.bodyAllowed??response.content.length>0,media:response.bodyAllowed===false?[]:media(response.content)}))}));
     }).sort();
 }

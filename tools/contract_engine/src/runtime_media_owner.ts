@@ -1,7 +1,7 @@
 import {SourceError,type Range} from './document';
 import type {ReferenceGraph} from './reference_graph';
 import {isNativeFamily,type SpecificationFamily} from './specification';
-import {swaggerResponseAllowsContent} from './swagger_file';
+import {responseAllowsContent} from './response_content';
 
 export type RuntimeMediaTarget={resource:string;pointer:string};
 export type CapturedRuntimeMedia={family:SpecificationFamily;source:RuntimeMediaTarget&{range:Range};schema?:RuntimeMediaTarget;itemSchema?:RuntimeMediaTarget;bodyAllowed?:boolean};
@@ -15,7 +15,7 @@ export function capturedRuntimeMedia(graph:ReferenceGraph) {
   for(let depth=0;depth<128;depth++){
    const key=resource+'#'+pointer,scope=graph.scopes.get(key),node=graph.docs.get(resource)?.dataNode(pointer);
    const fail=(message:string):never=>{throw new SourceError('runtime.media.owner',message,node?.range??[0,0],'unsupported',{resource,pointer,range:node?.range??[0,0]});};
-   if(!scope||scope.kind!=='media'&&!(scope.family==='2.0'&&['response','parameter'].includes(scope.kind)))
+   if(!scope||!['media','response'].includes(scope.kind)&&!(scope.family==='2.0'&&scope.kind==='parameter'))
     return fail('The runtime body has no captured native media owner');
    const family=scope.family;if(!isNativeFamily(family))return fail('The captured media declaration has no supported family');
    if(seen.has(key))fail('The captured media reference chain contains a cycle');seen.add(key);
@@ -26,8 +26,9 @@ export function capturedRuntimeMedia(graph:ReferenceGraph) {
     resource=edge.targetResource!;pointer=edge.targetPointer!;continue;
    }
    if(family==='2.0'&&scope.kind==='parameter'&&node.value.in!=='body')fail('Only a captured Swagger body parameter owns an ordinary media body');
+   if(family!=='2.0'&&scope.kind==='response'&&responseAllowsContent(family,node.value))fail('Choose a captured Media Type Object for this response content');
    return {family,source:{resource,pointer,range:node.range},
-    ...(family==='2.0'&&scope.kind==='response'?{bodyAllowed:swaggerResponseAllowsContent(node.value)}:{}),
+    ...(scope.kind==='response'?{bodyAllowed:responseAllowsContent(family,node.value)}:{}),
     ...(Object.hasOwn(node.value,'schema')?{schema:{resource,pointer:pointer+'/schema'}}:{}),
     ...(scope.family==='3.2'&&Object.hasOwn(node.value,'itemSchema')?{itemSchema:{resource,pointer:pointer+'/itemSchema'}}:{})};
   }

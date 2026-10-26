@@ -573,6 +573,7 @@ def main():
     parser.add_argument('--schema-definitions', action='store_true')
     parser.add_argument('--source-file-choice', action='store_true')
     parser.add_argument('--operations', action='store_true')
+    parser.add_argument('--form-migration', action='store_true')
     parser.add_argument('--migrate-target', choices=['2.0', '3.0.4', '3.1.2', '3.2.1'])
     parser.add_argument('--multipart', choices=['ordered', 'nested', 'named'])
     parser.add_argument('--binary', choices=['raw', 'named', 'ordered', 'nested'])
@@ -631,6 +632,8 @@ def main():
         parser.error('--schema-definitions requires --edit and a modern OpenAPI family')
     if args.operations and not args.edit:
         parser.error('--operations requires --edit for the save/reopen journey')
+    if args.form_migration and (args.migrate_target != '2.0' or args.version == '2.0'):
+        parser.error('--form-migration requires a 3.x source and --migrate-target 2.0')
     if args.migrate_target and (not args.edit or args.operations or args.schema_definitions
                                or args.documentation or args.mock_samples or args.multipart or args.binary or args.swagger_form or args.header_content):
         parser.error('--migrate-target requires --edit and its dedicated migration journey')
@@ -671,6 +674,7 @@ def main():
                 *(['--source-file-choice'] if args.source_file_choice else []),
                 *(['--operations'] if args.operations else []),
                 *(['--migrate-target', args.migrate_target] if args.migrate_target else []),
+                *(['--form-migration'] if args.form_migration else []),
                 *(['--multipart', args.multipart] if args.multipart else []),
                 *(['--binary', args.binary] if args.binary else []),
                 *(['--binary-schema-free'] if args.binary_schema_free else []),
@@ -691,7 +695,7 @@ def main():
                     # Multipart adds two HTTP requests and two native export
                     # dialogs per opening. Keep each control's existing bound;
                     # allocate the original journey budget to each opening.
-                    return session.wait(timeout=180 if args.multipart or args.binary or args.swagger_form or args.header_content or args.generated_headers or args.source_file_choice or args.file_shapes or args.saved_file_media else 90)
+                    return session.wait(timeout=180 if args.form_migration or args.multipart or args.binary or args.swagger_form or args.header_content or args.generated_headers or args.source_file_choice or args.file_shapes or args.saved_file_media else 90)
                 except subprocess.TimeoutExpired:
                     os.killpg(session.pid, signal.SIGTERM)
                     session.wait(timeout=5)
@@ -732,6 +736,7 @@ def main():
             + ('-operations' if args.operations else '')
             + ('-migrate-' + args.migrate_target if args.migrate_target else '')
             + ('-multipart-' + args.multipart if args.multipart else '')
+            + ('-form-migration' if args.form_migration else '')
             + ('-binary-' + args.binary if args.binary else '')
             + ('-schema-free' if args.binary_schema_free else '')
             + ('-swagger-form-' + args.swagger_form if args.swagger_form else '')
@@ -743,7 +748,10 @@ def main():
         file = project_directory / ('api.' + args.format)
         fragment = project_directory / ('model.' + args.format)
         multipart = None
-        if args.case_file_maintenance:
+        if args.form_migration:
+            from native_form_migration import FormMigrationFixture
+            multipart = fixtures.enter_context(FormMigrationFixture())
+        elif args.case_file_maintenance:
             from native_case_file_maintenance import CaseFileMaintenanceFixture
             multipart = fixtures.enter_context(CaseFileMaintenanceFixture(args.version))
             multipart.prepare(project_directory)
@@ -925,6 +933,10 @@ def main():
                         native = NativeInput(process.pid)
                         wait_for_initial_focus(native.ready, timeout=8)
                         inspect_copy(native, process, args.version, args.migrate_target)
+                        if args.form_migration:
+                            from native_form_migration import execute_form_migration
+                            multipart_results.append(execute_form_migration(native, process, target_directory / migration_result['entry'],
+                                {str(path): raw for path, raw in copied.items()}, '2.0', multipart, evidence, case, 'target'))
                         assert all(path.read_bytes() == raw for path, raw in copied.items())
                         quit_application(native, process)
                         native = None

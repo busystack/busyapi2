@@ -36,6 +36,13 @@ Missing dependencies, unsupported mappings and unresolved decisions produce
 located findings and no publishable output. Target validation and request
 invariants supplement the structural mappings.
 
+URL-encoded forms with independent scalar fields can be downgraded to Swagger
+`formData` parameters. Primitive arrays use their declared encoding, including
+the repeated text-field default in OpenAPI 3.0 and 3.1. Separated string items
+need a finite enum that excludes their separator. Joint object constraints,
+shared form schema owners and other encodings can still require additional
+mappings; the review identifies these blockers before publication.
+
 The output contains standard OpenAPI documents in their original YAML/JSON
 formats, a `migration.json` receipt, and an optional `busyapi.yaml` project that
 retains captured resource mappings. Open the output folder to use those mappings.

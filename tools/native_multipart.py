@@ -182,6 +182,9 @@ def edit_named_body(native, pid, original, *, backwards=True):
 
 
 def execute_multipart(native, process, file, baseline, version, fixture, evidence, case, phase):
+    if getattr(fixture, 'form_migration', False):
+        from native_form_migration import execute_form_migration
+        return execute_form_migration(native, process, file, baseline, version, fixture, evidence, case, phase)
     if getattr(fixture, 'saved_file_media', False):
         from native_saved_file_media import execute_saved_file_media
         return execute_saved_file_media(native, process, file, baseline, version, fixture, evidence, case, phase)

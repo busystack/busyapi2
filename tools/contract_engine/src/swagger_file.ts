@@ -1,9 +1,6 @@
 import {SourceError} from './document';
 import type {GraphReference,GraphScope,ReferenceGraph} from './reference_graph';
 
-/** Swagger §6.4.12: an absent response schema declares no response content. */
-export const swaggerResponseAllowsContent=(response:object):boolean=>Object.hasOwn(response,'schema');
-
 const identity=(scope:{resource:string;pointer:string})=>scope.resource+'#'+scope.pointer;
 const responseRoot=(graph:ReferenceGraph,scope:GraphScope)=>scope.family==='2.0'&&scope.kind==='schema'&&scope.pointer.endsWith('/schema')&&graph.scopes.get(scope.resource+'#'+scope.pointer.slice(0,-7))?.kind==='response';
 

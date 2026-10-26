@@ -36,13 +36,15 @@ void main() {
       messenger.setMockMethodCallHandler(MethodChannel(name), null);
     }
   });
-  for (final (stale, ignoredBody) in [
-    (false, false),
-    (true, false),
-    (false, true),
+  for (final (stale, ignoredBody, formVersion) in [
+    (false, false, null),
+    (true, false, null),
+    (false, true, null),
+    for (final version in ['3.0.0', '3.0.4', '3.1.2', '3.2.1'])
+      (false, false, version),
   ]) {
     testWidgets(
-      'native migration reviews captured changes and ${stale
+      'native migration ${formVersion ?? 'general'} reviews captured changes and ${stale
           ? 'rejects stale source'
           : ignoredBody
           ? 'requires an ignored-body decision'
@@ -58,7 +60,16 @@ void main() {
             file = File('${temp.path}/api.yaml');
         const base =
             '# Keep\nopenapi: 3.0.4\ninfo: {title: Original, version: "1"}\npaths: {}\ncomponents: {schemas: {Value: {type: string, nullable: true}}}\n';
-        final original = ignoredBody
+        final sourceVersion = formVersion ?? '3.0.4';
+        final targetVersion = formVersion == null ? '3.2.1' : '2.0';
+        final original = formVersion != null
+            ? '# Keep\nopenapi: $sourceVersion\ninfo: {title: Original, version: "1"}\n'
+                  'servers: [{url: https://fixture.invalid}]\npaths:\n  /form:\n    post:\n'
+                  '      requestBody:\n        required: true\n        content:\n'
+                  '          application/x-www-form-urlencoded:\n            schema: {type: object, required: [name], properties: {name: {type: string}, values: {type: array, items: {type: integer}}}}\n'
+                  '            encoding: {values: {style: form}}\n'
+                  '      responses: {"200": {description: Empty}}\n'
+            : ignoredBody
             ? base.replaceFirst(
                 'paths: {}',
                 'paths: {"/data": {get: {requestBody: {required: true, content: {application/json: {schema: {type: string}, example: snow}}}, responses: {204: {description: Empty}}}}}',
@@ -122,6 +133,32 @@ void main() {
             'Review migration',
           );
           await ready(() => review.evaluate().isNotEmpty);
+          if (formVersion != null) {
+            final target = find.byWidgetPredicate(
+              (widget) =>
+                  widget is BusyApiComboRow<String> &&
+                  widget.title == 'Target specification',
+            );
+            final messenger = TestDefaultBinaryMessengerBinding
+                .instance
+                .defaultBinaryMessenger;
+            const channel = MethodChannel('busyapi/native_menus');
+            messenger.setMockMethodCallHandler(channel, (call) async {
+              if (call.method != 'show') return null;
+              final entries = (call.arguments as Map)['entries'] as List;
+              final index = entries.indexWhere(
+                (entry) => entry['label'] == '2.0',
+              );
+              expect(index, greaterThanOrEqualTo(0));
+              return index;
+            });
+            addTearDown(
+              () => messenger.setMockMethodCallHandler(channel, null),
+            );
+            await tester.tap(target);
+            await tester.pumpAndSettle();
+          }
+
           await tester.runAsync(() => tester.tap(review));
           final destination = find.widgetWithText(
             BusyApiDialogButton,
@@ -184,13 +221,17 @@ void main() {
             find.byType(BusyApiReviewComparison),
           );
           expect(comparison.before, contains('Unsaved'));
-          expect(comparison.after, contains('3.2.1'));
+          expect(comparison.after, contains(targetVersion));
+          if (formVersion != null) {
+            expect(comparison.after, contains('formData'));
+            expect(comparison.after, isNot(contains('requestBody')));
+          }
           if (ignoredBody) {
             expect(comparison.before, contains('requestBody'));
             expect(comparison.after, isNot(contains('requestBody')));
           }
           expect(file.readAsStringSync(), original);
-          expect(c.buffer!.text, contains('3.0.4'));
+          expect(c.buffer!.text, contains(sourceVersion));
           final publish = find.widgetWithText(
                 BusyApiDialogButton,
                 'Create migrated copy',
@@ -228,9 +269,9 @@ void main() {
             );
             expect(
               File('$path/openapi.yaml').readAsStringSync(),
-              contains('3.2.1'),
+              contains(targetVersion),
             );
-            expect(c.buffer!.text, contains('3.0.4'));
+            expect(c.buffer!.text, contains(sourceVersion));
             expect(c.buffer!.dirty, true);
             if (ignoredBody) {
               expect(c.buffer!.text, contains('requestBody'));

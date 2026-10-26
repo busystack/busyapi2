@@ -179,7 +179,8 @@ export class SourceDocument {
                         const child = walk(c, p + '/' + i, v?.[i], depth + 1, n.shared);
                         const item = sourceToken?.items[i];
                         const span = child.implicitFlow ? child.range : memberRange(item, undefined, c, child.range);
-                        child.entryStart = n.flow ? span[0] : child.range[0];
+                        // A block item owns its sequence marker even when comments precede its value.
+                        child.entryStart = span[0];
                         child.entryEnd = n.flow ? span[1] : child.end;
                         n.children.set(String(i), child);
                     }
