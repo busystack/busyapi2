@@ -210,7 +210,7 @@ conditionals and equality. JSON string assertions do not apply to these finite
 binary values. Unknown representations remain explicitly incomplete. Use **Use
 binary file** for a complete body or **Add binary file** for a named part. The
 [implementation record](implementation/native-openapi-support.md) distinguishes
-the completed modern binary native journeys from current legacy qualification.
+binary representation coverage and remaining advanced representations.
 
 Swagger response schemas permit `type: file` only at their root. Native checks
 validate the captured file entity's byte framing without treating it as JSON or
