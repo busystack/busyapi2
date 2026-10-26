@@ -17,6 +17,7 @@ export type SerializedExampleFinding={document:SourceDocument;pointer:string;cod
  * keeps each scalar's physical/occurrence provenance for the caller's findings. */
 export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(instances:NativeRuntimeInstance[])=>Promise<Check>) {
  const examples:Example[]=[],evaluations:SerializedExampleEvaluation[]=[],findings:SerializedExampleFinding[]=[];
+ const capturedSerializations=new Set<string>();
  const capture=capturedRuntimeMedia(graph),edges=new Map(graph.references.filter(edge=>edge.keyword==='$ref').map(edge=>[edge.resource+'#'+edge.pointer,edge]));
  let complete=true,instances=0;
  const fail=(document:SourceDocument,pointer:string,error:unknown)=>{
@@ -53,6 +54,7 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
      const example=follow({...target,pointer:occurrence,kind:'example'}),source=graph.docs.get(example.resource)!;
      const pointer=example.pointer+'/serializedValue',node=source.dataNode(pointer);
      if(!node)continue;
+     capturedSerializations.add(JSON.stringify([source.id,node.pointer]));
      if(graph.scope(example.resource,example.pointer).family!=='3.2')throw new SourceError('example.serialization.family','The captured Example Object family does not define serializedValue',[0,0],'unsupported');
      if(examples.length>=20000)throw new SourceError('limit.examples.serialized','Serialized examples exceed 20000 captured values',[0,0],'unsupported');
      if(!source.dataSyntaxSafe(pointer)||typeof node.value!=='string')throw new SourceError('example.serialization.source','The serialized example is not a complete Unicode string',[0,0],'unsupported');
@@ -60,6 +62,30 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
     }catch(error){fail(selected,occurrence,error);}
    }
   }catch(error){fail(document,owner.pointer,error);}
+ }
+ // A dataValue proof does not prove its external or serialized representation
+ // (3.2 §4.19.2.4). Only canonical Example Object scopes establish these fields;
+ // similarly named payload members remain ordinary data in every family.
+ const inspected=new Set<string>();
+ for(const scope of graph.scopes.values()){
+  if(scope.kind!=='example'||scope.family==='2.0')continue;
+  const document=graph.docs.get(scope.resource)!;
+  if(graph.referenceObject(document.dataNode(scope.pointer)?.value,scope))continue;
+  for(const field of ['externalValue','serializedValue']){
+   if(field==='serializedValue'&&scope.family!=='3.2')continue;
+   const pointer=scope.pointer+'/'+field,node=document.dataNode(pointer);
+   if(!node)continue;
+   const identity=JSON.stringify([document.id,node.pointer]);
+   if(inspected.has(identity)||capturedSerializations.has(identity))continue;
+   inspected.add(identity);
+   if(inspected.size>20000){
+    fail(document,pointer,new SourceError('limit.examples.serialized','Serialization coverage exceeds 20000 captured values',[0,0],'unsupported'));
+    break;
+   }
+   fail(document,pointer,new SourceError(field==='externalValue'?'example.external-value.unavailable':'example.serialization.context-unchecked',
+    field==='externalValue'?'The external example serialization was not acquired and evaluated; its compatibility is incomplete.':'This example serialization has no evaluated native representation context; its compatibility is incomplete.',node.range,'unsupported'));
+  }
+  if(inspected.size>20000)break;
  }
  const subject=(owner:GraphScope)=>{
   let pointer=owner.pointer;

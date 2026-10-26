@@ -210,8 +210,12 @@ OpenAPI 3.2 Media Type `serializedValue` examples use the captured runtime codec
 and exact schema evaluator, independently of an accompanying `dataValue`.
 Serialized evaluation results retain physical/occurrence source locations,
 the containing media occurrence and separate completeness/validity. External
-example values are not fetched automatically; Parameter/Header style examples
-remain separate required work. Unknown codecs, dialects/required vocabularies
+example values are not fetched automatically; unacquired external values and
+unhandled serialization contexts produce located incomplete findings, including
+paired data/serialization examples and unused reusable examples. Coverage follows
+canonical Example Object scopes and physical scalar identities, excluding payload
+members and ignored Reference Object siblings. Parameter/Header style and external
+serialization evaluation remain required work. Unknown codecs, dialects/required vocabularies
 and bounded-work exhaustion remain explicit incomplete outcomes. Normative
 relationships use the canonical graph's version-aware checks; policy executes
 separately through `BusyProject.lint`, with its own completeness and reviewed-code
