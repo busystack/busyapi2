@@ -86,7 +86,7 @@ def execute_form_migration(native, process, file, baseline, version, fixture, ev
         wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Use an exact JSON value'), 'Native form body editor is unavailable')
     activate_control(native, process.pid, 'Use an exact JSON value')
     _focus_entry(native, process.pid, 'Use an exact JSON value')
-    data = '{"n":9007199254740993,"flag":false,"empty":"","label":"\\u96ea","ids":[0,2],"csv":[0,2]}'
+    data = '{"n":9007199254740993,"flag":false,"empty":"","label":"\\u96ea","free":{"n":9007199254740993,"nil":null,"flag":false,"zero":0,"text":"\\u96ea"},"ids":[0,2],"csv":[0,2]}'
     keys(native, ['Control_L+a'] + _json_keys(data))
     checks = []
     for number, status in [('9007199254740993', 'HTTP received · contract checks passed'),
@@ -103,7 +103,7 @@ def execute_form_migration(native, process, file, baseline, version, fixture, ev
         assert record['method'] == 'POST' and record['target'] == '/items'
         assert headers['host'] == '127.0.0.1:' + str(fixture.port)
         assert headers['content-type'] == fixture.media
-        expected = ('n=' + number + '&flag=false&empty=&label=%E9%9B%AA&ids=0&ids=2&csv=0'
+        expected = ('n=' + number + '&flag=false&empty=&label=%E9%9B%AA&free=%7B%22n%22%3A9007199254740993%2C%22nil%22%3Anull%2C%22flag%22%3Afalse%2C%22zero%22%3A0%2C%22text%22%3A%22%E9%9B%AA%22%7D&ids=0&ids=2&csv=0'
                     + ('%2C' if version == '2.0' else ',') + '2').encode()
         assert record['body'] == expected, record
         destination = evidence / (case + '-form-migration-' + phase + '-' + number + '.bin')
