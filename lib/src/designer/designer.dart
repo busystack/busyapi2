@@ -1185,7 +1185,7 @@ Future<void> addOperation(BuildContext context, WorkspaceController c) async {
           'head',
           'options',
           if (c.specification?.family != SpecificationFamily.swagger20) 'trace',
-          if (c.projection?['openapi'].startsWith('3.2')) 'query',
+          if (c.specification?.capabilities.additionalOperations == true) 'query',
         ],
       ),
       FormFieldSpec('path', l.path),
