@@ -38,28 +38,40 @@ def maintain_case_file(native, process, file, baseline, fixture):
                   'The selected native sidebar did not appear')
 
     def file_menu(name, delete=False):
-        focus_control(native, process.pid, name)
-        keys(native, ['Shift_L+F10'])
-        wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Move file…') and contains(nodes, 'Delete file…'), 'File context menu did not open for the captured upload')
+        nodes = wait_tree(native, process.pid, lambda nodes: contains(nodes, name), 'The captured upload row is unavailable')
+        known = {Path(path).name for path in baseline} | {path.name for path in fixture.uploads} | {source.name, destination.name}
+        rows = [node['name'].split('\n')[0] for node in nodes
+                if node['role'] == 'panel' and node['name'].endswith('\n.')
+                and node['name'].split('\n')[0] in known]
+        assert len(rows) == len(set(rows)) and rows.count(name) == 1, rows
+        # Files uses sorted paths. AT-SPI child enumeration can retain insertion
+        # order after a rename, so enumerate the current set and apply that
+        # fixture ordering. The dialog must prove the exact source before Apply.
+        rows.sort()
+        native.perform({'kind': 'click', 'scale': 1, 'point': [275, 151 + 56 * rows.index(name)], 'viewport': [1280, 720]})
+        wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Move file…') and contains(nodes, 'Delete file…'), 'File action menu did not open for the captured upload')
         keys(native, ['Home'] + (['Down'] if delete else []) + ['Return'])
+        print('Opened captured file action:', name, 'delete' if delete else 'move', flush=True)
 
     def protect(name):
         file_menu(name, delete=True)
         nodes = wait_tree(native, process.pid,
             lambda nodes: contains(nodes, 'Review file deletion') and contains(nodes, 'A saved contract case uploads this file.'),
             'Saved upload deletion did not identify its source-located consumer')
+        assert contains(nodes, name + '#'), 'Deletion review selected another file'
         apply = [node for node in nodes if node['name'] == 'Apply']
         assert len(apply) == 1 and not apply[0]['enabled'], apply
         assert any(node['name'] == 'Cancel' and node['enabled'] for node in nodes)
         activate_control(native, process.pid, 'Cancel')
         wait_tree(native, process.pid, lambda nodes: not contains(nodes, 'Review file deletion'), 'Cancelled upload deletion left a review open')
         assert all(Path(path).read_bytes() == value for path, value in baseline.items())
+        print('Protected saved upload deletion:', name, flush=True)
 
     sidebar(True)
     protect(source.name)
     for accept in [False, True]:
         file_menu(source.name)
-        wait_tree(native, process.pid, lambda nodes: field_matches(nodes, 'Destination path', editable=True), 'Native file destination did not open')
+        wait_tree(native, process.pid, lambda nodes: field_matches(nodes, 'Destination path', value=source.name, editable=True), 'Native file destination did not open')
         focus_control(native, process.pid, 'Destination path')
         keys(native, ['Control_L+a'] + text_keys(destination.name))
         activate_control(native, process.pid, 'Apply')

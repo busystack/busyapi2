@@ -30,11 +30,11 @@ void main() {
         await manifest.writeAsString(
           'version: 1\nroots:\n  - name: Main\n    path: root.json # retain\nunknown: {\$ref: data}\n',
         );
-        final child = await Process.start('$testBundle/file-move-child', [
-          temp.path,
-          '${temp.path}/state',
-          phase,
-        ]);
+        final child = await Process.start(
+          Platform.environment['BUSYAPI_FILE_MOVE_FIXTURE'] ??
+              '$testBundle/file-move-child',
+          [temp.path, '${temp.path}/state', phase],
+        );
         addTearDown(() async {
           child.kill(ProcessSignal.sigkill);
           await child.exitCode;

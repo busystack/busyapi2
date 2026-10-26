@@ -5,7 +5,9 @@ import 'package:busyapi_core/busyapi_core.dart';
 import 'package:path/path.dart' as p;
 
 Future<void> main(List<String> args) async {
-  final bundle = p.dirname(Platform.resolvedExecutable);
+  final bundle =
+      Platform.environment['BUSYAPI_TEST_BUNDLE'] ??
+      p.dirname(Platform.resolvedExecutable);
   final engine = EngineProcess(
     executable: p.join(bundle, 'libexec/busyapi/node'),
     helper: p.join(bundle, 'libexec/busyapi/engine.cjs'),
