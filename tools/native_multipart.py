@@ -50,11 +50,12 @@ def multipart_operation(format, nested):
             'responses': {'200': {'description': 'Actual response', 'content': {MEDIA: media}}}}
 
 
-def named_multipart_wire(number, boundary):
+def named_multipart_wire(number, boundary, metadata=None):
+    metadata = metadata if metadata is not None else '{"id":' + number + '}'
     return ('--' + boundary + '\r\nContent-Disposition: form-data; name="flag"\r\n'
             'Content-Type: text/plain\r\n\r\nfalse\r\n'
             '--' + boundary + '\r\nContent-Disposition: form-data; name="metadata"\r\n'
-            'Content-Type: application/json\r\n\r\n{"id":' + number + '}\r\n'
+            'Content-Type: application/json\r\n\r\n' + metadata + '\r\n'
             '--' + boundary + '\r\nContent-Disposition: form-data; name="note"\r\n'
             'Content-Type: text/plain; charset=utf-8\r\n\r\ncafé 東京\r\n'
             '--' + boundary + '--\r\n')
@@ -163,6 +164,14 @@ def execute_multipart(native, process, file, baseline, version, fixture, evidenc
     from native_focus import wait_for_initial_focus
 
     start = len(fixture.records)
+    metadata = None
+    if fixture.named and file.suffix == '.json':
+        # The exact-value editor retains the authored JSON object's whitespace.
+        # Request and response examples have equal values at different indents;
+        # the request's first occurrence owns the outgoing representation.
+        values = re.findall(r'"metadata": (\{\s*"id": 9007199254740993\s*\})', file.read_text())
+        assert len(values) == 2 and all(json.loads(value) == {'id': 9007199254740993} for value in values)
+        metadata = values[0]
     native.perform({'kind': 'click', 'scale': 1, 'point': [140, 421], 'viewport': [1280, 720]})
     wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Try') and contains(nodes, 'Inspect items'),
               'Multipart operation selection failed')
@@ -200,7 +209,8 @@ def execute_multipart(native, process, file, baseline, version, fixture, evidenc
             boundary = media.get_param('boundary')
             assert isinstance(boundary, str) and re.fullmatch(r'busyapi-[0-9a-f]{48}', boundary)
             assert headers['content-type'] == 'multipart/mixed; boundary=' + boundary
-            body = named_multipart_wire(number, boundary).encode()
+            body = named_multipart_wire(number, boundary,
+                metadata.replace('9007199254740993', number) if metadata is not None else None).encode()
         else:
             assert headers['content-type'] == MEDIA
             body = multipart_wire(number, fixture.nested).encode()
