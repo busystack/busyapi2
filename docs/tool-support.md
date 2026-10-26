@@ -330,12 +330,15 @@ captured semantics and source locations. Compatibility findings are advice, and
 the report distinguishes invalid representations from incomplete decoding.
 Opaque binary data does not establish the Unicode representation required for
 `serializedValue`; use an external serialized resource. External examples are
-not fetched automatically. An unevaluated external serialization, Parameter/Header
-style serialization, or reusable serialization without a media occurrence makes
+not fetched automatically. An unevaluated associated external serialization,
+Parameter/Header style serialization, or reusable Media Type serialization without a content-type occurrence makes
 the check incomplete and produces a source-located finding. A separately checked
 `dataValue` does not establish serialization compatibility. CLI checks return 2
 for incomplete evaluation. Acquiring external examples and evaluating the
-remaining representation contexts remain required work. See
+remaining representation contexts remain required work. A standalone reusable
+Example with no associated representation is reported as unbound metadata, with
+an informational finding and no compatibility proof. Proofs remain separate for
+each use of a shared example. See
 [3.2 Example validation](https://spec.openapis.org/oas/v3.2.1.html#validating-examples).
 
 Generic MIME part Header Objects can use native `schema` or single-media `content`.

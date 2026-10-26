@@ -10,16 +10,22 @@ type Finding=Record<string,unknown>;
 type Check={complete:boolean;evaluations:Finding[];findings:Finding[];instances:number};
 type Example={document:SourceDocument;pointer:string;owner:GraphScope;mediaType:string;text:string};
 export type SerializedExampleEvaluation=Location&{occurrencePointer?:string;media:Location;mediaType:string;complete:boolean;valid:boolean};
-export type SerializedExampleFinding={document:SourceDocument;pointer:string;code:string;message:string;incomplete:boolean;details?:Record<string,unknown>};
+export type SerializedExampleFinding={document:SourceDocument;pointer:string;code:string;message:string;incomplete:boolean;severity?:'warning'|'information';details?:Record<string,unknown>};
 
 /** OAS 3.2 §4.19.2.4: serialization compatibility uses the same captured media
  * codecs and exact schema proofs as HTTP. This owner acquires no resources and
  * keeps each scalar's physical/occurrence provenance for the caller's findings. */
 export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(instances:NativeRuntimeInstance[])=>Promise<Check>) {
  const examples:Example[]=[],evaluations:SerializedExampleEvaluation[]=[],findings:SerializedExampleFinding[]=[];
- const capturedSerializations=new Set<string>();
+ const capturedSerializations=new Map<string,Set<string>>(),boundMediaDefinitions=new Set<string>();
+ const context=(owner:GraphTarget)=>JSON.stringify([owner.resource,owner.pointer]);
+ const physical=(owner:GraphTarget)=>JSON.stringify([owner.resource,graph.docs.get(owner.resource)?.dataNode(owner.pointer)?.pointer??owner.pointer]);
+ const associate=(values:Map<string,Set<string>>,identity:string,owner:GraphTarget)=>{
+  let contexts=values.get(identity);if(!contexts){contexts=new Set();values.set(identity,contexts);}
+  const before=contexts.size;contexts.add(context(owner));return contexts.size!==before;
+ };
  const capture=capturedRuntimeMedia(graph),edges=new Map(graph.references.filter(edge=>edge.keyword==='$ref').map(edge=>[edge.resource+'#'+edge.pointer,edge]));
- let complete=true,instances=0;
+ let complete=true,instances=0,unbound=0;
  const fail=(document:SourceDocument,pointer:string,error:unknown)=>{
   if(!(error instanceof SourceError))throw error;
   complete=false;findings.push({document,pointer,code:'example.serialization.incomplete',message:error.message,incomplete:true,details:{detailCode:error.code}});
@@ -47,6 +53,7 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
   const document=graph.docs.get(owner.resource)!;
   try{
    const target=follow(owner),selected=graph.docs.get(target.resource)!,named=selected.dataNode(target.pointer+'/examples');
+   boundMediaDefinitions.add(physical(target));
    if(named?.kind!=='object')continue;
    for(const [name]of named.children){
     const occurrence=target.pointer+'/examples/'+escape(name);
@@ -54,7 +61,7 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
      const example=follow({...target,pointer:occurrence,kind:'example'}),source=graph.docs.get(example.resource)!;
      const pointer=example.pointer+'/serializedValue',node=source.dataNode(pointer);
      if(!node)continue;
-     capturedSerializations.add(JSON.stringify([source.id,node.pointer]));
+     associate(capturedSerializations,JSON.stringify([source.id,node.pointer]),owner);
      if(graph.scope(example.resource,example.pointer).family!=='3.2')throw new SourceError('example.serialization.family','The captured Example Object family does not define serializedValue',[0,0],'unsupported');
      if(examples.length>=20000)throw new SourceError('limit.examples.serialized','Serialized examples exceed 20000 captured values',[0,0],'unsupported');
      if(!source.dataSyntaxSafe(pointer)||typeof node.value!=='string')throw new SourceError('example.serialization.source','The serialized example is not a complete Unicode string',[0,0],'unsupported');
@@ -63,10 +70,38 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
    }
   }catch(error){fail(document,owner.pointer,error);}
  }
+ // Example compatibility needs an associated representation (3.0 §4.7.19,
+ // 3.1 §4.8.19, 3.2 §4.19). A free reusable Example has no schema or media
+ // assertion; keep it distinct from a reusable Media Type with an unchecked
+ // serialization. Reference chains retain the physical scalar owner.
+ const associated=new Map<string,Set<string>>();let associations=0;
+ for(const owner of graph.scopes.values()){
+  if(!['media','parameter','header'].includes(owner.kind))continue;
+  const document=graph.docs.get(owner.resource)!;
+  let definition:GraphTarget;
+  try{definition=follow(owner);}catch(error){fail(document,owner.pointer,error);continue;}
+  if(owner.kind==='media'&&segments(owner.pointer).at(-2)!=='content'&&boundMediaDefinitions.has(physical(definition)))continue;
+  const selected=graph.docs.get(definition.resource)!,named=selected.dataNode(definition.pointer+'/examples');
+  if(named?.kind!=='object')continue;
+  for(const [name]of named.children){
+   const pointer=definition.pointer+'/examples/'+escape(name);
+   try{
+    const target=follow({...definition,pointer,kind:'example'}),source=graph.docs.get(target.resource)!;
+    for(const field of ['externalValue','serializedValue']){
+     const node=source.dataNode(target.pointer+'/'+field);
+     if(node&&associate(associated,JSON.stringify([source.id,node.pointer]),owner))associations++;
+    }
+    if(associations>20000)throw new SourceError('limit.examples.serialized','Serialization associations exceed 20000 captured values',[0,0],'unsupported');
+   }catch(error){fail(selected,pointer,error);}
+   if(associations>20000)break;
+  }
+  if(associations>20000)break;
+ }
  // A dataValue proof does not prove its external or serialized representation
  // (3.2 §4.19.2.4). Only canonical Example Object scopes establish these fields;
  // similarly named payload members remain ordinary data in every family.
  const inspected=new Set<string>();
+ let firstUnbound:{document:SourceDocument;pointer:string}|undefined;
  for(const scope of graph.scopes.values()){
   if(scope.kind!=='example'||scope.family==='2.0')continue;
   const document=graph.docs.get(scope.resource)!;
@@ -76,17 +111,21 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
    const pointer=scope.pointer+'/'+field,node=document.dataNode(pointer);
    if(!node)continue;
    const identity=JSON.stringify([document.id,node.pointer]);
-   if(inspected.has(identity)||capturedSerializations.has(identity))continue;
+   if(inspected.has(identity))continue;
    inspected.add(identity);
    if(inspected.size>20000){
     fail(document,pointer,new SourceError('limit.examples.serialized','Serialization coverage exceeds 20000 captured values',[0,0],'unsupported'));
     break;
    }
+   const contexts=associated.get(identity),captured=capturedSerializations.get(identity);
+   if(!contexts?.size){unbound++;firstUnbound??={document,pointer};continue;}
+   if([...contexts].every(value=>captured?.has(value)))continue;
    fail(document,pointer,new SourceError(field==='externalValue'?'example.external-value.unavailable':'example.serialization.context-unchecked',
-    field==='externalValue'?'The external example serialization was not acquired and evaluated; its compatibility is incomplete.':'This example serialization has no evaluated native representation context; its compatibility is incomplete.',node.range,'unsupported'));
+    field==='externalValue'?'The external example serialization was not acquired and evaluated; its compatibility is incomplete.':'This example serialization has an unevaluated associated representation; its compatibility is incomplete.',node.range,'unsupported'));
   }
   if(inspected.size>20000)break;
  }
+ if(firstUnbound)findings.push({...firstUnbound,code:'example.serialization.unbound',severity:'information',message:'No parameter, header, or media definition uses this reusable example. Its metadata was checked; serialization compatibility was not evaluated.',incomplete:false,details:{unboundSerializations:unbound,interpretation:'unbound-example-metadata'}});
  const subject=(owner:GraphScope)=>{
   let pointer=owner.pointer;
   while(pointer){
@@ -127,5 +166,5 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
     details:{interpretation:'authored-serialization',media:{resource:example.owner.resource,pointer:example.owner.pointer},details:notes.map(note=>({code:note.code,detailCode:note.detailCode,pointer:note.pointer,schema:note.schema,source:note.source}))}});
   }
  }
- return {complete,evaluations,findings,instances};
+ return {complete,evaluations,findings,instances,unbound};
 }

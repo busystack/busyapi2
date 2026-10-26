@@ -21,13 +21,19 @@ for(const version of versions)for(const format of ['yaml','json'])for(const pair
  assert.equal(finding.detailCode,'example.external-value.unavailable');
  assert(text.slice(...finding.range).includes('./example.txt'));
 });
-for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(const owner of ['parameter','header','unused-media','unused-example'])test(`${version} ${format} unhandled serialization has located incomplete coverage ${owner}`,async()=>{
+for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(const owner of ['parameter','header','unused-media','unused-example'])test(`${version} ${format} serialization coverage follows its associated context ${owner}`,async()=>{
  const document=api(version),example={serializedValue:'id=0'};
  if(owner==='parameter')document.paths['/check']={get:{parameters:[{name:'id',in:'query',schema:{type:'integer'},examples:{Value:example}}],responses:{204:{description:'Empty'}}}};
  if(owner==='header')document.paths['/check']={get:{responses:{200:{description:'Read',headers:{'X-Id':{schema:{type:'integer'},examples:{Value:example}}}}}}};
  if(owner==='unused-media')document.components={mediaTypes:{Unused:{schema:{type:'integer'},examples:{Value:example}}}};
  if(owner==='unused-example')document.components={examples:{Unused:example}};
  const {result}=await check(document,format);
+ if(owner==='unused-example'){
+  assert.equal(result.complete,true,JSON.stringify(result.findings));
+  assert.equal(result.coverage.unboundExampleSerializations,1);
+  assert.equal(result.instances,0);assert.deepEqual(result.serializedEvaluations,[]);
+  assert.equal(result.findings.length,1);assert.equal(result.findings[0].code,'example.serialization.unbound');assert.equal(result.findings[0].severity,'information');return;
+ }
  assert.equal(result.complete,false,JSON.stringify({skipped:result.skipped,findings:result.findings}));
  const finding=result.findings.find(value=>value.code==='example.serialization.incomplete');
  assert(finding,JSON.stringify(result.findings));assert(finding.pointer.endsWith('/serializedValue'));
@@ -68,4 +74,45 @@ for(const version of versions)for(const format of ['yaml','json'])test(`${versio
  const document=api(version);document.components={examples:{Actual:{value:0}}};
  document.paths['/check']={get:{parameters:[{name:'id',in:'query',schema:{type:'integer'},examples:{Reference:{$ref:'#/components/examples/Actual',externalValue:'https://example.invalid/ignored',...(version.startsWith('3.2.')?{serializedValue:'ignored'}:{})}}}],responses:{204:{description:'Empty'}}}};
  const {result}=await check(document,format);assert.equal(result.complete,true,JSON.stringify(result.findings));assert.equal(result.findings.length,0);
+});
+for(const version of versions)for(const format of ['yaml','json'])test(`${version} ${format} binding a free external example changes completeness without inventing a proof`,async()=>{
+ const document=api(version);document.components={examples:{External:{externalValue:'https://example.invalid/never-fetch'}}};
+ const free=await check(document,format);
+ assert.equal(free.result.complete,true);assert.equal(free.result.coverage.unboundExampleSerializations,1);
+ assert.equal(free.result.instances,0);assert.deepEqual(free.result.evaluations,[]);assert.deepEqual(free.result.serializedEvaluations,[]);
+ assert.equal(free.result.findings.find(value=>value.code==='example.serialization.unbound')?.pointer,'/components/examples/External/externalValue');
+ document.paths['/check']={get:{parameters:[{name:'id',in:'query',schema:{type:'integer'},examples:{Bound:{$ref:'#/components/examples/External'}}}],responses:{204:{description:'Empty'}}}};
+ const bound=await check(document,format);assert.equal(bound.result.complete,false,JSON.stringify(bound.result.findings));
+ assert.equal(bound.result.coverage.unboundExampleSerializations,0);
+ assert.equal(bound.result.findings.filter(value=>value.code==='example.serialization.incomplete').length,1);
+ assert.equal(bound.result.findings.find(value=>value.code==='example.serialization.incomplete').pointer,'/components/examples/External/externalValue');
+ delete document.paths['/check'];const restored=await check(document,format);
+ assert.equal(restored.result.complete,true);assert.equal(restored.result.coverage.unboundExampleSerializations,1);
+});
+for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])test(`${version} ${format} an unused reusable media still associates its referenced example`,async()=>{
+ const document=api(version);document.components={examples:{External:{externalValue:'./wire.txt'}},mediaTypes:{Unused:{schema:{type:'integer'},examples:{Bound:{$ref:'#/components/examples/External'}}}}};
+ const {result}=await check(document,format);assert.equal(result.complete,false,JSON.stringify(result.findings));
+ assert.equal(result.coverage.unboundExampleSerializations,0);assert.equal(result.findings.find(value=>value.code==='example.serialization.incomplete')?.pointer,'/components/examples/External/externalValue');
+});
+for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(const kind of ['parameter','header'])test(`${version} ${format} one media proof cannot cover a second ${kind} representation`,async()=>{
+ const document=api(version),example={$ref:'#/components/examples/Shared'};
+ document.components={examples:{Shared:{serializedValue:'0'}}};
+ const operation={requestBody:{content:{'application/json':{schema:{type:'integer'},examples:{Shared:example}}}},responses:{200:{description:'Read'}}};
+ if(kind==='parameter')operation.parameters=[{name:'id',in:'query',schema:{type:'integer'},examples:{Shared:example}}];
+ else operation.responses[200].headers={'X-Id':{schema:{type:'integer'},examples:{Shared:example}}};
+ document.paths['/check']={post:operation};
+ const {result}=await check(document,format);
+ assert.equal(result.complete,false,JSON.stringify(result));
+ assert.deepEqual(result.serializedEvaluations.map(value=>[value.complete,value.valid]),[[true,true]]);
+ assert.equal(result.coverage.unboundExampleSerializations,0);
+ assert.equal(result.findings.find(value=>value.code==='example.serialization.incomplete')?.pointer,'/components/examples/Shared/serializedValue');
+});
+for(const version of ['3.2.0','3.2.1'])for(const kind of ['parameter','header'])test(`${version} alias media proof retains independent ${kind} coverage`,async()=>{
+ const root='file:///approved/api.yaml';
+ const other=kind==='parameter'?'      parameters:\n        - name: id\n          in: query\n          schema: {type: integer}\n          examples: {Shared: *shared}\n':'      responses:\n        200:\n          description: Read\n          headers:\n            X-Id:\n              schema: {type: integer}\n              examples: {Shared: *shared}\n';
+ const text=`openapi: ${version}\ninfo: {title: Keep, version: unchanged}\nx-value: &shared\n  serializedValue: '0'\npaths:\n  /check:\n    post:\n${other}      requestBody:\n        content:\n          application/json:\n            schema: {type: integer}\n            examples: {Shared: *shared}\n${kind==='parameter'?'      responses: {200: {description: Read}}\n':''}`;
+ const resources=[{id:root,text,generation:1}],result=await evaluateSchemas({root,snapshot:'alias-contexts',resources});
+ assert.equal(result.complete,false,JSON.stringify(result));
+ assert.deepEqual(result.serializedEvaluations.map(value=>[value.complete,value.valid]),[[true,true]]);
+ assert.equal(result.findings.find(value=>value.code==='example.serialization.incomplete')?.pointer,'/x-value/serializedValue');assert.equal(resources[0].text,text);
 });
