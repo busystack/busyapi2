@@ -222,6 +222,13 @@ valid, including without Content-Type, and nonempty bodies receive a located
 violation. Direct requests, saved cases and native mock proxies use the same
 captured response policy. See [Swagger §6.4.12](https://spec.openapis.org/oas/v2.0.html#response-object).
 
+Swagger file responses retain opaque bytes for JSON, URL-encoded and multipart
+media as well. An absent response schema keeps its no-content policy for those
+media. Native Swagger form-data input uses its own parameter and file rules;
+empty multipart generation is refused before dispatch. MIME decoding requires
+an opening part and rejects reserved boundary prefixes, including nested boundary
+collisions. Explicit serialized entities retain their exact bytes for findings.
+
 Finite JSONL/NDJSON, JSON text sequences and server-sent events map to ordered
 arrays. In 3.2, `schema` checks the complete array and `itemSchema` checks each
 item separately, including parameter/header content and saved cases. Numeric
@@ -312,6 +319,20 @@ Opaque binary data does not establish the Unicode representation required for
 `serializedValue`; use an external serialized resource. External examples are
 not fetched automatically. Parameter/Header style example checks remain separate
 required work. See [3.2 Example validation](https://spec.openapis.org/oas/v3.2.1.html#validating-examples).
+
+Generic MIME part Header Objects can use native `schema` or single-media `content`.
+Content values use the same captured media codecs and exact schema evaluator;
+references, dialects, numeric tokens and 3.2 `itemSchema` retain their owners.
+Multiple content-based field values and ambiguous simple-style interpretations
+remain explicit incomplete checks. RFC 7578's ignored additional form-data headers
+retain their separate advisory policy.
+
+For form and named multipart media, **Use a serialized entity** switches Try
+between field/part construction and authored text or one complete selected file.
+This accepts a complete MIME entity with its authored part headers and boundary.
+The draft keeps its current text and attachments when changing input mode or
+environment. Clear the selected complete file to return to authored text.
+Generated content-based part headers remain separate required work.
 
 **Use an exact JSON value** accepts an object for form or multipart data without
 passing through literal `name=value` rows. Saved contract cases with object
