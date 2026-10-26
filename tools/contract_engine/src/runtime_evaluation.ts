@@ -8,7 +8,7 @@ import type {SchemaEvaluationScope} from './swagger_schema';
 import {FormSemantics} from './form_semantics';
 import {createExactNumericAdapter} from './exact_numbers';
 import {decodeRuntimeMedia,runtimeMediaBytes} from './runtime_media';
-import {decodeRuntimeForm,type RuntimeFormTarget,type RuntimeFormData} from './runtime_form';
+import {decodeRuntimeForm,type RuntimeFormTarget,type RuntimeFormData,type FormCheck} from './runtime_form';
 import {swaggerWireShape,swaggerWireValues,type SwaggerHeaderTarget} from './swagger_wire';
 import {headerValueParts} from './header_values';
 import {capturedRuntimeHeaders,type RuntimeHeaderTarget} from './runtime_headers';
@@ -95,7 +95,9 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
    const shape=scope&&!fileSchema&&(family==='2.0'||family==='3.0')?forms.shape(scope.resource,scope.pointer):undefined;
    const octets=shape?.types?.includes('string')===true&&shape.format==='binary';
    const identity=createHash('sha256').update(JSON.stringify([owner.snapshot,index,supplied.subject,supplied.mediaType])).digest('hex');
-   if(supplied.form){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
+   // A Swagger response file has no internal form data model (§6.4.12).
+   // Its captured schema takes precedence over the media type's usual codec.
+   if(supplied.form&&!fileSchema){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
    else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,fileSchema?'file':octets?'octets':family==='2.0'||family==='3.0'?'legacy-octets':family==='3.1'||family==='3.2'?'binary':'unsupported');
   }catch(error){
    const limited=error instanceof SourceError&&error.code.startsWith('limit.');
@@ -119,7 +121,7 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
      known?'The runtime representation is not valid for its selected media type.':'Runtime decoding did not complete; no clean schema result is claimed.'});
    continue;
   }
-  const checks:{document:SourceDocument;schema?:SchemaLocation;prefix:string;file?:boolean}[]=[{document:decoded.document,schema:supplied.schema,prefix:''},...(form?.checks??[])];
+  const checks:FormCheck[]=[{document:decoded.document,schema:supplied.schema,prefix:''},...(form?.checks??[])];
   for(const issue of form?.issues??[]){
    if(issue.severity==='error')evaluations.push({subject:supplied.subject,location:supplied.location,pointer:issue.pointer,complete:true,valid:false,representation:decoded.kind});
    add({...issue,subject:supplied.subject,location:supplied.location});
@@ -149,7 +151,7 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
     if(!ast){complete=false;evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:false,valid:false,reason:'schema-incomplete'});continue;}
     owner.exact.setDirection(supplied.subject.startsWith('request-')?'request':supplied.subject.startsWith('response-')?'response':undefined);
     let result:Output;
-    try{result=interpret(ast,owner.exact.exactInstance(check.document,'',undefined,false,decoded.binaryInstances?.get(check.document)),BASIC);instances++;}
+    try{result=interpret(ast,owner.exact.exactInstance(check.document,'',undefined,false,check.binary??decoded.binaryInstances?.get(check.document)),BASIC);instances++;}
     finally{owner.exact.setDirection(undefined);}
     evaluations.push({subject:supplied.subject,location:supplied.location,pointer:check.prefix,complete:true,valid:result.valid,representation:decoded.kind,schema:check.schema});
     if(result.valid===false){

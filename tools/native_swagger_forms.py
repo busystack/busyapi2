@@ -20,22 +20,23 @@ class SwaggerFormFixture(BinaryFixture):
                       else 'application/x-www-form-urlencoded')
 
     def operation(self, format):
+        required = self.mode == 'urlencoded'
         parameters = [
-            {'name': 'n', 'in': 'formData', 'type': 'integer', 'required': True,
+            {'name': 'n', 'in': 'formData', 'type': 'integer', 'required': required,
              'enum': [9007199254740993]},
-            {'name': 'flag', 'in': 'formData', 'type': 'boolean', 'required': True,
+            {'name': 'flag', 'in': 'formData', 'type': 'boolean', 'required': required,
              'enum': [False]},
-            {'name': 'empty', 'in': 'formData', 'type': 'string', 'required': True,
+            {'name': 'empty', 'in': 'formData', 'type': 'string', 'required': required,
              'allowEmptyValue': True, 'maxLength': 0},
-            {'name': 'label', 'in': 'formData', 'type': 'string', 'required': True,
+            {'name': 'label', 'in': 'formData', 'type': 'string', 'required': required,
              'enum': ['雪']},
-            {'name': 'ids', 'in': 'formData', 'type': 'array', 'required': True,
+            {'name': 'ids', 'in': 'formData', 'type': 'array', 'required': required,
              'collectionFormat': 'multi', 'items': {'type': 'integer'},
              'minItems': 2, 'maxItems': 2},
         ]
         if self.mode == 'multipart':
             parameters.append({'name': 'file', 'in': 'formData', 'type': 'file',
-                               'required': True})
+                               'required': False})
         return {'operationId': 'postItems', 'summary': 'Inspect items',
                 'consumes': [self.media], 'produces': [self.media],
                 'parameters': parameters,
@@ -96,7 +97,10 @@ def execute_swagger_forms(native, process, file, baseline, version, fixture, evi
     native.perform({'kind': 'click', 'scale': 1, 'point': [140, 421], 'viewport': [1280, 720]})
     wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Try') and contains(nodes, 'Inspect items'), 'Swagger form operation selection failed')
     activate_control(native, process.pid, 'Try')
-    wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Send'), 'Swagger form request controls are unavailable')
+    nodes = wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Send'), 'Swagger form request controls are unavailable')
+    if not contains(nodes, 'Use an exact JSON value'):
+        activate_control(native, process.pid, 'Include request body')
+        wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Use an exact JSON value'), 'The optional Swagger body did not expose its native editor')
     activate_control(native, process.pid, 'Use an exact JSON value')
     _focus_entry(native, process.pid, 'Use an exact JSON value')
     if fixture.mode == 'multipart':

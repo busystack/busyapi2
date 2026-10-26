@@ -6,6 +6,21 @@ import 'package:test/test.dart';
 
 import 'test_support.dart';
 
+bool hasLocatedForbiddenContent(Object? value, String resource) {
+  if (value is Map) {
+    if (value['code'] == 'runtime.response.body.forbidden' &&
+        value['source'] is Map &&
+        (value['source'] as Map)['resource'] == resource) {
+      return true;
+    }
+    return value.values.any(
+      (entry) => hasLocatedForbiddenContent(entry, resource),
+    );
+  }
+  return value is List &&
+      value.any((entry) => hasLocatedForbiddenContent(entry, resource));
+}
+
 void main() {
   for (final format in ['yaml', 'json']) {
     test(
@@ -114,6 +129,8 @@ void main() {
           'application/json',
           'application/xml',
           'application/octet-stream',
+          'application/x-www-form-urlencoded',
+          'multipart/form-data; boundary=Fixture',
           null,
         ]) {
           responseType = type;
@@ -207,41 +224,69 @@ void main() {
             }
           }
         }
-        responseType = 'application/json';
-        responseBytes = bytes;
         final manifest = File('${directory.path}/busyapi.yaml');
-        await manifest.writeAsString(
-          jsonEncode({
-            'version': 1,
-            'roots': [
-              {'name': 'api', 'path': 'api.$format'},
-            ],
-            'tests': [
-              {
-                'name': 'file',
-                'operation': {'method': 'post', 'path': '/file'},
-                'body': {
-                  'mediaType': 'application/octet-stream',
-                  'value': 'binary\u0000雪',
-                },
-                'expect': {'status': 200},
-              },
-            ],
-          }),
-        );
-        final before = seen.length;
-        final cli = await Process.run(
-          '$testBundle/busyapi',
-          ['test', directory.path, '--case', 'file', '--json'],
-          environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
-          includeParentEnvironment: false,
-        );
-        expect(cli.exitCode, 0, reason: '${cli.stdout}\n${cli.stderr}');
-        final report = jsonDecode(cli.stdout as String) as Map;
-        expect(report['complete'], isTrue, reason: '${cli.stdout}');
-        expect(report['passed'], isTrue);
-        expect(seen, hasLength(before + 1));
-        expect(seen.last, utf8.encode('binary\u0000雪'));
+        var cliIndex = 0;
+        for (final type in [
+          'application/json',
+          'application/x-www-form-urlencoded',
+          'multipart/form-data; boundary=Fixture',
+        ]) {
+          responseType = type;
+          for (final fileResponse in [true, false]) {
+            final cliFile = File('${directory.path}/cli-${cliIndex++}.$format');
+            final cliSource = sourceFor(
+              fileResponse ? {r'$ref': './response-file.$format'} : null,
+            );
+            await cliFile.writeAsString(cliSource);
+            await manifest.writeAsString(
+              jsonEncode({
+                'version': 1,
+                'roots': [
+                  {'name': 'api', 'path': cliFile.uri.pathSegments.last},
+                ],
+                'tests': [
+                  {
+                    'name': 'file',
+                    'operation': {'method': 'post', 'path': '/file'},
+                    'body': {
+                      'mediaType': 'application/octet-stream',
+                      'value': 'binary\u0000雪',
+                    },
+                    'expect': {'status': 200},
+                  },
+                ],
+              }),
+            );
+            for (final received in [bytes, if (!fileResponse) <int>[]]) {
+              responseBytes = received;
+              final before = seen.length;
+              final cli = await Process.run(
+                '$testBundle/busyapi',
+                ['test', directory.path, '--case', 'file', '--json'],
+                environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
+                includeParentEnvironment: false,
+              );
+              final passed = fileResponse || received.isEmpty;
+              expect(
+                cli.exitCode,
+                passed ? 0 : 1,
+                reason: '${cli.stdout}\n${cli.stderr}',
+              );
+              final report = jsonDecode(cli.stdout as String) as Map;
+              expect(report['complete'], isTrue, reason: '${cli.stdout}');
+              expect(report['passed'], passed);
+              if (!passed)
+                expect(
+                  hasLocatedForbiddenContent(report, cliFile.uri.toString()),
+                  isTrue,
+                  reason: '${cli.stdout}',
+                );
+              expect(seen, hasLength(before + 1));
+              expect(seen.last, utf8.encode('binary\u0000雪'));
+              expect(await cliFile.readAsString(), cliSource);
+            }
+          }
+        }
         expect(await file.readAsBytes(), utf8.encode(original));
         expect(await external.readAsBytes(), utf8.encode(externalSource));
         expect(

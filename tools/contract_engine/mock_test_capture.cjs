@@ -73,7 +73,7 @@ function mockRequest(port,route,text,{mediaType='application/json'}={}) {
  return new Promise((resolve,reject)=>{
   const req=http.request({host:'127.0.0.1',port,path:route,method:'POST',headers:bytes===undefined?{}:{'content-type':mediaType,'content-length':bytes.length}},res=>{
    const chunks=[];res.on('data',chunk=>chunks.push(chunk));res.once('error',reject);
-   res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text:Buffer.concat(chunks).toString()}));
+   res.on('end',()=>{const bytes=Buffer.concat(chunks);resolve({status:res.statusCode,headers:res.headers,text:bytes.toString(),bytes});});
   });
   req.once('error',reject);req.end(bytes);
  });

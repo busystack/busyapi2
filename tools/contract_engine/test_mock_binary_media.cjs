@@ -36,24 +36,30 @@ for(const format of ['yaml','json'])test(`Swagger ${format} file and schema-free
   const parts=[];request.on('data',part=>parts.push(part));request.on('end',()=>{
    seen.push({method:request.method,path:request.url,bytes:Buffer.concat(parts)});
    const empty=['/empty','/untyped-empty'].includes(request.url),untyped=request.url.startsWith('/untyped-');
-   response.writeHead(200,{...(!untyped?{'content-type':'application/json'}:{}),'content-length':empty?0:bytes.length});
+   const type=request.url==='/file-form'?'application/x-www-form-urlencoded':request.url==='/file-multipart'?'multipart/form-data; boundary=Fixture':'application/json';
+   response.writeHead(200,{...(!untyped?{'content-type':type}:{}),'content-length':empty?0:bytes.length});
    response.end(empty?undefined:bytes);
   });
  });
  await new Promise(resolve=>upstream.listen(0,'127.0.0.1',resolve));
  t.after(()=>new Promise(resolve=>{upstream.closeAllConnections();upstream.close(resolve);}));
- const value={swagger:'2.0',info:{title:'Original file response',version:'3.2.1'},produces:['application/json'],paths:Object.fromEntries(['file','empty','forbidden','untyped-empty','untyped-forbidden'].map(name=>['/'+name,{post:{responses:{200:{$ref:'#/responses/'+(name==='file'?'File':'Empty')}}}}])),responses:{File:{description:'Binary file',schema:{$ref:'#/responses/Bytes/schema'}},Bytes:{description:'Reusable file schema',schema:{$ref:'./response-file.'+format}},Empty:{description:'No response content'}}};
+ const value={swagger:'2.0',info:{title:'Original file response',version:'3.2.1'},produces:['application/json','application/x-www-form-urlencoded','multipart/form-data'],paths:Object.fromEntries(['file','file-form','file-multipart','empty','forbidden','untyped-empty','untyped-forbidden'].map(name=>['/'+name,{post:{responses:{200:{$ref:'#/responses/'+(name.startsWith('file')?'File':'Empty')}}}}])),responses:{File:{description:'Binary file',schema:{$ref:'#/responses/Bytes/schema'}},Bytes:{description:'Reusable file schema',schema:{$ref:'./response-file.'+format}},Empty:{description:'No response content'}}};
  const source=format==='json'?JSON.stringify(value):YAML.stringify(value),root='file:///mock-fixture/api.'+format;
  const resource=(id,text)=>({id,text,generation:2,identity:createHash('sha256').update(text).digest('hex')});
  const input=capturedMockStart({root,snapshot:'a'.repeat(64),resources:[resource(root,source),resource('file:///mock-fixture/response-file.'+format,'{"type":"file"}')]},{upstream:'http://127.0.0.1:'+upstream.address().port}),original=JSON.stringify(input.capture),{port}=await startMock(t,input);
  const file=await mockRequest(port,'/file',undefined);assert.equal(file.status,200,file.text);
  assert.equal(file.headers['sl-violations'],undefined,JSON.stringify(file.headers));
+ assert.deepEqual(file.bytes,bytes);
+ for(const [name,type]of [['file-form','application/x-www-form-urlencoded'],['file-multipart','multipart/form-data; boundary=Fixture']]){
+  const result=await mockRequest(port,'/'+name,undefined);assert.equal(result.status,200,result.text);
+  assert.equal(result.headers['content-type'],type);assert.equal(result.headers['sl-violations'],undefined,JSON.stringify(result.headers));assert.deepEqual(result.bytes,bytes);
+ }
  const empty=await mockRequest(port,'/empty',undefined);assert.equal(empty.status,200,empty.text);assert.equal(empty.headers['sl-violations'],undefined);
  const forbidden=await mockRequest(port,'/forbidden',undefined);assert.equal(forbidden.status,200,forbidden.text);
  assert(JSON.parse(forbidden.headers['sl-violations']).some(finding=>finding.code==='runtime.response.body.forbidden'),JSON.stringify(forbidden.headers));
  const untypedEmpty=await mockRequest(port,'/untyped-empty',undefined);assert.equal(untypedEmpty.status,200,untypedEmpty.text);assert.equal(untypedEmpty.headers['sl-violations'],undefined);
  const untypedForbidden=await mockRequest(port,'/untyped-forbidden',undefined);assert.equal(untypedForbidden.status,200,untypedForbidden.text);
  assert(JSON.parse(untypedForbidden.headers['sl-violations']).some(finding=>finding.code==='runtime.response.body.forbidden'),JSON.stringify(untypedForbidden.headers));
- assert.deepEqual(seen.map(value=>[value.method,value.path,value.bytes.length]),[['POST','/file',0],['POST','/empty',0],['POST','/forbidden',0],['POST','/untyped-empty',0],['POST','/untyped-forbidden',0]]);
+ assert.deepEqual(seen.map(value=>[value.method,value.path,value.bytes.length]),[['POST','/file',0],['POST','/file-form',0],['POST','/file-multipart',0],['POST','/empty',0],['POST','/forbidden',0],['POST','/untyped-empty',0],['POST','/untyped-forbidden',0]]);
  assert.equal(JSON.stringify(input.capture),original);
 });

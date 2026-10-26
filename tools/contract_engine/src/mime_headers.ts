@@ -3,14 +3,16 @@ import type {GraphTarget,ReferenceGraph} from './reference_graph';
 import {MultipartEncoding} from './multipart_encoding';
 import {headerShapes} from './header_serialization';
 import {headerWireValues} from './header_wire_values';
+import {mimeHeaderContent,type MimeHeaderFormDecoder} from './mime_header_content';
 import type {FormCheck,FormIssue} from './runtime_form';
 
 const object=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 
 /** Header representations share the graph's existing simple-style codec.
  * RFC 7578's ignored fields apply only to form-data, not generic MIME parts. */
-export function mimeHeaders(graph:ReferenceGraph,id:string,transfers:MultipartEncoding) {
+export function mimeHeaders(graph:ReferenceGraph,id:string,transfers:MultipartEncoding,decodeForm:MimeHeaderFormDecoder) {
     const shapeFor=headerShapes(graph);
+    const content=mimeHeaderContent(graph,id+'/content',transfers,decodeForm);
     let serial=0,work=0;
     return (actualHeaders:ReadonlyMap<string,string[]>,rules:unknown,at:GraphTarget,prefix:string,formData:boolean):{checks:FormCheck[];issues:FormIssue[]}=>{
         const checks:FormCheck[]=[],issues:FormIssue[]=[];
@@ -31,7 +33,10 @@ export function mimeHeaders(graph:ReferenceGraph,id:string,transfers:MultipartEn
             }
             const definition=transfers.follow(source,'header'),value=graph.docs.get(definition.resource)!.dataNode(definition.pointer)!.value,actual=actualHeaders.get(lower);
             if(!actual){if(value.required===true)issue('runtime.form.header.required','A required part header is absent',definition);continue;}
-            if(value.content!==undefined)fail('runtime.form.header.unsupported','This part header needs a content-based representation',definition);
+            if(value.content!==undefined){
+                const decoded=content(definition,actual,prefix+'/headers/'+escape(name));
+                checks.push(...decoded.checks);issues.push(...decoded.issues);continue;
+            }
             if(!Object.hasOwn(value,'schema'))continue;
             const schema={...definition,pointer:definition.pointer+'/schema',kind:'schema'},shape=shapeFor(schema);
             if(!shape||value.style!==undefined&&value.style!=='simple')fail('runtime.form.header.unsupported','This part header has no supported simple-style representation',definition);

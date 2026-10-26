@@ -7,6 +7,7 @@ import {mimeParts,mimeSingleton,mimePartDecodingType} from './mime_parts';
 import {decodeMultipartTransfer} from './multipart_transfer';
 import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind} from './runtime_media';
 import {mimeHeaders} from './mime_headers';
+import type {MimeHeaderFormDecoder} from './mime_header_content';
 import {prefixBinary,type BinaryLocations} from './runtime_binary';
 import type {FormCheck,FormIssue,RuntimeFormData,RuntimeFormTarget} from './runtime_form';
 
@@ -17,11 +18,11 @@ const object=(value:unknown):value is ObjectValue=>value!==null&&typeof value===
 /** OAS 3.2 §§4.14.3/4.14.5/4.15.2: wire positions and nested encodings
  * project into exact CST instances. The original captured schemas, including
  * itemSchema, remain the only authority for their constraints. */
-export function decodeRuntimeMultipart(text:string,id:string,contentType:string,base64:boolean,target:RuntimeFormTarget,graph:ReferenceGraph):RuntimeFormData|undefined {
+export function decodeRuntimeMultipart(text:string,id:string,contentType:string,base64:boolean,target:RuntimeFormTarget,graph:ReferenceGraph,decodeHeaderForm:MimeHeaderFormDecoder):RuntimeFormData|undefined {
     const owner=graph.docs.get(target.resource)?.dataNode(target.pointer),media=owner?.value;
     if(!object(media))throw new SourceError('runtime.form.owner','The captured multipart Media Type Object is unavailable',owner?.range??[0,0]);
     const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
-    const transfers=new MultipartEncoding(graph),headers=mimeHeaders(graph,id+'/headers',transfers),checks:FormCheck[]=[],issues:FormIssue[]=[];
+    const transfers=new MultipartEncoding(graph),headers=mimeHeaders(graph,id+'/headers',transfers,decodeHeaderForm),checks:FormCheck[]=[],issues:FormIssue[]=[];
     const location=(pointer:string):GraphTarget=>({resource:target.resource,pointer,kind:'schema'});
     const hints:Hint[]=['schema','itemSchema'].filter(key=>graph.scopes.has(target.resource+'#'+target.pointer+'/'+key))
         .map(key=>({schema:location(target.pointer+'/'+key),shape:forms.shape(target.resource,target.pointer+'/'+key),path:[]}));

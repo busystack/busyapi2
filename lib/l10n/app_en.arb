@@ -819,6 +819,8 @@
   "@requestBodyIgnored": {"placeholders":{"method":{"type":"String"}}},
   "requestLiteralFields": "Literal fields (name=value, one per line; names may repeat)",
   "requestExactBody": "Authored text or exact JSON bytes",
+  "requestSerializedEntity": "Use a serialized entity",
+  "requestSerializedEntityHelp": "Send authored text or one complete file without building form fields or parts.",
   "requestMultipartName": "Multipart field name",
   "requestAddBinary": "Add binary file",
   "requestUseBinary": "Use binary file",

@@ -14,7 +14,7 @@ import type {BinaryLocations} from './runtime_binary';
 export type RuntimeFormTarget={resource:string;pointer:string;occurrence?:string};
 type Location={resource:string;pointer:string};
 export type FormIssue={code:string;message:string;pointer:string;severity:'error'|'warning';source:{resource:string;pointer:string;range:Range}};
-export type FormCheck={document:SourceDocument;schema?:Location;prefix:string;file?:boolean};
+export type FormCheck={document:SourceDocument;schema?:Location;prefix:string;file?:boolean;binary?:BinaryLocations};
 export type RuntimeFormData=RuntimeMediaData&{checks:FormCheck[];issues:FormIssue[]};
 type Part={name:string;bytes:Buffer;encoded?:Buffer;headers:ReadonlyMap<string,string[]>};
 const object=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -79,13 +79,14 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         throw new SourceError(code,message,range,unsupported?'unsupported':undefined,{...at,range});
     };
     if(!owner||!node||!scope)failure('runtime.form.owner','The captured form owner is unavailable');
+    const decodeHeaderForm=(text:string,id:string,type:string,target:RuntimeFormTarget)=>decodeRuntimeForm(text,id,type,false,target,subject,graph);
     if(scope.family==='3.2'&&scope.kind==='media'&&mediaTypes(contentType,false)[0].type==='multipart'){
-        const decoded=decodeRuntimeMultipart(text,id,contentType,base64,target,graph);
+        const decoded=decodeRuntimeMultipart(text,id,contentType,base64,target,graph,decodeHeaderForm);
         if(decoded)return decoded;
     }
     const input=parts(runtimeMediaBytes(text,base64),contentType,scope.kind==='media'&&(scope.family==='3.0'||scope.family==='3.1')),multipart=mediaTypes(contentType,false)[0].type==='multipart';
     const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]))),transfers=new MultipartEncoding(graph);
-    const genericHeaders=mimeHeaders(graph,id+'/headers',transfers);
+    const genericHeaders=mimeHeaders(graph,id+'/headers',transfers,decodeHeaderForm);
     const checks:FormCheck[]=[],issues:FormIssue[]=[],members=new Map<string,string>(),claimed=new Map<Part,string>(),notes=new Set<string>();
     const binary=new Map<string,Buffer>();
     const document=(raw:string,suffix:string)=>{

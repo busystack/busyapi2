@@ -350,6 +350,14 @@ class RequestRunController extends ChangeNotifier {
         null => RequestBodyKind.raw,
       };
 
+  void selectBodySerialization(bool serialized) {
+    if (busy || hasComposingInput || bodyKind == RequestBodyKind.binaryFile) {
+      return;
+    }
+    bodyKind = serialized ? RequestBodyKind.raw : _kindForMedia(bodyMediaType);
+    refresh();
+  }
+
   void selectPartMedia(String name, String? media) {
     if (busy) return;
     if (media == null || media.isEmpty) {
@@ -766,7 +774,10 @@ class RequestRunController extends ChangeNotifier {
   }
 
   void addBodyFile(XFile file) {
-    final multipart = _kindForMedia(bodyMediaType) == RequestBodyKind.multipart;
+    final multipart =
+        bodyKind != RequestBodyKind.raw &&
+        bodyKind != RequestBodyKind.binaryFile &&
+        _kindForMedia(bodyMediaType) == RequestBodyKind.multipart;
     final part = multipart ? bodyFilePart.trim() : 'file';
     if (multipart && part.isEmpty) {
       throw CoreFailure(
@@ -775,10 +786,10 @@ class RequestRunController extends ChangeNotifier {
       );
     }
     if (busy || hasComposingInput) return;
-    if (_kindForMedia(bodyMediaType) != RequestBodyKind.multipart) {
+    if (!multipart) {
       bodyFiles.clear();
     }
-    bodyKind = _kindForMedia(bodyMediaType) == RequestBodyKind.multipart
+    bodyKind = multipart
         ? RequestBodyKind.multipart
         : RequestBodyKind.binaryFile;
     bodyFiles.add(
@@ -795,8 +806,11 @@ class RequestRunController extends ChangeNotifier {
 
   void clearBodyFiles() {
     if (busy || hasComposingInput) return;
+    final serialized =
+        bodyKind == RequestBodyKind.raw ||
+        bodyKind == RequestBodyKind.binaryFile;
     bodyFiles.clear();
-    bodyKind = _kindForMedia(bodyMediaType);
+    bodyKind = serialized ? RequestBodyKind.raw : _kindForMedia(bodyMediaType);
     refresh();
   }
 
@@ -2986,6 +3000,12 @@ class _BodyEditor extends StatelessWidget {
     final binding = run.plan!.formBindingForMedia(mediaType);
     final form = binding == RequestFormBinding.urlEncoded;
     final multipart = binding == RequestFormBinding.namedMultipart;
+    final formInput =
+        run.bodyKind == RequestBodyKind.form ||
+        run.bodyKind == RequestBodyKind.multipart;
+    final entityInput =
+        run.bodyKind == RequestBodyKind.raw ||
+        run.bodyKind == RequestBodyKind.binaryFile;
     final l = context.l10n;
     return BusyApiGroupedList(
       title: l.requestBodyMedia,
@@ -3023,7 +3043,7 @@ class _BodyEditor extends StatelessWidget {
           },
         ),
         if (run.bodyEnabled) ...[
-          if (run.bodyStructured ||
+          if (run.bodyStructured && formInput ||
               selectedMedia == 'application/json' ||
               selectedMedia?.endsWith('+json') == true)
             BusyApiActionRow(
@@ -3042,17 +3062,28 @@ class _BodyEditor extends StatelessWidget {
             ),
           BusyApiActionRow(
             title: l.requestBodySource,
-            subtitle: run.bodyStructured
+            subtitle: run.bodyStructured && formInput
                 ? l.requestStructuredValue
                 : switch (run.bodyKind) {
                     RequestBodyKind.none => l.requestBodyMediaChoose,
-                    RequestBodyKind.raw => l.requestUseText,
+                    RequestBodyKind.raw => l.requestExactBody,
                     RequestBodyKind.form => l.requestLiteralFields,
                     RequestBodyKind.multipart => l.requestPartEncoding,
                     RequestBodyKind.binaryFile => l.requestUseBinary,
                   },
           ),
-          if ((form || multipart) && run.bodyKind != RequestBodyKind.raw)
+          if (form || multipart)
+            BusyApiSwitchRow(
+              title: l.requestSerializedEntity,
+              subtitle: l.requestSerializedEntityHelp,
+              value: entityInput,
+              enabled:
+                  !run.busy &&
+                  !run.hasComposingInput &&
+                  run.bodyKind != RequestBodyKind.binaryFile,
+              onChanged: run.selectBodySerialization,
+            ),
+          if (formInput)
             BusyApiSwitchRow(
               title: l.requestStructuredValue,
               value: run.bodyStructured,
@@ -3075,14 +3106,14 @@ class _BodyEditor extends StatelessWidget {
               value: run.bodyText,
               multiline: true,
               enabled: !run.busy,
-              label: run.bodyStructured
+              label: run.bodyStructured && formInput
                   ? l.requestStructuredValue
-                  : (form || multipart) && run.bodyKind != RequestBodyKind.raw
+                  : formInput
                   ? l.requestLiteralFields
                   : l.requestExactBody,
               onChanged: (value) => run.bodyText = value,
             ),
-          if ((form || multipart) && run.bodyKind != RequestBodyKind.raw)
+          if (formInput)
             BusyApiDisclosure(
               title: Text(l.requestPartEncoding),
               children: [
@@ -3090,8 +3121,8 @@ class _BodyEditor extends StatelessWidget {
                 RequestPartMediaEditor(run: run),
               ],
             ),
-          if (!form) ...[
-            if (multipart)
+          if (!form || entityInput) ...[
+            if (run.bodyKind == RequestBodyKind.multipart)
               RequestDraftEntry(
                 run: run,
                 label: l.requestMultipartName,
@@ -3100,7 +3131,9 @@ class _BodyEditor extends StatelessWidget {
                 onChanged: (value) => run.bodyFilePart = value,
               ),
             BusyApiActionRow(
-              title: multipart ? l.requestAddBinary : l.requestUseBinary,
+              title: run.bodyKind == RequestBodyKind.multipart
+                  ? l.requestAddBinary
+                  : l.requestUseBinary,
               enabled: !run.busy && !run.hasComposingInput,
               leading: const Icon(BusyApiGlyphs.documentOpen),
               onTap: run.busy
@@ -3121,7 +3154,10 @@ class _BodyEditor extends StatelessWidget {
                       }
                     }),
             ),
-            for (final file in run.bodyFiles)
+            for (final file
+                in entityInput && run.bodyKind != RequestBodyKind.binaryFile
+                    ? const <MultipartFileValue>[]
+                    : run.bodyFiles)
               BusyApiActionRow(
                 title: file.name,
                 subtitle: file.filename ?? file.path,
@@ -3131,15 +3167,20 @@ class _BodyEditor extends StatelessWidget {
                   onPressed: run.busy || run.hasComposingInput
                       ? null
                       : () {
+                          final entity =
+                              run.bodyKind == RequestBodyKind.binaryFile;
                           run.bodyFiles.remove(file);
                           if (run.bodyFiles.isEmpty) {
-                            run.bodyKind = run._kindForMedia(run.bodyMediaType);
+                            run.bodyKind = entity
+                                ? RequestBodyKind.raw
+                                : run._kindForMedia(run.bodyMediaType);
                           }
                           run.refresh();
                         },
                 ),
               ),
-            if (run.bodyFiles.isNotEmpty)
+            if (run.bodyFiles.isNotEmpty &&
+                (!entityInput || run.bodyKind == RequestBodyKind.binaryFile))
               BusyApiActionRow(
                 title: l.requestClearFiles,
                 enabled: !run.busy,
