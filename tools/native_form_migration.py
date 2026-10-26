@@ -72,8 +72,8 @@ def execute_form_migration(native, process, file, baseline, version, fixture, ev
     from native_swagger_forms import _focus_entry, _json_keys
     from native_multipart import edit_named_body
 
+    activate_control(native, process.pid, 'POST /items')
     mode(native, process.pid, 'reference')
-    native.perform({'kind': 'click', 'scale': 1, 'point': [140, 421], 'viewport': [1280, 720]})
     wait_tree(native, process.pid, lambda nodes: contains(nodes, 'Try') and contains(nodes, 'Inspect items'),
               'Migrated form operation did not retain native request navigation')
     activate_control(native, process.pid, 'Try')
