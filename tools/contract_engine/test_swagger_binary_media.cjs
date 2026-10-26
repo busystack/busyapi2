@@ -5,13 +5,13 @@ const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
 const {requestOperation}=require('./dist/execution.cjs');
 const {deriveBundle}=require('./dist/derived_bundle.cjs');
 const bytes=Buffer.from([0,255,128]);
-async function run(format,schema,{type='application/octet-stream',body=bytes,reusable=false}={}){
+async function run(format,schema,{type='application/octet-stream',body=bytes,reusable=false,form=false}={}){
  const root='file:///swagger-binary/api.'+format;
  const response={description:'Original file response',schema};
  const value={swagger:'2.0',info:{title:'Original',version:'3.2.1'},produces:[type],paths:{'/file':{get:{responses:{200:reusable?{$ref:'#/responses/File'}:response}}}},...(reusable?{responses:{File:response}}:{})};
  const text=format==='json'?JSON.stringify(value):'# Keep 雪 and CRLF\r\n'+YAML.stringify(value).replaceAll('\n','\r\n');
  const at='/paths/~1file/get/responses/200';
- return evaluateSchemas({root,snapshot:format+type,resources:[{id:root,text,generation:1}],runtimeInstances:[{subject:'response-body',location:type,mediaType:type,mediaBase64:true,text:body.toString('base64'),media:{resource:root,pointer:at}}]});
+ return evaluateSchemas({root,snapshot:format+type,resources:[{id:root,text,generation:1}],runtimeInstances:[{subject:'response-body',location:type,mediaType:type,mediaBase64:true,text:body.toString('base64'),...(form?{form:{resource:root,pointer:at},schema:{resource:root,pointer:at+'/schema'}}:{media:{resource:root,pointer:at}})}]});
 }
 function result(value,valid){
  assert.equal(value.complete,true,JSON.stringify(value.runtimeFindings));
@@ -27,6 +27,12 @@ for(const format of ['yaml','json'])test(`Swagger ${format} file responses valid
 for(const format of ['yaml','json'])test(`Swagger ${format} ordinary binary schemas retain their Draft 4 string model`,async()=>{
  for(const schema of [{},{type:'string'},{type:'string',format:'binary',minLength:3,maxLength:3},{enum:['\u0000ÿ\u0080']}])result(await run(format,schema),true);
  for(const schema of [{type:'integer'},{type:'string',maxLength:2},{enum:[null]}])result(await run(format,schema),false);
+});
+for(const format of ['yaml','json'])test(`Swagger ${format} file responses retain opaque bytes for MIME types that otherwise select a form decoder`,async()=>{
+ for(const type of ['application/x-www-form-urlencoded','multipart/form-data; boundary=Fixture'])for(const body of [bytes,Buffer.alloc(0),Buffer.from('not a form')]){
+  const checked=await run(format,{type:'file'},{type,body,form:true});result(checked,true);
+  assert.equal(checked.runtimeEvaluations[0].syntax,'file-entity-bytes');
+ }
 });
 for(const format of ['yaml','json'])test(`Swagger ${format} absent response schema means no response content`,async()=>{
  result(await run(format,undefined,{body:Buffer.alloc(0)}),true);

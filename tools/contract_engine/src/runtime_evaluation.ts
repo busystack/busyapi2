@@ -95,7 +95,9 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
    const shape=scope&&!fileSchema&&(family==='2.0'||family==='3.0')?forms.shape(scope.resource,scope.pointer):undefined;
    const octets=shape?.types?.includes('string')===true&&shape.format==='binary';
    const identity=createHash('sha256').update(JSON.stringify([owner.snapshot,index,supplied.subject,supplied.mediaType])).digest('hex');
-   if(supplied.form){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
+   // A Swagger response file has no internal form data model (§6.4.12).
+   // Its captured schema takes precedence over the media type's usual codec.
+   if(supplied.form&&!fileSchema){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
    else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,fileSchema?'file':octets?'octets':family==='2.0'||family==='3.0'?'legacy-octets':family==='3.1'||family==='3.2'?'binary':'unsupported');
   }catch(error){
    const limited=error instanceof SourceError&&error.code.startsWith('limit.');

@@ -214,7 +214,8 @@ binary representation coverage and remaining advanced representations.
 
 Swagger response schemas permit `type: file` only at their root. Native checks
 validate the captured file entity's byte framing without treating it as JSON or
-claiming a decoder for its internal file format. References retain that response
+claiming a decoder for its internal file format. That file policy takes precedence
+when its MIME type would ordinarily select a form decoder. References retain that response
 context; ignored reference siblings cannot turn an ordinary schema into a file.
 An absent Swagger response schema declares no response content: zero bytes are
 valid, including without Content-Type, and nonempty bodies receive a located
@@ -262,7 +263,7 @@ part. Native generation refuses an empty multipart draft before dispatch, with
 an actionable error. Caller-supplied raw entities retain their exact bytes and
 receive framing findings. Text containing a boundary away from line starts, or
 a different boundary, remains payload data. These semantics use evaluator
-revision **1.18.0+21**; older readiness captures cannot be reused.
+revision **1.18.0+22**; older readiness captures cannot be reused.
 
 OpenAPI 3.0/3.1 use the same named mapping for generic multipart types when
 parts carry `Content-Disposition: form-data` and a name. This is the policy

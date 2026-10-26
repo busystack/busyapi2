@@ -4299,7 +4299,9 @@ class ContractRequestExecutor {
         itemSchema = media?['itemSchema'] as Map?;
     RuntimeFormTarget? form;
     RuntimeMediaTarget? capturedMedia;
-    if (_formMedia(mediaType) && media != null) {
+    if (_formMedia(mediaType) &&
+        media != null &&
+        media['bodyAllowed'] != false) {
       final owner = media['definition'] ?? media['source'];
       if (owner case {'resource': String resource, 'pointer': String pointer}) {
         form = RuntimeFormTarget(
