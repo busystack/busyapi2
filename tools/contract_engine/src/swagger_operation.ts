@@ -1,6 +1,7 @@
 import {escape,SourceError} from './document';
 import type {ReferenceGraph} from './reference_graph';
 import {swaggerFileSchemas} from './swagger_file';
+import {exampleRepresentation} from './example_representation';
 
 export type LocatedSource={resource:string;pointer:string;generation:number;range:number[]};
 type Locate=(resource:string,pointer:string)=>LocatedSource;
@@ -48,7 +49,8 @@ export function swaggerResponseContent(graph:ReferenceGraph,resource:string,poin
     }
     return names.map(mediaType=>{
         const examplePointer=pointer+'/examples/'+escape(mediaType),entry=doc.dataNode(examplePointer);
-        const example=entry?{mediaType,source:locate(resource,examplePointer),raw:doc.dataJson(examplePointer),text:typeof entry.value==='string'?entry.value:doc.dataJson(examplePointer),dataKind:entry.kind,representation:'json',level:'media'}:undefined;
+        const representation=entry?exampleRepresentation('swagger-response',entry.value,mediaType):undefined;
+        const example=entry?{mediaType,source:locate(resource,examplePointer),raw:representation==='serialized'?entry.value:doc.dataJson(examplePointer),text:typeof entry.value==='string'?entry.value:doc.dataJson(examplePointer),dataKind:typeof entry.value==='string'?'string':entry.kind,representation,level:'media'}:undefined;
         return {mediaType,source:locate(resource,pointer),definition:locate(resource,pointer),schema:Object.hasOwn(value,'schema')?{...locate(resource,pointer+'/schema'),kind:'schema',file,...(fileIssue?{fileIssue}:{}),unconstrained:Object.keys(value.schema??{}).length===0}:undefined,example,examples:example?[example]:[]};
     });
 }

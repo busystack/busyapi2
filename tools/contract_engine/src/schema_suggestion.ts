@@ -1,6 +1,7 @@
 import { createGraph, propose, Resource } from './engine';
 import { escape, segments, SourceDocument, SourceError } from './document';
 import {modernFamily} from './specification';
+import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
 
 function integer(raw: string) {
     const [mantissa, exponent = '0'] = raw.toLowerCase().split('e');
@@ -20,11 +21,20 @@ export function suggestSchema(input: any) {
     const parts = segments(input.pointer), name = parts.pop(), parentPointer = parts.length ? '/' + parts.map(escape).join('/') : '';
     const parent = graph.scopes.get(doc.id + '#' + parentPointer);
     const swaggerExample=graph.scope(doc.id,input.pointer).family==='2.0'&&parentPointer.endsWith('/examples')&&graph.scopes.get(doc.id+'#'+parentPointer.slice(0,-9))?.kind==='response';
-    if (!(swaggerExample || parent?.kind === 'example' && name === 'value' || ['media','parameter','header'].includes(parent?.kind ?? '') && name === 'example'))
+    if (!(swaggerExample || parent?.kind === 'example' && (name === 'value'||parent.family==='3.2'&&name==='dataValue') || ['media','parameter','header'].includes(parent?.kind ?? '') && name === 'example'))
         throw new SourceError('suggest.context', 'Choose an authored example value, not serialized text or an external URL');
     if (typeof doc.node(parentPointer).value?.$ref === 'string') throw new SourceError('suggest.context', 'A Reference Object sibling is not an authored Example Object');
     doc.assertSafe(input.pointer);
     const node = doc.node(input.pointer), raw = doc.dataJson(input.pointer);
+    const field:ExampleValueField=swaggerExample?'swagger-response':name==='dataValue'?'dataValue':name==='value'?'value':'example';
+    const examplesAt=parentPointer.lastIndexOf('/examples/');
+    const container=parent?.kind==='media'?parent:parent?.kind==='example'&&examplesAt>=0?graph.scopes.get(doc.id+'#'+parentPointer.slice(0,examplesAt)):undefined;
+    const destination=input.target?graph.scopes.get(input.target.resource+'#'+input.target.pointer):undefined;
+    const media=container?.kind==='media'?container:destination?.kind==='media'?destination:undefined;
+    const form=media?mediaExampleRepresentations(graph)(media,field,node.value):undefined;
+    if(swaggerExample&&exampleRepresentation(field,node.value,name)==='serialized'||form?.serialized||form?.contextMissing)
+        throw new SourceError('suggest.serialized','Choose schema-ready data; serialized media text needs a data-model interpretation before schema inference',node.range,'unsupported');
+
     if (raw.length > 1024 * 1024) throw new SourceError('limit.suggest', 'The example exceeds the 1 MiB suggestion budget');
     const sample = new SourceDocument(raw, 'file:///busyapi-derived-example.json');
     let count = 0;

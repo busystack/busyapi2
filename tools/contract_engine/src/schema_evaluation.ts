@@ -24,12 +24,13 @@ import {restrictedSchemaDialect,swaggerSchemaDialect,modernFamily} from './speci
 import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,swaggerMetaIdentity,SchemaEvaluationScope} from './swagger_schema';
 import {swaggerFileContexts} from './swagger_file';
 import {evaluateSerializedExamples} from './serialized_examples';
+import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+31',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+32',configuration:[
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',
- 'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1','parameter-example-serialization-v1',
+ 'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1','parameter-example-serialization-v1','literal-media-examples-v1',
  'reference-family-v1','reference-position-v1','schema-context-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','serialized-media-examples-v1','multipart-header-values-v1','multipart-file-shapes-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1','response-content-presence-v1',
 ].join(':')};
 let configured=false,running=false;
@@ -239,6 +240,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    try{await getCompiled(scope);}catch(error){invalid.push(scope);failed(docs.get(scope.resource)!,scope.pointer,error);}
   }
   const examples:{schema:GraphScope,doc:SourceDocument,pointer:string,interpretation:string}[]=[];
+  const mediaForms=mediaExampleRepresentations(graph);
   const skip=(value:any)=>{if(skipped.length>=20000){limited=true;complete=false;}else skipped.push(value);};
   const append=(schema:GraphScope,doc:SourceDocument,pointer:string,interpretation:string)=>{
    if(examples.length>=20000){limited=true;complete=false;return;}
@@ -253,16 +255,24 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    if(input.policyAnnotations===true)for(const keyword of ['example','default'])
     if(doc.dataNode(scope.pointer+'/'+keyword))append(scope,doc,scope.pointer+'/'+keyword,'policy-annotation');
   }
+  const mediaData=(scope:GraphScope,doc:SourceDocument,pointer:string,field:ExampleValueField)=>{
+   const node=doc.dataNode(pointer);if(!node)return false;
+   const form=mediaForms(scope,field,node.value);
+   return form.data;
+  };
   for(const scope of graph.scopes.values()) {
    if(scope.family==='2.0'&&scope.kind==='response') {
     const schema=graph.scopes.get(scope.resource+'#'+scope.pointer+'/schema'),doc=docs.get(scope.resource)!;
-    if(schema?.kind==='schema')for(const name of doc.dataNode(scope.pointer+'/examples')?.children.keys()??[])append(schema,doc,scope.pointer+'/examples/'+escape(name),'authored-data');
+    if(schema?.kind==='schema')for(const name of doc.dataNode(scope.pointer+'/examples')?.children.keys()??[]){
+     const pointer=scope.pointer+'/examples/'+escape(name),node=doc.dataNode(pointer)!;
+     if(exampleRepresentation('swagger-response',node.value,name)==='json')append(schema,doc,pointer,'authored-data');
+    }
     continue;
    }
    if(!['media','parameter','header'].includes(scope.kind))continue;
    const schema=graph.scopes.get(scope.resource+'#'+scope.pointer+'/schema');if(schema?.kind!=='schema')continue;
    const doc=docs.get(scope.resource)!,node=doc.dataNode(scope.pointer)!;
-   if(node.children.has('example'))append(schema,doc,scope.pointer+'/example','authored-data');
+   if(node.children.has('example')&&(scope.kind!=='media'||mediaData(scope,doc,scope.pointer+'/example','example')))append(schema,doc,scope.pointer+'/example','authored-data');
    const named=doc.dataNode(scope.pointer+'/examples');
    if(named?.kind!=='object')continue;
    for(const [name,child] of named.children) {
@@ -277,7 +287,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
     }
     if(!value||typeof value!=='object'||typeof value.$ref==='string')continue;
     const field=graph.scope(owner.id,pointer).family==='3.2'&&Object.hasOwn(value,'dataValue')?'dataValue':Object.hasOwn(value,'value')?'value':undefined;
-    if(field)append(schema,owner,pointer+'/'+escape(field),'authored-data');
+    if(field){if(scope.kind!=='media'||mediaData(scope,owner,pointer+'/'+escape(field),field))append(schema,owner,pointer+'/'+escape(field),'authored-data');}
     else if(!(modernFamily(scope.family)&&scope.kind==='media'&&graph.scope(owner.id,pointer).family==='3.2'&&Object.hasOwn(value,'serializedValue')))
      skip({resource:owner.id,pointer,reason:Object.hasOwn(value,'externalValue')?'external-value-not-retrieved':Object.hasOwn(value,'serializedValue')?'serialized-value-not-parsed':'no-authored-data'});
    }

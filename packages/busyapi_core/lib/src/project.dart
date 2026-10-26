@@ -37,7 +37,7 @@ part 'migration.dart';
 
 // Semantic revisions are part of captured evaluator ownership, alongside the
 // wire protocol and snapshot identity.
-const _schemaProducerVersion = '1.18.0+31';
+const _schemaProducerVersion = '1.18.0+32';
 
 // Keep native-isolate IO wakeups bounded without serializing every resource.
 // Each batch finishes (including failures) before access can be released.
@@ -1665,13 +1665,19 @@ class BusyProject {
       if (value is! Map) return false;
       final owners = [
         for (final field in const ['media', 'parameter', 'header'])
-          if (value[field] != null) field,
+          if (value.containsKey(field)) field,
       ];
       if (owners.length != 1 || !located(value[owners.single])) return false;
       return owners.single == 'media'
           ? value['mediaType'] is String &&
-                (value['mediaType'] as String).length <= 16384
-          : value['mediaType'] == null;
+                (value['mediaType'] as String).length <= 16384 &&
+                const [
+                  'example',
+                  'value',
+                  'serializedValue',
+                  'swagger-response',
+                ].contains(value['field'])
+          : !value.containsKey('mediaType') && !value.containsKey('field');
     }
 
     final valid =

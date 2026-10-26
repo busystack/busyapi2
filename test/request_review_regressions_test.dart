@@ -2969,7 +2969,10 @@ paths:
               );
               await f.c.analyse();
               await f.run.reconcileDraft();
-              await HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp());
+              await HttpOverrides.runWithHttpOverrides(
+                f.run.send,
+                _NativeHttp(),
+              );
             });
             expect(f.run.failure, isNull, reason: f.run.failureMessage);
             expect(received, [
@@ -3444,6 +3447,81 @@ paths:
       }
     },
   );
+
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
+    testWidgets(
+      '$version literal media Use example preserves actual request bytes',
+      (tester) async {
+        final f = _Fixture();
+        HttpServer? endpoint;
+        const wire = 'id=9007199254740993&flag=false&empty=&text=%E9%9B%AA';
+        final observed = <(String, String, String?, List<int>)>[];
+        try {
+          await tester.runAsync(() async {
+            endpoint = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+            endpoint!.listen((request) async {
+              observed.add((
+                request.method,
+                request.uri.toString(),
+                request.headers.value('content-type'),
+                await request.fold<List<int>>(
+                  [],
+                  (all, part) => all..addAll(part),
+                ),
+              ));
+              request.response.statusCode = 204;
+              await request.response.close();
+            });
+            await f.open('''openapi: $version
+info: {title: Literal media, version: '1'}
+servers: [{url: 'http://127.0.0.1:${endpoint!.port}'}]
+paths:
+  /items:
+    post:
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema: {type: object}
+            examples: {Literal: {value: '$wire'}}
+      responses: {'204': {description: None}}
+''');
+          });
+          final original = f.file.readAsStringSync();
+          final media =
+              (f.run.plan!.result['requestBody']['content'] as List).single
+                  as Map;
+          f.run.useBodyExample(media);
+          expect(f.run.bodyText, wire);
+          expect(f.run.bodyStructured, isFalse);
+          await tester.pumpWidget(host(RequestRunPanel(run: f.run)));
+          await tester.pump();
+          expect(
+            find.byWidgetPredicate(
+              (w) => w is RequestDraftEntry && w.value == wire,
+            ),
+            findsOneWidget,
+          );
+          await tester.runAsync(
+            () => HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp()),
+          );
+          expect(f.run.failure, isNull, reason: f.run.failureMessage);
+          expect(observed, hasLength(1));
+          expect(observed.single.$1, 'POST');
+          expect(observed.single.$2, '/items');
+          expect(observed.single.$3, 'application/x-www-form-urlencoded');
+          expect(observed.single.$4, utf8.encode(wire));
+          expect(f.file.readAsStringSync(), original);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(() async {
+            await endpoint?.close(force: true);
+            await f.dispose();
+          });
+        }
+      },
+    );
+  }
 
   testWidgets(
     'U7 native tool components retain reachable controls at narrow widths and large text in both appearances',

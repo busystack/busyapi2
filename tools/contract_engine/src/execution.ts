@@ -14,6 +14,7 @@ import {formBinding,FormSemantics} from './form_semantics';
 import type {NativeRuntimeInstance} from './mock_projection';
 import {selectRequestMedia} from './request_media_selection';
 import {isNativeFamily} from './specification';
+import {exampleRepresentation,type ExampleValueField} from './example_representation';
 import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
 import {evaluateSchemas} from './schema_evaluation';
@@ -329,9 +330,9 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   };
   const raw=(resource:string,pointer:string)=>docs.get(resource)!.dataJson(pointer);
   const fieldRaw=(resource:string,pointer:string)=>docs.get(resource)!.dataJson(pointer,()=>undefined);
-  const example=(resource:string,pointer:string,value:any,level='parameter',selectedName?:string)=>{
-    const projected=(r:string,p:string,representation:string,name?:string)=>{
-      const node=docs.get(r)!.dataNode(p)!;
+  const example=(resource:string,pointer:string,value:any,level='parameter',selectedName?:string,mediaType?:string)=>{
+    const projected=(r:string,p:string,field:ExampleValueField,name?:string)=>{
+      const node=docs.get(r)!.dataNode(p)!,representation=exampleRepresentation(field,node.value,mediaType);
       let conversionError:string|undefined;
       const canonical=(node:any)=>docs.get(r)!.dataNode(node.pointer)!;
       const fieldValue=(name:string,physical:any)=>{
@@ -358,7 +359,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
         text:typeof node.value==='string'?node.value:raw(r,p),dataKind:typeof node.value==='string'?'string':node.kind,fields,conversionError:level==='media'?conversionError:undefined};
     };
     const owner=docs.get(resource)!;
-    if(!selectedName&&Object.hasOwn(value??{},'example'))return projected(resource,pointer+'/example','json');
+    if(!selectedName&&Object.hasOwn(value??{},'example'))return projected(resource,pointer+'/example','example');
     const examples=owner.dataNode(pointer+'/examples');
     if(examples?.kind==='object')for(const [name,entry] of examples.children){
       if(selectedName!==undefined&&selectedName!==name)continue;
@@ -367,12 +368,12 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
         try{const selected=follow({resource:r,pointer:p,kind:'example'},'example');r=selected.resource;p=selected.pointer;v=selected.node.value;}catch{return;}
       }
       const field=family==='3.2'&&Object.hasOwn(v??{},'dataValue')?'dataValue':Object.hasOwn(v??{},'value')?'value':family==='3.2'&&Object.hasOwn(v??{},'serializedValue')?'serializedValue':undefined;
-      if(field)return projected(r,p+'/'+escape(field),field==='serializedValue'?'serialized':'json',name);
+      if(field)return projected(r,p+'/'+escape(field),field,name);
     }
   };
-  const examples=(resource:string,pointer:string,value:any,level='parameter')=>[
-    ...(Object.hasOwn(value??{},'example')?[example(resource,pointer,value,level)]:[]),
-    ...[...(docs.get(resource)!.dataNode(pointer+'/examples')?.children.keys()??[])].map(name=>example(resource,pointer,value,level,name)),
+  const examples=(resource:string,pointer:string,value:any,level='parameter',mediaType?:string)=>[
+    ...(Object.hasOwn(value??{},'example')?[example(resource,pointer,value,level,undefined,mediaType)]:[]),
+    ...[...(docs.get(resource)!.dataNode(pointer+'/examples')?.children.keys()??[])].map(name=>example(resource,pointer,value,level,name,mediaType)),
   ].filter(value=>value!==undefined);
   const schema=(resource:string,pointer:string,value:any)=>Object.hasOwn(value??{},'schema')
     ?{...location(resource,pointer+'/schema'),kind:'schema',unconstrained:supportedSchemaDialect(graph.scope(resource,pointer+'/schema'))&&annotationOnlySchema(value.schema)}
@@ -387,7 +388,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const mediaFamily=graph.scope(selected.resource,selected.pointer).family;
       if(!isNativeFamily(mediaFamily))throw new SourceError('request.family.unsupported','The captured media owner has no supported specification family');
       const binding=formBinding(mediaFamily,name);
-      const projectedExamples=examples(selected.resource,selected.pointer,v,'media').map(e=>({...e,mediaType:name,
+      const projectedExamples=examples(selected.resource,selected.pointer,v,'media',name).map(e=>({...e,mediaType:name,
         conversionError:binding!==undefined?e.conversionError:undefined}));
       entries.push({mediaType:name,...runtimeMediaDescription(name),family:mediaFamily,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:mediaFamily==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
         formBinding:binding,form:binding!==undefined?forms.media(mediaFamily,selected.resource,selected.pointer,name):undefined,

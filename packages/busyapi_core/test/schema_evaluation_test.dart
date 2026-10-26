@@ -68,6 +68,16 @@ class _EvaluationEngine extends EngineProcess {
           });
         case 'example-invalid-status':
           proof.addAll({'header': location, 'complete': false});
+        case 'example-null-owner':
+          proof.addAll({'parameter': location, 'media': null});
+        case 'example-bad-media-field':
+          proof.addAll({
+            'media': location,
+            'mediaType': 'application/json',
+            'field': 'dataValue',
+          });
+        case 'example-nonmedia-field':
+          proof.addAll({'header': location, 'field': 'value'});
       }
       result['serializedEvaluations'] = [proof];
     }
@@ -371,6 +381,9 @@ void main() {
     'example-unknown-owner',
     'example-forged-media',
     'example-invalid-status',
+    'example-null-owner',
+    'example-bad-media-field',
+    'example-nonmedia-field',
   ]) {
     test(
       'failed or malformed schema adapter is incomplete, never empty success: $fault',

@@ -10,13 +10,14 @@ import {safeFinding} from './security_design';
 import {governanceProjection,policyRange} from './governance_projection';
 import {compare,decimal,createExactNumericAdapter,nativeNumberIsExact} from './exact_numbers';
 import {evaluateSchemas} from './schema_evaluation';
+import {policyLiteralExamples,policyExampleKey} from './policy_literal_examples';
 import {serverVariableAdvice} from './authoring_relationships';
 import {policyDependencyUri,policyFunctionKey} from './governance_configuration';
 import type {ExecutedPolicyCode} from './policy_code_loader';
 import {policyFunctionContext} from './policy_function_context';
 import {policyExpressionNeedsIsolation as needsIsolation} from './policy_expression';
 
-export const policyProducer={name:'spectral+busyapi-graph',version:'1.24.0+8'};
+export const policyProducer={name:'spectral+busyapi-graph',version:'1.24.0+9'};
 const formats={oas2,oas3,oas3_1,oas3_2};
 const levels=['error','warning','information','hint'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -224,7 +225,8 @@ export async function govern(input:any,observeFailure?:(error:unknown)=>void,exe
             const found=firstInexact(child,origin,[...path,key],work);if(found)return found;
         }
     }
-    let instanceEvaluation:Promise<any>|undefined;
+    let instanceEvaluation:Promise<Awaited<ReturnType<typeof evaluateSchemas>>>|undefined;
+    let literalPolicyChecks:ReturnType<typeof policyLiteralExamples>|undefined;
     let nativeAnalysis:ReturnType<typeof analyse>|undefined;
     const instanceFindings=new Set<string>();
     const add=(origin:{resource:string;pointer:string},code:string,severity:string,extra:any={})=>{
@@ -444,18 +446,20 @@ export async function govern(input:any,observeFailure?:(error:unknown)=>void,exe
                         }
                         return missing;
                     }
-                    if(preset&&['oas3-valid-media-example','oas3-valid-schema-example'].includes(name)) {
-                        const media=name==='oas3-valid-media-example';
-                        if(media?!['media','parameter','header'].includes(kind):kind!=='schema')return;
+                    if(preset&&['oas2-valid-media-example','oas3-valid-media-example','oas3-valid-schema-example'].includes(name)) {
+                        const media=name.endsWith('-valid-media-example');
+                        if(media?(name==='oas2-valid-media-example'?kind!=='response':!['media','parameter','header'].includes(kind)):kind!=='schema')return;
                         instanceEvaluation??=evaluateSchemas({...input,policyAnnotations:true},undefined,{docs,graph,family});
                         return instanceEvaluation.then(evaluated=>{
-                            // Pinned Spectral oasExample skips externalValue; its data selectors
-                            // do not request serialized-media or runtime conformance.
-                            if(evaluated.coverage.authoredData.complete!==true) {
+                            const schemaPointer=origin.pointer+(media?'/schema':'');
+                            literalPolicyChecks??=policyLiteralExamples(graph,evaluated.serializedEvaluations);
+                            const literal=media?literalPolicyChecks.get(policyExampleKey({resource:origin.resource,pointer:schemaPointer})):undefined;
+                            // The pinned selectors skip external/serializedValue fields but
+                            // include legacy value strings, whose meaning follows their media.
+                            if(evaluated.coverage.authoredData.complete!==true||literal?.complete===false) {
                                 const key=name+':incomplete';
                                 if(!instanceFindings.has(key)){instanceFindings.add(key);complete=false;add(origin,'policy.schema.execution.incomplete','warning',{rule:name});}
                             }
-                            const schemaPointer=origin.pointer+(media?'/schema':'');
                             for(const finding of evaluated.findings) {
                                 if(finding.code!=='example.schema.incompatible'||finding.schema?.resource!==origin.resource||finding.schema.pointer!==schemaPointer)continue;
                                 if(media?finding.interpretation!=='authored-data':!['schema-annotation','policy-annotation'].includes(finding.interpretation))continue;
@@ -464,6 +468,13 @@ export async function govern(input:any,observeFailure?:(error:unknown)=>void,exe
                                 const severity=severityFor(rule,context.path);
                                 if(severity>=0)add(finding,'policy.rule.'+name,levels[severity],{rule:name,ruleProvenance,schema:finding.schema,
                                     explanation:'The explicitly selected policy requires compatibility with the associated authored schema. Exact source values and the selected dialect evaluation stack were used.'});
+                            }
+                            if(literal)for(const location of literal.incompatible){
+                                const key=JSON.stringify([name,location.resource,location.pointer,literal.schema]);
+                                if(instanceFindings.has(key))continue;instanceFindings.add(key);
+                                const severity=severityFor(rule,context.path);
+                                if(severity>=0)add(location,'policy.rule.'+name,levels[severity],{rule:name,ruleProvenance,schema:literal.schema,
+                                    explanation:'The selected policy requires this literal media example to satisfy its original schema under the native media decoder.'});
                             }
                             return [];
                         });
