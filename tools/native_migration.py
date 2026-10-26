@@ -153,4 +153,4 @@ def inspect_copy(native, process, version, target):
     mode(native, process.pid, 'source')
     wait_tree(native, process.pid,
         lambda nodes: any(node['editable'] and target in (node['text'] or '') and 'migrated ' + version in (node['text'] or '') for node in nodes),
-        'Published target did not retain its declared version in Source')
+        'Published target did not retain its declared version in Source', text_limit=4096)

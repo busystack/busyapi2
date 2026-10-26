@@ -190,7 +190,9 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
     return b'\xef\xbb\xbf' + source.encode(), shared.encode()
 
 
-def tree(pid, details=False):
+def tree(pid, details=False, *, text_limit=1024):
+    if not 1 <= text_limit <= 4096:
+        raise ValueError('Owned text inspection must stay within 4096 characters')
     desktop = Atspi.get_desktop(0)
     queue = []
     for index in range(desktop.get_child_count()):
@@ -216,7 +218,7 @@ def tree(pid, details=False):
             text = node.get_text_iface()
             if text:
                 value = Atspi.Text.get_text(
-                    text, 0, min(text.get_character_count(), 1024))
+                    text, 0, min(text.get_character_count(), text_limit))
                 caret = Atspi.Text.get_caret_offset(text)
             editable = node.get_state_set().contains(Atspi.StateType.EDITABLE)
         result.append({
@@ -290,11 +292,11 @@ def activate_control(native, pid, label, *, backwards=False):
     focus_control(native, pid, label, backwards=backwards)
     keys(native, ['Return'])
 
-def wait_tree(native, pid, predicate, label):
+def wait_tree(native, pid, predicate, label, *, text_limit=1024):
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         native.ready()
-        nodes = tree(pid, details=True)
+        nodes = tree(pid, details=True, text_limit=text_limit)
         if predicate(nodes):
             return nodes
         time.sleep(0.1)
