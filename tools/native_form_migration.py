@@ -41,7 +41,7 @@ class FormMigrationFixture(AbstractContextManager):
 
     def operation(self, format):
         properties = {
-            'n': {'type': 'integer', 'enum': ['EXACT']},
+            'n': {'type': 'integer', 'enum': [9007199254740993]},
             'flag': {'type': 'boolean', 'default': False},
             'empty': {'type': 'string', 'maxLength': 0},
             'label': {'type': 'string'},
