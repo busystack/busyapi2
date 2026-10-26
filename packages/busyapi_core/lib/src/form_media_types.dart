@@ -1,4 +1,5 @@
 import 'model.dart';
+import 'multipart_encoding.dart';
 
 enum RequestFormBinding {
   urlEncoded,
@@ -32,12 +33,14 @@ class FormPartMediaOptions {
     required this.allowsCustom,
     required this.requiresChoice,
     this.error,
+    this.fileShapes = const [],
   });
   final String name;
   final List<String> contentTypes;
   final List<String> concreteTypes;
   final bool styled, allowsCustom, requiresChoice;
   final String? error;
+  final List<MultipartFileShape> fileShapes;
 
   static List<FormPartMediaOptions> fromJson(Object? value) {
     if (value == null) return const [];
@@ -49,6 +52,14 @@ class FormPartMediaOptions {
 
   static FormPartMediaOptions _part(Object? name, Object? raw) {
     if (name is! String || raw is! Map || raw['name'] != name) _invalid();
+    final shapes = raw['fileShapes'];
+    if (raw.containsKey('fileShapes') &&
+        (shapes is! List ||
+            shapes.isEmpty ||
+            shapes.length > 2 ||
+            shapes.toSet().length != shapes.length ||
+            shapes.any((shape) => shape != 'single' && shape != 'array')))
+      _invalid();
     final styled = raw['styled'], error = raw['error'];
     if (styled is! bool || error != null && error is! String) _invalid();
     final types = raw['contentTypes'], concrete = raw['concreteTypes'];
@@ -84,6 +95,10 @@ class FormPartMediaOptions {
             )))
       _invalid();
     return FormPartMediaOptions(
+      fileShapes: List.unmodifiable([
+        for (final shape in shapes as List? ?? const [])
+          MultipartFileShape.fromJson(shape),
+      ]),
       name: name,
       contentTypes: List.unmodifiable(
         types is List ? types.cast<String>() : <String>[],

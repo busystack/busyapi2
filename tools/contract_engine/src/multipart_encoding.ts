@@ -1,5 +1,6 @@
 import {escape,SourceError,type Range} from './document';
 import {ReferenceGraph,supportedSchemaDialect,type GraphReference,type GraphTarget} from './reference_graph';
+import {MultipartFileShapes,type MultipartFileShape} from './multipart_file_shapes';
 
 type MultipartSource={resource:string;pointer:string;range:number[]};
 export type MultipartTransfer={encoding?:string;schemaEncoded:boolean;instanceEncoding?:'octets';instanceSource?:MultipartSource;source?:MultipartSource};
@@ -43,16 +44,31 @@ export class MultipartEncoding {
 
     /** Only annotations that apply to the same part instance participate. No
      * keywords are read from payload examples or from another schema dialect. */
-    schemaEncoding(schema:GraphTarget,name:string,array:boolean,instanceKind?:'string'|'other'):MultipartTransfer {
-        return this.schemaPathEncoding(schema,[{property:name},...(array?[{item:undefined}]:[])],instanceKind);
+    schemaEncoding(schema:GraphTarget,name:string,array:boolean,instanceKind?:'string'|'other',explicitShape=false):MultipartTransfer {
+        return this.schemaPathEncoding(schema,[{property:name},...(array?[{item:undefined}]:[])],instanceKind,explicitShape);
     }
 
-    schemaPathEncoding(schema:GraphTarget,path:MultipartSchemaStep[],instanceKind?:'string'|'other'):MultipartTransfer {
+    /** OAS 3.0 §4.7.15.1.1 / 3.1 §4.8.15.1.1. Preparation and
+     * MIME evaluation share the default under the selected property/item path. */
+    fileContentType(schema:GraphTarget,name:string,shape:MultipartFileShape):string {
+        const array=shape==='array',transfer=this.schemaEncoding(schema,name,array,'string',true);
+        if(transfer.schemaEncoded||transfer.instanceEncoding==='octets')return 'application/octet-stream';
+        if(!array)return 'text/plain';
+        const shapes=new MultipartFileShapes(this.graph),path=[{property:name},{item:undefined}];
+        const kinds=['string','number','boolean','object','array','null'].filter(kind=>shapes.allows(schema,path,kind));
+        if(kinds.length===6)return this.graph.scopes.get(schema.resource+'#'+schema.pointer)?.family==='3.0'?'text/plain':'application/octet-stream';
+        if(kinds.length&&kinds.every(kind=>['string','number','boolean','null'].includes(kind)))return 'text/plain';
+        if(kinds.includes('object')&&kinds.every(kind=>['object','null'].includes(kind)))return 'application/json';
+        return this.failure('request.form.content-type.unsupported','The selected file items have competing or nested default media representations; select an explicit captured contentType',schema);
+    }
+
+    schemaPathEncoding(schema:GraphTarget,path:MultipartSchemaStep[],instanceKind?:'string'|'other',explicitShape=false):MultipartTransfer {
         // Content annotations and the legacy binary/byte formats only describe
         // string instances. They cannot change an object's MIME representation.
         if(instanceKind==='other')return {schemaEncoded:false};
         const values=new Map<string,GraphTarget>();
         let binary:GraphTarget|undefined;
+        const shapes=explicitShape?new MultipartFileShapes(this.graph):undefined;
         let work=0;
         const visit=(target:GraphTarget,path:MultipartSchemaStep[],active:ReadonlySet<string>,conditional=false):void=>{
             if(++work>2048)this.failure('limit.request.encoding','Multipart schema inspection exceeds 2048 locations',target);
@@ -62,6 +78,7 @@ export class MultipartEncoding {
             const node=this.graph.docs.get(target.resource)?.dataNode(target.pointer),scope=this.graph.scopes.get(target.resource+'#'+target.pointer);
             if(!scope||!supportedSchemaDialect(scope))this.failure('request.multipart.dialect.unsupported','The part schema has no supported captured dialect',target);
             const value=node?.value;
+            if(shapes&&!shapes.allows(target,path,'string'))return;
             if(typeof value==='boolean')return;
             if(!value||typeof value!=='object'||Array.isArray(value))this.failure('request.multipart.schema','The part schema is unavailable',target);
             if(typeof value.$dynamicRef==='string')this.failure('request.multipart.encoding.unsupported','Dynamic part annotations require evaluation before serialization',target);
@@ -73,8 +90,11 @@ export class MultipartEncoding {
             }
             for(const [index]of (Array.isArray(value.allOf)?value.allOf:[]).entries())
                 visit({...target,pointer:target.pointer+'/allOf/'+index},path,active,conditional);
-            for(const keyword of ['anyOf','oneOf'])for(const [index]of (Array.isArray(value[keyword])?value[keyword]:[]).entries())
-                visit({...target,pointer:target.pointer+'/'+keyword+'/'+index},path,active,true);
+            for(const keyword of ['anyOf','oneOf']){
+                const branches=(Array.isArray(value[keyword])?value[keyword]:[]).map((_:unknown,index:number)=>({...target,pointer:target.pointer+'/'+keyword+'/'+index}));
+                const viable=shapes?branches.filter((branch:GraphTarget)=>shapes.allows(branch,path,'string')):branches;
+                for(const branch of viable)visit(branch,path,active,conditional||!shapes||viable.length!==1);
+            }
             for(const keyword of ['if','then','else'])if(value[keyword]!==undefined)
                 visit({...target,pointer:target.pointer+'/'+keyword},path,active,true);
             for(const key of Object.keys(value.dependentSchemas??{}))

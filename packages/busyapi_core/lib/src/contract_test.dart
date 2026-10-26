@@ -1,8 +1,11 @@
+import 'package:path/path.dart' as p;
+
 import 'model.dart';
 import 'project.dart';
 import 'request.dart';
 import 'form_media_types.dart';
 import 'multipart_encoding.dart';
+import 'storage.dart';
 
 class ContractCaseResult {
   const ContractCaseResult({
@@ -239,7 +242,13 @@ class ContractTestRunner {
             'Project input changed while the selected test run was being captured',
           );
         }
-        final draft = _draft(plan, definition, environment, exactCases[name]!);
+        final draft = _draft(
+          plan,
+          definition,
+          environment,
+          exactCases[name]!,
+          project.access,
+        );
         final result = await executor.execute(
           plan,
           draft,
@@ -440,6 +449,72 @@ class ContractTestRunner {
           }
         }
       }
+      if (body.containsKey('files') || body.containsKey('fileShapes')) {
+        if (body['value'] is! Map ||
+            !(body['mediaType'] as String)
+                .split(';')
+                .first
+                .trim()
+                .toLowerCase()
+                .startsWith('multipart/')) {
+          invalid(
+            'body/files',
+            'File inputs require object-valued multipart data.',
+          );
+        }
+        final files = body.containsKey('files') ? body['files'] : const [];
+        if (files is! List || files.length > 2048) {
+          invalid('body/files', 'Expected at most 2048 file inputs.');
+        }
+        final names = <String>{};
+        for (var i = 0; i < files.length; i++) {
+          final file = files[i];
+          if (file is! Map ||
+              file.keys.any(
+                (key) => !const [
+                  'name',
+                  'path',
+                  'filename',
+                  'mediaType',
+                ].contains(key),
+              ) ||
+              file['name'] is! String ||
+              (file['name'] as String).isEmpty ||
+              (file['name'] as String).length > 8192 ||
+              file['path'] is! String ||
+              (file['path'] as String).isEmpty ||
+              (file['path'] as String).length > 8192 ||
+              p.isAbsolute(file['path'] as String) ||
+              p.split(p.normalize(file['path'] as String)).contains('..') ||
+              ['filename', 'mediaType'].any(
+                (key) =>
+                    file.containsKey(key) &&
+                    (file[key] is! String ||
+                        (file[key] as String).length > 8192),
+              )) {
+            invalid(
+              'body/files/$i',
+              'Expected a named file with a relative path inside the project.',
+            );
+          }
+          names.add(file['name'] as String);
+        }
+        if (body.containsKey('fileShapes')) {
+          final shapes = body['fileShapes'];
+          if (shapes is! Map ||
+              shapes.length > 2048 ||
+              shapes.entries.any(
+                (entry) =>
+                    !names.contains(entry.key) ||
+                    !const ['single', 'array'].contains(entry.value),
+              )) {
+            invalid(
+              'body/fileShapes',
+              'Expected single or array choices for selected file names.',
+            );
+          }
+        }
+      }
     }
     if (!value.containsKey('expect')) return;
     final expect = value['expect'];
@@ -483,6 +558,7 @@ class ContractTestRunner {
     Map<String, Object?> definition,
     String? environmentOverride,
     Map<String, dynamic> exact,
+    ProjectAccess access,
   ) {
     final parameters = <String, RequestValue>{};
     final headers = <RequestHeaderValue>[];
@@ -513,8 +589,27 @@ class ContractTestRunner {
         for (final value in rawBody['partHeaders'] as List? ?? const [])
           RequestPartHeaderValue.fromJson(value),
       ];
+      final files = [
+        for (final value in rawBody['files'] as List? ?? const [])
+          MultipartFileValue(
+            name: value['name'] as String,
+            path: access.pathFor(
+              p.join(access.boundary, value['path'] as String),
+            ),
+            filename: value['filename'] as String?,
+            mediaType:
+                value['mediaType'] as String? ?? 'application/octet-stream',
+            access: access,
+          ),
+      ];
+      final fileShapes = <String, MultipartFileShape>{
+        for (final entry in (rawBody['fileShapes'] as Map? ?? const {}).entries)
+          entry.key as String: MultipartFileShape.fromJson(entry.value),
+      };
       final binding = plan.formBindingForMedia(media);
-      if ((partHeaders.isNotEmpty &&
+      if (((partHeaders.isNotEmpty ||
+                  files.isNotEmpty ||
+                  fileShapes.isNotEmpty) &&
               binding != RequestFormBinding.namedMultipart) ||
           (partMediaTypes.isNotEmpty && binding == null)) {
         throw CoreFailure(
@@ -535,6 +630,8 @@ class ContractTestRunner {
                   mediaType: media,
                   partMediaTypes: partMediaTypes,
                   partHeaders: partHeaders,
+                  files: files,
+                  fileShapes: fileShapes,
                 ),
               null => RequestBodyDraft.raw(mediaType: media, text: text),
             }

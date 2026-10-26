@@ -19,6 +19,7 @@ import {evaluateSchemas} from './schema_evaluation';
 import {runtimeMediaDescription,runtimeFormMedia} from './runtime_media';
 import {capturedMimeHeaderContent} from './mime_header_content';
 import {multipartHeaderValues,type MultipartHeaderLine} from './multipart_header_values';
+import {MultipartFileShapes} from './multipart_file_shapes';
 import {ignoresRequestBody} from './operation_semantics';
 import {annotationOnlySchema} from './schema_boundaries';
 
@@ -166,10 +167,16 @@ export function requestFormMediaTypes(input:any){
       !input.choices||typeof input.choices!=='object'||Array.isArray(input.choices)||Object.keys(input.choices).length>maximumItems||
       Object.values(input.choices).some(value=>typeof value!=='string'))
     throw new SourceError('request.form.content-type','Expected bounded named part media selections');
-  const plan=requestOperation(input),content=selectNativeMedia<Record<string,any>&{mediaType:string}>(plan.requestBody?.content??[],input.mediaType);
+  const captured=createGraph(input),plan=requestOperation(input,captured),content=selectNativeMedia<Record<string,any>&{mediaType:string}>(plan.requestBody?.content??[],input.mediaType);
   if(!content||content.formBinding===undefined)
     throw new SourceError('request.form.content-type','Select a captured form media declaration');
   const multipart=content.formBinding==='multipart-named',types:Record<string,string>=Object.create(null);
+  const selections=input.fileShapes===undefined?{}:input.fileShapes,fileNames=new Set(input.files.map((file:{name:string})=>file.name));
+  if(!selections||typeof selections!=='object'||Array.isArray(selections)||Object.keys(selections).length>maximumItems||Object.entries(selections).some(([name,shape])=>!fileNames.has(name)||!['single','array'].includes(shape as string)))
+    throw new SourceError('request.multipart.file-shape','Expected bounded file-shape choices for selected file parts');
+  const fileShapes=new MultipartFileShapes(captured.graph),transfers=new MultipartEncoding(captured.graph),schema={...content.schema,kind:'schema'};
+  for(const [name,shape]of Object.entries(selections))if(!multipart||!['3.0','3.1'].includes(captured.family)||content.form?.parts?.[name]?.styled||!fileShapes.choices(schema,name).includes(shape as 'single'|'array'))
+    transfers.failure('request.multipart.encoding.unsupported','The selected file shape is not owned by this captured MIME content binding',schema);
   const names=new Set<string>([...input.parts,...Object.keys(input.choices)]);
   const resolve=(name:string,choice?:string,fallback?:string)=>{
     const rule=content.encoding?.[name];
@@ -187,7 +194,8 @@ export function requestFormMediaTypes(input:any){
       // arbitrary alternative. Swagger has no per-part media restrictions.
       const property=content.form?.shape?.properties?.[name];
       const shape=property?.types?.includes('array')?property.items:property;
-      return mediaTypeChoice(content.swaggerForm?'*/*':shape?.defaultContentType??content.form?.defaultContentType,choice??(content.swaggerForm?fallback:undefined));
+      const nativeDefault=Object.hasOwn(selections,name)?transfers.fileContentType(schema,name,selections[name]):shape?.defaultContentType??content.form?.defaultContentType;
+      return mediaTypeChoice(content.swaggerForm?'*/*':nativeDefault,choice??(content.swaggerForm?fallback:undefined));
     }
     return undefined;
   };
@@ -209,14 +217,18 @@ export async function requestMultipartEncoding(input:any){
   if(!content||content.formBinding!=='multipart-named')
     throw new SourceError('request.multipart.encoding','Select a captured named multipart declaration');
   const projection=new MultipartEncoding(captured.graph),media={...content.definition,kind:'media'},schema={...content.schema,kind:'schema'};
-  const result:Record<string,{string?:MultipartTransfer;other?:MultipartTransfer;headers?:MultipartHeaderLine[]}>=Object.create(null),candidates:{transfer:MultipartTransfer;header:MultipartHeaderCandidate;subjects:string[]}[]=[];
+  const selections=input.fileShapes===undefined?{}:input.fileShapes,files=new Set<string>(input.files);
+  if(!selections||typeof selections!=='object'||Array.isArray(selections)||Object.keys(selections).length>maximumItems||Object.entries(selections).some(([name,shape])=>!files.has(name)||typeof shape!=='string'||!['single','array'].includes(shape)))
+    throw new SourceError('request.multipart.file-shape','Expected bounded file-shape choices for selected file parts');
+  const fileShapes=new MultipartFileShapes(captured.graph);
+  const result:Record<string,{string?:MultipartTransfer;other?:MultipartTransfer;headers?:MultipartHeaderLine[];fileArray?:boolean}>=Object.create(null),candidates:{transfer:MultipartTransfer;header:MultipartHeaderCandidate;subjects:string[]}[]=[];
   const runtime:NativeRuntimeInstance[]=[];
   const headerContentFor=capturedMimeHeaderContent(captured.graph,projection);
-  const part=(name:string,isString:boolean,array:boolean)=>{
+  const part=(name:string,isString:boolean,array:boolean,explicitShape=false)=>{
     const output=result[name]??=(Object.create(null)),key=isString?'string':'other';
     if(output[key])return;
     if(content.swaggerForm){output[key]={schemaEncoded:false};return;}
-    const transfer:MultipartTransfer=isString&&content.schema?projection.schemaEncoding(schema,name,array):{schemaEncoded:false};
+    const transfer:MultipartTransfer=isString&&content.schema?projection.schemaEncoding(schema,name,array,undefined,explicitShape):{schemaEncoded:false};
     output[key]=transfer;
     const header=projection.header(media,name,transfer,input.mediaType.split(';')[0].trim().toLowerCase()==='multipart/form-data');
     if(!header){
@@ -236,15 +248,25 @@ export async function requestMultipartEncoding(input:any){
     candidates.push({transfer,header,subjects});
   };
   for(const field of input.parts){
-    const property=content.form?.shape?.properties?.[field.name],array=field.kind.startsWith('item-')||field.kind==='literal'&&property?.literalType==='array',shape=array?property?.items:property;
+    const property=content.form?.shape?.properties?.[field.name],selected=Object.hasOwn(selections,field.name)?selections[field.name]:undefined;
+    const array=selected!==undefined?selected==='array':field.kind.startsWith('item-')||field.kind==='literal'&&property?.literalType==='array',shape=array?property?.items:property;
     const literalString=!shape?.literalType||shape.literalType==='string';
-    part(field.name,field.kind==='string'||field.kind==='item-string'||field.kind==='literal'&&literalString,array);
+    part(field.name,field.kind==='string'||field.kind==='item-string'||field.kind==='literal'&&literalString,array,selected!==undefined);
   }
   for(const name of input.files){
     const property=content.form?.shape?.properties?.[name];
-    if(property?.types?.includes('array')&&property.types.some((type:string)=>type!=='array'&&type!=='null'))
+    const choices=content.swaggerForm||content.form?.parts?.[name]?.styled||!['3.0','3.1'].includes(captured.family)?[]:fileShapes.choices(schema,name),selected=Object.hasOwn(selections,name)?selections[name]:undefined;
+    if(selected!==undefined&&!choices.length)
+      projection.failure('request.multipart.encoding.unsupported','The selected file shape does not disambiguate this captured representation',schema);
+    if(selected!==undefined&&!choices.includes(selected))
+      projection.failure('request.multipart.file-shape','The selected file shape is absent from the captured declaration',schema);
+    if(selected==='single'&&input.files.filter((file:string)=>file===name).length+input.parts.filter((part:{name:string})=>part.name===name).length>1)
+      projection.failure('request.multipart.file-shape','A single file value cannot contain repeated part inputs',schema);
+    if(selected===undefined&&(choices.length>1||property?.types?.includes('array')&&property.types.some((type:string)=>type!=='array'&&type!=='null')))
       projection.failure('request.multipart.encoding.unsupported','A file under an array union requires an explicit part-shape selection',schema);
-    part(name,true,property?.literalType==='array');
+    const array=selected!==undefined?selected==='array':property?.literalType==='array';
+    part(name,true,array,selected!==undefined);
+    if(selected!==undefined)result[name].fileArray=array;
   }
   const headers=multipartHeaderValues(captured.graph,media,new Set([...input.parts.map((part:{name:string})=>part.name),...input.files]),input.headers,input.mediaType.split(';')[0].trim().toLowerCase()==='multipart/form-data');
   for(const [name,values]of headers)result[name].headers=values;

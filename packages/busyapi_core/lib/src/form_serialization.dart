@@ -354,6 +354,7 @@ String multipartInstanceWithFiles(
   Map<String, List<String>> files,
   Map declaration, {
   Set<String> replacedFields = const {},
+  Map<String, bool> fileShapes = const {},
 }) {
   final shape = (declaration['form'] as Map)['shape'] as Map;
   final properties = shape['properties'];
@@ -371,7 +372,9 @@ String multipartInstanceWithFiles(
     ];
     final property = properties is Map ? properties[entry.key] : null;
     final type = property is Map ? property['literalType'] : null;
-    final array = type == 'array' || type == null && items.length > 1;
+    final array =
+        fileShapes[entry.key] ??
+        (type == 'array' || type == null && items.length > 1);
     if (!array && items.length != 1) {
       throw CoreFailure(
         'request.form.scalar',

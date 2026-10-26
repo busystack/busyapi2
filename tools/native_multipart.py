@@ -182,6 +182,9 @@ def edit_named_body(native, pid, original, *, backwards=True):
 
 
 def execute_multipart(native, process, file, baseline, version, fixture, evidence, case, phase):
+    if getattr(fixture, 'file_shapes', False):
+        from native_file_shapes import execute_file_shapes
+        return execute_file_shapes(native, process, file, baseline, version, fixture, evidence, case, phase)
     if getattr(fixture, 'header_generated', False):
         from native_generated_headers import execute_generated_headers
         return execute_generated_headers(native, process, file, baseline, version, fixture, evidence, case, phase)

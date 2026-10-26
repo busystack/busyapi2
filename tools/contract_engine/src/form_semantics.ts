@@ -1,6 +1,7 @@
 import {escape,segments,SourceError} from './document';
 import type {GraphReference,ReferenceGraph} from './reference_graph';
 import {mediaTypeOptions,mediaTypes} from './media_types';
+import {MultipartFileShapes} from './multipart_file_shapes';
 import type {SpecificationFamily} from './specification';
 
 export type FormBinding='urlencoded'|'multipart-named';
@@ -67,6 +68,7 @@ export class FormSemantics {
 
     media(family:string,resource:string,pointer:string,mediaType:string){
         const value=this.graph.docs.get(resource)?.dataNode(pointer)?.value,shape=this.shape(resource,pointer+'/schema');
+        const fileShapes=new MultipartFileShapes(this.graph);
         const parts=Object.fromEntries([...new Set([...Object.keys(shape.properties??{}),...Object.keys(value?.encoding??{})])].map(name=>{
             const rule=value?.encoding?.[name],property=shape.properties?.[name],item=property?.types?.includes('array')?property.items:property;
             const multipart=mediaType.split(';')[0].trim().toLowerCase().startsWith('multipart/');
@@ -77,7 +79,8 @@ export class FormSemantics {
             let options:ReturnType<typeof mediaTypeOptions>|{error:string}|undefined;
             try{options=styled?undefined:mediaTypeOptions(rule?.contentType??item?.defaultContentType??formContentType({},family));}
             catch(error){if(!(error instanceof SourceError))throw error;options={error:error.message};}
-            return [name,{name,styled,...options,source:{resource,pointer:at,range:node.range}}];
+            const shapes=multipart&&!styled&&(family==='3.0'||family==='3.1')?fileShapes.choices({resource,pointer:pointer+'/schema',kind:'schema'},name):[];
+            return [name,{name,styled,...options,...(shapes.length?{fileShapes:shapes}:{}),source:{resource,pointer:at,range:node.range}}];
         }));
         return {multipartStyle:family!=='3.0',legacyBinary:family==='3.0',
             defaultContentType:formContentType({},family),

@@ -86,6 +86,7 @@ class RequestRunController extends ChangeNotifier {
   bool bodyEnabled = false;
   bool bodyStructured = false;
   final Map<String, String> partMediaTypes = {};
+  final Map<String, MultipartFileShape> fileShapes = {};
   final List<RequestPartHeaderValue> partHeaders = [];
   String partHeaderPart = '', partHeaderName = '', partHeaderValue = '';
   int _epoch = 0;
@@ -293,6 +294,7 @@ class RequestRunController extends ChangeNotifier {
                       files: List.of(bodyFiles),
                       mediaType: bodyMediaType!,
                       partMediaTypes: Map.of(partMediaTypes),
+                      fileShapes: Map.of(fileShapes),
                       partHeaders: [
                         ...partHeaders,
                         if (partHeaderName.isNotEmpty)
@@ -308,6 +310,7 @@ class RequestRunController extends ChangeNotifier {
                       List.of(bodyFiles),
                       mediaType: bodyMediaType!,
                       partMediaTypes: Map.of(partMediaTypes),
+                      fileShapes: Map.of(fileShapes),
                       partHeaders: [
                         ...partHeaders,
                         if (partHeaderName.isNotEmpty)
@@ -417,6 +420,16 @@ class RequestRunController extends ChangeNotifier {
     refresh();
   }
 
+  void selectFileShape(String name, MultipartFileShape? shape) {
+    if (busy || hasComposingInput) return;
+    if (shape == null) {
+      fileShapes.remove(name);
+    } else {
+      fileShapes[name] = shape;
+    }
+    refresh();
+  }
+
   void selectFileMedia(int index, String? media) {
     if (busy || index < 0 || index >= bodyFiles.length) return;
     final file = bodyFiles[index];
@@ -426,6 +439,7 @@ class RequestRunController extends ChangeNotifier {
       filename: file.filename,
       mediaType: file.mediaType,
       selectedMediaType: media == null || media.isEmpty ? null : media,
+      access: file.access,
     );
     refresh();
   }
@@ -472,6 +486,7 @@ class RequestRunController extends ChangeNotifier {
     bodyKind = RequestBodyKind.raw;
     bodyStructured = false;
     partMediaTypes.clear();
+    fileShapes.clear();
     partHeaders.clear();
     partHeaderPart = partHeaderName = partHeaderValue = '';
     connectTimeout = const Duration(seconds: 15);
@@ -1388,6 +1403,7 @@ class _RequestDraftState {
       kind = run.bodyKind,
       bodyStructured = run.bodyStructured,
       partMediaTypes = Map.of(run.partMediaTypes),
+      fileShapes = Map.of(run.fileShapes),
       partHeaders = List.of(run.partHeaders),
       partHeaderDraft = (
         run.partHeaderPart,
@@ -1419,6 +1435,7 @@ class _RequestDraftState {
   final RequestBodyKind kind;
   final bool bodyStructured;
   final Map<String, String> partMediaTypes;
+  final Map<String, MultipartFileShape> fileShapes;
   final List<RequestPartHeaderValue> partHeaders;
   final (String, String, String) partHeaderDraft;
   final (Duration, Duration, Duration) timeouts;
@@ -1432,6 +1449,7 @@ class _RequestDraftState {
   final int? security;
   int get bytes =>
       (body.length +
+          fileShapes.keys.fold<int>(0, (size, name) => size + name.length + 5) +
           partHeaders.fold<int>(
             0,
             (n, h) => n + h.part.length + h.name.length + h.value.length,
@@ -1474,6 +1492,7 @@ class _RequestDraftState {
     run.bodyKind = kind;
     run.bodyStructured = bodyStructured;
     run.partMediaTypes.addAll(partMediaTypes);
+    run.fileShapes.addAll(fileShapes);
     run.partHeaders.addAll(partHeaders);
     run.partHeaderPart = partHeaderDraft.$1;
     run.partHeaderName = partHeaderDraft.$2;

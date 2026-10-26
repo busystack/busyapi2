@@ -29,11 +29,12 @@ function suppliedInstance(value:unknown):RuntimeInstance {
   'resource' in location&&typeof location.resource==='string'&&'pointer' in location&&typeof location.pointer==='string';
  const header=(value:unknown)=>schema(value)&&'name' in value&&typeof value.name==='string'&&value.name.length<=4096&&
   'values' in value&&Array.isArray(value.values)&&value.values.length>0&&value.values.length<=2048&&value.values.every(value=>typeof value==='string');
+ const shapes=(value:unknown)=>value!==null&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length<=2048&&Object.values(value).every(shape=>shape==='single'||shape==='array');
  if(typeof item.text!=='string'||item.text.length>64*1024*1024||typeof item.subject!=='string'||item.subject.length>1024||
   typeof item.location!=='string'||item.location.length>4096||item.schema!==undefined&&!schema(item.schema)||
   item.itemSchema!==undefined&&!schema(item.itemSchema)||item.mediaType!==undefined&&(typeof item.mediaType!=='string'||item.mediaType.length>16384)||
   item.media!==undefined&&(!schema(item.media)||item.mediaType===undefined&&item.subject!=='response-body'||item.form!==undefined||!['request-body','response-body'].includes(item.subject))||
-  item.form!==undefined&&(!schema(item.form)||'occurrence' in item.form&&(typeof item.form.occurrence!=='string'||item.form.occurrence.length>4096)||item.mediaType===undefined)||
+  item.form!==undefined&&(!schema(item.form)||'occurrence' in item.form&&(typeof item.form.occurrence!=='string'||item.form.occurrence.length>4096)||'fileShapes' in item.form&&(!shapes(item.form.fileShapes)||item.subject!=='request-body')||item.mediaType===undefined)||
   item.mediaBase64!==undefined&&typeof item.mediaBase64!=='boolean'||item.mediaBase64===true&&item.mediaType===undefined&&item.media===undefined||
   item.unicodeSerialization!==undefined&&typeof item.unicodeSerialization!=='boolean'||item.unicodeSerialization===true&&(item.mediaType===undefined||item.mediaBase64===true)||
   item.alternatives!==undefined&&(!Array.isArray(item.alternatives)||item.alternatives.length>255||!item.alternatives.every(text=>typeof text==='string'&&text.length<=64*1024*1024)||

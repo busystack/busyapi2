@@ -438,11 +438,21 @@ class OperationRequestPlan {
     Iterable<String> parts,
     Map<String, String> choices, {
     List<Map<String, String>> files = const [],
+    Map<String, MultipartFileShape> fileShapes = const {},
     required String requestId,
     RunCancellation? cancellation,
   }) async {
+    if (fileShapes.length > 2048) {
+      throw CoreFailure(
+        'request.multipart.file-shape',
+        'Too many file value shapes.',
+      );
+    }
     final capturedParts = parts.toSet().toList(),
         selected = Map<String, String>.of(choices);
+    final capturedShapes = Map<String, MultipartFileShape>.unmodifiable(
+      fileShapes,
+    );
     final result = await _formProjection(
       'requestFormMediaTypes',
       {
@@ -454,10 +464,24 @@ class OperationRequestPlan {
         'parts': capturedParts,
         'choices': selected,
         'files': files,
+        if (capturedShapes.isNotEmpty)
+          'fileShapes': {
+            for (final entry in capturedShapes.entries)
+              entry.key: entry.value.name,
+          },
       },
       requestId,
       cancellation,
     );
+    if (fileShapes.length != capturedShapes.length ||
+        capturedShapes.entries.any(
+          (entry) => fileShapes[entry.key] != entry.value,
+        )) {
+      throw CoreFailure(
+        'request.multipart.file-shape.stale',
+        'File value shapes changed while media choices were captured.',
+      );
+    }
     final types = result['types'], fileTypes = result['files'];
     if (result['version'] != 1 ||
         result['snapshot'] != snapshot.identity ||
@@ -488,6 +512,7 @@ class OperationRequestPlan {
     List<Map<String, String>> parts,
     List<String> files, {
     List<RequestPartHeaderValue> headers = const [],
+    Map<String, MultipartFileShape> fileShapes = const {},
     required String requestId,
     RunCancellation? cancellation,
   }) async {
@@ -497,6 +522,14 @@ class OperationRequestPlan {
         'Multipart header inputs exceed 2048 fields.',
       );
     final capturedHeaders = List<RequestPartHeaderValue>.unmodifiable(headers);
+    if (fileShapes.length > 2048)
+      throw CoreFailure(
+        'request.multipart.file-shape',
+        'File shape selections exceed 2048 parts.',
+      );
+    final capturedShapes = Map<String, MultipartFileShape>.unmodifiable(
+      fileShapes,
+    );
     final result = await _formProjection(
       'requestMultipartEncoding',
       {
@@ -507,6 +540,10 @@ class OperationRequestPlan {
         'mediaType': mediaType,
         'parts': parts,
         'files': files,
+        'fileShapes': {
+          for (final entry in capturedShapes.entries)
+            entry.key: entry.value.name,
+        },
         'headers': {
           for (final name
               in capturedHeaders.map((header) => header.part).toSet())
@@ -521,6 +558,15 @@ class OperationRequestPlan {
       requestId,
       cancellation,
     );
+    if (fileShapes.length != capturedShapes.length ||
+        capturedShapes.entries.any(
+          (entry) => fileShapes[entry.key] != entry.value,
+        )) {
+      throw CoreFailure(
+        'request.multipart.file-shape.stale',
+        'File value shapes changed during preparation.',
+      );
+    }
     if (headers.length != capturedHeaders.length ||
         [
           for (var i = 0; i < headers.length; i++)
@@ -550,7 +596,23 @@ class OperationRequestPlan {
       for (final entry in values.entries)
         entry.key as String: MultipartPartEncoding.fromJson(entry.value),
     };
+    for (final entry in capturedShapes.entries) {
+      if (parsed[entry.key]?.fileArray !=
+          (entry.value == MultipartFileShape.array)) {
+        throw CoreFailure(
+          'request.multipart.protocol',
+          'The captured file shape differs from the selected input.',
+        );
+      }
+    }
     for (final name in parsed.keys) {
+      if (!capturedShapes.containsKey(name) &&
+          parsed[name]!.fileArray != null) {
+        throw CoreFailure(
+          'request.multipart.protocol',
+          'The captured projection contains an unselected file shape.',
+        );
+      }
       final expected = capturedHeaders
               .where((header) => header.part == name)
               .toList(),
@@ -809,13 +871,19 @@ class RuntimeFormTarget {
     required this.resource,
     required this.pointer,
     this.occurrence,
+    this.fileShapes = const {},
   });
   final String resource, pointer;
   final String? occurrence;
-  Map<String, String> toJson() => {
+  final Map<String, MultipartFileShape> fileShapes;
+  Map<String, Object> toJson() => {
     'resource': resource,
     'pointer': pointer,
     if (occurrence != null) 'occurrence': occurrence!,
+    if (fileShapes.isNotEmpty)
+      'fileShapes': {
+        for (final entry in fileShapes.entries) entry.key: entry.value.name,
+      },
   };
 }
 

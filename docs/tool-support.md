@@ -373,6 +373,32 @@ JSON scalar kinds and numeric lexemes are retained. Empty collections that emit
 no fields are omitted from outgoing presence checks. File input remains explicit;
 a string in a saved case is never permission to read a file.
 
+When a named 3.0/3.1 multipart property permits both a string and an array,
+attach a file and choose **Declared form parts → File values → Single value**
+or **Array of values**. One file can represent a one-item array; the choice does
+not change its schema or bypass validation. Multiple inputs require the array
+choice. Environment and input-mode changes retain it. Contract edits recheck
+the choice, and unsupported or competing representations remain explicit
+limitations. Styled, dynamic and positional bindings need separate support.
+
+Saved cases can select files explicitly, relative to the project boundary:
+
+```yaml
+body:
+  mediaType: multipart/form-data
+  value: {metadata: {id: 42}}
+  files:
+    - {name: asset, path: fixtures/payload.bin}
+  fileShapes:
+    asset: array
+```
+
+These inputs use the same captured upload and shape checks in desktop cases and
+the CLI. Absolute paths, boundary escapes and symlink resources are refused.
+The selected files are captured privately before dispatch; source and input
+files remain unchanged. `fileShapes` applies only to selected file names with
+captured 3.0/3.1 MIME content bindings; it is not an OpenAPI extension.
+
 The form-part controls provide explicit Content-Type selection for declared
 lists and media ranges. A concrete choice must match a declared range and its
 parameters. File overrides allow different types for files under the same field;

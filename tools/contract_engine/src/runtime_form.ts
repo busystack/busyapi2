@@ -9,9 +9,10 @@ import {decodeMultipartTransfer} from './multipart_transfer';
 import {mimeParts,mimePartDecodingType,mimeSingleton as singleton} from './mime_parts';
 import {decodeRuntimeMultipart} from './runtime_multipart';
 import {mimeHeaders} from './mime_headers';
+import {MultipartFileShapes,type MultipartFileShape} from './multipart_file_shapes';
 import type {BinaryLocations} from './runtime_binary';
 
-export type RuntimeFormTarget={resource:string;pointer:string;occurrence?:string};
+export type RuntimeFormTarget={resource:string;pointer:string;occurrence?:string;fileShapes?:Readonly<Record<string,MultipartFileShape>>};
 type Location={resource:string;pointer:string};
 export type FormIssue={code:string;message:string;pointer:string;severity:'error'|'warning';source:{resource:string;pointer:string;range:Range}};
 export type FormCheck={document:SourceDocument;schema?:Location;prefix:string;file?:boolean;binary?:BinaryLocations};
@@ -79,6 +80,8 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         throw new SourceError(code,message,range,unsupported?'unsupported':undefined,{...at,range});
     };
     if(!owner||!node||!scope)failure('runtime.form.owner','The captured form owner is unavailable');
+    if(Object.keys(target.fileShapes??{}).length&&(!['3.0','3.1'].includes(scope.family)||subject!=='request-body'||mediaTypes(contentType,false)[0].type!=='multipart'))
+        failure('runtime.form.file-shape','File value shapes require a captured older-family multipart request');
     const decodeHeaderForm=(text:string,id:string,type:string,target:RuntimeFormTarget)=>decodeRuntimeForm(text,id,type,false,target,subject,graph);
     if(scope.family==='3.2'&&scope.kind==='media'&&mediaTypes(contentType,false)[0].type==='multipart'){
         const decoded=decodeRuntimeMultipart(text,id,contentType,base64,target,graph,decodeHeaderForm);
@@ -148,9 +151,16 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         if(subject==='request-body'&&(node.value?.prefixEncoding!==undefined||node.value?.itemEncoding!==undefined))
             failure('runtime.form.positional.unsupported','This media description requires positional multipart decoding');
         const schema:GraphTarget={resource:target.resource,pointer:target.pointer+'/schema',kind:'schema'},shape=forms.shape(schema.resource,schema.pointer),properties=shape.properties??{};
+        const selectedShapes=target.fileShapes??{},fileShapes=new MultipartFileShapes(graph);
+        for(const [name,selected]of Object.entries(selectedShapes)){
+            if(!multipart||subject!=='request-body'||!['3.0','3.1'].includes(scope.family)||!fileShapes.choices(schema,name).includes(selected))
+                failure('runtime.form.file-shape','The file shape is not owned by this captured request media',schema);
+        }
         const encodingApplies=subject==='request-body'||scope.family==='3.2';
         const encoding=media&&encodingApplies&&object(node.value?.encoding)?node.value.encoding:{};
         const styled=(rule:Record<string,unknown>)=>(!multipart||scope.family!=='3.0')&&['style','explode','allowReserved'].some(key=>Object.hasOwn(rule,key));
+        for(const name of Object.keys(selectedShapes))if(styled(encoding[name]??{}))
+            failure('runtime.form.file-shape','File shape choices require the captured MIME content binding',schema);
         const partHeaders=(part:Part,rule:Record<string,unknown>,name:string)=>{
             if(!multipart||!object(rule.headers))return;
             if(mediaTypes(contentType,false)[0].subtype!=='form-data'){
@@ -182,11 +192,12 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             // field line selects its decoder; an inferred request default is
             // not a response media restriction (3.0 §4.7.14.1 / RFC 7578 §4.4).
             const type=formLiteralType(field),declared=multipart&&!encodingApplies?singleton(part.headers,'content-type')??'text/plain':typeof rule.contentType==='string'?rule.contentType:
+                multipart&&Object.hasOwn(selectedShapes,name)?transfers.fileContentType(schema,name,selectedShapes[name]):
                 undeclared&&multipart?singleton(part.headers,'content-type')??'text/plain':field.defaultContentType??(undeclared||scope.family==='3.0'?'text/plain':'application/octet-stream');
             const concrete=multipart?singleton(part.headers,'content-type')??'text/plain':mediaTypeChoice(declared);
             if(multipart)mediaTypeChoice(declared,concrete);
             const decodingType=multipart?mimePartDecodingType(concrete,mediaTypes(contentType,false)[0].subtype==='form-data'):concrete;
-            const transfer=multipart&&graph.scopes.has(schema.resource+'#'+schema.pointer)?transfers.schemaEncoding(schema,name,array,type!==undefined&&type!=='string'?'other':undefined):{schemaEncoded:false};
+            const transfer=multipart&&graph.scopes.has(schema.resource+'#'+schema.pointer)?transfers.schemaEncoding(schema,name,array,type!==undefined&&type!=='string'?'other':undefined,Object.hasOwn(selectedShapes,name)):{schemaEncoded:false};
             partHeaders(part,rule,name);
             const actual=singleton(part.headers,'content-transfer-encoding'),expected=transfer.encoding;
             if(actual!==undefined&&expected!==undefined&&actual.toLowerCase()!==expected.toLowerCase())
@@ -248,8 +259,8 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             }
             if(!values.length)continue;
             values.forEach(part=>claim(part,name));
-            const array=type==='array'||values.length>1;
-            if(values.length>1&&type!==undefined&&type!=='array'&&scope.family!=='3.2')return syntax('A non-array form property occurs more than once');
+            const selected=selectedShapes[name],array=selected!==undefined?selected==='array':type==='array'||values.length>1;
+            if(!array&&values.length>1||selected===undefined&&values.length>1&&type!==undefined&&type!=='array'&&scope.family!=='3.2')return syntax('A non-array form property occurs more than once');
             const item=array?field.items??{}:field,raw=values.map((part,index)=>literal(part,item,rule,name,array,'/'+escape(name)+(array?'/'+index:'')));
             members.set(name,array?'['+raw.join(',')+']':raw[0]);
         }

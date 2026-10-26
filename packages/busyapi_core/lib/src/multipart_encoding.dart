@@ -1,5 +1,19 @@
 import 'model.dart';
 
+enum MultipartFileShape {
+  single,
+  array;
+
+  static MultipartFileShape fromJson(Object? value) => switch (value) {
+    'single' => single,
+    'array' => array,
+    _ => throw CoreFailure(
+      'request.multipart.file-shape',
+      'Select a supported file value shape.',
+    ),
+  };
+}
+
 /// One explicit MIME field line attached to a logical multipart field.
 /// Repeated body parts retain their order and receive the same supplied lines.
 class RequestPartHeaderValue {
@@ -111,20 +125,28 @@ class MultipartPartEncoding {
     this.strings,
     this.other,
     this.headers = const [],
+    this.fileArray,
   });
   final MultipartTransferEncoding? strings, other;
   final List<MultipartHeaderLine> headers;
+  final bool? fileArray;
 
   factory MultipartPartEncoding.fromJson(Object? raw) {
     if (raw is! Map ||
         raw.isEmpty ||
         raw.keys.any(
-          (key) => key != 'string' && key != 'other' && key != 'headers',
+          (key) =>
+              key != 'string' &&
+              key != 'other' &&
+              key != 'headers' &&
+              key != 'fileArray',
         ) ||
+        raw.containsKey('fileArray') && raw['fileArray'] is! bool ||
         raw.containsKey('headers') &&
             (raw['headers'] is! List || (raw['headers'] as List).length > 61))
       _invalid();
     return MultipartPartEncoding(
+      fileArray: raw['fileArray'] as bool?,
       headers: List.unmodifiable([
         for (final value in raw['headers'] as List? ?? const [])
           MultipartHeaderLine.fromJson(value),

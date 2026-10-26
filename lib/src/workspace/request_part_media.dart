@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:busyapi_core/busyapi_core.dart';
 
 import '../app/busyapi_design.dart';
 import '../app/localization.dart';
@@ -17,6 +18,22 @@ class RequestPartMediaEditor extends StatelessWidget {
     return Column(
       children: [
         for (final option in options) ...[
+          if (run.bodyFiles.any((file) => file.name == option.name) &&
+              option.fileShapes.length > 1)
+            BusyApiComboRow<MultipartFileShape?>(
+              title: '${option.name} · ${l.requestFileShape}',
+              values: [null, ...option.fileShapes],
+              selected: option.fileShapes.contains(run.fileShapes[option.name])
+                  ? run.fileShapes[option.name]
+                  : null,
+              labelFor: (shape) => switch (shape) {
+                null => l.requestFileShapeChoose,
+                MultipartFileShape.single => l.requestFileShapeSingle,
+                MultipartFileShape.array => l.requestFileShapeArray,
+              },
+              enabled: enabled,
+              onSelected: (shape) => run.selectFileShape(option.name, shape),
+            ),
           if (option.error != null)
             BusyApiStatusBox(message: '${option.name}: ${option.error}')
           else if (!option.styled) ...[
@@ -40,7 +57,11 @@ class RequestPartMediaEditor extends StatelessWidget {
             else
               BusyApiActionRow(
                 title: option.name,
-                subtitle: option.contentTypes.join(', '),
+                subtitle:
+                    option.fileShapes.length > 1 &&
+                        run.bodyFiles.any((file) => file.name == option.name)
+                    ? l.requestFileShapeMedia
+                    : option.contentTypes.join(', '),
               ),
             if (option.allowsCustom)
               RequestDraftEntry(
@@ -70,6 +91,21 @@ class RequestPartMediaEditor extends StatelessWidget {
             subtitle: l.requestPartMediaStale,
             enabled: enabled,
             onTap: () => run.selectPartMedia(name, null),
+          ),
+        for (final entry in run.fileShapes.entries.where(
+          (entry) =>
+              !options.any(
+                (option) =>
+                    option.name == entry.key &&
+                    option.fileShapes.contains(entry.value),
+              ) ||
+              !run.bodyFiles.any((file) => file.name == entry.key),
+        ))
+          BusyApiActionRow(
+            title: '${entry.key} · ${l.requestFileShape}',
+            subtitle: l.requestPartMediaStale,
+            enabled: enabled,
+            onTap: () => run.selectFileShape(entry.key, null),
           ),
         for (final (index, file) in run.bodyFiles.indexed)
           RequestDraftEntry(

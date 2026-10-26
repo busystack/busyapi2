@@ -128,10 +128,14 @@ class MultipartFileValue {
     this.filename,
     this.mediaType = 'application/octet-stream',
     this.selectedMediaType,
+    this.access,
   });
   final String name, path, mediaType;
   final String? filename;
   final String? selectedMediaType;
+
+  /// Borrowed project capability for saved inputs. Capture never closes it.
+  final ProjectAccess? access;
 }
 
 class RequestFormField {
@@ -147,6 +151,7 @@ class RequestBodyDraft {
       file = null,
       partMediaTypes = const {},
       partHeaders = const [],
+      fileShapes = const {},
       fields = const [],
       files = const [];
   const RequestBodyDraft.raw({required this.mediaType, required this.text})
@@ -154,6 +159,7 @@ class RequestBodyDraft {
       file = null,
       partMediaTypes = const {},
       partHeaders = const [],
+      fileShapes = const {},
       fields = const [],
       files = const [];
   const RequestBodyDraft.form(
@@ -164,7 +170,8 @@ class RequestBodyDraft {
        text = null,
        file = null,
        files = const [],
-       partHeaders = const [];
+       partHeaders = const [],
+       fileShapes = const {};
   const RequestBodyDraft.formValue({
     required String json,
     this.mediaType = 'application/x-www-form-urlencoded',
@@ -174,13 +181,15 @@ class RequestBodyDraft {
        file = null,
        fields = const [],
        files = const [],
-       partHeaders = const [];
+       partHeaders = const [],
+       fileShapes = const {};
   const RequestBodyDraft.multipart(
     this.fields,
     this.files, {
     this.mediaType = 'multipart/form-data',
     this.partMediaTypes = const {},
     this.partHeaders = const [],
+    this.fileShapes = const {},
   }) : kind = RequestBodyKind.multipart,
        text = null,
        file = null;
@@ -190,6 +199,7 @@ class RequestBodyDraft {
     this.mediaType = 'multipart/form-data',
     this.partMediaTypes = const {},
     this.partHeaders = const [],
+    this.fileShapes = const {},
   }) : kind = RequestBodyKind.multipart,
        text = json,
        file = null,
@@ -201,6 +211,7 @@ class RequestBodyDraft {
        text = null,
        partMediaTypes = const {},
        partHeaders = const [],
+       fileShapes = const {},
        fields = const [],
        files = const [];
   final RequestBodyKind kind;
@@ -209,6 +220,7 @@ class RequestBodyDraft {
   final List<MultipartFileValue> files;
   final Map<String, String> partMediaTypes;
   final List<RequestPartHeaderValue> partHeaders;
+  final Map<String, MultipartFileShape> fileShapes;
 }
 
 class OperationRequestDraft {
@@ -249,12 +261,14 @@ class PreparedRequestBody {
     this.release,
     this.formInstance,
     this.formParameters,
-  });
+    Map<String, MultipartFileShape> fileShapes = const {},
+  }) : fileShapes = Map.unmodifiable(fileShapes);
   final int length;
   final Stream<List<int>> Function() open;
   final String? mediaType;
   final String? formInstance;
   final List<RuntimeSchemaInstance>? formParameters;
+  final Map<String, MultipartFileShape> fileShapes;
   final Future<void> Function()? release;
   Future<void>? _closing;
   Future<void> close() => _closing ??= _releaseOwned();
@@ -1557,6 +1571,7 @@ class ContractRequestBuilder {
                     .map((entry) => entry.key),
             },
             body.partMediaTypes,
+            fileShapes: body.fileShapes,
             files: [
               for (final file in body.files)
                 {
@@ -1595,6 +1610,7 @@ class ContractRequestBuilder {
                   ],
             [for (final file in body.files) file.name],
             headers: body.partHeaders,
+            fileShapes: body.fileShapes,
             requestId: 'multipart-${_runIdentity()}',
             cancellation: cancellation,
           )
@@ -1874,6 +1890,7 @@ class ContractRequestBuilder {
               item.path,
               mediaType,
               cancellation,
+              projectAccess: item.access,
               remainingBytes: maximumUploadBytes - length,
               checkOwner: checkOwner,
             );
@@ -1961,6 +1978,11 @@ class ContractRequestBuilder {
               fileInstances,
               declaration!,
               replacedFields: replacedFields,
+              fileShapes: {
+                for (final entry in transfers.entries)
+                  if (entry.value.fileArray case final bool array)
+                    entry.key: array,
+              },
             );
             if (utf8.encode(instance).length > 16 * 1024 * 1024)
               instance = null;
@@ -1980,6 +2002,13 @@ class ContractRequestBuilder {
             },
             mediaType: '${body.mediaType}; boundary=$boundary',
             formInstance: instance,
+            fileShapes: {
+              for (final entry in transfers.entries)
+                if (entry.value.fileArray case final bool array)
+                  entry.key: array
+                      ? MultipartFileShape.array
+                      : MultipartFileShape.single,
+            },
             formParameters: formParameters,
             release: () async {
               for (final captured in captures) {
@@ -2082,12 +2111,13 @@ class ContractRequestBuilder {
     RunCancellation? cancellation, {
     int? remainingBytes,
     void Function()? checkOwner,
+    ProjectAccess? projectAccess,
   }) async {
     final temp = await Directory.systemTemp.createTemp('busyapi-upload-');
     final captured = File(p.join(temp.path, 'body.bin'));
     ProjectAccess? access;
     try {
-      access = await ProjectAccess.open(p.dirname(path));
+      access = projectAccess ?? await ProjectAccess.open(p.dirname(path));
       final length = await access.captureUpload(
         path,
         captured,
@@ -2117,7 +2147,7 @@ class ContractRequestBuilder {
       await temp.delete(recursive: true);
       rethrow;
     } finally {
-      access?.close();
+      if (projectAccess == null) access?.close();
     }
   }
 
@@ -3905,6 +3935,7 @@ class ContractRequestExecutor {
               mediaBase64: true,
               formOccurrence: plan.operation['occurrence'] as String?,
               rootSchemaAssertions: !dataChecked,
+              fileShapes: preparedBody.fileShapes,
             ),
           );
         } else if (preparedBody == null &&
@@ -4331,6 +4362,7 @@ class ContractRequestExecutor {
     bool mediaBase64 = false,
     String? formOccurrence,
     bool rootSchemaAssertions = true,
+    Map<String, MultipartFileShape> fileShapes = const {},
   }) {
     final schema = media?['schema'] as Map?,
         itemSchema = media?['itemSchema'] as Map?;
@@ -4345,6 +4377,7 @@ class ContractRequestExecutor {
           resource: resource,
           pointer: pointer,
           occurrence: media['swaggerForm'] is List ? formOccurrence : null,
+          fileShapes: fileShapes,
         );
       } else {
         throw CoreFailure(

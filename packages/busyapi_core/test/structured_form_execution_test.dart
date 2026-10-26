@@ -9,7 +9,12 @@ import 'test_support.dart';
 
 const _large = '900719925474099312345678901234567890';
 
-String _source(String version, int port, String format) {
+String _source(
+  String version,
+  int port,
+  String format, {
+  bool allowEmpty = true,
+}) {
   final swagger = version == '2.0';
   final properties = <String, Object?>{
     'big': {'type': 'integer', 'minimum': 111},
@@ -53,6 +58,7 @@ String _source(String version, int port, String format) {
                   'name': property.key,
                   'in': 'formData',
                   if (property.key != 'optional') 'required': true,
+                  if (property.key == 'empty') 'allowEmptyValue': allowEmpty,
                   ...property.value as Map<String, Object?>,
                   if (['tag', 'optional'].contains(property.key))
                     'collectionFormat': 'multi',
@@ -105,7 +111,7 @@ ${swagger ? '''      parameters:
         - {name: flag, in: formData, type: boolean, required: true}
         - {name: tag, in: formData, type: array, items: {type: string}, collectionFormat: multi, required: true}
         - {name: optional, in: formData, type: array, items: {type: integer}, collectionFormat: multi}
-        - {name: empty, in: formData, type: string, maxLength: 0, required: true}
+        - {name: empty, in: formData, type: string, maxLength: 0, required: true, allowEmptyValue: $allowEmpty}
         - {name: literal, in: formData, type: string, required: true}
 ''' : '''      requestBody:
         content:
@@ -293,6 +299,50 @@ void main() {
           expect(seen.last.$4, contains('flag=null'));
           expect(await file.readAsString(), source);
           expect(await manifest.readAsString(), configuration);
+          if (version == '2.0') {
+            final deniedSource = _source(
+              version,
+              server.port,
+              format,
+              allowEmpty: false,
+            );
+            await file.writeAsString(deniedSource);
+            final deniedProject = await BusyProject.open(temp.path, engine);
+            try {
+              final denied = await const ContractTestRunner().run(
+                deniedProject,
+                file.uri.toString(),
+                selectedCases: ['valid'],
+                resolveSecret: (_) async => null,
+              );
+              expect(denied.complete, isTrue);
+              expect(denied.passed, isFalse);
+              expect(denied.cases.single.dispatched, isTrue);
+              expect(
+                jsonEncode(denied.toJson()),
+                contains('runtime.request.form.empty'),
+              );
+            } finally {
+              deniedProject.close();
+            }
+            final deniedCli = await Process.run(
+              '$testBundle/busyapi',
+              ['test', temp.path, '--case', 'valid', '--json'],
+              environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
+              includeParentEnvironment: false,
+            );
+            expect(
+              deniedCli.exitCode,
+              1,
+              reason: '${deniedCli.stdout}\n${deniedCli.stderr}',
+            );
+            final deniedReport = jsonDecode(deniedCli.stdout as String) as Map;
+            expect(deniedReport['complete'], isTrue);
+            expect(deniedReport['passed'], isFalse);
+            expect(deniedCli.stdout, contains('runtime.request.form.empty'));
+            expect(seen, hasLength(5));
+            expect(await file.readAsString(), deniedSource);
+          }
         },
       );
     }
