@@ -667,6 +667,13 @@ when JavaScript numbers would underflow. Exact numeric admission also covers
 `length` bounds and custom function reads. Unsupported precision produces an
 incomplete result rather than rounded comparisons.
 
+Native property-access evaluation uses the logical schema occurrence even when
+its source is a reusable or aliased definition. Swagger `readOnly` properties
+are excluded from requests through schema references; OpenAPI 3.0 retains its
+request/response `required` rules for readOnly/writeOnly. Modern annotations keep
+ordinary JSON Schema assertions. The shared evaluator revision is **1.18.0+35**;
+matching mock/worker revisions are required before readiness is reported.
+
 The derived bundler uses the canonical graph and exact CST reader. It preserves
 literal data separately from semantic schema occurrences, nested `$id` resources,
 static/dynamic references and exact numbers. Recursive references are retained.

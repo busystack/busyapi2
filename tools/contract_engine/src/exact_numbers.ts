@@ -10,7 +10,7 @@ import {SourceDocument, SourceError} from './document';
 import {schemaMetaView} from './schema_boundaries';
 import {isReferenceObject} from './contexts';
 import {swaggerDiscriminator} from './swagger_discriminator';
-import {propertyAccess,swaggerPropertiesKeyword} from './schema_access';
+import {propertyAccess} from './schema_access';
 import type {BinaryLocations} from './runtime_binary';
 
 export function decimal(raw: string) {
@@ -47,6 +47,7 @@ let standardType:any;
 let standardOas30Type:any;
 let standardRequired:any;
 let standardReadOnly:any;
+let standardProperties:any;
 export function compare(a:Decimal,b:Decimal) {
  const sign=n=>n.coefficient<0n?-1:n.coefficient>0n?1:0;
  const as=sign(a),bs=sign(b);if(as!==bs)return as<bs?-1:1;if(!as)return 0;
@@ -69,7 +70,7 @@ export function createExactNumericAdapter(trustedSchemaIdentities:ReadonlySet<st
 let disposed=false;
 const exactInstanceNumbers=new WeakMap<object,any>(), sourceLocations=new Map<string,{doc:SourceDocument,node:any}>();
 const binaryInstances=new WeakMap<object,Buffer>();
-const propertyAccessFlags=new WeakMap<object,readonly string[]>();
+const propertyInstances=new WeakSet<object>(),swaggerPropertySchemas=new WeakSet<object>();
 let referenceGraph:any;
 let direction: 'request' | 'response' | undefined;
 const current=()=>{if(disposed)throw new SourceError('schema.owner','The schema evaluation owner was disposed');};
@@ -173,8 +174,8 @@ function installExactNumericKeywords() {
  const readOnly=standardReadOnly??(standardReadOnly=getKeyword(id('readOnly')));
  addKeyword({...readOnly,compile:(schema,_ast,parent)=>{
   const source=sourceAt(canonicalUri(parent)),scope=source&&referenceGraph?.scope(source.doc.id,source.node.pointer);
-  return {value:Browser.value(schema),requestAssertion:scope?.family==='2.0'&&/\/properties\/[^/]+$/.test(scope.pointer)};
- },interpret:(annotation,instance,context)=>!(annotation.requestAssertion&&annotation.value===true&&direction==='request')} as any);
+  return {value:Browser.value(schema),swagger:scope?.family==='2.0',requestAssertion:scope?.family==='2.0'&&/\/properties\/[^/]+$/.test(scope.pointer)};
+ },interpret:(annotation,instance,context)=>!(annotation.swagger&&annotation.value===true&&direction==='request'&&(annotation.requestAssertion||propertyInstances.has(instance)))} as any);
  for(const name of ['minimum','maximum','exclusiveMinimum','exclusiveMaximum','multipleOf']) {
   const original=getKeyword(id(name)) as any;
   addKeyword({...original,compile:schemaNumber,interpret:(bound:Decimal,instance)=>{
@@ -209,17 +210,25 @@ function installExactNumericKeywords() {
   if(Instance.typeOf(instance)!=='number')return oas30.interpret(types,instance,context);
   return (typeof types==='string'?[types]:types).some(t=>t==='number'||t==='integer'&&(number(instance).coefficient===0n||number(instance).exponent>=0n));
  }});
- const properties=getKeyword(id('properties'));
- addKeyword({...properties,id:swaggerPropertiesKeyword,simpleApplicator:false,compile:async(schema,ast,parent)=>{
+ // Keep the standard properties keyword identity: additionalProperties uses
+ // that identity to discover declared names. Scope request-property instances
+ // only during the delegated evaluation, including referenced readOnly schemas.
+ const properties=standardProperties??(standardProperties=getKeyword(id('properties')));
+ addKeyword({...properties,compile:async(schema,ast,parent)=>{
   const source=sourceAt(canonicalUri(parent)),scope=source&&referenceGraph?.scope(source.doc.id,source.node.pointer);
   const compiled=await properties.compile(schema,ast,parent);
   if(!compiled||typeof compiled!=='object'||Array.isArray(compiled))throw new SourceError('schema.access.protocol','The pinned properties compiler returned an invalid representation');
-  const readOnly=scope?.family==='2.0'?Object.keys(compiled).filter(name=>propertyAccess(referenceGraph,scope,name).readOnly):[];
-  propertyAccessFlags.set(compiled,readOnly);
+  if(scope?.family==='2.0')swaggerPropertySchemas.add(compiled);
   return compiled;
  },interpret:(compiled,instance,context)=>{
-  const valid=properties.interpret(compiled,instance,context),readOnly=propertyAccessFlags.get(compiled)??[];
-  return valid&&!(direction==='request'&&Instance.typeOf(instance)==='object'&&readOnly.some(name=>Object.hasOwn(Instance.value(instance),name)));
+  const owned:object[]=[];
+  if(direction==='request'&&swaggerPropertySchemas.has(compiled)&&Instance.typeOf(instance)==='object'){
+   for(const [name,property]of Instance.entries(instance))if(Object.hasOwn(compiled,Instance.value(name))&&!propertyInstances.has(property)){
+    propertyInstances.add(property);owned.push(property);
+   }
+  }
+  try{return properties.interpret(compiled,instance,context);}
+  finally{for(const property of owned)propertyInstances.delete(property);}
  }} as any);
  const required=standardRequired??(standardRequired=getKeyword(id('required')));
  addKeyword({...required,compile:(schema,_ast,parent)=>{
@@ -227,7 +236,6 @@ function installExactNumericKeywords() {
   if(!Array.isArray(names))throw new SourceError('schema.required','required must be an array of property names');
   const owner=source&&referenceGraph?.scope(source.doc.id,source.node.pointer);
   if(owner?.family!=='3.0')return {names};
-
   return {names,flags:Object.fromEntries(names.map((name:string)=>[name,propertyAccess(referenceGraph,owner,name)]))};
  },interpret:({names,flags},instance,context)=>required.interpret(
   flags&&direction?names.filter((name:string)=>!(direction==='request'?flags[name]?.readOnly:flags[name]?.writeOnly)):names,instance,context,

@@ -41,3 +41,10 @@ for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const format of ['yaml'
  const result=await evaluateSchemas(input);assert.equal(result.complete,true,JSON.stringify(result));assert.deepEqual(result.runtimeEvaluations.map(e=>e.valid),[...samples.map(()=>version!=='2.0'),...samples.map(()=>true)]);assert.equal(input.resources[0].text,text);
  if(version==='2.0')assert.equal(result.runtimeFindings.length>=samples.length,true,'Every rejected request retains actual schema findings');
 });
+
+for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const format of ['yaml','json'])test(`${version} ${format} access evaluation preserves declared properties beside additionalProperties false`,async()=>{
+ const root='file:///approved/closed.'+format,defs=version==='2.0'?'/definitions':'/components/schemas',models={Model:{type:'object',required:['id'],properties:{id:{type:'integer',enum:['EXACT']}},additionalProperties:false}},value={...(version==='2.0'?{swagger:version}:{openapi:version}),info:{title:'Closed exact',version:'1'},paths:{},...(version==='2.0'?{definitions:models}:{components:{schemas:models}})};
+ const text=(format==='json'?JSON.stringify(value):YAML.stringify(value)).replace('"EXACT"','9007199254740993.00').replace('EXACT','9007199254740993.00');
+ const input={root,snapshot:'closed-'+version,resources:[{id:root,text,generation:1}],runtimeInstances:['{"id":9007199254740993.00}','{"id":9007199254740992.00}','{"id":9007199254740993.00,"extra":false}'].map(text=>({subject:'response-body',text,location:'application/json',schema:{resource:root,pointer:defs+'/Model'}}))};
+ const result=await evaluateSchemas(input);assert.equal(result.complete,true,JSON.stringify(result));assert.deepEqual(result.runtimeEvaluations.map(e=>e.valid),[true,false,false]);assert.equal(input.resources[0].text,text);
+});

@@ -1,7 +1,6 @@
 import {escape,SourceError} from './document';
 import type {GraphTarget,ReferenceGraph} from './reference_graph';
 
-export const swaggerPropertiesKeyword='urn:busyapi:keyword:swagger-2.0-properties';
 export type PropertyAccess=Readonly<{readOnly:boolean;writeOnly:boolean}>;
 const unmarked:PropertyAccess={readOnly:false,writeOnly:false};
 
