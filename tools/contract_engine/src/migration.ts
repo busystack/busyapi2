@@ -19,9 +19,10 @@ import {checkOperationTarget,checkRequestBodyTarget,migrateOperationBodies} from
 import {checkSecurityRequirementTarget} from './migration_security';
 import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
 import {migrationBatches,entryMigrationRoutes} from './migration_routes';
+import {MigrationAccess} from './migration_access';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='11';
+const migrationProducerVersion='12';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -109,6 +110,7 @@ export async function planMigration(input:MigrationInput) {
                 for(const [origin,locations]of origins)if(locations.length&&locations.every(location=>detached.has(key(location.resource,location.pointer))))omittedMarkdownOwners.add(origin);
                 graph=retained;
             }
+            const access=new MigrationAccess(graph);
             for(const scope of graph.scopes.values()){
                 const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value,source=sources.get(scope.resource)!;
                 const before=scope.family;
@@ -118,7 +120,7 @@ export async function planMigration(input:MigrationInput) {
                     if(siblings.length&&modernFamily(after)&&!modernFamily(before)&&issue(scope,'migration.reference.ignored-siblings','The target would activate ignored Reference Object siblings; explicitly discard those preserved values or revise the source','decision',['discard-ignored-siblings']))for(const name of siblings)source.remove(scope.pointer+'/'+escape(name));
                     if(siblings.length&&!modernFamily(after)&&modernFamily(before)&&scope.kind!=='schema')issue(scope,'migration.reference.annotations','The target cannot retain these Reference Object annotation overrides','target-representation');
                 }
-                if(before==='3.0'&&modernFamily(after)&&scope.kind==='schema'&&(value?.readOnly===true||value?.writeOnly===true))issue(scope,'migration.schema.direction','The 3.0 access annotations need a direction-specific required-property mapping in modern JSON Schema','implementation');
+                if(scope.kind==='schema'&&!access.preserves(scope,before,after))issue(scope,'migration.schema.direction','Access annotations need a direction-specific schema mapping to preserve their captured property and required-list semantics in the target family','implementation');
                 if(before==='3.0'&&modernFamily(after)&&scope.kind==='schema'&&['binary','byte'].includes(value?.format))issue({...scope,pointer:scope.pointer+'/format'},'migration.schema.binary','Binary schemas need a media-aware modern content mapping','implementation');
                 if(before==='3.2'&&after!=='3.2'){
                     const newer:Record<string,string[]>={root:['$self'], 'path-item':['query','additionalOperations'],media:['itemSchema','prefixEncoding','itemEncoding'],encoding:['prefixEncoding','itemEncoding'],tag:['summary','kind','parent'],xml:['nodeType'],discriminator:['defaultMapping']};
