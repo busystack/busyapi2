@@ -1229,6 +1229,12 @@ Future<void> runBusyApi(
           'error': {
             'code': code,
             'message': e.toString(),
+            if (e is CoreFailure && e.source != null)
+              'source': {
+                'resource': e.source!.resource,
+                'pointer': e.source!.pointer,
+                'range': [e.source!.range.start, e.source!.range.end],
+              },
             if (e is GeneratorFailure) 'detail': e.detail,
             if (e is OutputAnalysisFailure && e.cause is GeneratorFailure)
               'detail': (e.cause as GeneratorFailure).detail,

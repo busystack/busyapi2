@@ -182,11 +182,12 @@ class AnalysisSnapshot {
 /// Preserve original-source results when a required export check cannot pass.
 class OutputAnalysisFailure extends CoreFailure {
   OutputAnalysisFailure(
-    super.code,
-    super.message,
+    String code,
+    String message,
     Map<String, dynamic> analysis, {
     this.cause,
-  }) : analysis = _freezeResult(analysis);
+  }) : analysis = _freezeResult(analysis),
+       super(code, message, kind: cause?.kind, source: cause?.source);
   final Map<String, dynamic> analysis;
   final CoreFailure? cause;
 }
@@ -198,6 +199,7 @@ int outputFailureExitCode(Object error) {
       code == 'migration.contract' ||
       code == 'generate.contract')
     return 1;
+  if (error is CoreFailure && error.unsupported) return 2;
   if ([
     'generate.incomplete',
     'migration.incomplete',
