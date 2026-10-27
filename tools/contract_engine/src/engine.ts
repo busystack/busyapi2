@@ -1,3 +1,4 @@
+import {multipartProjectionRevision} from './schema_reference_projection';
 import { createHash } from 'node:crypto';
 import { children, referenceKinds, standardOperationMethods } from './contexts';
 import { ReferenceGraph, supportedSchemaDialect, referenceMarkdownContext } from './reference_graph';
@@ -21,7 +22,7 @@ import {xmlContextRevision,xmlRelationships} from './xml_semantics';
 import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
-const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2', xmlContextRules:xmlContextRevision, documentUriRules:documentUriRevision, dialectUriRules:dialectUriRevision, serverRules:serverContextRevision };
+const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2', xmlContextRules:xmlContextRevision, documentUriRules:documentUriRevision, dialectUriRules:dialectUriRevision, serverRules:serverContextRevision, multipartRules:multipartProjectionRevision };
 export type Resource = {
     id: string;
     text: string;

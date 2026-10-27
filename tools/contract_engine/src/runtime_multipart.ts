@@ -30,6 +30,7 @@ export function decodeRuntimeMultipart(text:string,id:string,contentType:string,
     const named=mediaTypes(contentType,false)[0].subtype==='form-data'&&whole?.shape.types?.includes('array')!==true&&media.itemSchema===undefined;
     const nested=(rule:unknown)=>object(rule)&&(rule.encoding!==undefined||rule.prefixEncoding!==undefined||rule.itemEncoding!==undefined||typeof rule.contentType==='string'&&mediaTypes(rule.contentType).some(type=>type.type==='multipart'));
     if(named&&media.prefixEncoding===undefined&&media.itemEncoding===undefined&&!Object.values(media.encoding??{}).some(nested))return;
+    if(Object.keys(target.fileShapes??{}).length)transfers.failure('runtime.form.file-shape','File value shapes require the captured named MIME content binding',target,true);
     let work=0,serial=0;
     const binaryInstances=new Map<SourceDocument,BinaryLocations>();
     const parse=(raw:string,binary?:BinaryLocations)=>{

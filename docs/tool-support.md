@@ -444,13 +444,17 @@ JSON scalar kinds and numeric lexemes are retained. Empty collections that emit
 no fields are omitted from outgoing presence checks. File input remains explicit;
 a string in a saved case is never permission to read a file.
 
-When a named 3.0/3.1 multipart property permits both a string and an array,
+When a named 3.x multipart property permits both a string and an array,
 attach a file and choose **Declared form parts → File values → Single value**
 or **Array of values**. One file can represent a one-item array; the choice does
 not change its schema or bypass validation. Multiple inputs require the array
 choice. Environment and input-mode changes retain it. Contract edits recheck
 the choice, and unsupported or competing representations remain explicit
-limitations. Styled, dynamic and positional bindings need separate support.
+limitations. Styled and positional bindings need separate support. Fixed `$dynamicRef`
+targets use the captured graph: pointer/static-anchor references follow their
+initial target, as do dynamic anchors whose captured candidates all identify
+that same target. Different dynamic candidates remain an explicit incomplete
+serialization result; no first candidate is chosen.
 
 Saved cases can select files explicitly, relative to the project boundary:
 
@@ -468,7 +472,7 @@ These inputs use the same captured upload and shape checks in desktop cases and
 the CLI. Absolute paths, boundary escapes and symlink resources are refused.
 The selected files are captured privately before dispatch; source and input
 files remain unchanged. `fileShapes` applies only to selected file names with
-captured 3.0/3.1 MIME content bindings; it is not an OpenAPI extension.
+captured 3.x named MIME content bindings; it is not an OpenAPI extension.
 
 An explicit `body.files[].mediaType` selects the type for that file and overrides
 a shared `body.partMediaTypes` choice. It must satisfy the captured declaration.
@@ -727,7 +731,7 @@ Native property-access evaluation uses the logical schema occurrence even when
 its source is a reusable or aliased definition. Swagger `readOnly` properties
 are excluded from requests through schema references; OpenAPI 3.0 retains its
 request/response `required` rules for readOnly/writeOnly. Modern annotations keep
-ordinary JSON Schema assertions. The shared evaluator revision is **1.18.0+35**;
+ordinary JSON Schema assertions. The shared evaluator revision is **1.18.0+36**;
 matching mock/worker revisions are required before readiness is reported.
 
 The derived bundler uses the canonical graph and exact CST reader. It preserves

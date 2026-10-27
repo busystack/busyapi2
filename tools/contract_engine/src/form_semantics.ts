@@ -2,7 +2,8 @@ import {escape,segments,SourceError} from './document';
 import type {GraphReference,ReferenceGraph} from './reference_graph';
 import {mediaTypeOptions,mediaTypes} from './media_types';
 import {MultipartFileShapes} from './multipart_file_shapes';
-import type {SpecificationFamily} from './specification';
+import {isNativeFamily,modernFamily,type SpecificationFamily} from './specification';
+import {projectSchemaReference} from './schema_reference_projection';
 
 export type FormBinding='urlencoded'|'multipart-named';
 
@@ -12,6 +13,13 @@ export function formBinding(family:SpecificationFamily,contentType:string):FormB
     const essence=contentType.split(';')[0].trim().toLowerCase();
     if(essence==='application/x-www-form-urlencoded')return 'urlencoded';
     if(essence==='multipart/form-data'||essence.startsWith('multipart/')&&(family==='3.0'||family==='3.1'))return 'multipart-named';
+}
+
+/** The file input's single/array choice belongs to named 3.x data models.
+ * OAS 3.2 §4.15.4.5 still repeats a name for array items; generic positional
+ * multipart and Swagger flat formData retain their separate representations. */
+export function namedFileShapeSelection(family:string,mediaType:string,styled:boolean):boolean {
+    return isNativeFamily(family)&&family!=='2.0'&&!styled&&formBinding(family,mediaType)==='multipart-named';
 }
 
 export type FormShape={types?:string[];literalType?:string;format?:string;contentEncoding?:string;properties?:Record<string,FormShape>;items?:FormShape;prefixItems?:FormShape[];defaultContentType?:string};
@@ -45,13 +53,15 @@ export class FormSemantics {
         const node=this.graph.docs.get(resource)?.dataNode(pointer),value=node?.value;
         if(!value||typeof value!=='object'||Array.isArray(value))return {};
         const scope=this.graph.scope(resource,pointer);
-        let inherited:FormShape={};
-        if(typeof value.$ref==='string'){
-            const edge=this.references.get(JSON.stringify([resource,pointer,'$ref']));
-            if(edge?.kind==='schema'&&edge.resolution==='resolved')inherited=this.shape(edge.targetResource!,edge.targetPointer!,seen,depth+1);
-            if(scope.family==='3.0')return inherited;
+        const inherited:FormShape[]=[];
+        for(const keyword of modernFamily(scope.family)?['$ref','$dynamicRef']:['$ref'])if(typeof value[keyword]==='string'){
+            const edge=this.references.get(JSON.stringify([resource,pointer,keyword]));
+            const projection=edge?projectSchemaReference(edge):undefined;
+            const shape=projection?.state==='fixed'?this.shape(projection.target.resource,projection.target.pointer,seen,depth+1):{};
+            inherited.push(shape);
+            if(scope.family==='3.0')return shape;
         }
-        const shapes:FormShape[]=[inherited,...(Array.isArray(value.allOf)?value.allOf.map((_:unknown,index:number)=>this.shape(resource,pointer+'/allOf/'+index,seen,depth+1)):[])];
+        const shapes:FormShape[]=[...inherited,...(Array.isArray(value.allOf)?value.allOf.map((_:unknown,index:number)=>this.shape(resource,pointer+'/allOf/'+index,seen,depth+1)):[])];
         const types=typeof value.type==='string'?[value.type]:Array.isArray(value.type)?value.type.filter((type:unknown)=>typeof type==='string'):undefined;
         const properties:Record<string,FormShape>=Object.assign(Object.create(null),...shapes.map(shape=>shape.properties??{}));
         if(value.properties&&typeof value.properties==='object')for(const name of Object.keys(value.properties))properties[name]=this.shape(resource,pointer+'/properties/'+escape(name),seen,depth+1);
@@ -79,7 +89,7 @@ export class FormSemantics {
             let options:ReturnType<typeof mediaTypeOptions>|{error:string}|undefined;
             try{options=styled?undefined:mediaTypeOptions(rule?.contentType??item?.defaultContentType??formContentType({},family));}
             catch(error){if(!(error instanceof SourceError))throw error;options={error:error.message};}
-            const shapes=multipart&&!styled&&(family==='3.0'||family==='3.1')?fileShapes.choices({resource,pointer:pointer+'/schema',kind:'schema'},name):[];
+            const shapes=namedFileShapeSelection(family,mediaType,styled)?fileShapes.choices({resource,pointer:pointer+'/schema',kind:'schema'},name):[];
             return [name,{name,styled,...options,...(shapes.length?{fileShapes:shapes}:{}),source:{resource,pointer:at,range:node.range}}];
         }));
         return {multipartStyle:family!=='3.0',legacyBinary:family==='3.0',

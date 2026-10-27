@@ -1,3 +1,4 @@
+import {multipartProjectionRevision} from './schema_reference_projection';
 import {createHash} from 'node:crypto';
 
 import {createGraph, propose, Resource} from './engine';
@@ -10,7 +11,7 @@ import {responseStatusNamePolicy} from './member_names';
 import {swaggerFlat,swaggerMedia,swaggerResponseContent,swaggerServers} from './swagger_operation';
 import {responseAllowsContent} from './response_content';
 import {componentLocation} from './authoring';
-import {formBinding,FormSemantics} from './form_semantics';
+import {formBinding,FormSemantics,namedFileShapeSelection} from './form_semantics';
 import type {NativeRuntimeInstance} from './mock_projection';
 import {selectRequestMedia} from './request_media_selection';
 import {isNativeFamily} from './specification';
@@ -177,7 +178,7 @@ export function requestFormMediaTypes(input:any){
   if(!selections||typeof selections!=='object'||Array.isArray(selections)||Object.keys(selections).length>maximumItems||Object.entries(selections).some(([name,shape])=>!fileNames.has(name)||!['single','array'].includes(shape as string)))
     throw new SourceError('request.multipart.file-shape','Expected bounded file-shape choices for selected file parts');
   const fileShapes=new MultipartFileShapes(captured.graph),transfers=new MultipartEncoding(captured.graph),schema={...content.schema,kind:'schema'};
-  for(const [name,shape]of Object.entries(selections))if(!multipart||!['3.0','3.1'].includes(captured.family)||content.form?.parts?.[name]?.styled||!fileShapes.choices(schema,name).includes(shape as 'single'|'array'))
+  for(const [name,shape]of Object.entries(selections))if(!namedFileShapeSelection(content.family,input.mediaType,content.form?.parts?.[name]?.styled===true)||!fileShapes.choices(schema,name).includes(shape as 'single'|'array'))
     transfers.failure('request.multipart.encoding.unsupported','The selected file shape is not owned by this captured MIME content binding',schema);
   const names=new Set<string>([...input.parts,...Object.keys(input.choices)]);
   const resolve=(name:string,choice?:string,fallback?:string)=>{
@@ -206,7 +207,7 @@ export function requestFormMediaTypes(input:any){
     if(type!==undefined)types[name]=type;
   }
   const files=input.files.map((file:any)=>resolve(file.name,file.selected??(Object.hasOwn(input.choices,file.name)?input.choices[file.name]:undefined),file.fallback)??'text/plain');
-  return {version:1,snapshot:input.snapshot,identity:plan.identity,types,files};
+  return {version:1,snapshot:input.snapshot,identity:plan.identity,representationRevisions:plan.representationRevisions,types,files};
 }
 
 /** Resolve MIME transfer headers under their own captured Schema Objects. The
@@ -257,7 +258,7 @@ export async function requestMultipartEncoding(input:any){
   }
   for(const name of input.files){
     const property=content.form?.shape?.properties?.[name];
-    const choices=content.swaggerForm||content.form?.parts?.[name]?.styled||!['3.0','3.1'].includes(captured.family)?[]:fileShapes.choices(schema,name),selected=Object.hasOwn(selections,name)?selections[name]:undefined;
+    const choices=content.swaggerForm||!namedFileShapeSelection(content.family,input.mediaType,content.form?.parts?.[name]?.styled===true)?[]:fileShapes.choices(schema,name),selected=Object.hasOwn(selections,name)?selections[name]:undefined;
     if(selected!==undefined&&!choices.length)
       projection.failure('request.multipart.encoding.unsupported','The selected file shape does not disambiguate this captured representation',schema);
     if(selected!==undefined&&!choices.includes(selected))
@@ -285,7 +286,7 @@ export async function requestMultipartEncoding(input:any){
       transfer.source={resource:header.source.resource,pointer:header.source.pointer,range:captured.docs.get(header.source.resource)!.dataNode(header.source.pointer)!.range};
     }
   }
-  return {version:1,snapshot:input.snapshot,identity:plan.identity,parts:result};
+  return {version:1,snapshot:input.snapshot,identity:plan.identity,representationRevisions:plan.representationRevisions,parts:result};
 }
 
 /**
@@ -493,8 +494,8 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     }
     responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,bodyAllowed:responseAllowsContent(family,v),content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location).map(item=>({...item,...runtimeMediaDescription(item.mediaType)})):media(selected.resource,selected.pointer+'/content',v?.content)});
   }
-  const identity=createHash('sha256').update(JSON.stringify([input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
-  return {version:1,snapshot:input.snapshot,root:input.root,identity,family,operation:{method,customMethod:context.customMethod===true,path:context.path,
+  const identity=createHash('sha256').update(JSON.stringify([multipartProjectionRevision,input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
+  return {version:1,snapshot:input.snapshot,root:input.root,identity,family,representationRevisions:{multipart:multipartProjectionRevision},operation:{method,customMethod:context.customMethod===true,path:context.path,
     operationId:typeof node.value.operationId==='string'?node.value.operationId:undefined,summary:typeof node.value.summary==='string'?node.value.summary:undefined,
     source:location(input.resource,input.pointer),occurrence:context.occurrence,pathItem:location(context.pathItem.resource,context.pathItem.pointer)},
     servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes:Object.fromEntries(schemes),anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,ignoredRequestBody,responses,responseStatusNamePolicy:responseStatusNamePolicy(family),

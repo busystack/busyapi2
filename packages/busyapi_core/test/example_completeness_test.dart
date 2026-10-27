@@ -180,7 +180,7 @@ void main() {
             expect(result['complete'], !bound, reason: jsonEncode(result));
             expect(result['status'], bound ? 'incomplete' : 'complete');
             final schema = result['categories']['openapi']['schema'];
-            expect(schema['producerVersion'], '1.18.0+35');
+            expect(schema['producerVersion'], '1.18.0+36');
             expect(
               schema['coverage']['unboundExampleSerializations'],
               bound ? 0 : 1,
@@ -349,7 +349,7 @@ void main() {
                 'example.external-value.unavailable',
               );
             }
-            expect(schema['producerVersion'], '1.18.0+35');
+            expect(schema['producerVersion'], '1.18.0+36');
           }
 
           await verifyOriginal();

@@ -1,3 +1,5 @@
+import {projectSchemaReference} from './schema_reference_projection';
+import {modernFamily} from './specification';
 import {escape,SourceError,type Range} from './document';
 import {ReferenceGraph,supportedSchemaDialect,type GraphReference,type GraphTarget} from './reference_graph';
 import {MultipartFileShapes,type MultipartFileShape} from './multipart_file_shapes';
@@ -81,11 +83,13 @@ export class MultipartEncoding {
             if(shapes&&!shapes.allows(target,path,'string'))return;
             if(typeof value==='boolean')return;
             if(!value||typeof value!=='object'||Array.isArray(value))this.failure('request.multipart.schema','The part schema is unavailable',target);
-            if(typeof value.$dynamicRef==='string')this.failure('request.multipart.encoding.unsupported','Dynamic part annotations require evaluation before serialization',target);
-            if(typeof value.$ref==='string'){
-                const edge=this.edges.get(JSON.stringify([target.resource,target.pointer,'$ref']));
-                if(edge?.kind!=='schema'||edge.resolution!=='resolved')this.failure('request.reference','A multipart schema reference is unresolved',target);
-                visit({resource:edge.targetResource!,pointer:edge.targetPointer!,kind:'schema'},path,active,conditional);
+            for(const keyword of modernFamily(scope.family)?['$ref','$dynamicRef']:['$ref'])if(typeof value[keyword]==='string'){
+                const edge=this.edges.get(JSON.stringify([target.resource,target.pointer,keyword]));
+                if(!edge)this.failure('request.reference','A multipart schema reference is unresolved',target);
+                const projection=projectSchemaReference(edge);
+                if(projection.state==='dynamic')this.failure('request.multipart.encoding.unsupported','Dynamic part annotations require evaluation before serialization',target);
+                if(projection.state!=='fixed')this.failure('request.reference','A multipart schema reference is unresolved',target);
+                visit(projection.target,path,active,conditional);
                 if(scope.family==='3.0')return;
             }
             for(const [index]of (Array.isArray(value.allOf)?value.allOf:[]).entries())

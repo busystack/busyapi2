@@ -1,3 +1,5 @@
+import {projectSchemaReference} from './schema_reference_projection';
+import {modernFamily} from './specification';
 import type {GraphTarget,ReferenceGraph} from './reference_graph';
 import {supportedSchemaDialect} from './reference_graph';
 import {escape} from './document';
@@ -15,7 +17,7 @@ export class MultipartFileShapes {
  private cache=new Map<string,Possibility>();
  private work=0;
  constructor(private graph:ReferenceGraph){
-  this.edges=new Map(graph.references.filter(edge=>edge.kind==='schema'&&edge.keyword==='$ref').map(edge=>[edge.resource+'#'+edge.pointer,edge]));
+  this.edges=new Map(graph.references.filter(edge=>edge.kind==='schema'&&!edge.connection&&['$ref','$dynamicRef'].includes(edge.keyword)).map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]));
  }
 
  choices(schema:GraphTarget,name:string):MultipartFileShape[]{
@@ -42,18 +44,20 @@ export class MultipartFileShapes {
   if(!value||typeof value!=='object'||Array.isArray(value))return unknown;
   active=new Set(active).add(key);
   const visit=(at:GraphTarget,steps=path)=>this.inspect(at,steps,kind,active,depth+1);
-  let reference:Possibility|undefined;
-  if(typeof value.$ref==='string'){
-   const edge=this.edges.get(target.resource+'#'+target.pointer);
-   reference=edge?.resolution==='resolved'?visit({resource:edge.targetResource!,pointer:edge.targetPointer!,kind:'schema'}):unknown;
-   if(scope.family==='3.0')return reference;
+  const references:Possibility[]=[];
+  for(const keyword of modernFamily(scope.family)?['$ref','$dynamicRef']:['$ref'])if(typeof value[keyword]==='string'){
+   const edge=this.edges.get(JSON.stringify([target.resource,target.pointer,keyword]));
+   const projection=edge?projectSchemaReference(edge):undefined;
+   const possibility=projection?.state==='fixed'?visit(projection.target):unknown;
+   references.push(possibility);
+   if(scope.family==='3.0')return possibility;
   }
   const expected=path.length?'property' in path[0]?'object':'array':kind;
   const types=typeof value.type==='string'?[value.type]:Array.isArray(value.type)?value.type:undefined;
   if(types&&!types.includes(expected)&&!(expected==='number'&&types.includes('integer'))){
    const result={possible:false,array:false};this.cache.set(key,result);return result;
   }
-  const constraints:Possibility[]=[...(reference?[reference]:[])];
+  const constraints:Possibility[]=[...references];
   for(const [index]of (Array.isArray(value.allOf)?value.allOf:[]).entries())constraints.push(visit({...target,pointer:target.pointer+'/allOf/'+index}));
   for(const keyword of ['anyOf','oneOf'])if(Array.isArray(value[keyword])){
    const alternatives=value[keyword].map((_:unknown,index:number)=>visit({...target,pointer:target.pointer+'/'+keyword+'/'+index}));

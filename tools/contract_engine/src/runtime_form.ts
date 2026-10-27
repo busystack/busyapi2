@@ -1,6 +1,6 @@
 import {SourceDocument,SourceError,escape,type Range} from './document';
 import type {GraphTarget,ReferenceGraph} from './reference_graph';
-import {FormSemantics,formLiteralType,type FormShape} from './form_semantics';
+import {FormSemantics,formLiteralType,namedFileShapeSelection,type FormShape} from './form_semantics';
 import {ParameterSemantics} from './parameter_semantics';
 import {mediaTypeChoice,mediaTypes} from './media_types';
 import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind,type RuntimeMediaData} from './runtime_media';
@@ -80,8 +80,8 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         throw new SourceError(code,message,range,unsupported?'unsupported':undefined,{...at,range});
     };
     if(!owner||!node||!scope)failure('runtime.form.owner','The captured form owner is unavailable');
-    if(Object.keys(target.fileShapes??{}).length&&(!['3.0','3.1'].includes(scope.family)||subject!=='request-body'||mediaTypes(contentType,false)[0].type!=='multipart'))
-        failure('runtime.form.file-shape','File value shapes require a captured older-family multipart request');
+    if(Object.keys(target.fileShapes??{}).length&&(!namedFileShapeSelection(scope.family,contentType,false)||subject!=='request-body'))
+        failure('runtime.form.file-shape','File value shapes require a captured named multipart request');
     const decodeHeaderForm=(text:string,id:string,type:string,target:RuntimeFormTarget)=>decodeRuntimeForm(text,id,type,false,target,subject,graph);
     if(scope.family==='3.2'&&scope.kind==='media'&&mediaTypes(contentType,false)[0].type==='multipart'){
         const decoded=decodeRuntimeMultipart(text,id,contentType,base64,target,graph,decodeHeaderForm);
@@ -153,7 +153,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         const schema:GraphTarget={resource:target.resource,pointer:target.pointer+'/schema',kind:'schema'},shape=forms.shape(schema.resource,schema.pointer),properties=shape.properties??{};
         const selectedShapes=target.fileShapes??{},fileShapes=new MultipartFileShapes(graph);
         for(const [name,selected]of Object.entries(selectedShapes)){
-            if(!multipart||subject!=='request-body'||!['3.0','3.1'].includes(scope.family)||!fileShapes.choices(schema,name).includes(selected))
+            if(subject!=='request-body'||!namedFileShapeSelection(scope.family,contentType,false)||!fileShapes.choices(schema,name).includes(selected))
                 failure('runtime.form.file-shape','The file shape is not owned by this captured request media',schema);
         }
         const encodingApplies=subject==='request-body'||scope.family==='3.2';

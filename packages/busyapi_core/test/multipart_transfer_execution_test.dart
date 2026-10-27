@@ -20,13 +20,25 @@ Future<(BusyProject, OperationRequestPlan, File)> _fixture(
   String? encodedEnum,
   bool nested = false,
   String? encodedContentType,
+  String binding = 'reference',
 }) async {
-  final encoded = version.startsWith('3.0.')
+  final encodedSchema = version.startsWith('3.0.')
       ? {'type': 'string', 'format': 'byte'}
       : {
           'type': ['string', 'null'],
           'contentEncoding': codec,
         };
+  final encoded = binding == 'reference'
+      ? encodedSchema
+      : {
+          r'$dynamicRef': binding == 'dynamic-anchor'
+              ? '#encoded'
+              : '#/Encoded',
+        };
+  final formReference = {
+    binding == 'reference' ? r'$ref' : r'$dynamicRef':
+        binding == 'dynamic-anchor' ? 'shared.yaml#form' : 'shared.yaml#/Form',
+  };
   final properties = {
     'encoded': {
       ...encoded,
@@ -47,8 +59,14 @@ Future<(BusyProject, OperationRequestPlan, File)> _fixture(
     'long': encoded,
     'file': encoded,
   };
+  final definitions = binding == 'dynamic-anchor'
+      ? '\$id: shared.yaml\n\$defs: ${jsonEncode({
+          'Form': {r'$dynamicAnchor': 'form', 'type': 'object', 'properties': properties},
+          'Encoded': {...encodedSchema, r'$dynamicAnchor': 'encoded'},
+        })}\n'
+      : 'Form:\n  type: object\n  properties:\n${properties.entries.map((entry) => '    ${entry.key}: ${jsonEncode(entry.value)}\n').join()}${binding == 'dynamic-pointer' ? 'Encoded: ${jsonEncode(encodedSchema)}\n' : ''}';
   final shared =
-      '# A referenced native form; execution must not rewrite it.\nForm:\n  type: object\n  properties:\n${properties.entries.map((entry) => '    ${entry.key}: ${jsonEncode(entry.value)}\n').join()}Transfer:\n  \$ref: "#/ActualTransfer"\nActualTransfer:\n  schema: {type: string, enum: [$codec]}\n';
+      '# A referenced native form; execution must not rewrite it.\n${definitions}Transfer:\n  \$ref: "#/ActualTransfer"\nActualTransfer:\n  schema: {type: string, enum: [$codec]}\n';
   await File('${temp.path}/shared.yaml').writeAsString(shared);
   final encoding = {
     'encoded': {
@@ -82,10 +100,7 @@ Future<(BusyProject, OperationRequestPlan, File)> _fixture(
     };
     encoding['file'] = {'contentType': encodedContentType};
   }
-  final declaration = {
-    'schema': {r'$ref': 'shared.yaml#/Form'},
-    'encoding': encoding,
-  };
+  final declaration = {'schema': formReference, 'encoding': encoding};
   final root = File('${temp.path}/api.$format');
   final source = format == 'json'
       ? jsonEncode({
@@ -117,7 +132,7 @@ paths:
       requestBody:
         content:
           multipart/form-data:
-            schema: {\$ref: 'shared.yaml#/Form'}
+            schema: ${jsonEncode(formReference)}
             encoding: ${jsonEncode(encoding)}
       responses: {'204': {description: ok}}
 ''';
@@ -425,174 +440,187 @@ void main() {
 
   for (final version in ['3.0.0', '3.0.4', '3.1.2', '3.2.1'])
     for (final format in ['yaml', 'json']) {
-      test(
-        '$version $format native multipart applies implicit and referenced encodings to actual bytes and exact schema instances',
-        () async {
-          final temp = await Directory.systemTemp.createTemp(
-            'busyapi-mime-wire-',
-          );
-          addTearDown(() => temp.delete(recursive: true));
-          final engine = EngineProcess(
-            executable: runtimeNode,
-            helper: runtimeHelper,
-          );
-          addTearDown(engine.close);
-          final seen = <(String, String, String, List<int>)>[];
-          final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-          addTearDown(() => server.close(force: true));
-          server.listen((request) async {
-            seen.add((
-              request.method,
-              request.uri.toString(),
-              request.headers.value('content-type')!,
-              await request.fold<List<int>>([], (a, b) => a..addAll(b)),
-            ));
-            request.response.statusCode = 204;
-            await request.response.close();
-          });
-          final (project, plan, root) = await _fixture(
-            temp,
-            engine,
-            version,
-            format,
-            server.port,
-          );
-          addTearDown(project.close);
-          addTearDown(plan.close);
-          final before = await root.readAsBytes(),
-              sharedBefore = await File('${temp.path}/shared.yaml')
-                  .readAsBytes();
-          final raw = List.generate(220, (index) => index % 256),
-              encoded = base64.encode(raw);
-          final data =
-              '{"encoded":"Zg==","blank":"","values":["Zm9v","YmFy"],"nullable":null,"data":{"v":$_large},"text":"雪+&","long":"$encoded"}';
-          final result = await const ContractRequestExecutor().execute(
-            plan,
-            OperationRequestDraft(
-              planIdentity: plan.identity,
-              body: RequestBodyDraft.multipartValue(json: data),
-            ),
-            resolveSecret: (_) async => null,
-          );
-          expect(
-            result.outgoing.complete,
-            isTrue,
-            reason: '${result.outgoing.toJson()}',
-          );
-          expect(
-            result.outgoing.valid,
-            isTrue,
-            reason: '${result.outgoing.toJson()}',
-          );
-          expect(result.response.status, 204);
-          final request = seen.single,
-              boundary = ContentType.parse(request.$3).parameters['boundary']!;
-          String part(
-            String name,
-            String content, {
-            String type = 'application/octet-stream',
-            bool transfer = true,
-          }) =>
-              '--$boundary\r\nContent-Disposition: form-data; name="$name"\r\nContent-Type: $type\r\n${transfer ? 'Content-Transfer-Encoding: base64\r\n' : ''}\r\n$content\r\n';
-          final expected =
-              part('encoded', 'Zg==') +
-              part('blank', '') +
-              part('values', 'Zm9v') +
-              part('values', 'YmFy') +
-              part('nullable', 'null', transfer: false) +
-              part(
-                'data',
-                base64.encode(utf8.encode('{"v":$_large}')),
-                type: 'application/json',
-              ) +
-              part(
-                'text',
-                base64.encode(utf8.encode('雪+&')),
-                type: 'text/plain',
-              ) +
-              part('long', _fold64(encoded)) +
-              '--$boundary--\r\n';
-          expect(request.$1, 'POST');
-          expect(request.$2, '/api/upload');
-          expect(request.$4, utf8.encode(expected));
-          expect(result.request.body!.formInstance, contains('"v":$_large'));
-          await result.close();
-          final manifest = File('${temp.path}/busyapi.yaml');
-          final configuration =
-              '{"version":1,"roots":[{"name":"api","path":"api.$format"}],"tests":[{"name":"transfer","operation":{"method":"post","path":"/upload"},"body":{"mediaType":"$_media","value":$data},"expect":{"status":204}}]}';
-          await manifest.writeAsString(configuration);
-          final cli = await Process.run(
-            '$testBundle/busyapi',
-            ['test', temp.path, '--case', 'transfer', '--json'],
-            environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
-            includeParentEnvironment: false,
-          );
-          expect(cli.exitCode, 0, reason: '${cli.stdout}\n${cli.stderr}');
-          expect((jsonDecode(cli.stdout as String) as Map)['complete'], isTrue);
-          final cliBoundary = ContentType.parse(seen.last.$3)
-              .parameters['boundary']!;
-          expect(
-            utf8.decode(seen.last.$4).replaceAll(cliBoundary, boundary),
-            expected,
-          );
-          expect(await manifest.readAsString(), configuration);
-
-          final upload = File('${temp.path}/upload.bin');
-          // Cross both the base64 grouping and filesystem read boundaries.
-          final fileBytes = List.generate(65539, (index) => index % 256);
-          await upload.writeAsBytes(fileBytes);
-          final prepared = await const ContractRequestBuilder().build(
-            plan,
-            OperationRequestDraft(
-              planIdentity: plan.identity,
-              body: RequestBodyDraft.multipartValue(
-                json: '{"data":{"v":$_large}}',
-                files: [MultipartFileValue(name: 'file', path: upload.path)],
+      for (final binding
+          in version.startsWith('3.0.')
+              ? ['reference']
+              : ['reference', 'dynamic-pointer', 'dynamic-anchor']) {
+        test(
+          '$version $format $binding native multipart applies implicit and referenced encodings to actual bytes and exact schema instances',
+          () async {
+            final temp = await Directory.systemTemp.createTemp(
+              'busyapi-mime-wire-',
+            );
+            addTearDown(() => temp.delete(recursive: true));
+            final engine = EngineProcess(
+              executable: runtimeNode,
+              helper: runtimeHelper,
+            );
+            addTearDown(engine.close);
+            final seen = <(String, String, String, List<int>)>[];
+            final server = await HttpServer.bind(
+              InternetAddress.loopbackIPv4,
+              0,
+            );
+            addTearDown(() => server.close(force: true));
+            server.listen((request) async {
+              seen.add((
+                request.method,
+                request.uri.toString(),
+                request.headers.value('content-type')!,
+                await request.fold<List<int>>([], (a, b) => a..addAll(b)),
+              ));
+              request.response.statusCode = 204;
+              await request.response.close();
+            });
+            final (project, plan, root) = await _fixture(
+              temp,
+              engine,
+              version,
+              format,
+              server.port,
+              binding: binding,
+            );
+            addTearDown(project.close);
+            addTearDown(plan.close);
+            final before = await root.readAsBytes(),
+                sharedBefore = await File('${temp.path}/shared.yaml')
+                    .readAsBytes();
+            final raw = List.generate(220, (index) => index % 256),
+                encoded = base64.encode(raw);
+            final data =
+                '{"encoded":"Zg==","blank":"","values":["Zm9v","YmFy"],"nullable":null,"data":{"v":$_large},"text":"雪+&","long":"$encoded"}';
+            final result = await const ContractRequestExecutor().execute(
+              plan,
+              OperationRequestDraft(
+                planIdentity: plan.identity,
+                body: RequestBodyDraft.multipartValue(json: data),
               ),
-            ),
-            resolveSecret: (_) async => null,
-          );
-          expect(
-            prepared.body!.formInstance,
-            contains(base64.encode(fileBytes)),
-          );
-          expect(prepared.body!.formInstance, contains('"v":$_large'));
-          await upload.writeAsBytes([99, 98, 97]);
-          final outgoing = await const ContractRequestExecutor()
-              .validateOutgoing(
-                plan,
-                OperationRequestDraft(
-                  planIdentity: plan.identity,
-                  body: RequestBodyDraft.multipartValue(
-                    json: '{"data":{"v":$_large}}',
-                    files: [
-                      MultipartFileValue(name: 'file', path: upload.path),
-                    ],
-                  ),
+              resolveSecret: (_) async => null,
+            );
+            expect(
+              result.outgoing.complete,
+              isTrue,
+              reason: '${result.outgoing.toJson()}',
+            );
+            expect(
+              result.outgoing.valid,
+              isTrue,
+              reason: '${result.outgoing.toJson()}',
+            );
+            expect(result.response.status, 204);
+            final request = seen.single,
+                boundary = ContentType.parse(request.$3)
+                    .parameters['boundary']!;
+            String part(
+              String name,
+              String content, {
+              String type = 'application/octet-stream',
+              bool transfer = true,
+            }) =>
+                '--$boundary\r\nContent-Disposition: form-data; name="$name"\r\nContent-Type: $type\r\n${transfer ? 'Content-Transfer-Encoding: base64\r\n' : ''}\r\n$content\r\n';
+            final expected =
+                part('encoded', 'Zg==') +
+                part('blank', '') +
+                part('values', 'Zm9v') +
+                part('values', 'YmFy') +
+                part('nullable', 'null', transfer: false) +
+                part(
+                  'data',
+                  base64.encode(utf8.encode('{"v":$_large}')),
+                  type: 'application/json',
+                ) +
+                part(
+                  'text',
+                  base64.encode(utf8.encode('雪+&')),
+                  type: 'text/plain',
+                ) +
+                part('long', _fold64(encoded)) +
+                '--$boundary--\r\n';
+            expect(request.$1, 'POST');
+            expect(request.$2, '/api/upload');
+            expect(request.$4, utf8.encode(expected));
+            expect(result.request.body!.formInstance, contains('"v":$_large'));
+            await result.close();
+            final manifest = File('${temp.path}/busyapi.yaml');
+            final configuration =
+                '{"version":1,"roots":[{"name":"api","path":"api.$format"}],"tests":[{"name":"transfer","operation":{"method":"post","path":"/upload"},"body":{"mediaType":"$_media","value":$data},"expect":{"status":204}}]}';
+            await manifest.writeAsString(configuration);
+            final cli = await Process.run(
+              '$testBundle/busyapi',
+              ['test', temp.path, '--case', 'transfer', '--json'],
+              environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
+              includeParentEnvironment: false,
+            );
+            expect(cli.exitCode, 0, reason: '${cli.stdout}\n${cli.stderr}');
+            expect(
+              (jsonDecode(cli.stdout as String) as Map)['complete'],
+              isTrue,
+            );
+            final cliBoundary = ContentType.parse(seen.last.$3)
+                .parameters['boundary']!;
+            expect(
+              utf8.decode(seen.last.$4).replaceAll(cliBoundary, boundary),
+              expected,
+            );
+            expect(await manifest.readAsString(), configuration);
+
+            final upload = File('${temp.path}/upload.bin');
+            // Cross both the base64 grouping and filesystem read boundaries.
+            final fileBytes = List.generate(65539, (index) => index % 256);
+            await upload.writeAsBytes(fileBytes);
+            final prepared = await const ContractRequestBuilder().build(
+              plan,
+              OperationRequestDraft(
+                planIdentity: plan.identity,
+                body: RequestBodyDraft.multipartValue(
+                  json: '{"data":{"v":$_large}}',
+                  files: [MultipartFileValue(name: 'file', path: upload.path)],
                 ),
-                prepared.runId,
-                preparedBody: prepared.body,
-              );
-          expect(outgoing.complete, isTrue, reason: '${outgoing.toJson()}');
-          expect(outgoing.valid, isTrue);
-          final response = await const ContractHttpTransport().send(prepared);
-          await response.close();
-          final fileRequest = utf8.decode(seen.last.$4);
-          expect(
-            fileRequest,
-            contains(
-              'filename="upload.bin"\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n\r\n${_fold64(base64.encode(fileBytes))}\r\n',
-            ),
-          );
-          expect(seen.last.$4.length, prepared.body!.length);
-          await prepared.body!.close();
-          expect(await root.readAsBytes(), before);
-          expect(
-            await File('${temp.path}/shared.yaml').readAsBytes(),
-            sharedBefore,
-          );
-        },
-      );
+              ),
+              resolveSecret: (_) async => null,
+            );
+            expect(
+              prepared.body!.formInstance,
+              contains(base64.encode(fileBytes)),
+            );
+            expect(prepared.body!.formInstance, contains('"v":$_large'));
+            await upload.writeAsBytes([99, 98, 97]);
+            final outgoing = await const ContractRequestExecutor()
+                .validateOutgoing(
+                  plan,
+                  OperationRequestDraft(
+                    planIdentity: plan.identity,
+                    body: RequestBodyDraft.multipartValue(
+                      json: '{"data":{"v":$_large}}',
+                      files: [
+                        MultipartFileValue(name: 'file', path: upload.path),
+                      ],
+                    ),
+                  ),
+                  prepared.runId,
+                  preparedBody: prepared.body,
+                );
+            expect(outgoing.complete, isTrue, reason: '${outgoing.toJson()}');
+            expect(outgoing.valid, isTrue);
+            final response = await const ContractHttpTransport().send(prepared);
+            await response.close();
+            final fileRequest = utf8.decode(seen.last.$4);
+            expect(
+              fileRequest,
+              contains(
+                'filename="upload.bin"\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n\r\n${_fold64(base64.encode(fileBytes))}\r\n',
+              ),
+            );
+            expect(seen.last.$4.length, prepared.body!.length);
+            await prepared.body!.close();
+            expect(await root.readAsBytes(), before);
+            expect(
+              await File('${temp.path}/shared.yaml').readAsBytes(),
+              sharedBefore,
+            );
+          },
+        );
+      }
     }
 
   for (final (codec, input, wire, raw) in [
