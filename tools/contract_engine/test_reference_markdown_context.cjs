@@ -44,6 +44,21 @@ for(const version of patches)for(const format of ['yaml','json'])test(`${version
  const text=format==='json'?JSON.stringify(value):YAML.stringify(value),result=referenceDisplay({root,snapshot:'display-context',resources:[{id:root,text,generation:1,aliases:['https://docs.example.invalid/original/api.'+format]}],outputId});
  const original=result.original.sections.find(s=>s.kind==='info'),display=result.projection.sections.find(s=>s.kind==='info');
  assert.equal(original.source.markdownBase,'https://docs.example.invalid/original/api.'+format);
- for(const source of [display.source,...display.entries.map(e=>e.source)])assert.equal(source.markdownBase,outputId);
+ for(const source of [display.source,...display.entries.map(e=>e.source)])assert.equal(source.markdownBase,true);
  assert(!JSON.stringify(result.projection).includes('/private/'));
+});
+
+for(const version of patches)for(const format of ['yaml','json'])test(`${version} ${format} repeated resource bases use explicit compact captured context`,()=>{
+ const root='https://docs.example.invalid/deep/api.'+format;
+ const value={...(version==='2.0'?{swagger:version}:{openapi:version}),info:{title:'Compact 雪',version:'1',description:'[Guide](../guide)'},paths:{}};
+ const text=format==='json'?JSON.stringify(value):YAML.stringify(value),input={root,snapshot:'compact',resources:[{id:root,text,generation:0}]};
+ const page=referencePage({...input,resource:root,pointer:'/info'}),document=referenceDocument(input),section=document.sections.find(s=>s.kind==='info');
+ for(const source of [analyse(input).info,page,...page.entries,section.source,...section.entries.map(e=>e.source)]) {
+  assert.equal(source.resource,root);assert.equal(source.markdownBase,true);
+  assert.equal(new URL('../guide',source.resource).href,'https://docs.example.invalid/guide');
+ }
+ assert.equal(document.producerVersion,'2');assert.equal(input.resources[0].text,text);
+ const mapped={...input,resources:[{...input.resources[0],aliases:['https://other.example.invalid/model/api.'+format]}]};
+ assert.equal(referencePage({...mapped,resource:root,pointer:'/info'}).markdownBase,mapped.resources[0].aliases[0]);
+ assert.equal(referencePage({...input,resource:root,pointer:'/info'}).markdownBase,true);
 });

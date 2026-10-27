@@ -132,10 +132,12 @@ class ReferenceMarkdown {
 }
 
 /// Decode the canonical captured rendering context. Missing or malformed
-/// metadata leaves relative destinations inactive; physical source coordinates
-/// cannot establish the URI context of a mapped resource or schema identity.
+/// metadata leaves relative destinations inactive. Only an explicit true marker
+/// selects the captured resource URI; mapped and schema identities retain their
+/// distinct URI. Missing metadata never falls back to physical coordinates.
 Uri? referenceMarkdownBase(Map source) {
-  final value = source['markdownBase'];
+  final context = source['markdownBase'];
+  final value = context == true ? source['resource'] : context;
   if (value is! String) return null;
   final uri = Uri.tryParse(value);
   return uri != null && uri.hasScheme ? uri : null;

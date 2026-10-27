@@ -13,7 +13,7 @@ const escape=value=>value.replaceAll('~','~0').replaceAll('/','~1');
 // isolate, deep-copying it to another, and freezing it repeatedly on the UI.
 // This is a wire envelope, never source/API object serialization.
 export function referenceDisplayPacket(input:any) {
- return {version:1,producer:'busyapi-reference-display-packet',producerVersion:'1',encoding:'json',content:JSON.stringify(referenceDisplay(input))};
+ return {version:1,producer:'busyapi-reference-display-packet',producerVersion:'2',encoding:'json',content:JSON.stringify(referenceDisplay(input))};
 }
 
 export function referenceDisplay(input:any) {
@@ -72,7 +72,7 @@ export function referenceDisplay(input:any) {
   if(source.resource!==owner.resource||source.pointer!==owner.from&&!source.pointer.startsWith(owner.from+'/'))throw new SourceError('documentation.display-owner','A renderer field lost its captured occurrence owner');
   const pointer=owner.to+source.pointer.slice(owner.from.length),node=display.nodes.get(pointer);
   if(!node)throw new SourceError('documentation.display-pointer','A renderer coordinate lost its exact source value');
-  return {resource:outputId,pointer,markdownBase:outputId,generation:0,range:node.range};
+  return {resource:outputId,pointer,markdownBase:true,generation:0,range:node.range};
  };
  const provenance=[];
  const effective=fields=>fields.map(field=>({...field,...(field.source?{source:locate(field.source)}:{}),
@@ -99,7 +99,7 @@ export function referenceDisplay(input:any) {
   };
  });
  const identity=hash(text);
- const result={version:1,complete:true,producer:'busyapi-reference-display',producerVersion:'1',root:input.root,snapshot:input.snapshot,
+ const result={version:1,complete:true,producer:'busyapi-reference-display',producerVersion:'2',root:input.root,snapshot:input.snapshot,
   representation:'graph-addressed-display-only',output:{id:outputId,text,identity},original,
   projection:{...original,root:outputId,snapshot:identity,sections,displayOnly:true,coordinateSpace:'display-document'},provenance};
  if(Buffer.byteLength(JSON.stringify(result))>48*1024*1024)throw new SourceError('limit.documentation.display','The combined renderer coordinates exceed 48 MiB');

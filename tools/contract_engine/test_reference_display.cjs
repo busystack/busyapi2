@@ -10,7 +10,7 @@ const output='https://display.invalid/reference.json';
 test('the versioned display wire packet round-trips exact text rather than authored numbers',()=>{
  const {referenceDisplayPacket}=require('./dist/reference_display.cjs'),input=mixed('3.2.1');
  const packet=referenceDisplayPacket({...input,outputId:output});
- assert.equal(packet.version,1);assert.equal(packet.producer,'busyapi-reference-display-packet');assert.equal(packet.encoding,'json');
+ assert.equal(packet.version,1);assert.equal(packet.producerVersion,'2');assert.equal(packet.producer,'busyapi-reference-display-packet');assert.equal(packet.encoding,'json');
  const decoded=JSON.parse(packet.content);assert.deepEqual(decoded,referenceDisplay(input,output));
  assert(decoded.output.text.includes('9007199254740993.00'));
 });

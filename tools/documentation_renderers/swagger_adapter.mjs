@@ -5,7 +5,7 @@ import {presentationNode,presentationValue} from './graph_display.mjs';
 import {documentationSourceFactory} from './source_actions.mjs';
 import {swaggerLocatedContent} from './swagger_content.mjs';
 export const swaggerAdapterIdentity = Object.freeze({
-  producer: 'busyapi-swagger-read-only', version: '6',
+  producer: 'busyapi-swagger-read-only', version: '7',
   package: 'swagger-ui', packageVersion: '5.33.2',
   clientPackage:'swagger-client',clientPackageVersion:'3.38.2',
 });

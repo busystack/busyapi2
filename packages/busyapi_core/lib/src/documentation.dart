@@ -285,7 +285,7 @@ class DocumentationPresentation {
     'root': displayCoordinates.root,
     'representation': 'graph-addressed-display-only',
     'displayProducer': 'busyapi-reference-display',
-    'displayProducerVersion': '1',
+    'displayProducerVersion': '2',
     'text': text,
     'identity': identity,
     'projection': projection,
@@ -580,7 +580,7 @@ extension DocumentationBuild on BusyProject {
           'derivedRepresentation':
               'graph-addressed-display-only (not an OpenAPI bundle)',
           'displayProducer': 'busyapi-reference-display',
-          'displayProducerVersion': '1',
+          'displayProducerVersion': '2',
           'derivedIdentity': presentation.identity,
           'derivedProvenance': _portableDerivedProvenance(
             presentation.sourceProvenance,
@@ -749,7 +749,7 @@ void _verifyReferenceDocument(
   );
   if (document['version'] != 1 ||
       document['producer'] != 'busyapi-native-reference' ||
-      document['producerVersion'] != '1' ||
+      document['producerVersion'] != '2' ||
       document['root'] != snapshot.root ||
       document['snapshot'] != snapshot.identity ||
       document['complete'] != true ||

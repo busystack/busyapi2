@@ -10,13 +10,13 @@ import 'model.dart';
 
 const _redocAdapter = {
   'producer': 'busyapi-redoc-read-only',
-  'version': '7',
+  'version': '8',
   'package': 'redoc',
   'packageVersion': '3.0.1',
 };
 const _swaggerAdapter = {
   'producer': 'busyapi-swagger-read-only',
-  'version': '6',
+  'version': '7',
   'package': 'swagger-ui',
   'packageVersion': '5.33.2',
   'clientPackage': 'swagger-client',

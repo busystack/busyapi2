@@ -176,7 +176,7 @@ void _documentationDisplayWorker(List<Object?> input) {
     final packet = input[1] as Map<String, dynamic>;
     if (packet['version'] != 1 ||
         packet['producer'] != 'busyapi-reference-display-packet' ||
-        packet['producerVersion'] != '1' ||
+        packet['producerVersion'] != '2' ||
         packet['encoding'] != 'json' ||
         packet['content'] is! String ||
         (packet['content'] as String).length > 48 * 1024 * 1024) {
@@ -202,7 +202,7 @@ void _documentationDisplayWorker(List<Object?> input) {
     if (result['version'] != 1 ||
         result['complete'] != true ||
         result['producer'] != 'busyapi-reference-display' ||
-        result['producerVersion'] != '1' ||
+        result['producerVersion'] != '2' ||
         result['representation'] != 'graph-addressed-display-only' ||
         result['root'] != snapshot.root ||
         result['snapshot'] != snapshot.identity ||

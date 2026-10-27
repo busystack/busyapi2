@@ -21,7 +21,7 @@ class _DocumentationEngine extends EngineProcess {
   Map<String, dynamic> displayPacket(Map<String, dynamic> content) => {
     'version': 1,
     'producer': 'busyapi-reference-display-packet',
-    'producerVersion': '1',
+    'producerVersion': '2',
     'encoding': 'json',
     'content': jsonEncode(content),
   };
@@ -39,7 +39,7 @@ class _DocumentationEngine extends EngineProcess {
         case 'packet-producer':
           return {...packet, 'producer': 'other'};
         case 'packet-producer-version':
-          return {...packet, 'producerVersion': '2'};
+          return {...packet, 'producerVersion': '1'};
         case 'packet-encoding':
           return {...packet, 'encoding': 'yaml'};
         case 'packet-shape':
@@ -56,7 +56,7 @@ class _DocumentationEngine extends EngineProcess {
         case 'producer':
           result['producer'] = 'other';
         case 'producer-version':
-          result['producerVersion'] = '2';
+          result['producerVersion'] = '1';
         case 'representation':
           result['representation'] = 'openapi-bundle';
         case 'root':

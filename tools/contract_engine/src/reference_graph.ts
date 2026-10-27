@@ -67,6 +67,15 @@ export function referenceMarkdownBase(graph:ReferenceGraph,resource:string,point
 }
 
 
+/** Compact wire context: true explicitly selects the descriptor's captured
+ * resource URI. Absence never implies a base. Distinct logical/$id bases stay
+ * strings; repeating the same URI per field would exhaust bounded projections. */
+export type ReferenceMarkdownContext = string | true;
+export function referenceMarkdownContext(graph:ReferenceGraph,resource:string,pointer:string):ReferenceMarkdownContext|undefined {
+    const base=referenceMarkdownBase(graph,resource,pointer);
+    return base===resource?true:base;
+}
+
 // URI identity never grants access. The caller supplies immutable, approved
 // resources; this module has no filesystem, HTTP or resolver dependency.
 export function resolveUri(value: string, base: string): URL {

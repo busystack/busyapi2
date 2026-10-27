@@ -2,6 +2,35 @@ import 'package:busyapi_core/busyapi_core.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('captured Markdown bases require an explicit context and retain distinct identities', () {
+    const resource = 'https://docs.example/original/api.yaml';
+    expect(
+      referenceMarkdownBase({'resource': resource, 'markdownBase': true}),
+      Uri.parse(resource),
+    );
+    expect(
+      referenceMarkdownBase({
+        'resource': resource,
+        'markdownBase': 'https://schemas.example/models/',
+      }),
+      Uri.parse('https://schemas.example/models/'),
+    );
+    for (final context in [null, false, 0, [], {}, '../unowned', 'https://[']) {
+      expect(
+        referenceMarkdownBase({'resource': resource, 'markdownBase': context}),
+        isNull,
+        reason: '$context',
+      );
+    }
+    expect(referenceMarkdownBase({'resource': resource}), isNull);
+    for (final resource in [null, false, 0, '../unowned', 'https://[']) {
+      expect(
+        referenceMarkdownBase({'resource': resource, 'markdownBase': true}),
+        isNull,
+        reason: '$resource',
+      );
+    }
+  });
   test('one safe CommonMark tree preserves prose, Unicode, code and list structure', () async {
     final parsed = await ReferenceMarkdownJob(
       '# Heading 雪\n\nA **strong** and *emphasized* value &amp; `code`.\n\n> Quoted\n\n3. third\n4. fourth\n\n```json\n{"n":9007199254740993}\n```',

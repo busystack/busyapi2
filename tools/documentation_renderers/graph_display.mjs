@@ -90,7 +90,7 @@ export function graphAddressedDisplay(text, projection, displayUri, {addresses='
   // those pointers as relative to an authored nested $id. Neither mode resolves
   // a target: both use exactly the canonical graph edge captured below.
   if(!['absolute-document','document-pointer'].includes(addresses))throw Error('busyapi.documentation.addresses');
-  if(typeof text!=='string'||text.length>16*1024*1024||projection?.version!==1||projection.producer!=='busyapi-native-reference'||projection.producerVersion!=='1'||projection.complete!==true||typeof projection.root!=='string'||typeof projection.snapshot!=='string'||!Array.isArray(projection.sections)||projection.sections.length>40000)
+  if(typeof text!=='string'||text.length>16*1024*1024||projection?.version!==1||projection.producer!=='busyapi-native-reference'||projection.producerVersion!=='2'||projection.complete!==true||typeof projection.root!=='string'||typeof projection.snapshot!=='string'||!Array.isArray(projection.sections)||projection.sections.length>40000)
     throw Error('busyapi.documentation.projection');
   // This is the native/export owner's page identity, not an authored URI to
   // resolve or fetch. Absolute display addresses prevent a retained nested

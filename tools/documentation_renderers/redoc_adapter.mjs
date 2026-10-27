@@ -5,7 +5,7 @@ import {redocAuthoredContent} from './redoc_content.mjs';
 import {documentationSourceFactory} from './source_actions.mjs';
 
 export const redocAdapterIdentity=Object.freeze({
-  producer:'busyapi-redoc-read-only',version:'7',package:'redoc',packageVersion:'3.0.1',
+  producer:'busyapi-redoc-read-only',version:'8',package:'redoc',packageVersion:'3.0.1',
 });
 
 // Markdoc's parsed descriptions are untrusted data. Display text only: no

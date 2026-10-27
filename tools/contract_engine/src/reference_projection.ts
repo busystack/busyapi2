@@ -4,7 +4,7 @@ import {swaggerServers} from './swagger_operation';
 import {fieldsForScope,richTextField} from './authoring';
 import {escape, segments, SourceError} from './document';
 import {ParameterSemantics} from './parameter_semantics';
-import {GraphTarget,ReferenceGraph,referenceMarkdownBase} from './reference_graph';
+import {GraphTarget,ReferenceGraph,referenceMarkdownContext} from './reference_graph';
 import {createHash} from 'node:crypto';
 import {isNativeFamily} from './specification';
 import {ignoresRequestBody} from './operation_semantics';
@@ -65,7 +65,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
         if (!target) throw new SourceError('reference.target', 'The documentation source is absent');
         let occurrence=pointer;
         while(occurrence&&!source!.nodes.has(occurrence))occurrence=occurrence.slice(0,occurrence.lastIndexOf('/'));
-        return {root: input.root, resource, pointer, markdownBase:referenceMarkdownBase(graph,resource,pointer), generation: generations.get(resource), range: target.range, data:false,
+        return {root: input.root, resource, pointer, markdownBase:referenceMarkdownContext(graph,resource,pointer), generation: generations.get(resource), range: target.range, data:false,
             ...(target.pointer!==pointer?{physicalPointer:target.pointer,occurrenceRange:source!.nodes.get(occurrence)!.range}:{}),
             kind: graph.scopes.get(resource + '#' + pointer)?.kind ?? 'data', syntaxSafe: source!.dataSyntaxSafe(pointer)};
     };
@@ -237,7 +237,7 @@ export function referenceDocument(input:any) {
         if(!physical)throw new SourceError('documentation.source','A documentation source occurrence is unavailable');
         let occurrence=pointer;
         while(occurrence&&!doc.nodes.has(occurrence))occurrence=occurrence.slice(0,occurrence.lastIndexOf('/'));
-        return {resource,pointer,markdownBase:referenceMarkdownBase(graph,resource,pointer),generation:generations.get(resource),range:physical.range,
+        return {resource,pointer,markdownBase:referenceMarkdownContext(graph,resource,pointer),generation:generations.get(resource),range:physical.range,
             ...(physical.pointer!==pointer?{physicalPointer:physical.pointer,occurrenceRange:doc.nodes.get(occurrence)!.range}:{})};
     };
     const referenceIndex=new Map<string,typeof graph.references>();
@@ -306,7 +306,7 @@ export function referenceDocument(input:any) {
             ...(!['object','array'].includes(node.kind)?{text:retain(doc.dataJson(scope.pointer)),representation:'json'}:{}),
         };
     });
-    const result={version:1,producer:'busyapi-native-reference',producerVersion:'1',snapshot:input.snapshot,root:input.root,family,complete:true,sections};
+    const result={version:1,producer:'busyapi-native-reference',producerVersion:'2',snapshot:input.snapshot,root:input.root,family,complete:true,sections};
     if(Buffer.byteLength(JSON.stringify(result))>48*1024*1024)throw new SourceError('limit.documentation.projection','Documentation exceeds its bounded projection size');
     return result;
 }

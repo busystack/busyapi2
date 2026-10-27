@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { children, referenceKinds, standardOperationMethods } from './contexts';
-import { ReferenceGraph, supportedSchemaDialect, referenceMarkdownBase } from './reference_graph';
+import { ReferenceGraph, supportedSchemaDialect, referenceMarkdownContext } from './reference_graph';
 import { fieldsFor, fieldsForScope, removableField, allowsExtensions, componentFamily, componentLocation } from './authoring';
 import { SourceDocument, SourceError, RawJsonValue, escape, segments, limits } from './document';
 import {structuralEvaluator as ajv, structuralValidators as validators, structuralRevisions, structuralSchema} from './structural_schema';
@@ -18,7 +18,7 @@ import {mediaTypeIssues} from './media_validation';
 import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
-const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions };
+const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2' };
 export type Resource = {
     id: string;
     text: string;
@@ -126,7 +126,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
         if (issue.incomplete) complete = false;
         diagnostic(input.resources.find((r: Resource) => r.id === issue.resource), 'openapi', issue.code, issue.message, issue.pointer, undefined, issue.severity??(issue.code === 'dialect.unsupported' ? 'warning' : 'error'));
     }
-    const index = (document: SourceDocument, pointer: string, value: any, extra: any = {}) => ({ syntaxSafe: document.syntaxSafe(pointer), nodeKind: document.nodes.get(pointer)?.kind, root: input.root, resource: document.id, markdownBase:referenceMarkdownBase(graph,document.id,pointer), generation: input.resources.find((r: Resource) => r.id === document.id)?.generation, pointer, range: document.nodes.get(pointer)?.range ?? [...document.nodes.entries()].filter(([p]) => pointer.startsWith(p+'/')).sort((a,b)=>b[0].length-a[0].length)[0]?.[1].range ?? [0,0], value, ...extra, shared: (document.nodes.get(pointer)?.shared ?? false) || extra.shared === true || !document.nodes.has(pointer) });
+    const index = (document: SourceDocument, pointer: string, value: any, extra: any = {}) => ({ syntaxSafe: document.syntaxSafe(pointer), nodeKind: document.nodes.get(pointer)?.kind, root: input.root, resource: document.id, markdownBase:referenceMarkdownContext(graph,document.id,pointer), generation: input.resources.find((r: Resource) => r.id === document.id)?.generation, pointer, range: document.nodes.get(pointer)?.range ?? [...document.nodes.entries()].filter(([p]) => pointer.startsWith(p+'/')).sort((a,b)=>b[0].length-a[0].length)[0]?.[1].range ?? [0,0], value, ...extra, shared: (document.nodes.get(pointer)?.shared ?? false) || extra.shared === true || !document.nodes.has(pointer) });
     for(const occurrence of graph.operations()) {
         const {source,pathItem}=occurrence,document=docs.get(source.resource)!,view=graph.pathItem(pathItem);
         if(!view.complete)complete=false;
