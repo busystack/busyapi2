@@ -49,7 +49,9 @@ or changing source. OpenAPI 3.0 permits query and fragment components; 3.1 and
 3.2 prohibit them. Only 3.2 applies its newer nonempty template grammar and
 repeated-variable prohibition. Unsupported IPvFuture host evaluation reports
 incomplete validation. A migration cannot publish output that violates the target
-family's Server URL rules.
+family's Server URL rules. Migration reports distinguish invalid source (exit 1),
+incomplete analysis (exit 2), and operational failure (exit 3), retaining source
+findings when planning cannot begin.
 
 Source type completions retain the containing schema rules: Swagger Schema
 Objects inherit Draft 4 types, including `null`; its non-body Parameter, Header

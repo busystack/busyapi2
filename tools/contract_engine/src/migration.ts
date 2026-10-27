@@ -73,16 +73,19 @@ export async function planMigration(input:MigrationInput) {
         if(!(error instanceof SourceError))throw error;
         issue(error.source??location,error.code,error.message,'implementation');
     };
-    const validate=async(values:Resource[],root:string)=>{
+    const validate=async(values:Resource[],root:string,phase:'source'|'target'='target')=>{
         const roots=[root,...values.filter(value=>value.id!==root&&specificationDeclaration(new SourceDocument(value.text,value.id).root.value).status==='supported').map(value=>value.id)];
         for(const root of roots){
             const capture={...input,resources:values,root},analysis=analyse(capture),schemas=await evaluateSchemas(capture);
             if(!analysis.complete||!schemas.complete)issue({resource:root,pointer:''},'migration.validation.incomplete','Native validation did not complete; no migration can be published','source-incomplete');
-            for(const finding of [...analysis.findings,...schemas.findings])if(finding.severity==='error')issue(finding,'migration.validation.'+finding.code,finding.message,'implementation');
+            // Incomplete warnings identify evaluator limitations, not invalid
+            // source. Preserve their locations alongside the overall refusal.
+            for(const finding of [...analysis.findings,...schemas.findings])if(finding.severity==='error'||finding.incomplete===true)
+                issue(finding,'migration.validation.'+finding.code,finding.message,finding.incomplete===true?'implementation':phase==='source'?'source-incomplete':'target-representation');
         }
     };
     const initialContexts=migrationDocumentContexts(input,initial,issue);
-    await validate(resources,input.root);
+    await validate(resources,input.root,'source');
     const markdownContexts=problems.length?[]:captureMigrationMarkdown(initial.graph,issue);
     if(!problems.length)for(const context of initialContexts){checkOperationTarget(context.graph,target.family,issue);checkRequestBodyTarget(context,resources,target.family,issue);}
     if(!problems.length)for(const context of initialContexts)checkSecurityRequirementTarget(context.graph,target.family,issue);

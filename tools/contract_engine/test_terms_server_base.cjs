@@ -44,8 +44,8 @@ test('unsupported Swagger Terms URI host notation is an implementation blocker',
 });
 for(const [name,server,code]of [
  ['limit',{url:'https://api.example.invalid/{item}/',variables:{item:{default:'0',enum:Array.from({length:257},(_,i)=>String(i))}}},'limit.migration.terms-servers'],
- ['unsupported',{url:'https://[v1.future]/'},'migration.info.terms-server-uri'],
- ['invalid',{url:'https://api.example.invalid/has space'},'migration.info.terms-server-uri'],
+ ['unsupported',{url:'https://[v1.future]/'},'migration.validation.server.url.unsupported'],
+ ['invalid',{url:'https://api.example.invalid/has space'},'migration.validation.server.url.uri'],
  ])test(`3.0 Terms Server ${name} does not create a partial or falsely complete conversion`,async()=>{
- const input={...capture('3.0.4','json','terms',[{url:'https://known.example.invalid/'},server]),targetVersion:'3.1.2',destination:'file:///output/review/'},result=await planMigration(input);assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);assert(result.problems.some(p=>p.code===code),JSON.stringify(result.problems));assert(!result.problems.some(p=>p.code==='migration.info.terms-bases'));
+ const input={...capture('3.0.4','json','terms',[{url:'https://known.example.invalid/'},server]),targetVersion:'3.1.2',destination:'file:///output/review/'},result=await planMigration(input);assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);const problem=result.problems.find(p=>p.code===code);assert(problem,JSON.stringify(result.problems));assert.equal(problem.resource,input.root);assert(problem.range[1]>problem.range[0]);if(name!=='limit'){assert.equal(problem.pointer,'/servers/1/url');assert.equal(problem.reason,name==='unsupported'?'implementation':'source-incomplete');}assert(!result.problems.some(p=>p.code==='migration.info.terms-bases'));
 });

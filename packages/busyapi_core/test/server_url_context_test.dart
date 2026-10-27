@@ -58,6 +58,79 @@ void main() {
               (jsonDecode(cliBefore.stdout as String) as Map)['status'],
               before['status'],
             );
+            final failedDestination = '${temp.path}/refused-copy';
+            await expectLater(
+              project.prepareMigration(
+                root,
+                failedDestination,
+                targetVersion: version,
+              ),
+              throwsA(
+                isA<OutputAnalysisFailure>()
+                    .having(
+                      (e) => e.code,
+                      'code',
+                      unsupported
+                          ? 'migration.incomplete'
+                          : 'migration.contract',
+                    )
+                    .having(
+                      (e) => e.analysis['complete'],
+                      'complete',
+                      !unsupported,
+                    )
+                    .having(
+                      (e) => (e.analysis['findings'] as List)
+                          .where(
+                            (f) =>
+                                (f['code'] as String).startsWith(
+                                  'server.url.',
+                                ) &&
+                                f['resource'] == root &&
+                                f['pointer'] == '/servers/0/url' &&
+                                (!unsupported || f['incomplete'] == true),
+                          )
+                          .length,
+                      'precise finding',
+                      1,
+                    ),
+              ),
+            );
+            expect(await Directory(failedDestination).exists(), false);
+            final migrated = await Process.run(
+              '$testBundle/busyapi',
+              [
+                'migrate',
+                file.path,
+                '--target',
+                version,
+                '--output',
+                failedDestination,
+                '--json',
+              ],
+              environment: {'PATH': ''},
+              includeParentEnvironment: false,
+            );
+            expect(
+              migrated.exitCode,
+              unsupported ? 2 : 1,
+              reason: '${migrated.stdout} ${migrated.stderr}',
+            );
+            final report = jsonDecode(migrated.stdout as String) as Map;
+            expect(report['status'], unsupported ? 'incomplete' : 'invalid');
+            expect(report['complete'], false);
+            expect(
+              (report['findings'] as List).where(
+                (f) =>
+                    (f['code'] as String).startsWith('server.url.') &&
+                    f['pointer'] == '/servers/0/url' &&
+                    f['resource'] == root &&
+                    (!unsupported || f['incomplete'] == true),
+              ),
+              hasLength(1),
+            );
+            expect(await Directory(failedDestination).exists(), false);
+            expect(await file.readAsString(), source);
             final page = await project.inspectObject(root, root, '/servers/0'),
                 range = List<int>.from(page['range'] as List);
             const repaired = 'https://api.example.invalid/%20';

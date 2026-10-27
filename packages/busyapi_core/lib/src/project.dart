@@ -195,10 +195,12 @@ int outputFailureExitCode(Object error) {
   final code = error is CoreFailure ? error.code : 'io.failure';
   if (code == 'bundle.contract' ||
       code == 'documentation.contract' ||
+      code == 'migration.contract' ||
       code == 'generate.contract')
     return 1;
   if ([
     'generate.incomplete',
+    'migration.incomplete',
     'generate.coverage',
     'generate.limit',
     'generate.timeout',

@@ -70,10 +70,11 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
     const started = performance.now();
     const docs = new Map<string, SourceDocument>(), findings: any[] = [], references: any[] = [], operations: any[] = [], components: any[] = [];
     let complete = true, supported = true;
-    const diagnostic = (r: Resource, category: string, code: string, message: string, pointer = '', range?: any, severity = 'error') => {
+    const diagnostic = (r: Resource, category: string, code: string, message: string, pointer = '', range?: any, severity = 'error', incomplete = false) => {
         const doc=docs.get(r.id),authored=doc?.nodes.get(pointer),source=authored??doc?.dataNode(pointer);
         const physical=source?.pointer??pointer;
         findings.push({ version: 1, category, code, severity, ...safeFinding(message,physical), resource: r.id, root:input.root, range: range ?? source?.range ?? [0, 0], engine: 'busyapi', engineVersion, producer:'busyapi',producerVersion:engineVersion, snapshot: input.snapshot,
+            ...(incomplete?{incomplete:true}:{}),
             ...(physical!==pointer?{occurrencePointer:safeFinding('',pointer).pointer}:{}),
             ...(code==='parameter.path.required' && authored && !authored.shared && doc?.syntaxSafe(pointer)?{fixes:['path-parameter-required']}:{}) });
     };
@@ -271,7 +272,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
     }
     for (const issue of [...authoringRelationships(graph), ...serverRelationships(graph), ...xmlRelationships(graph), ...documentUriRelationships(graph), ...restrictedSchemaIssues(graph), ...securityRequirementIssues(graph), ...mediaTypeIssues(graph), ...formMediaIssues(graph),...responseStatusIssues(graph)]) {
         if(issue.incomplete)complete=false;
-        diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,undefined,issue.severity??'error');
+        diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,undefined,issue.severity??'error',issue.incomplete);
     }
     const security=securityDesign(input,docs,graph,operations);
     findings.push(...security.findings);
