@@ -5,6 +5,8 @@ from pathlib import Path
 import re
 import shutil
 
+from native_migration_preflight import verify_migration_producer
+
 from test_openapi_application import (
     activate_control, complete_problems, contains, design_values, field_matches,
     keys, mode, text_keys, wait_tree,
@@ -20,7 +22,7 @@ def verify_migration(destination, baseline, file, fragment, version, target):
     assert receipt['owner'] == 'io.busystack.busyapi'
     assert receipt['metadata'] == metadata
     assert metadata['operation'] == 'migration'
-    assert metadata['producer'] == 'busyapi-native-migration' and metadata['producerVersion'] == '12'
+    verify_migration_producer(metadata)
     assert metadata['target']['declaredVersion'] == target
     assert metadata['status'] == 'faithfully-convertible'
     assert metadata['input'] == 'working-copy' and metadata['unsaved'] is True

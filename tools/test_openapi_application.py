@@ -829,6 +829,14 @@ def main():
         migration_result = None
         multipart_results = []
         case_file_result = None
+        if args.migrate_target:
+            from native_migration_preflight import preflight_migration
+            preflight = preflight_migration(
+                ROOT / 'build/linux/x64/release/bundle/busyapi', startup,
+                args.migrate_target, directory / 'migration-preflight', original,
+            )
+            (evidence / (case + '-preflight.json')).write_text(
+                json.dumps(preflight, indent=2, ensure_ascii=False) + '\n')
         binary = ROOT / 'build/linux/x64/release/bundle/busyapi-desktop'
         log = evidence / (case + '.log')
         with log.open('w') as stream:

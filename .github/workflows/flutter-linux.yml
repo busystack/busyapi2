@@ -52,6 +52,8 @@ jobs:
           python3 tools/prepare_flutter_engine.py --home "$RUNNER_TEMP/busyapi-engine/flutter/engine/src/out" --sdk "$FLUTTER_ROOT" --mode release
       - name: Verify application once and build the qualified release
         run: BUSYAPI_WIDGET_RUNNER=both tools/build_linux.sh
+      - name: Verify migration fixtures before desktop input
+        run: python3 -m unittest tools.test_native_migration_preflight
       - name: Verify kernel capabilities, unsupported refusal and restricted execution
         # Unsupported hosts prove refusal then fail explicitly with exit 2.
         run: python3 tools/test_policy_isolation.py --capability-aware
