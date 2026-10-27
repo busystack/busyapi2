@@ -27,6 +27,19 @@ retained as an unknown dialect. It produces incomplete evaluation through the
 normal registry path, rather than a parser exception or default selection.
 An independent schema with its own supported dialect remains evaluable.
 
+Modern default-dialect schemas treat `definitions` as a named schema container
+alongside `$defs`, following JSON Schema Validation 2020-12 Appendix A. Both
+retain their authored names, nested resource identities and independent scopes
+through native editing, reference navigation, reviewed rename and output. Their
+member names follow JSON Schema rules; the Components naming restriction applies
+to the enclosing OpenAPI Components maps. Explicit dialect selection still
+controls evaluation.
+A modern schema reference can independently interpret a schema dictionary or
+another OpenAPI object. BusyAPI retains the physical authoring context and the
+reached schema's own dialect/base. Shared-field transformations requiring separate
+interpretations remain explicitly incomplete; opening and native editing do not
+require migration.
+
 Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
 reference rules.
@@ -61,6 +74,10 @@ incomplete validation. A migration cannot publish output that violates the targe
 family's Server URL rules. Migration reports distinguish invalid source (exit 1),
 incomplete analysis (exit 2), and operational failure (exit 3), retaining source
 findings when planning cannot begin.
+Typed unsupported output failures retain that distinction through the Core and CLI.
+When available, CLI JSON includes the original URI, pointer and range in
+`error.source`. Core preserves coordinates from unsaved desktop buffers; CLI
+coordinates refer to its captured input.
 
 Source type completions retain the containing schema rules: Swagger Schema
 Objects inherit Draft 4 types, including `null`; its non-body Parameter, Header
