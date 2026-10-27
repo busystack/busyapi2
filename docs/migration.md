@@ -43,6 +43,12 @@ separate entry contexts, and BusyAPI coordinates connected entries before
 validating the target graph. Check every affected document in the review. Shared
 resources with incompatible interpretations produce source-located blockers.
 
+Optional `readOnly` and `writeOnly` properties can cross the 3.0/modern schema
+boundary when captured uses preserve their evaluation. Conversions that change
+required-property behavior or introduce Swagger's stronger request exclusion are
+blocked until a faithful mapping is available. The review identifies the source
+annotation; migration does not silently change which payloads are accepted.
+
 A 3.0 request-body declaration that consumers must ignore needs an explicit
 omission decision before conversion to Swagger, 3.1 or 3.2. The reviewed copy
 omits that declaration; original documents stay intact. Active request bodies

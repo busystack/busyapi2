@@ -632,6 +632,12 @@ The `native-reference` preset uses shared Reference projection and
 of derived single-file bundling. Source-linked actions belong to the native
 workspace; standalone HTML retains portable source provenance.
 
+Migration checks access annotations against their captured property uses.
+Proved optional-property conversions retain native request/response evaluation;
+required-direction changes and newly imposed Swagger request exclusion produce
+located blockers. These remaining mappings are implementation work, separate
+from native editing and validation of the original specification family.
+
 Migration from 3.0 to Swagger uses the same explicit ignored-body omission
 decision as upgrades to 3.1/3.2. Removing a use recaptures its surviving graph;
 shared active uses keep their conversion and documentation checks. Target
