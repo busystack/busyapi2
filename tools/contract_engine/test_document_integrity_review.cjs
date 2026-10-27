@@ -65,14 +65,40 @@ for(const version of ['3.1.2','3.2.1']) {
   assert.throws(()=>propose({...input,target:{resource:input.root,pointer:'/components/schemas/Model',generation:1},actions:[{kind:'rename',pointer:'/components/schemas/Model',name:'Renamed'}]}),error=>error.code==='edit.shared');
  });
  for(const json of [false,true]) {
-  test(`an incompatible incoming reference preserves intrinsic schema validation ${version} ${json}`,async()=>{
-   const input=fixture(version,json,{components:{schemas:{S:{type:'http',scheme:'bearer'}},securitySchemes:{Use:{$ref:'#/components/schemas/S'}}}});
+  test(`an incoming security reference retains the independent invalid Schema Object ${version} ${json}`,async()=>{
+   const input=fixture(version,json,{components:{schemas:{S:{type:'http',scheme:'bearer'}},securitySchemes:{Use:{$ref:'#/components/schemas/S'}}}}),original=input.resources[0].text;
    const graph=createGraph(input).graph;
    assert.equal(graph.scope(input.root,'/components/schemas/S').kind,'schema');
-   assert(graph.issues.some(issue=>issue.code==='reference.target.context'));
-   assert(analyse(input).findings.some(f=>f.code.startsWith('schema.')));
-   const checked=await evaluateSchemas(input);
+   assert(!graph.issues.some(issue=>issue.code==='reference.target.context'));
+   assert.equal(graph.scopeAs(input.root,'/components/schemas/S','security').kind,'security');
+   const analysis=analyse(input);
+   assert.equal(analysis.status,'invalid');
+   assert(analysis.findings.some(f=>f.code.startsWith('schema.')&&f.pointer==='/components/schemas/S/type'&&f.severity==='error'&&f.range[1]>f.range[0]));
+   const checked=await evaluateSchemas({...input,runtimeInstances:['null','0','{}'].map(text=>({subject:'response-body',location:'invalid-independent-schema',text,schema:{resource:input.root,pointer:'/components/schemas/S'}}))});
    assert(checked.schemas>0);
+   assert(checked.findings.some(f=>f.code==='schema.keyword.invalid'&&f.pointer==='/components/schemas/S/type'&&f.severity==='error'));
+   assert.equal(checked.runtimeEvaluations.length,3);
+   assert(checked.runtimeEvaluations.every(result=>!result.valid));
+   assert.equal(input.resources[0].text,original);
+  });
+  test(`a response reference retains a valid independent Schema Object ${version} ${json}`,async()=>{
+   const input=fixture(version,json,{components:{schemas:{S:{description:'Both a response and a schema'}},responses:{Use:{$ref:'#/components/schemas/S'}}}}),original=input.resources[0].text,analysis=analyse(input);
+   assert.equal(analysis.status,'complete',JSON.stringify(analysis.findings));
+   const graph=createGraph(input).graph;
+   assert.equal(graph.scope(input.root,'/components/schemas/S').kind,'schema');
+   assert.equal(graph.scopeAs(input.root,'/components/schemas/S','response').kind,'response');
+   const checked=await evaluateSchemas({...input,runtimeInstances:['null','0','{}'].map(text=>({subject:'response-body',location:'valid-independent-schema',text,schema:{resource:input.root,pointer:'/components/schemas/S'}}))});
+   assert.equal(checked.complete,true,JSON.stringify(checked.findings));
+   assert.equal(checked.runtimeEvaluations.length,3);
+   assert(checked.runtimeEvaluations.every(result=>result.complete&&result.valid));
+   assert.equal(input.resources[0].text,original);
+  });
+  test(`incompatible non-schema reference kinds remain source-located errors ${version} ${json}`,()=>{
+   const input=fixture(version,json,{components:{responses:{S:{description:'A response'}},parameters:{Use:{$ref:'#/components/responses/S'}}}}),original=input.resources[0].text,graph=createGraph(input).graph;
+   assert.equal(graph.scope(input.root,'/components/responses/S').kind,'response');
+   assert(graph.issues.some(issue=>issue.code==='reference.target.context'&&issue.pointer==='/components/responses/S'));
+   assert(analyse(input).findings.some(f=>f.code==='reference.target.context'&&f.severity==='error'&&f.range[1]>f.range[0]));
+   assert.equal(input.resources[0].text,original);
   });
   for(const location of ['component','media'])test(`null ${location} schema retains located analysis ${version} ${json}`,async()=>{
    const extra=location==='component'?{components:{schemas:{Model:null,Valid:{type:'string'}}}}:{paths:{'/':{get:{responses:{200:{description:'OK',content:{'application/json':{schema:null}}}}}}}};
