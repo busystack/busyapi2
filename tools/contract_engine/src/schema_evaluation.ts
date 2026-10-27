@@ -1,4 +1,5 @@
-import {DiscriminatorRequirements,discriminatorContextRevision} from './discriminator_semantics';
+import {discriminatorContextRevision} from './discriminator_semantics';
+import {SchemaPropertyRequirements} from './schema_property_requirements';
 import {multipartProjectionRevision} from './schema_reference_projection';
 import {createHash} from 'node:crypto';
 import {addMediaTypePlugin,addUriSchemePlugin} from '@hyperjump/browser';
@@ -318,13 +319,13 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   // OAS 3.2 discriminator metadata never changes JSON Schema validity.
   // Establish optionality using this same compiled canonical schema, rather
   // than treating the absence of a local required keyword as proof.
-  let discriminatorRequirements:DiscriminatorRequirements|undefined;
+  let discriminatorRequirements:SchemaPropertyRequirements|undefined;
   const emptyObject=new SourceDocument('{}','urn:busyapi:discriminator-absence',true);
   for(const scope of all) {
    const doc=docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value;
    if(scope.family!=='3.2'||typeof value?.discriminator?.propertyName!=='string'||value.discriminator.defaultMapping!==undefined)continue;
    const name=value.discriminator.propertyName,pointer=scope.pointer+'/discriminator';
-   const proof=discriminatorRequirements??=new DiscriminatorRequirements(graph);
+   const proof=discriminatorRequirements??=new SchemaPropertyRequirements(graph);
    if(proof.requires(scope,name))continue;
    let optional=false;
    try {

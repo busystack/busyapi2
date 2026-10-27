@@ -20,7 +20,7 @@ for(const version of versions)for(const targetVersion of targets)
 test(`migration preserves untouched YAML ownership ${version} → ${targetVersion}`,async()=>{
  const input={...capture(version),targetVersion},before=input.resources.map(value=>value.text);
  const result=await planMigration(input);
- assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.producerVersion,'21');
+ assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.producerVersion,'22');
  assert.equal(result.status,'faithfully-convertible');assert.deepEqual(input.resources.map(value=>value.text),before);
  const output=result.outputs.find(value=>value.id===result.outputRoot);
  assert(output.text.startsWith('# Keep organization\r\n'));

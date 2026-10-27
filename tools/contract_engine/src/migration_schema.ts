@@ -5,6 +5,8 @@ import {escape} from './document';
 import {compare,decimal} from './exact_numbers';
 import {createHash} from 'node:crypto';
 import {MigrationSchemaReferences} from './migration_schema_references';
+import {SchemaPropertyRequirements} from './schema_property_requirements';
+import {migrateDependentRequired} from './migration_schema_dependencies';
 
 export type MigrationProblem={resource:string;pointer:string;range:number[];code:string;message:string;reason:'target-representation'|'implementation'|'source-incomplete'|'decision';choices?:string[];id?:string};
 export type MigrationIssue=(scope:MigrationLocation&{original?:MigrationLocation},code:string,message:string,reason:MigrationProblem['reason'],choices?:string[])=>boolean;
@@ -12,7 +14,7 @@ export type MigrationIssue=(scope:MigrationLocation&{original?:MigrationLocation
 /** Normative schema mappings. No schema is evaluated under another family's
  * dialect to make a migration pass. These edits affect planning copies only. */
 export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,MigrationSource>,from:string,to:string,issue:MigrationIssue):void {
-    const references=new MigrationSchemaReferences(graph);
+    const references=new MigrationSchemaReferences(graph),requirements=new SchemaPropertyRequirements(graph);
     const scopes=[...graph.scopes.values()].filter(scope=>scope.kind==='schema'&&scope.family===from).sort((a,b)=>b.pointer.length-a.pointer.length);
     for(const scope of scopes){
         const source=sources.get(scope.resource)!,pointer=source.current(scope.pointer);if(pointer===undefined)continue;
@@ -55,8 +57,11 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
                 source.remove(pointer+'/$defs');
             }
         }
-        if(modernFamily(from)&&!modernFamily(to))references.lower(scope,source,pointer,issue);
-        if(!modernFamily(to))for(const name of ['$dynamicAnchor','patternProperties','dependentSchemas','dependentRequired','if','then','else','contains','minContains','maxContains','unevaluatedItems','unevaluatedProperties','propertyNames','contentSchema','contentEncoding','contentMediaType'])
+        if(modernFamily(from)&&!modernFamily(to)){
+            references.lower(scope,source,pointer,issue);
+            migrateDependentRequired(graph,scope,source,pointer,to,requirements,issue);
+        }
+        if(!modernFamily(to))for(const name of ['$dynamicAnchor','patternProperties','dependentSchemas','if','then','else','contains','minContains','maxContains','unevaluatedItems','unevaluatedProperties','propertyNames','contentSchema','contentEncoding','contentMediaType'])
             if(Object.hasOwn(value,name))issue(field(name),'migration.schema.keyword','This schema keyword or resource identity has no implemented faithful mapping to '+to,'implementation');
         if(!modernFamily(to)&&Array.isArray(value.prefixItems)){
             if(to==='2.0'){

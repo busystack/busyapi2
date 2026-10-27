@@ -69,9 +69,10 @@ export class MigrationSource {
         this.located(pointer,()=>this.update(this.doc.set(pointer,value)));
     }
     exact(pointer:string,text:string):void{this.set(pointer,new RawJsonValue(text));}
-    remove(pointer:string,retire=true,preserveComments=true):void {
+    remove(pointer:string,retire=true,preserveComments=true,preserveNestedComments=false):void {
         if(!this.doc.nodes.has(pointer))return;
         const authored=this.doc.node(pointer),keyAt=authored.keyRange?.[0];
+        const nested=preserveNestedComments&&this.doc.format==='yaml'?this.doc.comments(pointer,true).map(range=>this.doc.text.slice(...range)):[];
         let comment:string|undefined,commentAt:number|undefined;
         if(preserveComments&&this.doc.format==='yaml'&&keyAt!==undefined){
             const start=this.doc.lineStart(keyAt),prefix=this.doc.text.slice(start,keyAt);
@@ -79,8 +80,17 @@ export class MigrationSource {
             if(/^ *$/.test(prefix)){
                 const keyComment=/^:[ \t]*(#[^\r\n]*)/.exec(line(authored.keyRange![1]));
                 const valueComment=/^[ \t]*(#[^\r\n]*)/.exec(line(authored.range[1]));
-                const comments=[...new Set([keyComment?.[1],valueComment?.[1]].filter((value):value is string=>value!==undefined))];
+                const comments=preserveNestedComments?nested:[...new Set([keyComment?.[1],valueComment?.[1]].filter((value):value is string=>value!==undefined))];
                 if(comments.length){comment=comments.map(value=>prefix+value+this.doc.newline).join('');commentAt=start;}
+            }else if(nested.length){
+                // A flow member cannot own standalone comments after removal.
+                // Retain them before its nearest enclosing block entry instead.
+                let parent=pointer;
+                while(true){
+                    parent=parent.slice(0,parent.lastIndexOf('/'));
+                    const owner=this.doc.node(parent),at=owner.keyRange?.[0]??owner.range[0],lineStart=this.doc.lineStart(at),space=this.doc.text.slice(lineStart,at);
+                    if(/^ *$/.test(space)||!parent){comment=nested.map(value=>space+value+this.doc.newline).join('');commentAt=lineStart;break;}
+                }
             }
         }
         const parts=segments(pointer),name=parts.pop()!,parent=parts.length?'/'+parts.map(escape).join('/'):'',array=this.doc.node(parent).kind==='array';

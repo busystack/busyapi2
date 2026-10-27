@@ -54,6 +54,14 @@ required-property behavior or introduce Swagger's stronger request exclusion are
 blocked until a faithful mapping is available. The review identifies the source
 annotation; migration does not silently change which payloads are accepted.
 
+Modern `dependentRequired` property dependencies can migrate to OpenAPI 3.0
+using equivalent presence conditions. False, zero and null still count as present.
+Swagger 2.0 conversion supports redundant dependencies and dependencies whose
+trigger is proved required through captured references, composition or other
+dependencies; other conditional dependencies produce a located blocker. A dependency map also referenced independently as a schema requires a
+separate representation and blocks conversion. Original arrays and comments are
+retained where the mapping permits; restructuring appears in the review.
+
 A modern `$dynamicRef` that resolves to a pointer or ordinary anchor can be
 converted to a static reference in Swagger 2.0 or OpenAPI 3.0. Its assertions
 and sibling constraints remain in separate `allOf` branches, and the review
