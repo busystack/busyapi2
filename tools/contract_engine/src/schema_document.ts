@@ -2,7 +2,7 @@
 // Literal annotations/extensions stay literal. Only the canonical graph's
 // schema positions undergo schema preprocessing; nothing changes source files.
 import {buildSchemaDocument} from '@hyperjump/json-schema/experimental';
-import {knownDialects,supportedSchemaDialect,resolveUri,schemaAddress} from './reference_graph';
+import {schemaDialectIdentity,supportedSchemaDialect,resolveUri,schemaAddress} from './reference_graph';
 import {isReferenceObject} from './contexts';
 import {schemaEvaluationScopes} from './swagger_schema';
 
@@ -70,6 +70,9 @@ export function typedSchemaDocument(value: any, id: string, graph: any, dialect:
       // Without an $id this is not an embedded Hyperjump Document, whose
       // compiler must not receive the non-executable $schema declaration.
       if(name==='$schema'&&schemaPointers.has(pointer)&&!Object.hasOwn(value,'$id'))continue;
+      if(name==='$schema'&&schemaPointers.has(pointer)&&typeof child==='string'){
+        Object.defineProperty(output,name,{value:schemaDialectIdentity(child),enumerable:true,writable:true,configurable:true});continue;
+      }
       const literalContainer=child!==null&&typeof child==='object'&&!ancestors.has(at);
       // In a property/definition map, a key such as "$ref" can name a real
       // child schema. It is not the containing object's reference keyword.
@@ -88,7 +91,7 @@ export function typedSchemaDocument(value: any, id: string, graph: any, dialect:
   const prepared=prepare(value,'');
   const host=graph.scope(id,'');
   const hostDialect=!supportedSchemaDialect({...host,dialect})&&host.kind==='root'?`https://spec.openapis.org/oas/${host.family}/dialect/base`:dialect;
-  const document=buildSchemaDocument(prepared,host.base,hostDialect);
+  const document=buildSchemaDocument(prepared,host.base,schemaDialectIdentity(hostDialect));
   for(const resource of Object.values(document.embedded) as any[]){
     const original=resource.anchorLocation;
     // RFC 6901 section 6 decodes the complete URI fragment before pointer

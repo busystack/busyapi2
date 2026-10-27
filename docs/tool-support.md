@@ -15,6 +15,9 @@ interpretation. The source and target remain available for editing. Modern
 cross-document references retain their owning dialects and feature sets.
 Unversioned fragments use the captured referring context and can be shared among
 different roots without retaining the previous root's schema rules.
+Supported modern dialect URIs with an empty trailing `#` identify the same
+schema resource as their fragment-free URI. BusyAPI retains the declared spelling
+and source; unknown dialects and nonempty fragments remain incomplete.
 Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
 reference rules.

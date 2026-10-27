@@ -13,6 +13,9 @@ export const knownDialects = new Set([
     'https://spec.openapis.org/oas/3.2/dialect/2025-09-17',
     'https://spec.openapis.org/oas/3.2/dialect/2026-02-26',
 ]);
+/** JSON Schema Core 8.2.1: an empty fragment identifies the same schema
+ * resource. Preserve the declared spelling separately from its lookup key. */
+export const schemaDialectIdentity = (uri:string):string => uri.endsWith('#')?uri.slice(0,-1):uri;
 
 export type GraphTarget = { resource: string; pointer: string; kind: string };
 export type GraphScope = GraphTarget & {
@@ -21,7 +24,7 @@ export type GraphScope = GraphTarget & {
 /** Restricted OpenAPI evaluation is an owning-family capability, not a
  * general-purpose additional JSON Schema dialect promised in modern roots. */
 export const supportedSchemaDialect = (scope: Pick<GraphScope, 'family' | 'dialect'>): boolean =>
-    scope.family === '2.0' ? scope.dialect === swaggerSchemaDialect : scope.family === '3.0' ? scope.dialect === restrictedSchemaDialect : modernFamily(scope.family) && knownDialects.has(scope.dialect) && ![restrictedSchemaDialect,swaggerSchemaDialect].includes(scope.dialect);
+    scope.family === '2.0' ? scope.dialect === swaggerSchemaDialect : scope.family === '3.0' ? scope.dialect === restrictedSchemaDialect : modernFamily(scope.family) && typeof scope.dialect==='string' && knownDialects.has(schemaDialectIdentity(scope.dialect)) && ![restrictedSchemaDialect,swaggerSchemaDialect].includes(schemaDialectIdentity(scope.dialect));
 export type GraphIssue = GraphTarget & { code: string; message: string; incomplete?: boolean; severity?: 'warning'|'error' };
 export type PathItemView = {source:GraphTarget;chain:readonly GraphTarget[];fields:ReadonlyMap<string,GraphTarget>;complete:boolean;chainComplete:boolean;conflicts:readonly string[];cyclic:boolean};
 export type OperationOccurrence = {source:GraphTarget;pathItem:GraphTarget;path:string;method:string;role:string;occurrence:string;shared:boolean;customMethod?:boolean};

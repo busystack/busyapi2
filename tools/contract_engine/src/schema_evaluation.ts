@@ -12,7 +12,7 @@ import vocabulary32 from '../schemas/oas32-vocabulary.json';
 import previousDialect32 from '../schemas/oas32-dialect-2025-09-17.json';
 import previousVocabulary32 from '../schemas/oas32-vocabulary-2025-09-17.json';
 import {createGraph} from './engine';
-import {knownDialects,supportedSchemaDialect,GraphScope,schemaAddress} from './reference_graph';
+import {knownDialects,supportedSchemaDialect,GraphScope,schemaAddress,schemaDialectIdentity} from './reference_graph';
 import {SourceDocument,SourceError,escape} from './document';
 import {createExactNumericAdapter} from './exact_numbers';
 import {evaluateRuntimeInstances} from './runtime_evaluation';
@@ -26,11 +26,11 @@ import {swaggerFileContexts} from './swagger_file';
 import {evaluateSerializedExamples} from './serialized_examples';
 import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+32',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+33',configuration:[
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',
- 'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1','parameter-example-serialization-v1','literal-media-examples-v1',
+ 'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1','parameter-example-serialization-v1','literal-media-examples-v1','dialect-resource-identity-v1',
  'reference-family-v1','reference-position-v1','schema-context-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','serialized-media-examples-v1','multipart-header-values-v1','multipart-file-shapes-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1','response-content-presence-v1',
 ].join(':')};
 let configured=false,running=false;
@@ -65,14 +65,16 @@ const within=(pointer:string,parent:string)=>pointer===parent||pointer.startsWit
 export async function standardResource(input:any) {
  standards();
  if(input.list===true)return {version:1,identities:[...standardIds].sort()};
- if(typeof input.uri!=='string'||!standardIds.has(input.uri))return {version:1,found:false};
- let source=standardSources.get(input.uri);
+ if(typeof input.uri!=='string')return {version:1,found:false};
+ const uri=schemaDialectIdentity(input.uri);
+ if(!standardIds.has(uri))return {version:1,found:false};
+ let source=standardSources.get(uri);
  if(!source) {
-  const schema=await getSchema(input.uri),id=schema.document.baseUri;
+  const schema=await getSchema(uri),id=schema.document.baseUri;
   const text=JSON.stringify(toSchema(schema,{includeDialect:'always',contextUri:id}));
   source={id,text,identity:createHash('sha256').update(text).digest('hex'),generation:0,hasBom:false,bundled:true,
-   aliases:input.uri===id?[]:[input.uri],producer:'@hyperjump/json-schema',producerVersion:'1.18.0'};
-  standardSources.set(input.uri,source);
+   aliases:uri===id?[]:[uri],producer:'@hyperjump/json-schema',producerVersion:'1.18.0'};
+  standardSources.set(uri,source);
  }
  return {version:1,found:true,source};
 }
