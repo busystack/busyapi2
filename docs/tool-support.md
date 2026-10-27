@@ -632,6 +632,11 @@ The `native-reference` preset uses shared Reference projection and
 of derived single-file bundling. Source-linked actions belong to the native
 workspace; standalone HTML retains portable source provenance.
 
+Migration uses each captured entry's declared family for its conversion route.
+Native and CLI reviews expose those source/target versions. Connected modern
+entries are converted together for a direct Swagger downgrade; incompatible
+shared contexts remain blocked rather than choosing an arbitrary interpretation.
+
 Migration checks original description contexts across structural conversion and
 file relocation. It preserves unchanged text when every inspected destination
 remains equal under the captured canonical context. Changed destinations and

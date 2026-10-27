@@ -36,11 +36,12 @@ Missing dependencies, unsupported mappings and unresolved decisions produce
 located findings and no publishable output. Target validation and request
 invariants supplement the structural mappings.
 
-When referenced resources are themselves complete OpenAPI descriptions in the
-same family, the review includes their conversion to the selected target.
-Their own operations, servers, media and shared definitions retain separate
-entry contexts. Check every affected document in the review. Different-family
-routes and incompatible shared contexts can still require additional mappings.
+Captured resources can themselves be complete OpenAPI descriptions, including
+entries from different supported families. The review lists each entry's original
+and target version. Their operations, servers, media and shared definitions keep
+separate entry contexts, and BusyAPI coordinates connected entries before
+validating the target graph. Check every affected document in the review. Shared
+resources with incompatible interpretations produce source-located blockers.
 
 Descriptions keep their original text when the captured link and image
 destinations remain unchanged across conversion and relocation. This includes
