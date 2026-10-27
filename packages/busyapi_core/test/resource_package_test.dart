@@ -163,7 +163,7 @@ void main() {
               },
               'examples': {
                 'Data': {
-                  'externalValue': 'payload data',
+                  'externalValue': 'payload%20data',
                   'x-preserved': {r'$ref': 'not a dependency', 'exact': 111},
                 },
               },
@@ -206,6 +206,31 @@ void main() {
             buffer.id,
             buffer.text.replaceFirst('Original model', 'Unsaved model'),
           );
+          stage('invalid-uri-control');
+          final validWorkingText = buffer.text;
+          project.store.replace(
+            buffer.id,
+            validWorkingText.replaceFirst('payload%20data', 'payload data'),
+          );
+          final invalidUri = await project.check(root.uri.toString());
+          expect(invalidUri['complete'], isTrue);
+          expect(invalidUri['status'], 'invalid');
+          final uriFinding = (invalidUri['findings'] as List).singleWhere(
+            (finding) => finding['code'] == 'metadata.uri',
+          );
+          expect(uriFinding['resource'], buffer.id);
+          expect(
+            uriFinding['pointer'],
+            '/components/examples/Data/externalValue',
+          );
+          final uriRange = (uriFinding['range'] as List).cast<int>();
+          expect(
+            buffer.text.substring(uriRange[0], uriRange[1]),
+            contains('payload data'),
+          );
+          project.store.undo();
+          expect(buffer.text, validWorkingText);
+          expect(await models.readAsBytes(), originals[models.path]);
           stage('original-check');
           final original = await project.check(root.uri.toString());
           expect(original['complete'], true, reason: jsonEncode(original));
