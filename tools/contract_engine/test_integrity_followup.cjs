@@ -15,7 +15,7 @@ const fixture=(version,json,extra)=>{
 };
 const parent=()=>({type:'object',required:['kind'],properties:{kind:{type:'string'}},discriminator:{propertyName:'kind'}});
 
-for(const version of ['3.1.2','3.2.1']) {
+for(const version of ['3.1.0','3.1.1','3.1.2','3.2.0','3.2.1']) {
  for(const kind of ['schemas','responses'])for(const anchor of ['key','value'])
   test(`inline guards anchored reference ${anchor} descendants ${version} ${kind}`,()=>{
    const root='file:///project/root.yaml',pointer='/components/'+kind+'/Use';
@@ -75,12 +75,27 @@ for(const version of ['3.1.2','3.2.1']) {
    const input=fixture(version,json,{components:{schemas:{First:parent(),Second:parent(),Child:{allOf:[{$ref:'#/components/schemas/First',$dynamicRef:'#/components/schemas/Second'}]}}}});
    assert(!analyse(input).findings.some(f=>f.code==='discriminator.composition'));
   });
-  test(`genuinely dynamic targets do not establish a static parent relationship ${version} ${json}`,()=>{
+  test(`genuinely dynamic parents stay incomplete while known absent parents remain invalid ${version} ${json}`,async()=>{
    const model={...parent(),$dynamicAnchor:'parent'};
-   const input=fixture(version,json,{components:{schemas:{Parent:model,Override:{$id:'urn:override',$dynamicAnchor:'parent',type:'object'},Child:{allOf:[{$dynamicRef:'#parent'}]}}}});
+   const input=fixture(version,json,{components:{schemas:{Parent:model,Override:{$id:'urn:override',$dynamicAnchor:'parent',type:'object'},Child:{allOf:[{$dynamicRef:'#parent'}]}}}}),original=input.resources[0].text;
    const edge=createGraph(input).graph.references.find(ref=>ref.keyword==='$dynamicRef');
    assert(edge.dynamic);assert.equal(edge.dynamic.candidates.length,2);
-   assert(analyse(input).findings.some(f=>f.code==='discriminator.composition'&&f.pointer==='/components/schemas/Parent/discriminator'));
+   assert.deepEqual(edge.dynamic.candidates.map(target=>target.pointer).sort(),['/components/schemas/Override','/components/schemas/Parent']);
+   const structural=analyse(input),evaluated=await evaluateSchemas({...input,runtimeInstances:['{"kind":"Parent"}','{}'].map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:input.root,pointer:'/components/schemas/Parent'}}))});
+   assert.equal(structural.status,'incomplete');assert.equal(structural.complete,false);assert.equal(evaluated.complete,false);
+   for(const result of [structural,evaluated]){
+    const findings=result.findings.filter(f=>f.code==='discriminator.composition.incomplete');assert.equal(findings.length,1,JSON.stringify(result.findings));
+    assert.equal(findings[0].severity,'warning');assert.equal(findings[0].resource,input.root);assert.equal(findings[0].pointer,'/components/schemas/Parent/discriminator');
+    assert.deepEqual(findings[0].range,new SourceDocument(original,input.root).node('/components/schemas/Parent/discriminator').range);
+    assert(!result.findings.some(f=>f.code==='discriminator.composition'||f.severity==='error'),JSON.stringify(result.findings));
+   }
+   assert.deepEqual(evaluated.runtimeEvaluations.map(result=>result.valid),[true,false]);
+   const missing={...input,snapshot:'known-absent-child',resources:[{...input.resources[0],generation:2,text:new SourceDocument(original,input.root).remove('/components/schemas/Child')}]};
+   const absentStructure=analyse(missing),absentSchema=await evaluateSchemas(missing);assert.equal(absentStructure.status,'invalid');assert.equal(absentStructure.complete,true);assert.equal(absentSchema.complete,true);
+   for(const result of [absentStructure,absentSchema]){
+    const findings=result.findings.filter(f=>f.code==='discriminator.composition');assert.equal(findings.length,1,JSON.stringify(result.findings));assert.equal(findings[0].severity,'error');assert.equal(findings[0].resource,input.root);assert.equal(findings[0].pointer,'/components/schemas/Parent/discriminator');assert(!result.findings.some(f=>f.code==='discriminator.composition.incomplete'));
+   }
+   assert.equal(input.resources[0].text,original);
   });
  }
 }
