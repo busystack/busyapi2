@@ -11,6 +11,11 @@ decisions, then prepare a fresh review. **Create migrated copy** becomes availab
 when the captured graph has a complete conversion. Closing the review leaves
 the destination unchanged. Changing an input requires a new review.
 
+If source validation fails or cannot complete, the review shows the captured
+findings with links to their Source locations. Changing a captured input retires
+those links; repair the source and prepare a fresh review. No migrated copy is
+created while required source analysis remains invalid or incomplete.
+
 The desktop review includes current unsaved buffers. The independent CLI reads
 saved files. First request a review:
 

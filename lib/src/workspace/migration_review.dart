@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:busyapi_core/busyapi_core.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,8 @@ import '../comparison/review_comparison.dart';
 import 'output_destination.dart';
 import 'workspace_controller.dart';
 import 'project_search.dart' show BusyApiReviewPages;
+
+part 'migration_capture_failure.dart';
 
 Future<void> showMigrationReview(
   BuildContext context,
@@ -57,6 +60,7 @@ class _MigrationReviewState extends State<_MigrationReview> {
   String target = '3.2.1';
   String? destination, failure, request;
   MigrationOutput? output;
+  _CaptureFailure? captureFailure;
   final decisions = <String, String>{};
   bool busy = false, publishing = false, published = false, cancelled = false;
   int epoch = 0, resourceIndex = 0, problemPage = 0;
@@ -109,6 +113,7 @@ class _MigrationReviewState extends State<_MigrationReview> {
     resourceIndex = 0;
     problemPage = 0;
     failure = null;
+    captureFailure = null;
   }
 
   Future<void> chooseDestination() async {
@@ -163,7 +168,12 @@ class _MigrationReviewState extends State<_MigrationReview> {
       setState(() => output = result);
     } on CoreFailure catch (error) {
       if (current && captured == epoch) {
-        setState(() => failure = '${error.code}: ${error.message}');
+        setState(() {
+          failure = '${error.code}: ${error.message}';
+          captureFailure = error is OutputAnalysisFailure
+              ? _CaptureFailure(error.analysis, widget.root)
+              : null;
+        });
       }
     } finally {
       if (mounted && captured == epoch) setState(() => busy = false);
@@ -217,11 +227,74 @@ class _MigrationReviewState extends State<_MigrationReview> {
     }
   }
 
+  Future<void> revealCaptureFinding(
+    _CaptureFailure capturedFailure,
+    _CaptureFinding finding,
+  ) async {
+    if (!current ||
+        busy ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        !identical(captureFailure, capturedFailure) ||
+        !capturedFailure.current(widget.owner.store)) {
+      return;
+    }
+    final captured = ++epoch;
+    setState(() {
+      busy = true;
+      cancelled = false;
+      request = null;
+    });
+    String? readFailure;
+    try {
+      // Captures also contain unopened files. Core owns their acquisition;
+      // navigation requires their actual bytes, not an assumed buffer state.
+      final buffer = await widget.owner.buffer(finding.resource);
+      if (!mounted) return;
+      if (!current ||
+          cancelled ||
+          captured != epoch ||
+          ModalRoute.of(context)?.isCurrent != true ||
+          !identical(captureFailure, capturedFailure)) {
+        return;
+      }
+      if (!capturedFailure.current(widget.owner.store)) return;
+      if (finding.range.end > buffer.text.length) {
+        readFailure = context.l10n.outputOutdated;
+        return;
+      }
+      Navigator.pop(context, <String, dynamic>{
+        'root': widget.root,
+        'resource': finding.resource,
+        'pointer': finding.pointer,
+        'generation': buffer.generation,
+        'identity': buffer.sourceIdentity,
+        'range': [finding.range.start, finding.range.end],
+        'data': false,
+      });
+    } on CoreFailure catch (error) {
+      readFailure = '${error.code}: ${error.message}';
+    } on FileSystemException catch (error) {
+      readFailure = 'source.read: ${error.message}';
+    } on FormatException catch (error) {
+      readFailure = 'source.encoding: ${error.message}';
+    } finally {
+      if (mounted && captured == epoch) {
+        setState(() {
+          busy = false;
+          if (readFailure != null) failure = readFailure;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n,
         review = output,
         changes = review?.changes ?? const <MigrationChange>[];
+    final capturedFailure = captureFailure;
+    final failureCurrent =
+        current && capturedFailure?.current(widget.owner.store) == true;
     return BusyApiDialogShell(
       title: l.migrateContract,
       actions: [
@@ -274,6 +347,17 @@ class _MigrationReviewState extends State<_MigrationReview> {
         if (busy) const LinearProgressIndicator(),
         if (failure != null)
           BusyApiStatusBox(message: failure!, kind: BusyApiStatusKind.error),
+        if (capturedFailure != null && capturedFailure.findings.isNotEmpty)
+          ..._captureFailureRows(
+            context,
+            capturedFailure,
+            current: failureCurrent,
+            busy: busy,
+            page: problemPage,
+            onPageChanged: (page) => setState(() => problemPage = page),
+            onReveal: (finding) =>
+                unawaited(revealCaptureFinding(capturedFailure, finding)),
+          ),
         if (published)
           BusyApiStatusBox(
             message: l.migrationPublished,
