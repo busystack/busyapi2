@@ -15,9 +15,12 @@ import 'package:flutter_test/flutter_test.dart';
 import '../packages/busyapi_core/test/test_support.dart';
 
 void main() {
-  for (final format in ['yaml', 'json']) {
+  for (final (version, format) in [
+    for (final version in ['2.0', '3.0.4'])
+      for (final format in ['yaml', 'json']) (version, format),
+  ]) {
     testWidgets(
-      '$format native Swagger Terms URI decision reviews unsaved intent',
+      '$version $format native Terms URI review preserves unsaved intent',
       (tester) async {
         tester.view.physicalSize = const Size(1400, 1200);
         tester.view.devicePixelRatio = 1;
@@ -43,8 +46,11 @@ void main() {
             file = File('${temp.path}/api.$format');
         final original =
             '${format == 'yaml' ? '# Keep terms\r\n' : ''}${jsonEncode({
-              'swagger': '2.0',
-              'info': {'title': 'Original', 'version': '1', 'termsOfService': 'https://terms.example.invalid/policy'},
+              version == '2.0' ? 'swagger' : 'openapi': version,
+              if (version != '2.0') 'servers': [
+                  {'url': 'https://api.example.invalid/v1/'},
+                ],
+              'info': {'title': 'Original', 'version': '1', 'termsOfService': version == '2.0' ? 'https://terms.example.invalid/policy' : 'terms'},
               'paths': {},
             })}';
         file.writeAsStringSync(original);
@@ -113,36 +119,41 @@ void main() {
           );
           await ready(() => output.evaluate().isNotEmpty);
           await tester.runAsync(() => tester.tap(output));
-          final choice = find.byWidgetPredicate(
-            (widget) =>
-                widget is BusyApiComboRow<String> &&
-                widget.title == 'migration.info.terms-uri-activation',
-          );
-          await ready(() => choice.evaluate().isNotEmpty);
           final publish = find.widgetWithText(
             BusyApiDialogButton,
             'Create migrated copy',
           );
-          expect(tester.widget<BusyApiDialogButton>(publish).onPressed, isNull);
-          expect(
-            Directory('${temp.path}/busyapi-migrated').existsSync(),
-            false,
-          );
-          const label = 'Use this Terms of Service text as a URI in the copy';
-          messenger.setMockMethodCallHandler(menu, (call) async {
-            final entries = (call.arguments as Map)['entries'] as List;
-            final index = entries.indexWhere(
-              (entry) => entry['label'] == label,
+          if (version == '2.0') {
+            final choice = find.byWidgetPredicate(
+              (widget) =>
+                  widget is BusyApiComboRow<String> &&
+                  widget.title == 'migration.info.terms-uri-activation',
             );
-            expect(index, greaterThanOrEqualTo(0));
-            return index;
-          });
-          addTearDown(() => messenger.setMockMethodCallHandler(menu, null));
-          await tester.ensureVisible(choice);
-          await tester.tap(choice);
-          await tester.pumpAndSettle();
-          expect(find.text(label), findsOneWidget);
-          await tester.runAsync(() => tester.tap(review));
+            await ready(() => choice.evaluate().isNotEmpty);
+            expect(
+              tester.widget<BusyApiDialogButton>(publish).onPressed,
+              isNull,
+            );
+            expect(
+              Directory('${temp.path}/busyapi-migrated').existsSync(),
+              false,
+            );
+            const label = 'Use this Terms of Service text as a URI in the copy';
+            messenger.setMockMethodCallHandler(menu, (call) async {
+              final entries = (call.arguments as Map)['entries'] as List;
+              final index = entries.indexWhere(
+                (entry) => entry['label'] == label,
+              );
+              expect(index, greaterThanOrEqualTo(0));
+              return index;
+            });
+            addTearDown(() => messenger.setMockMethodCallHandler(menu, null));
+            await tester.ensureVisible(choice);
+            await tester.tap(choice);
+            await tester.pumpAndSettle();
+            expect(find.text(label), findsOneWidget);
+            await tester.runAsync(() => tester.tap(review));
+          }
           await ready(
             () => find.byType(BusyApiReviewComparison).evaluate().isNotEmpty,
           );
@@ -152,7 +163,11 @@ void main() {
           expect(comparison.before, contains('Unsaved terms'));
           expect(
             comparison.after,
-            contains('https://terms.example.invalid/policy'),
+            contains(
+              version == '2.0'
+                  ? 'https://terms.example.invalid/policy'
+                  : 'https://api.example.invalid/v1/terms',
+            ),
           );
           expect(comparison.after, contains('3.2.1'));
           expect(

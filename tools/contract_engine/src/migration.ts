@@ -20,9 +20,10 @@ import {checkSecurityRequirementTarget} from './migration_security';
 import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
 import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 import {MigrationAccess} from './migration_access';
+import {migrateTerms} from './migration_terms';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='13';
+const migrationProducerVersion='14';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -96,6 +97,9 @@ export async function planMigration(input:MigrationInput) {
         let graph=active.graph;
         const sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
         try {
+            const terms=new Map<string,string>();
+            for(const context of contexts)migrateTerms(context.graph,sources,stage.sources,terms,issue);
+            if(problems.length)break;
             const priorOmissions=ignoredBodyOmissions.length;
             for(const before of stage.sources)for(const context of contexts)ignoredBodyOmissions.push(...migrateOperationBodies(context.graph,sources,before,after,scope=>initial.graph.scope(scope.resource,scope.pointer).family,issue));
             // An omitted use can detach a fragment. Only surviving graph

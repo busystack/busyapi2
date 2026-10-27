@@ -20,7 +20,7 @@ export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migration
         const location={...scope,pointer:scope.pointer+'/termsOfService'},validity=documentUriValidity(value);
         if(validity!=='valid')issue(location,'migration.info.terms-uri',validity==='unsupported'
             ?'The Terms of Service text uses URI syntax that cannot be evaluated; migration cannot establish a target URL'
-            :'Swagger Terms of Service text is not a URI reference; provide an intentional target URL before migration','target-representation');
+            :'Swagger Terms of Service text is not a URI reference; provide an intentional target URL before migration',validity==='unsupported'?'implementation':'target-representation');
         else issue(location,'migration.info.terms-uri-activation','Swagger Terms of Service is text; confirm that this exact value is intended to become a URL','decision',['interpret-terms-as-uri']);
     }
     // Reserve authored schema names before adding shared media schema owners.

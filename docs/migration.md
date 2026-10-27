@@ -54,6 +54,12 @@ Prose that cannot form a URI produces a located blocker. A URI-shaped value
 requires the explicit `interpret-terms-as-uri` decision before it becomes a link.
 Normal Swagger editing, bundling and relocation preserve the original text.
 
+OpenAPI 3.0 resolves relative Terms of Service URLs against its Servers.
+Migration captures that destination before switching to another family's URI
+rules. Different Server destinations cannot be silently collapsed to one.
+Unrestricted variable proofs or work limits report a precise limitation; no
+partially qualified copy is published.
+
 A 3.0 request-body declaration that consumers must ignore needs an explicit
 omission decision before conversion to Swagger, 3.1 or 3.2. The reviewed copy
 omits that declaration; original documents stay intact. Active request bodies

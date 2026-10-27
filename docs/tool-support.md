@@ -32,6 +32,12 @@ serialized-example URI fields receive source-located syntax diagnostics; values
 inside example and extension payloads remain data. Relative URI references are
 accepted. An unsupported URI host form reports incomplete evaluation.
 
+OpenAPI 3.0 Terms of Service URLs use the declared Server base. Bundling and file
+moves retain their relative spelling with the preserved Servers. When migrating
+to modern document-relative URI semantics, BusyAPI proves a destination across
+captured Server choices; different destinations block conversion. Unrestricted
+variable proofs remain an explicit migration limitation.
+
 Source type completions retain the containing schema rules: Swagger Schema
 Objects inherit Draft 4 types, including `null`; its non-body Parameter, Header
 and Items Objects have narrower choices. OpenAPI 3.0 uses its restricted type
