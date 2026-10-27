@@ -42,9 +42,12 @@ void main() {
     );
   });
   for (final version in ['3.1.2', '3.2.1']) {
-    for (final format in ['yaml', 'json']) {
+    for (final (format, unsupported) in [
+      for (final format in ['yaml', 'json'])
+        for (final unsupported in [false, true]) (format, unsupported),
+    ]) {
       testWidgets(
-        '$version $format Source correction of malformed dialect restores native schema editing',
+        '$version $format Source correction of ${unsupported ? 'unsupported host' : 'malformed'} dialect restores native schema editing',
         (tester) async {
           tester.view.physicalSize = const Size(1280, 1100);
           tester.view.devicePixelRatio = 1;
@@ -75,10 +78,13 @@ void main() {
                 },
                 'x-kept': {r'$schema': 'https://example.invalid/literal#', 'n': 'EXACT'},
               }).replaceAll('"EXACT"', '9007199254740993.000')}\r\n';
-          final broken = original.replaceFirst(
-            '"jsonSchemaDialect":"$uri"',
-            '"jsonSchemaDialect":false',
-          );
+          const futureDialect = 'https://[v1.future]/dialect';
+          final broken = unsupported
+              ? original.replaceAll(jsonEncode(uri), jsonEncode(futureDialect))
+              : original.replaceFirst(
+                  '"jsonSchemaDialect":"$uri"',
+                  '"jsonSchemaDialect":false',
+                );
           expect(broken, isNot(original));
           file.writeAsStringSync(broken);
           final c = WorkspaceController(
@@ -114,7 +120,10 @@ void main() {
               await c.analyse();
               expect(c.analysis?['complete'], false);
               expect(c.specification!.declaredVersion, version);
-              expect(c.specification!.schemaDialect, isNull);
+              expect(
+                c.specification!.schemaDialect,
+                unsupported ? futureDialect : isNull,
+              );
               expect(c.buffer!.text, broken);
               final staleSnapshot = c.analysis!['snapshot'];
               c.sourceEdit(c.root!, original);

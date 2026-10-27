@@ -6,14 +6,18 @@ import 'package:test/test.dart';
 
 import 'test_support.dart';
 
+const _futureDialect = 'https://[v1.future]/dialect';
 const _dialect = 'https://json-schema.org/draft/2020-12/schema#';
 const _body = '{"n":9007199254740993.000,"flag":false,"text":"雪"}';
 
 void main() {
   for (final version in ['3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1']) {
-    for (final format in ['yaml', 'json']) {
+    for (final (format, unsupported) in [
+      for (final format in ['yaml', 'json'])
+        for (final unsupported in [false, true]) (format, unsupported),
+    ]) {
       test(
-        '$version $format malformed dialect remains correctable without fallback',
+        '$version $format ${unsupported ? 'unsupported host' : 'malformed'} dialect remains correctable without fallback',
         () async {
           final temp = await Directory.systemTemp.createTemp(
             'busyapi-malformed-dialect-',
@@ -123,11 +127,11 @@ void main() {
             final broken = placement == 'default'
                 ? original.replaceFirst(
                     '"jsonSchemaDialect":"$_dialect"',
-                    '"jsonSchemaDialect":false',
+                    '"jsonSchemaDialect":${unsupported ? jsonEncode(_futureDialect) : 'false'}',
                   )
                 : original.replaceFirst(
                     '"Value":{"type":"object"',
-                    '"Value":{"\$schema":null,"type":"object"',
+                    '"Value":{"\$schema":${unsupported ? jsonEncode(_futureDialect) : 'null'},"type":"object"',
                   );
             expect(broken, isNot(original));
             project.store.replace(root, broken);
@@ -150,9 +154,13 @@ void main() {
             expect(
               (checked['findings'] as List).whereType<Map>().any(
                 (f) =>
-                    f['code'] == 'schema.dialect.malformed' &&
+                    f['code'] ==
+                        (unsupported
+                            ? 'schema.dialect.incomplete'
+                            : 'schema.dialect.malformed') &&
                     f['resource'] == root &&
-                    f['pointer'] == pointer,
+                    f['pointer'] ==
+                        (unsupported ? '/components/schemas/Value' : pointer),
               ),
               true,
               reason: '${checked['findings']}',
@@ -163,7 +171,9 @@ void main() {
             expect(context.declaredVersion, version);
             expect(
               context.schemaDialect,
-              placement == 'default' ? null : _dialect,
+              placement == 'default'
+                  ? (unsupported ? _futureDialect : null)
+                  : _dialect,
             );
             final invalid = await prepare();
             addTearDown(invalid.close);
@@ -188,7 +198,7 @@ void main() {
               environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
               includeParentEnvironment: false,
             );
-            expect(invalidCli.exitCode, isNot(0));
+            expect(invalidCli.exitCode, unsupported ? 2 : isNot(0));
             expect(jsonDecode(invalidCli.stdout as String)['complete'], false);
             project.store.replace(root, original);
             expect(invalid.outdated, true);

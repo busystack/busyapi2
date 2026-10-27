@@ -41,3 +41,12 @@ for(const version of versions)for(const format of ['yaml','json'])
 test(`${version} ${format} unsupported URI remains distinct from a malformed declaration`,async()=>{
  const uri='https://example.invalid/dialect#',input=fixture(version,format,uri,'default'),result=await evaluateSchemas({...input,runtimeInstances:runtime(input)});assert.equal(result.complete,false);assert.equal(analyse(input).specification.schemaDialect,uri);assert(result.findings.some(f=>f.code==='schema.dialect.incomplete'));assert(!result.findings.some(f=>f.code==='schema.dialect.malformed'));assert.equal(result.runtimeEvaluations[0].complete,false);
 });
+
+for(const version of versions)for(const format of ['yaml','json'])for(const placement of ['default','schema'])for(const uri of ['https://[v1.future]/dialect','https://[vF.future:part]/dialect#'])
+test(`${version} ${format} ${placement} IPvFuture dialect is explicit and unsupported: ${uri}`,async()=>{
+ const input=fixture(version,format,uri,placement),before=input.resources[0].text,graph=createGraph(input).graph;
+ assert.equal(graph.scope(input.root,'/components/schemas/Value').dialect,uri);
+ const structural=analyse(input);assert.equal(structural.specification.family,version.slice(0,3));assert.equal(structural.complete,false);assert(!structural.findings.some(f=>f.code==='schema.dialect.malformed'));
+ const result=await evaluateSchemas({...input,runtimeInstances:runtime(input)});assert.equal(result.complete,false,JSON.stringify(result.findings));assert(result.findings.some(f=>f.code==='schema.dialect.incomplete'));assert(!result.findings.some(f=>f.code==='schema.dialect.malformed'));assert.equal(result.runtimeEvaluations[0].complete,false);assert.equal(result.runtimeEvaluations[0].valid,false);assert.equal(result.runtimeEvaluations[1].complete,true);assert.equal(result.runtimeEvaluations[1].valid,true);assert.equal(input.resources[0].text,before);
+ const pointer=placement==='default'?'/jsonSchemaDialect':'/components/schemas/Value/$schema',corrected={...input,snapshot:'repaired-future-host',resources:[{...input.resources[0],generation:2,text:new SourceDocument(before,input.root).set(pointer,dialect)}]},clean=await evaluateSchemas({...corrected,runtimeInstances:runtime(corrected)});assert.equal(clean.complete,true,JSON.stringify(clean.findings));assert(clean.runtimeEvaluations.every(e=>e.complete&&e.valid));
+});

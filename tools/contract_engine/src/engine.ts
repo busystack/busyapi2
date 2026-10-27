@@ -4,7 +4,7 @@ import { ReferenceGraph, supportedSchemaDialect, referenceMarkdownContext } from
 import { fieldsFor, fieldsForScope, removableField, allowsExtensions, componentFamily, componentLocation } from './authoring';
 import { SourceDocument, SourceError, RawJsonValue, escape, segments, limits } from './document';
 import {structuralEvaluator as ajv, structuralValidators as validators, structuralRevisions, structuralSchema} from './structural_schema';
-import {specificationDeclaration, isNativeFamily, modernFamily, capabilitiesFor} from './specification';
+import {specificationDeclaration, isNativeFamily, modernFamily, capabilitiesFor, dialectUriRevision} from './specification';
 import {securityDesign, safeFinding} from './security_design';
 import {schemaRoots,nestedSchemaBoundaries,schemaMetaView} from './schema_boundaries';
 import {setDataSource} from './data_edit';
@@ -20,7 +20,7 @@ import {xmlContextRevision,xmlRelationships} from './xml_semantics';
 import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
-const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2', xmlContextRules:xmlContextRevision, documentUriRules:documentUriRevision };
+const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2', xmlContextRules:xmlContextRevision, documentUriRules:documentUriRevision, dialectUriRules:dialectUriRevision };
 export type Resource = {
     id: string;
     text: string;

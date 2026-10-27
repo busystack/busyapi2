@@ -2,6 +2,7 @@ import {isUri} from '@hyperjump/uri';
 
 /** Document declarations and schema dialects are separate identities. OAS
  * patch versions share their minor family's rules (OAS §Versions). */
+export const dialectUriRevision='1';
 export type SpecificationFamily = '2.0' | '3.0' | '3.1' | '3.2';
 export type SpecificationCapabilities = Readonly<{
     modernSchema: boolean; webhooks: boolean; reusablePathItems: boolean;
@@ -41,7 +42,15 @@ export const defaultSchemaDialect = (family: string): string => family === '2.0'
  * the ASCII guard also rejects trailing line terminators before a JS $ anchor.
  * Null is an unavailable selection, never permission to use the OAS default. */
 export function declaredSchemaDialect(value:unknown):string|null {
-    return typeof value==='string'&&!/[^\x21-\x7e]/u.test(value)&&isUri(value)?value:null;
+    if(typeof value!=='string'||/[^\x21-\x7e]/u.test(value))return null;
+    try{return isUri(value)?value:null;}
+    catch(error){
+        // URI 1.3.9 throws for IPvFuture only after matching RFC 3986
+        // grammar. Retain that explicit identifier; the dialect registry
+        // reports unsupported evaluation instead of choosing a fallback.
+        if(!(error instanceof Error)||!error.message.startsWith('Unsupported IP version in host: '))throw error;
+        return value;
+    }
 }
 
 export function specificationDeclaration(value: unknown): SpecificationDeclaration {

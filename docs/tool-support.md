@@ -22,6 +22,11 @@ Only an absent dialect declaration selects the family default. A malformed
 `jsonSchemaDialect` or Schema Object `$schema` produces a located error and
 incomplete evaluation; Source remains available for correction. Independent
 resources with their own supported dialect remain evaluable.
+An explicitly selected dialect URI with unsupported IPvFuture host notation is
+retained as an unknown dialect. It produces incomplete evaluation through the
+normal registry path, rather than a parser exception or default selection.
+An independent schema with its own supported dialect remains evaluable.
+
 Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
 reference rules.
