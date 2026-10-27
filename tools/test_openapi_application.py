@@ -958,8 +958,10 @@ def main():
                     )
                     native = NativeInput(process.pid)
                     wait_for_initial_focus(native.ready, timeout=8)
-                    # Reopen restores the last mode, including Reference after Try.
+                    # Reopen retains the operation selected by Try. Inspect
+                    # the API overview before asserting saved Info fields.
                     mode(native, process.pid, 'design')
+                    activate_control(native, process.pid, 'Overview')
                     nodes = wait_tree(
                         native, process.pid,
                         lambda nodes: design_values(

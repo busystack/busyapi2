@@ -118,4 +118,7 @@ def execute_form_migration(native, process, file, baseline, version, fixture, ev
         checks.append({'number': number, 'method': 'POST', 'target': '/items', 'exactWire': True,
                        'bodySha256': hashlib.sha256(record['body']).hexdigest(), 'bytes': len(record['body'])})
     assert all(Path(name).read_bytes() == raw for name, raw in baseline.items())
-    return {'kind': 'form-migration', 'phase': phase, 'requests': checks, 'sourceUnchanged': True}
+    result = {'kind': 'form-migration', 'phase': phase, 'requests': checks, 'sourceUnchanged': True}
+    (evidence / (case + '-' + phase + '-request-results.json')).write_text(
+        json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+    return result
