@@ -15,13 +15,13 @@ import {serverTemplate} from './derived_bundle';
 import {captureMigrationMarkdown,proveMigrationMarkdown} from './migration_markdown';
 import {migrationRequestSignatures} from './migration_invariants';
 import {migrateEncodings} from './migration_encoding';
-import {checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
+import {checkOperationTarget,checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
 import {checkSecurityRequirementTarget} from './migration_security';
 import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
 import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='10';
+const migrationProducerVersion='11';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -44,6 +44,7 @@ export async function planMigration(input:MigrationInput) {
     const decisionChoices=new Map<string,string[]>();
     const problems:MigrationProblem[]=[],accepted=new Set<string>(),stages:{from:string;to:string}[]=[],presentationChanges:{resource:string;pointer:string}[]=[];
     const ignoredBodyOmissions:MigrationLocation[]=[];
+    const omittedMarkdownOwners=new Set<string>();
     const relocatedResources=new Map<string,string>();
     let origins=new Map<string,MigrationLocation[]>();
     for(const doc of original.values())for(const pointer of doc.nodes.keys())origins.set(key(doc.id,pointer),[{resource:doc.id,pointer}]);
@@ -81,7 +82,7 @@ export async function planMigration(input:MigrationInput) {
     const initialContexts=migrationDocumentContexts(input,initial,issue);
     await validate(resources,input.root);
     const markdownContexts=problems.length?[]:captureMigrationMarkdown(initial.graph,issue);
-    if(!problems.length)for(const context of initialContexts)checkRequestBodyTarget(context,resources,target.family,issue);
+    if(!problems.length)for(const context of initialContexts){checkOperationTarget(context.graph,target.family,issue);checkRequestBodyTarget(context,resources,target.family,issue);}
     if(!problems.length)for(const context of initialContexts)checkSecurityRequirementTarget(context.graph,target.family,issue);
     const route=migrationBatches(initial.graph.specifications,target.family);
     for(const stage of route){
@@ -91,10 +92,23 @@ export async function planMigration(input:MigrationInput) {
         if(problems.length)break;
         const active=contexts.find(context=>stage.sources.includes(context.graph.specifications.get(context.graph.root)!.family));
         if(!active)throw new SourceError('migration.route.owner','The conversion stage has no captured source entry');
-        const graph=active.graph;
+        let graph=active.graph;
         const sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
         try {
+            const priorOmissions=ignoredBodyOmissions.length;
             for(const before of stage.sources)for(const context of contexts)ignoredBodyOmissions.push(...migrateOperationBodies(context.graph,sources,before,after,scope=>initial.graph.scope(scope.resource,scope.pointer).family,issue));
+            // An omitted use can detach a fragment. Only surviving graph
+            // occurrences retain a dialect and participate in conversion;
+            // the captured fragment bytes still belong to the output copy.
+            if(ignoredBodyOmissions.length!==priorOmissions){
+                const retained=createGraph({...input,root:active.graph.root,resources:resources.map(resource=>({...resource,text:sources.get(resource.id)!.doc.text}))}).graph;
+                const detached=new Set([...graph.scopes.values()].filter(scope=>retained.scopes.get(scope.resource+'#'+scope.pointer)?.kind!==scope.kind).map(scope=>key(scope.resource,scope.pointer)));
+                // The explicit omission also removes these rendered uses.
+                // Detached resource bytes remain intact, while shared uses
+                // still present in the canonical graph retain their proofs.
+                for(const [origin,locations]of origins)if(locations.length&&locations.every(location=>detached.has(key(location.resource,location.pointer))))omittedMarkdownOwners.add(origin);
+                graph=retained;
+            }
             for(const scope of graph.scopes.values()){
                 const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value,source=sources.get(scope.resource)!;
                 const before=scope.family;
@@ -211,7 +225,7 @@ export async function planMigration(input:MigrationInput) {
     const outputResources=resources.map(resource=>({...resource,id:identifiers.get(resource.id)!,text:sources.get(resource.id)!.doc.text,aliases:[identifiers.get(resource.id)!,resource.id,...resource.aliases??[]],generation:0}));
     const outputRoot=identifiers.get(input.root)!;
     const relocated=createGraph({...input,root:outputRoot,resources:outputResources});
-    proveMigrationMarkdown(markdownContexts,relocated.graph,location=>(origins.get(key(location.resource,location.pointer))??[]).map(location=>({resource:identifiers.get(location.resource)!,pointer:location.pointer})),issue);
+    proveMigrationMarkdown(markdownContexts.filter(context=>!omittedMarkdownOwners.has(key(context.owner.resource,context.owner.pointer))),relocated.graph,location=>(origins.get(key(location.resource,location.pointer))??[]).map(location=>({resource:identifiers.get(location.resource)!,pointer:location.pointer})),issue);
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const mappings=new Map([...paths].map(([id,path])=>[identifiers.get(id)!,path]));
     for(const scope of relocated.graph.scopes.values())if(scope.pointer===''){

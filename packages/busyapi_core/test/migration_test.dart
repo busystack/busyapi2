@@ -393,108 +393,174 @@ paths:
       expect(await file.readAsBytes(), original);
     },
   );
-  test('ignored body migration decisions preserve unsaved originals and use the same installed CLI semantics', () async {
-    const original =
-        'openapi: 3.0.4\ninfo: {title: Original, version: "1"}\npaths: {"/data": {get: {requestBody: {required: true, content: {application/json: {schema: {type: string}, example: snow}}}, responses: {204: {description: Empty}}}}}\nx-number: 9007199254740993.00\n';
-    final (project, file) = await open(original);
-    final buffer = await project.buffer(file.uri.toString());
-    project.store.replace(
-      buffer.id,
-      original.replaceFirst('Original', 'Unsaved'),
-    );
-    final destination = '${temp.path}/body-copy';
-    final review = await project.prepareMigration(
-      buffer.id,
-      destination,
-      targetVersion: '3.2.1',
-    );
-    addTearDown(review.close);
-    expect(review.status, MigrationStatus.requiresDecision);
-    expect(review.publishable, false);
-    final problem = review.problems.single;
-    expect(problem.code, 'migration.body.ignored-activation');
-    expect(problem.pointer, '/paths/~1data/get/requestBody');
-    expect(problem.choices, ['omit-ignored-body']);
-    expect(await Directory(destination).exists(), false);
-    final accepted = await project.prepareMigration(
-      buffer.id,
-      destination,
-      targetVersion: '3.2.1',
-      decisions: {problem.id: 'omit-ignored-body'},
-    );
-    addTearDown(accepted.close);
-    expect(
-      accepted.status,
-      MigrationStatus.faithfullyConvertible,
-      reason: '${accepted.result}',
-    );
-    expect(accepted.unsaved, true);
-    await accepted.publish();
-    final output = await File('$destination/openapi.yaml').readAsString();
-    expect(output, contains('Unsaved'));
-    expect(output, contains('9007199254740993.00'));
-    expect(output, isNot(contains('requestBody')));
-    expect(buffer.text, original.replaceFirst('Original', 'Unsaved'));
-    expect(buffer.dirty, true);
-    expect(await file.readAsString(), original);
-    final copy = await BusyProject.open(destination, engine);
-    addTearDown(copy.close);
-    final checked = await copy.check(copy.roots.single.id);
-    expect(checked['status'], 'complete');
+  for (final targetVersion in ['2.0', '3.2.1']) {
+    test(
+      'ignored body migration to $targetVersion preserves unsaved originals and actual HTTP through the installed CLI',
+      () async {
+        final requests = <(String, String, String?, List<int>)>[];
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        server.listen((request) async {
+          final bytes = await request.fold<List<int>>(
+            [],
+            (all, part) => all..addAll(part),
+          );
+          requests.add((
+            request.method,
+            request.uri.toString(),
+            request.headers.value('content-type'),
+            bytes,
+          ));
+          request.response.statusCode = 204;
+          await request.response.close();
+        });
+        final original =
+            'openapi: 3.0.4\ninfo: {title: Original, version: "1"}\nservers: [{url: http://127.0.0.1:${server.port}/v1}]\npaths: {"/data": {get: {requestBody: {required: true, content: {application/json: {schema: {type: string}, example: snow}}}, responses: {204: {description: Empty}}}}}\nx-number: 9007199254740993.00\n';
+        final (project, file) = await open(original);
+        final buffer = await project.buffer(file.uri.toString());
+        project.store.replace(
+          buffer.id,
+          original.replaceFirst('Original', 'Unsaved'),
+        );
+        Future<void> send(BusyProject owner) async {
+          final checked = await owner.check(owner.roots.single.id);
+          expect(checked['complete'], true, reason: '$checked');
+          final operation =
+              (checked['projection']['operations'] as List).single as Map;
+          final plan = await owner.prepareRequest(
+            owner.roots.single.id,
+            resource: operation['resource'] as String,
+            pointer: operation['pointer'] as String,
+          );
+          addTearDown(plan.close);
+          expect(plan.result['requestBody'], isNull);
+          final run = await const ContractRequestExecutor().execute(
+            plan,
+            OperationRequestDraft(planIdentity: plan.identity),
+            resolveSecret: (_) async => null,
+          );
+          addTearDown(run.close);
+          expect(run.conforming, true, reason: '${run.received.findings}');
+          expect(await run.response.bytes(), isEmpty);
+          expect(requests.last.$1, 'GET');
+          expect(requests.last.$2, '/v1/data');
+          expect(requests.last.$3, isNull);
+          expect(requests.last.$4, isEmpty);
+        }
 
-    final cliDestination = '${temp.path}/cli-body-copy';
-    Future<ProcessResult> command(List<String> options) => Process.run(
-      '$testBundle/busyapi',
-      [
-        'migrate',
-        file.path,
-        '--target',
-        '3.2.1',
-        '--output',
-        cliDestination,
-        '--json',
-        ...options,
-      ],
-      environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
-      includeParentEnvironment: false,
+        await send(project);
+        final destination = '${temp.path}/body-copy';
+        final review = await project.prepareMigration(
+          buffer.id,
+          destination,
+          targetVersion: targetVersion,
+        );
+        addTearDown(review.close);
+        expect(review.status, MigrationStatus.requiresDecision);
+        expect(review.publishable, false);
+        final problem = review.problems.single;
+        expect(problem.code, 'migration.body.ignored-activation');
+        expect(problem.pointer, '/paths/~1data/get/requestBody');
+        expect(problem.choices, ['omit-ignored-body']);
+        expect(await Directory(destination).exists(), false);
+        final accepted = await project.prepareMigration(
+          buffer.id,
+          destination,
+          targetVersion: targetVersion,
+          decisions: {problem.id: 'omit-ignored-body'},
+        );
+        addTearDown(accepted.close);
+        expect(
+          accepted.status,
+          MigrationStatus.faithfullyConvertible,
+          reason: '${accepted.result}',
+        );
+        expect(accepted.unsaved, true);
+        await accepted.publish();
+        final output = await File('$destination/openapi.yaml').readAsString();
+        expect(output, contains('Unsaved'));
+        expect(output, contains('9007199254740993.00'));
+        expect(output, isNot(contains('requestBody')));
+        expect(buffer.text, original.replaceFirst('Original', 'Unsaved'));
+        expect(buffer.dirty, true);
+        expect(await file.readAsString(), original);
+        final copy = await BusyProject.open(destination, engine);
+        addTearDown(copy.close);
+        final checked = await copy.check(copy.roots.single.id);
+        expect(checked['status'], 'complete');
+        expect(
+          checked['projection']['specification']['declaredVersion'],
+          targetVersion,
+        );
+        await send(copy);
+
+        final cliDestination = '${temp.path}/cli-body-copy';
+        Future<ProcessResult> command(List<String> options) => Process.run(
+          '$testBundle/busyapi',
+          [
+            'migrate',
+            file.path,
+            '--target',
+            targetVersion,
+            '--output',
+            cliDestination,
+            '--json',
+            ...options,
+          ],
+          environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
+          includeParentEnvironment: false,
+        );
+        final first = await command([]);
+        expect(first.exitCode, 2, reason: '${first.stdout}\n${first.stderr}');
+        final firstReport = jsonDecode(first.stdout as String) as Map;
+        expect(firstReport['status'], 'requires-decision');
+        expect(firstReport['published'], false);
+        final cliProblem = (firstReport['problems'] as List).single as Map;
+        expect(cliProblem['code'], problem.code);
+        final decision = '${cliProblem['id']}=omit-ignored-body';
+        final decided = await command(['--decision', decision]);
+        expect(
+          decided.exitCode,
+          0,
+          reason: '${decided.stdout}\n${decided.stderr}',
+        );
+        final report = jsonDecode(decided.stdout as String) as Map;
+        expect(report['status'], 'faithfully-convertible');
+        expect(await Directory(cliDestination).exists(), false);
+        final applied = await command([
+          '--decision',
+          decision,
+          '--apply',
+          report['reviewIdentity'] as String,
+        ]);
+        expect(
+          applied.exitCode,
+          0,
+          reason: '${applied.stdout}\n${applied.stderr}',
+        );
+        expect(
+          (jsonDecode(applied.stdout as String) as Map)['published'],
+          true,
+        );
+        final cliOutput = await File('$cliDestination/openapi.yaml')
+            .readAsString();
+        expect(cliOutput, contains('Original'));
+        expect(cliOutput, isNot(contains('Unsaved')));
+        expect(cliOutput, isNot(contains('requestBody')));
+        expect(await file.readAsString(), original);
+        final cliChecked = await Process.run('$testBundle/busyapi', [
+          'check',
+          cliDestination,
+          '--json',
+        ]);
+        expect(
+          cliChecked.exitCode,
+          0,
+          reason: '${cliChecked.stdout}\n${cliChecked.stderr}',
+        );
+      },
     );
-    final first = await command([]);
-    expect(first.exitCode, 2, reason: '${first.stdout}\n${first.stderr}');
-    final firstReport = jsonDecode(first.stdout as String) as Map;
-    expect(firstReport['status'], 'requires-decision');
-    expect(firstReport['published'], false);
-    final cliProblem = (firstReport['problems'] as List).single as Map;
-    expect(cliProblem['code'], problem.code);
-    final decision = '${cliProblem['id']}=omit-ignored-body';
-    final decided = await command(['--decision', decision]);
-    expect(decided.exitCode, 0, reason: '${decided.stdout}\n${decided.stderr}');
-    final report = jsonDecode(decided.stdout as String) as Map;
-    expect(report['status'], 'faithfully-convertible');
-    expect(await Directory(cliDestination).exists(), false);
-    final applied = await command([
-      '--decision',
-      decision,
-      '--apply',
-      report['reviewIdentity'] as String,
-    ]);
-    expect(applied.exitCode, 0, reason: '${applied.stdout}\n${applied.stderr}');
-    expect((jsonDecode(applied.stdout as String) as Map)['published'], true);
-    final cliOutput = await File('$cliDestination/openapi.yaml').readAsString();
-    expect(cliOutput, contains('Original'));
-    expect(cliOutput, isNot(contains('Unsaved')));
-    expect(cliOutput, isNot(contains('requestBody')));
-    expect(await file.readAsString(), original);
-    final cliChecked = await Process.run('$testBundle/busyapi', [
-      'check',
-      cliDestination,
-      '--json',
-    ]);
-    expect(
-      cliChecked.exitCode,
-      0,
-      reason: '${cliChecked.stdout}\n${cliChecked.stderr}',
-    );
-  });
+  }
 
   test('installed CLI requires an exact reviewed identity and publishes a separately reopenable copy', () async {
     final (project, file) = await open();

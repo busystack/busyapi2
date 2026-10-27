@@ -48,6 +48,7 @@ void main() {
         (false, false, null, null, null),
         (true, false, null, null, null),
         (false, true, null, null, null),
+        (false, true, '3.0.4', null, null),
         for (final version in ['3.0.0', '3.0.4', '3.1.2', '3.2.1'])
           (false, false, version, null, null),
         for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1'])
@@ -154,7 +155,7 @@ void main() {
         }
         final original = coordinated != null
             ? '# Keep original source\r\n${jsonEncode(coordinated)}\r\n'
-            : formVersion != null
+            : formVersion != null && !ignoredBody
             ? '# Keep\nopenapi: $sourceVersion\ninfo: {title: Original, version: "1", description: "[Guide](/guide)"}\n'
                   'servers: [{url: https://fixture.invalid}]\npaths:\n  /form:\n    post:\n'
                   '      requestBody:\n        required: true\n        content:\n'
@@ -335,7 +336,7 @@ void main() {
               findsOneWidget,
             );
           }
-          if (formVersion != null) {
+          if (formVersion != null && !ignoredBody) {
             expect(comparison.after, contains('formData'));
             expect(comparison.after, isNot(contains('requestBody')));
           }
