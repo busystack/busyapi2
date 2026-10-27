@@ -20,7 +20,8 @@ for(const version of ['3.1.2','3.2.1'])for(const json of [false,true]) {
   assert.equal(run(value).result.status,'complete');
   value.servers.push({...(version.startsWith('3.2')?{name:'prod'}:{}),url:'https://example.test/{region}/{region}?q=x#fragment',variables:{region:{default:'east'}}});
   const codes=new Set(run(value).result.findings.map(f=>f.code));
-  for(const code of ['server.name.duplicate','server.variable.repeated','server.url.query-fragment'])assert.equal(codes.has(code),version.startsWith('3.2'),code);
+  for(const code of ['server.name.duplicate','server.variable.repeated'])assert.equal(codes.has(code),version.startsWith('3.2'),code);
+  assert(codes.has('server.url.query-fragment'));
   value.servers=[{url:'https://example.test/{unfinished'}];
   assert.equal(run(value).result.findings.some(f=>f.code==='server.url.template'),version.startsWith('3.2'));
  });
@@ -59,9 +60,13 @@ test('an oversized Server template returns incomplete analysis, not a truncated 
 for(const entryVersion of ['3.1.2','3.2.1'])test(`resource-owned Server versions and entry-owned Tag names stay distinct in a multi-file API ${entryVersion}`,()=>{
  const root='file:///approved/root.json',other='file:///approved/other.json',otherVersion=entryVersion.startsWith('3.1')?'3.2.1':'3.1.2';
  const entry={openapi:entryVersion,info:{title:'Entry',version:'1'},paths:{},tags:[{name:'EntryParent'}],components:{schemas:{Use:{$ref:'other.json#/components/schemas/Model'}}}};
- const external={openapi:otherVersion,info:{title:'Other',version:'1'},paths:{},servers:[{url:'https://example.test/'+(otherVersion.startsWith('3.1')?'?allowed-in-31':'plain')}],tags:otherVersion.startsWith('3.2')?[{name:'child',parent:'EntryParent'}]:[{name:'entry-independent'}],components:{schemas:{Model:{type:'string'}}}};
+ const external={openapi:otherVersion,info:{title:'Other',version:'1'},paths:{},servers:[{url:'https://example.test/plain'}],tags:otherVersion.startsWith('3.2')?[{name:'child',parent:'EntryParent'}]:[{name:'entry-independent'}],components:{schemas:{Model:{type:'string'}}}};
  const run=()=>analyse({root,snapshot:'multi-context',resources:[{id:root,text:JSON.stringify(entry),generation:1},{id:other,text:JSON.stringify(external),generation:2}]});
  assert.equal(run().status,'complete',JSON.stringify(run().findings));
+ external.servers[0].url+='?forbidden=1';
+ const invalid=run(),urlFinding=invalid.findings.find(f=>f.code==='server.url.query-fragment');
+ assert.equal(invalid.status,'invalid');assert.equal(urlFinding.resource,other);assert.equal(urlFinding.pointer,'/servers/0/url');
+ external.servers[0].url='https://example.test/plain';
  if(otherVersion.startsWith('3.2')) {
   external.tags.push({name:'own-only'});external.tags[0].parent='own-only';
   const result=run(),finding=result.findings.find(f=>f.code==='tag.parent.missing');

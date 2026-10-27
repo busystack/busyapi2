@@ -11,7 +11,7 @@ import {governanceProjection,policyRange} from './governance_projection';
 import {compare,decimal,createExactNumericAdapter,nativeNumberIsExact} from './exact_numbers';
 import {evaluateSchemas} from './schema_evaluation';
 import {policyLiteralExamples,policyExampleKey} from './policy_literal_examples';
-import {serverVariableAdvice} from './authoring_relationships';
+import {serverVariableAdvice} from './server_semantics';
 import {policyDependencyUri,policyFunctionKey} from './governance_configuration';
 import type {ExecutedPolicyCode} from './policy_code_loader';
 import {policyFunctionContext} from './policy_function_context';

@@ -43,6 +43,14 @@ to modern document-relative URI semantics, BusyAPI proves a destination across
 captured Server choices; different destinations block conversion. Unrestricted
 variable proofs remain an explicit migration limitation.
 
+Server URLs retain their family rules. Fixed URLs are checked through the
+canonical URL resolver, including relative and Unicode URLs, without fetching
+or changing source. OpenAPI 3.0 permits query and fragment components; 3.1 and
+3.2 prohibit them. Only 3.2 applies its newer nonempty template grammar and
+repeated-variable prohibition. Unsupported IPvFuture host evaluation reports
+incomplete validation. A migration cannot publish output that violates the target
+family's Server URL rules.
+
 Source type completions retain the containing schema rules: Swagger Schema
 Objects inherit Draft 4 types, including `null`; its non-body Parameter, Header
 and Items Objects have narrower choices. OpenAPI 3.0 uses its restricted type
