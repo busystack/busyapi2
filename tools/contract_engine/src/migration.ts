@@ -10,7 +10,7 @@ import {evaluateSchemas} from './schema_evaluation';
 import {referenceValue} from './reference_choices';
 import {coldGraph} from './reference_selection';
 import {documentUriBase,resolveUri,pointerFragment as fragment} from './reference_graph';
-import {documentUriOccurrences} from './authoring';
+import {documentUriOccurrences} from './document_uris';
 import {serverTemplate} from './derived_bundle';
 import {captureMigrationMarkdown,proveMigrationMarkdown} from './migration_markdown';
 import {migrationRequestSignatures} from './migration_invariants';
@@ -22,7 +22,7 @@ import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 import {MigrationAccess} from './migration_access';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='12';
+const migrationProducerVersion='13';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;

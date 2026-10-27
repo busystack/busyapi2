@@ -2,7 +2,8 @@ import {createHash} from 'node:crypto';
 import {analyse,createGraph,Resource} from './engine';
 import {escape,RawJsonValue,SourceDocument,SourceError} from './document';
 import {documentUriBase,GraphScope,resolveUri} from './reference_graph';
-import {documentUriFields,componentLocation} from './authoring';
+import {componentLocation} from './authoring';
+import {documentUriFields} from './document_uris';
 import {modernFamily} from './specification';
 import {swaggerFileContexts} from './swagger_file';
 
@@ -298,7 +299,7 @@ export function deriveBundle(input:any) {
  // Server declaration's original retrieval context (OAS 3.1 §4.7 / 3.2 §4.5.2).
  for(const scope of graph.scopes.values()) {
   const node=docs.get(scope.resource)!.dataNode(scope.pointer)!;
-  for(const field of scope.kind==='server'?[]:documentUriFields(scope.kind,node.value))if(typeof node.value?.[field]==='string')
+  for(const field of scope.kind==='server'?[]:documentUriFields(scope,node.value))if(typeof node.value?.[field]==='string')
    patches.set(key(scope.resource,scope.pointer+'/'+field),JSON.stringify(resolveUri(node.value[field],documentUriBase(graph,scope)).href));
   if(scope.kind==='server'&&typeof node.value?.url==='string') {
    patches.set(key(scope.resource,scope.pointer+'/url'),JSON.stringify(serverTemplate(node.value.url,documentUriBase(graph,scope),node.value.variables)));

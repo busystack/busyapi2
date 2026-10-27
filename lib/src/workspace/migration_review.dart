@@ -337,6 +337,8 @@ class _MigrationReviewState extends State<_MigrationReview> {
                     ? l.migrationDiscardAnnotation
                     : value == 'omit-ignored-body'
                     ? l.migrationOmitIgnoredBody
+                    : value == 'interpret-terms-as-uri'
+                    ? l.migrationInterpretTermsUri
                     : value,
                 enabled: !busy,
                 onSelected: (value) => setState(() {

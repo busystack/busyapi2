@@ -26,6 +26,12 @@ Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
 reference rules.
 
+Terms of service retain their family meaning: Swagger 2.0 accepts text, while
+3.x requires a URI reference. Contact, license, external documentation and
+serialized-example URI fields receive source-located syntax diagnostics; values
+inside example and extension payloads remain data. Relative URI references are
+accepted. An unsupported URI host form reports incomplete evaluation.
+
 Source type completions retain the containing schema rules: Swagger Schema
 Objects inherit Draft 4 types, including `null`; its non-body Parameter, Header
 and Items Objects have narrower choices. OpenAPI 3.0 uses its restricted type

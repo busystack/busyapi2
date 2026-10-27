@@ -49,6 +49,11 @@ required-property behavior or introduce Swagger's stronger request exclusion are
 blocked until a faithful mapping is available. The review identifies the source
 annotation; migration does not silently change which payloads are accepted.
 
+Swagger 2.0 permits free-text `info.termsOfService`; 3.x requires a URI.
+Prose that cannot form a URI produces a located blocker. A URI-shaped value
+requires the explicit `interpret-terms-as-uri` decision before it becomes a link.
+Normal Swagger editing, bundling and relocation preserve the original text.
+
 A 3.0 request-body declaration that consumers must ignore needs an explicit
 omission decision before conversion to Swagger, 3.1 or 3.2. The reviewed copy
 omits that declaration; original documents stay intact. Active request bodies

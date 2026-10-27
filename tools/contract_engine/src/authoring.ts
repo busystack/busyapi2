@@ -20,27 +20,6 @@ export function componentFamily(kind:string,family:string):string|undefined {
 export const componentLocation=(group:string,family:string):string|undefined=>family==='2.0'
     ?({schemas:'/definitions',parameters:'/parameters',responses:'/responses',securitySchemes:'/securityDefinitions'} as Record<string,string>)[group]
     :'/components/'+group;
-/** Resource-relative authored URIs and the Server retrieval-relative URL.
- * Security discovery and OAuth endpoints are API URLs: OAS resolves those
- * against the applicable Server URL, not the document/schema identity. */
-export function documentUriFields(kind:string,value?:any):readonly string[] {
-    // A Reference Object's ignored preserved siblings are not declarations.
-    // Among these URI-bearing kinds, only Example supports Reference Objects.
-    if(kind==='example'&&typeof value?.$ref==='string')return [];
-    return ({info:['termsOfService'],contact:['url'],license:['url'],'external-documentation':['url'],example:['externalValue'],server:['url']} as Record<string,string[]>)[kind]??[];
-}
-/** Passive authored URI positions, not dependency requests or reference edges.
- * Typed graph occurrences exclude example/extension payloads. In particular,
- * listing externalValue never reads, parses or fetches serialized example data. */
-export function* documentUriOccurrences(graph:ReferenceGraph):Generator<{scope:GraphScope;pointer:string;field:string;value:string}> {
-    for(const scope of graph.scopes.values()){
-        const doc=graph.docs.get(scope.resource)!,node=doc.dataNode(scope.pointer);
-        for(const field of documentUriFields(scope.kind,node?.value)){
-            const pointer=scope.pointer+'/'+escape(field),value=doc.dataNode(pointer)?.value;
-            if(typeof value==='string')yield {scope,pointer,field,value};
-        }
-    }
-}
 /** Presentation metadata is attached only to an established standard field,
  * never an arbitrary payload property that happens to be called description. */
 export function richTextField(kind:string,family:string,value:any,name:string,contextName='',referenceAllowed=supportsReference(kind,family)):boolean {

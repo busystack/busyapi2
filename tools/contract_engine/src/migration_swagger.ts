@@ -1,6 +1,7 @@
 import {pointerFragment,type ReferenceGraph,type GraphScope} from './reference_graph';
 import {escape} from './document';
 import {MigrationSource} from './migration_source';
+import {documentUriValidity} from './document_uris';
 import type {MigrationIssue} from './migration_schema';
 import {ParameterSemantics} from './parameter_semantics';
 import {swaggerMedia,swaggerServers} from './swagger_operation';
@@ -11,6 +12,17 @@ const schemaFields=['type','format','items','default','maximum','exclusiveMaximu
 /** Structural mappings use native graph occurrences and effective parameters,
  * including inherited body/form parameters. No guessed traversal of payloads. */
 export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,MigrationSource>,issue:MigrationIssue,contexts:readonly ReferenceGraph[]=[graph]) {
+    // Swagger Info text becomes a URL in 3.0 (§4.7.2). A URI-looking
+    // string does not itself establish the author's intent to activate a link.
+    for(const scope of graph.scopes.values())if(scope.kind==='info'&&scope.family==='2.0'){
+        const value=graph.docs.get(scope.resource)!.dataNode(scope.pointer)?.value?.termsOfService;
+        if(typeof value!=='string')continue;
+        const location={...scope,pointer:scope.pointer+'/termsOfService'},validity=documentUriValidity(value);
+        if(validity!=='valid')issue(location,'migration.info.terms-uri',validity==='unsupported'
+            ?'The Terms of Service text uses URI syntax that cannot be evaluated; migration cannot establish a target URL'
+            :'Swagger Terms of Service text is not a URI reference; provide an intentional target URL before migration','target-representation');
+        else issue(location,'migration.info.terms-uri-activation','Swagger Terms of Service is text; confirm that this exact value is intended to become a URL','decision',['interpret-terms-as-uri']);
+    }
     // Reserve authored schema names before adding shared media schema owners.
     for(const [resource,specification]of graph.specifications)if(specification.family==='2.0'){
         const source=sources.get(resource)!;

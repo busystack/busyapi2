@@ -3,7 +3,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import {createGraph,propose,Resource} from './engine';
 import {SourceDocument,SourceError,escape,segments} from './document';
-import {documentUriFields,documentUriOccurrences} from './authoring';
+import {documentUriFields,documentUriOccurrences} from './document_uris';
 import {documentUriBase,GraphScope,implicitNameReference,resolveUri,type GraphReference} from './reference_graph';
 import {referenceValue} from './reference_choices';
 import {coldGraph} from './reference_selection';
@@ -304,7 +304,7 @@ export function planFileMove(input:any) {
    // Preserve each typed URI's actual base, not a universal retrieval base.
    // OAuth endpoints are Server-relative and deliberately absent here.
    const afterUris=rebuild(g).graph,newRetrieval=afterUris.retrievals.get(destination)!;
-   for(const at of g.graph.scopes.values())if(at.resource===source.id)for(const field of documentUriFields(at.kind,before.node(at.pointer).value)) {
+   for(const at of g.graph.scopes.values())if(at.resource===source.id)for(const field of documentUriFields(at,before.node(at.pointer).value)) {
     const pointer=at.pointer+'/'+escape(field),value=before.nodes.get(pointer)?.value;
     const oldBase=documentUriBase(g.graph,at),newBase=documentUriBase(afterUris,afterUris.scopes.get(destination+'#'+at.pointer)!);
     if(newBase!==oldBase&&typeof value==='string'&&!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) {
