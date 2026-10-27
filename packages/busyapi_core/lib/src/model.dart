@@ -160,7 +160,7 @@ class SpecificationContext {
     if (value case {
       'family': String family,
       'declaredVersion': String version,
-      'schemaDialect': String dialect,
+      'schemaDialect': String? dialect,
       'capabilities': final capabilities,
     }) {
       final selected = switch (family) {
@@ -187,7 +187,10 @@ class SpecificationContext {
   }
 
   final SpecificationFamily family;
-  final String declaredVersion, schemaDialect;
+  final String declaredVersion;
+
+  /// Null means an explicit malformed declaration, never a default selection.
+  final String? schemaDialect;
   final SpecificationCapabilities capabilities;
   bool get modernSchema => capabilities.modernSchema;
   bool get webhooks => capabilities.webhooks;

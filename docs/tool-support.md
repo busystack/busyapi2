@@ -18,6 +18,10 @@ different roots without retaining the previous root's schema rules.
 Supported modern dialect URIs with an empty trailing `#` identify the same
 schema resource as their fragment-free URI. BusyAPI retains the declared spelling
 and source; unknown dialects and nonempty fragments remain incomplete.
+Only an absent dialect declaration selects the family default. A malformed
+`jsonSchemaDialect` or Schema Object `$schema` produces a located error and
+incomplete evaluation; Source remains available for correction. Independent
+resources with their own supported dialect remain evaluable.
 Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
 reference rules.

@@ -1,3 +1,5 @@
+import {isUri} from '@hyperjump/uri';
+
 /** Document declarations and schema dialects are separate identities. OAS
  * patch versions share their minor family's rules (OAS §Versions). */
 export type SpecificationFamily = '2.0' | '3.0' | '3.1' | '3.2';
@@ -10,7 +12,7 @@ export type Specification = Readonly<{
     family: SpecificationFamily;
     declaredVersion: string;
     declaration: 'openapi' | 'swagger';
-    schemaDialect: string;
+    schemaDialect: string|null;
     capabilities: SpecificationCapabilities;
 }>;
 export type SpecificationDeclaration =
@@ -34,6 +36,14 @@ export const capabilitiesFor = (family:SpecificationFamily):SpecificationCapabil
 export const defaultSchemaDialect = (family: string): string => family === '2.0' ? swaggerSchemaDialect : family === '3.0'
     ? restrictedSchemaDialect : `https://spec.openapis.org/oas/${family}/dialect/base`;
 
+/** JSON Schema Core 8.1.1 / OAS OpenAPI Object: an explicit dialect must be
+ * a URI with a scheme. The pinned RFC 3986 validator allows URI fragments;
+ * the ASCII guard also rejects trailing line terminators before a JS $ anchor.
+ * Null is an unavailable selection, never permission to use the OAS default. */
+export function declaredSchemaDialect(value:unknown):string|null {
+    return typeof value==='string'&&!/[^\x21-\x7e]/u.test(value)&&isUri(value)?value:null;
+}
+
 export function specificationDeclaration(value: unknown): SpecificationDeclaration {
     const data = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
     if (Object.hasOwn(data, 'openapi') && Object.hasOwn(data, 'swagger'))
@@ -51,7 +61,9 @@ export function specificationDeclaration(value: unknown): SpecificationDeclarati
         return {status: 'unsupported', code: 'version.unsupported', pointer: '/openapi', message: 'Native authoring supports swagger: "2.0" and OpenAPI 3.0.x, 3.1.x and 3.2.x'};
     return {status: 'supported', specification: Object.freeze({
         family, declaredVersion: data.openapi, declaration: 'openapi',
-        schemaDialect: modernFamily(family) && typeof data.jsonSchemaDialect === 'string' ? data.jsonSchemaDialect : defaultSchemaDialect(family),
+        // Only absence selects the OAS default. A malformed declaration has no
+        // evaluable dialect, while a well-formed unknown URI stays explicit.
+        schemaDialect: modernFamily(family)&&Object.hasOwn(data,'jsonSchemaDialect') ? declaredSchemaDialect(data.jsonSchemaDialect) : defaultSchemaDialect(family),
         capabilities: capabilitiesFor(family),
     })};
 }

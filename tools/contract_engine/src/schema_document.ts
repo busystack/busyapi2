@@ -22,7 +22,7 @@ export function embeddedSchemaDocument(document:any,uri:string) {
  return index.get(resolveUri(uri,uri).href);
 }
 
-export function typedSchemaDocument(value: any, id: string, graph: any, dialect: string): any {
+export function typedSchemaDocument(value: any, id: string, graph: any, dialect: string|null): any {
   const scopes=schemaEvaluationScopes(graph).filter(scope=>scope.resource===id);
   const schemaPointers = new Set(scopes.filter(s=>supportedSchemaDialect(s)).map(s=>s.pointer));
   const flatParameters=new Set(scopes.filter(scope=>scope.family==='2.0'&&scope.objectKind==='parameter').map(scope=>scope.pointer));

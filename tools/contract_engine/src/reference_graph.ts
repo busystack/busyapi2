@@ -1,7 +1,7 @@
 import { children, isReferenceObject, referenceKinds, supportsReference } from './contexts';
 import { SourceDocument, SourceError, escape, limits } from './document';
 import {resolveIri} from '@hyperjump/uri';
-import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, swaggerSchemaDialect, isNativeFamily, capabilitiesFor, Specification} from './specification';
+import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, swaggerSchemaDialect, isNativeFamily, capabilitiesFor, Specification,declaredSchemaDialect} from './specification';
 
 export const knownDialects = new Set([
     restrictedSchemaDialect,
@@ -19,7 +19,7 @@ export const schemaDialectIdentity = (uri:string):string => uri.endsWith('#')?ur
 
 export type GraphTarget = { resource: string; pointer: string; kind: string };
 export type GraphScope = GraphTarget & {
-    base: string; resourcePointer: string; dialect: string; family: string;
+    base: string; resourcePointer: string; dialect: string|null; family: string;
 };
 /** Restricted OpenAPI evaluation is an owning-family capability, not a
  * general-purpose additional JSON Schema dialect promised in modern roots. */
@@ -57,6 +57,7 @@ export const schemaAddress=(scope:GraphScope)=>scope.base+pointerFragment(scope.
  * Selecting a base grants no permission to retrieve the resulting URI. */
 export const documentUriBase=(graph:ReferenceGraph,scope:GraphScope)=>scope.kind==='server'?graph.retrievals.get(scope.resource)!:scope.base;
 
+
 // URI identity never grants access. The caller supplies immutable, approved
 // resources; this module has no filesystem, HTTP or resolver dependency.
 export function resolveUri(value: string, base: string): URL {
@@ -75,6 +76,7 @@ export function resolveUri(value: string, base: string): URL {
         return /^[A-Za-z0-9._~-]$/.test(character)?character:token.toUpperCase();
     }));
 }
+
 const key = (resource: string, pointer: string) => resource + '#' + pointer;
 /** The approval/configuration registry uses the graph's URI primitive, not
  * another resolver. Normalization never acquires or executes a resource. */
@@ -187,7 +189,9 @@ export class ReferenceGraph {
             this.register(this.identities, doc.id, target);
             this.register(this.identities, base, target);
             for (const alias of aliases.get(doc.id) ?? []) this.register(this.identities, resolveUri(alias, doc.id).href, target);
-            const scope = { ...target, base, resourcePointer: '', dialect: specification?.schemaDialect ?? defaultDialect, family: documentFamily };
+            const scope = { ...target, base, resourcePointer: '', dialect: specification ? specification.schemaDialect : defaultDialect, family: documentFamily };
+            if(specification&&modernFamily(documentFamily)&&specification.schemaDialect===null)
+                this.issue({...target,pointer:'/jsonSchemaDialect'},'schema.dialect.malformed','A schema dialect declaration must be a URI string; no default dialect was selected',true,'error');
             this.scopes.set(key(doc.id, ''), scope);
             if (doc.id === root || specification)
                 this.index(doc.id, '', 'root', scope);
@@ -556,15 +560,19 @@ export class ReferenceGraph {
                     else this.register(this.identities, uri.href, target);
                 } catch { this.issue({ ...target, pointer: pointer + '/$id' }, 'reference.uri', 'Invalid schema resource identity'); }
             }
-            if (typeof value.$schema === 'string') {
+            if (Object.hasOwn(value,'$schema')) {
                 let parent = pointer, nested = false;
                 while (parent) {
                     parent = parent.slice(0, parent.lastIndexOf('/'));
                     if (this.scopes.get(key(resource, parent))?.kind === 'schema') { nested = true; break; }
                 }
-                if (nested && scope.resourcePointer !== pointer)
+                const dialect=declaredSchemaDialect(value.$schema);
+                if(dialect===null) {
+                    scope.dialect=null;
+                    this.issue({...target,pointer:pointer+'/$schema'},'schema.dialect.malformed','A schema dialect declaration must be a URI string; no inherited dialect was selected',true,'error');
+                } else if (nested && scope.resourcePointer !== pointer)
                     this.issue({ ...target, pointer: pointer + '/$schema' }, 'schema.dialect.location', 'A nested dialect declaration requires a schema resource root');
-                else scope.dialect = value.$schema;
+                else scope.dialect = dialect;
             }
             for (const keyword of ['$anchor', '$dynamicAnchor']) {
                 if (typeof value[keyword] !== 'string') continue;

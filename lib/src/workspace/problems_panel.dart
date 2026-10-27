@@ -169,6 +169,7 @@ String problemMessage(BuildContext context, Map<String, dynamic> finding) {
     'tag.parent.ambiguous' => l.tagParentAmbiguous,
     'tag.parent.cycle' => l.tagParentCycle,
     'example.schema.incompatible' => l.schemaExampleIncompatible,
+    'schema.dialect.malformed' => l.schemaDialectMalformed,
     'schema.dialect.incomplete' => l.schemaDialectIncomplete,
     'schema.execution.incomplete' => l.schemaExecutionIncomplete,
     'schema.numeric.provenance' => l.schemaNumericProvenance,

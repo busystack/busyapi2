@@ -60,6 +60,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_schema_suggestion.cjs"
 "$node_bin" "$engine_dir/test_schema_inference_families.cjs"
 "$node_bin" "$engine_dir/test_dialect_identities.cjs"
+"$node_bin" "$engine_dir/test_malformed_dialects.cjs"
 "$node_bin" "$engine_dir/test_reference.cjs"
 "$node_bin" "$engine_dir/test_reference_display.cjs"
 "$node_bin" tools/documentation_renderers/test_graph_display.mjs

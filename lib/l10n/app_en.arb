@@ -583,6 +583,7 @@
   "tagParentAmbiguous": "This parent tag name has multiple declarations. No first target is selected.",
   "tagParentCycle": "Tag parent relationships must not form a cycle. Edit the intended relationship; no parent is removed automatically.",
   "schemaExampleIncompatible": "This supplied JSON-compatible example does not satisfy its authored schema assertions. This is compatibility advice, not runtime conformance.",
+  "schemaDialectMalformed": "A schema dialect declaration must be a URI string. Correct it in Source; no default dialect was used.",
   "schemaDialectIncomplete": "This schema dialect is not configured. Its content is preserved and no instance result is claimed.",
   "schemaExecutionIncomplete": "Schema evaluation did not complete for this source scope. A failed evaluation is not a clean result.",
   "schemaEvaluationLimit": "Schema evaluation reached a bounded work or finding limit. The category is incomplete; shown findings are not exhaustive.",

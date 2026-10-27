@@ -26,11 +26,11 @@ import {swaggerFileContexts} from './swagger_file';
 import {evaluateSerializedExamples} from './serialized_examples';
 import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+33',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+34',configuration:[
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',
- 'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1','parameter-example-serialization-v1','literal-media-examples-v1','dialect-resource-identity-v1',
+ 'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1','parameter-example-serialization-v1','literal-media-examples-v1','dialect-resource-identity-v1','dialect-declaration-v1',
  'reference-family-v1','reference-position-v1','schema-context-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','serialized-media-examples-v1','multipart-header-values-v1','multipart-file-shapes-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1','response-content-presence-v1',
 ].join(':')};
 let configured=false,running=false;
@@ -114,8 +114,8 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   // acquisition does not include those built-ins in the project's file set.
   const bundledReferences=new Set(graph.references.filter(ref=>ref.resolution==='unavailable'&&standardIds.has(ref.targetUri!)).map(ref=>ref.resource+'#'+ref.pointer+'/'+escape(ref.keyword)));
   if([...docs.values()].some(doc=>doc.issues.length)||graph.issues.some(issue=>issue.incomplete&&!bundledReferences.has(issue.resource+'#'+issue.pointer)))complete=false;
-  for(const issue of graph.issues)if((issue.kind==='schema'||issue.code==='reference.cycle')&&!bundledReferences.has(issue.resource+'#'+issue.pointer)) {
-   add(docs.get(issue.resource)!,issue.pointer,issue.code,issue.message,issue.incomplete?'warning':'error');
+  for(const issue of graph.issues)if((issue.kind==='schema'||issue.code==='reference.cycle'||issue.code==='schema.dialect.malformed')&&!bundledReferences.has(issue.resource+'#'+issue.pointer)) {
+   add(docs.get(issue.resource)!,issue.pointer,issue.code,issue.message,issue.severity??(issue.incomplete?'warning':'error'));
    if(!issue.incomplete&&issue.kind==='schema')invalid.push(graph.scope(issue.resource,issue.pointer));
   }
   const all=schemaEvaluationScopes(graph).filter(scope=>!bundled.has(scope.resource));

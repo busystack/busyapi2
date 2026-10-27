@@ -110,7 +110,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
         complete = false;
         diagnostic(rootResource, 'openapi', declaration.code, declaration.message, declaration.pointer);
     }
-    if (modernFamily(family) && data?.jsonSchemaDialect && !supportedSchemaDialect({family,dialect:data.jsonSchemaDialect})) {
+    if (modernFamily(family) && specification.schemaDialect!==null && !supportedSchemaDialect({family,dialect:specification.schemaDialect})) {
         complete = false;
         diagnostic(rootResource, 'openapi', 'dialect.unsupported', 'The root JSON Schema dialect is not supported', '/jsonSchemaDialect', undefined, 'warning');
     }
