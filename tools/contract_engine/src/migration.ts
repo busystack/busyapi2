@@ -9,10 +9,10 @@ import {downgradeSwagger} from './migration_downgrade';
 import {evaluateSchemas} from './schema_evaluation';
 import {referenceValue} from './reference_choices';
 import {coldGraph} from './reference_selection';
-import {documentUriBase,resolveUri,pointerFragment as fragment,type GraphScope} from './reference_graph';
+import {documentUriBase,resolveUri,pointerFragment as fragment} from './reference_graph';
 import {documentUriOccurrences} from './authoring';
 import {serverTemplate} from './derived_bundle';
-import {hasRelativeMarkdownLinks} from './markdown_links';
+import {captureMigrationMarkdown,proveMigrationMarkdown} from './migration_markdown';
 import {migrationRequestSignatures} from './migration_invariants';
 import {migrateEncodings} from './migration_encoding';
 import {checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
@@ -20,7 +20,7 @@ import {checkSecurityRequirementTarget} from './migration_security';
 import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='8';
+const migrationProducerVersion='9';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -79,6 +79,7 @@ export async function planMigration(input:MigrationInput) {
     };
     const initialContexts=migrationDocumentContexts(input,initial,issue);
     await validate(resources,input.root);
+    const markdownContexts=problems.length?[]:captureMigrationMarkdown(initial.graph,issue);
     if(!problems.length)for(const context of initialContexts)checkRequestBodyTarget(context,resources,target.family,issue);
     if(!problems.length)for(const context of initialContexts)checkSecurityRequirementTarget(context.graph,target.family,issue);
     const order=[...nativeFamilies],start=order.indexOf(from.family),finish=order.indexOf(target.family);
@@ -180,13 +181,11 @@ export async function planMigration(input:MigrationInput) {
     }catch(error){refused(error,{resource:input.root,pointer:''});}
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const context=createGraph({...input,resources}),sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
-    const markdownContexts:{scope:GraphScope;base:string}[]=[];
     try {
         for(const scope of context.graph.scopes.values()){
             const source=sources.get(scope.resource)!,value=context.docs.get(scope.resource)!.dataNode(scope.pointer)?.value;
             if(scope.kind==='schema'&&typeof value?.$id==='string')source.set(scope.pointer+'/$id',scope.base);
             if(scope.kind==='root'&&scope.family==='3.2'&&typeof value?.$self==='string')source.set('/$self',scope.base);
-            if(typeof value?.description==='string'&&hasRelativeMarkdownLinks(value.description))markdownContexts.push({scope,base:documentUriBase(context.graph,scope)});
             if(scope.kind==='server'&&typeof value?.url==='string')source.set(scope.pointer+'/url',serverTemplate(value.url,documentUriBase(context.graph,scope),value.variables));
         }
         for(const occurrence of documentUriOccurrences(context.graph))if(occurrence.scope.kind!=='server')sources.get(occurrence.scope.resource)!.set(occurrence.pointer,resolveUri(occurrence.value,documentUriBase(context.graph,occurrence.scope)).href);
@@ -206,14 +205,7 @@ export async function planMigration(input:MigrationInput) {
     const outputResources=resources.map(resource=>({...resource,id:identifiers.get(resource.id)!,text:sources.get(resource.id)!.doc.text,aliases:[identifiers.get(resource.id)!,resource.id,...resource.aliases??[]],generation:0}));
     const outputRoot=identifiers.get(input.root)!;
     const relocated=createGraph({...input,root:outputRoot,resources:outputResources});
-    // Retained $self/$id identities can preserve a description's resolution
-    // context even when retrieval moves. Prove that context before requiring
-    // a Markdown rewrite; unchanged rendered destinations need no source edit.
-    for(const {scope,base}of markdownContexts){
-        const resource=identifiers.get(scope.resource)!,targetScope=relocated.graph.scopes.get(resource+'#'+scope.pointer);
-        if(!targetScope||targetScope.kind!==scope.kind||documentUriBase(relocated.graph,targetScope)!==base)
-            issue({...scope,pointer:scope.pointer+'/description'},'migration.description.relative-links','Relative documentation links need a source-context-preserving relocation','implementation');
-    }
+    proveMigrationMarkdown(markdownContexts,relocated.graph,location=>(origins.get(key(location.resource,location.pointer))??[]).map(location=>({resource:identifiers.get(location.resource)!,pointer:location.pointer})),issue);
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const mappings=new Map([...paths].map(([id,path])=>[identifiers.get(id)!,path]));
     for(const scope of relocated.graph.scopes.values())if(scope.pointer===''){

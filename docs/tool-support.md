@@ -632,6 +632,13 @@ The `native-reference` preset uses shared Reference projection and
 of derived single-file bundling. Source-linked actions belong to the native
 workspace; standalone HTML retains portable source provenance.
 
+Migration checks original description contexts across structural conversion and
+file relocation. It preserves unchanged text when every inspected destination
+remains equal under the captured canonical context. Changed destinations and
+unresolvable URIs remain blocked; explicit identity loss is checked before
+publication. Renderer-specific CommonMark base selection remains separately
+qualified and is tracked in the implementation matrix.
+
 Native descriptions and headless HTML use Dart `markdown` **7.3.1**
 (BSD-3-Clause) for display-only CommonMark parsing. It has no resolver, network
 service or executable project extensions. HTML and images cannot initiate resource

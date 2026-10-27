@@ -42,6 +42,12 @@ Their own operations, servers, media and shared definitions retain separate
 entry contexts. Check every affected document in the review. Different-family
 routes and incompatible shared contexts can still require additional mappings.
 
+Descriptions keep their original text when the captured link and image
+destinations remain unchanged across conversion and relocation. This includes
+root-relative, network-path and normalized parent paths where their resolved
+addresses are identical. A changed or unresolvable destination produces a
+source-located blocker. Removing a schema identity is included in that check.
+
 URL-encoded forms with independent scalar fields can be downgraded to Swagger
 `formData` parameters. Media type casing and explicit UTF-8 charset parameters
 are preserved in the target media declaration. Primitive arrays use their declared encoding, including

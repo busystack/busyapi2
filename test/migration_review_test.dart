@@ -62,7 +62,7 @@ void main() {
             ),
             file = File('${temp.path}/api.yaml');
         const base =
-            '# Keep\nopenapi: 3.0.4\ninfo: {title: Original, version: "1"}\npaths: {}\ncomponents: {schemas: {Value: {type: string, nullable: true}}}\n';
+            '# Keep\nopenapi: 3.0.4\ninfo: {title: Original, version: "1", description: "[Guide](/guide)"}\npaths: {}\ncomponents: {schemas: {Value: {type: string, nullable: true}}}\n';
         final sourceVersion = coordinatedVersion ?? formVersion ?? '3.0.4';
         final targetVersion = formVersion == null ? '3.2.1' : '2.0';
         final swagger = sourceVersion == '2.0';
@@ -73,7 +73,11 @@ void main() {
                   'swagger': sourceVersion
                 else
                   'openapi': sourceVersion,
-                'info': {'title': 'Original', 'version': '1'},
+                'info': {
+                  'title': 'Original',
+                  'version': '1',
+                  'description': '[Guide](/guide)',
+                },
                 if (swagger) ...{
                   'host': 'a.example.invalid',
                   'schemes': ['https'],
@@ -111,7 +115,7 @@ void main() {
             ? ''
             : '# Keep shared source 雪\r\n${jsonEncode({
                 if (swagger) 'swagger': sourceVersion else 'openapi': sourceVersion,
-                'info': {'title': 'Shared', 'version': '1'},
+                'info': {'title': 'Shared', 'version': '1', 'description': '[Guide](/guide)'},
                 if (swagger) ...{
                   'host': 'b.example.invalid',
                   'schemes': ['https'],
@@ -141,7 +145,7 @@ void main() {
         final original = coordinated != null
             ? '# Keep original source\r\n${jsonEncode(coordinated)}\r\n'
             : formVersion != null
-            ? '# Keep\nopenapi: $sourceVersion\ninfo: {title: Original, version: "1"}\n'
+            ? '# Keep\nopenapi: $sourceVersion\ninfo: {title: Original, version: "1", description: "[Guide](/guide)"}\n'
                   'servers: [{url: https://fixture.invalid}]\npaths:\n  /form:\n    post:\n'
                   '      requestBody:\n        required: true\n        content:\n'
                   '          application/x-www-form-urlencoded:\n            schema: {type: object, required: [name], properties: {name: {type: string}, values: {type: array, items: {type: integer}}}}\n'
@@ -310,6 +314,7 @@ void main() {
           );
           expect(comparison.before, contains('Unsaved'));
           expect(comparison.after, contains(targetVersion));
+          expect(comparison.after, contains('[Guide](/guide)'));
           if (formVersion != null) {
             expect(comparison.after, contains('formData'));
             expect(comparison.after, isNot(contains('requestBody')));
