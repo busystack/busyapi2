@@ -24,6 +24,8 @@ for(const version of ['3.1.2','3.2.1'])for(const json of [false,true]) {
   assert(codes.has('server.url.query-fragment'));
   value.servers=[{url:'https://example.test/{unfinished'}];
   assert.equal(run(value).result.findings.some(f=>f.code==='server.url.template'),version.startsWith('3.2'));
+  assert.equal(run(value).result.status,'invalid');
+  assert.equal(run(value).result.findings.some(f=>f.code==='server.url.template-delimiters'),version.startsWith('3.1'));
  });
  test(`Tag names retain exact case/Unicode and parent ambiguity/cycles never select a first target ${label}`,()=>{
   const value=api();value.tags=[{name:'é'},{name:'e\u0301'},{name:'Pets'},{name:'pets'}];

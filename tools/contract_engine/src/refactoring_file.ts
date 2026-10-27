@@ -9,6 +9,7 @@ import {referenceValue} from './reference_choices';
 import {coldGraph} from './reference_selection';
 import {editsFor} from './refactoring_copy';
 import {serverTemplate} from './derived_bundle';
+import {resolveServerUrl} from './server_semantics';
 import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
 import {caseFileLocators,movedCaseFileSource} from './case_file_configuration';
 
@@ -188,7 +189,10 @@ function relative(target:string,base:string):string {
 function rebaseTemplate(value:string,before:string,after:string,variables:any):string {
  const old=resolveUri('',before),next=resolveUri('',after);
  if(value.startsWith('/')&&old.protocol===next.protocol&&old.host===next.host)return value;
- if(!value.includes('{'))return relative(resolveUri(value,before).href,after);
+ if(!value.includes('{')){
+  const original=resolveServerUrl(value,before).href;
+  return resolveServerUrl(value,after).href===original?value:relative(original,after);
+ }
  let absolute:string;
  try{absolute=serverTemplate(value,before,variables);}catch(error){
   if(error instanceof SourceError)throw new SourceError(error.code.replace('bundle.','file.move.'),error.message);

@@ -2,7 +2,7 @@ import {isIriReference} from '@hyperjump/uri';
 import {escape,SourceError} from './document';
 import {documentUriBase,resolveUri,type GraphIssue,type GraphTarget,type ReferenceGraph} from './reference_graph';
 
-export const serverContextRevision='1';
+export const serverContextRevision='2';
 
 // OAS 3.2 §4.6 ABNF. These are template literals, not an RFC 6570 expression
 // evaluator. Names are not restricted to ASCII or decoded from percent escapes.
@@ -13,26 +13,36 @@ const literal=(c:number)=>c===0x21||c>=0x23&&c<=0x24||c>=0x26&&c<=0x3b||c===0x3d
 /** Source-only classification, never URL substitution, retrieval or execution. */
 export function serverTemplateParts(url:string) {
  if(url.length>65536)throw new SourceError('limit.authoring.template','Server URL template inspection exceeds 65536 UTF-16 code units');
- const names:string[]=[];let valid=url.length>0,queryOrFragment=false;
+ const names:string[]=[];let valid=url.length>0,queryOrFragment=false,delimitersValid=true;
  for(let i=0;i<url.length;) {
   const c=url.codePointAt(i)!;
   if(c===0x7b) {
    const end=url.indexOf('}',i+1);
-   if(end<0){valid=false;break;}
+   if(end<0){valid=false;delimitersValid=false;break;}
    const name=url.slice(i+1,end);
+   if(name.includes('{'))delimitersValid=false;
    if(!name||name.includes('{'))valid=false;
    else names.push(name);
    i=end+1;continue;
   }
   if(c===0x25) {
-   if(!/^[A-Fa-f0-9]{2}$/.test(url.slice(i+1,i+3)))valid=false;
-   i+=3;continue;
+   if(/^[A-Fa-f0-9]{2}$/.test(url.slice(i+1,i+3))){i+=3;continue;}
+   valid=false;i++;continue;
   }
   if(c===0x3f||c===0x23)queryOrFragment=true;
+  if(c===0x7d)delimitersValid=false;
   if(!literal(c))valid=false;
   i+=c>0xffff?2:1;
  }
- return {names,valid,queryOrFragment};
+ return {names,valid,queryOrFragment,delimitersValid};
+}
+
+/** OAS 3.2 §4.6 permits Unicode URL literals, including non-ASCII spaces.
+ * Resolve their UTF-8 URL spelling without relaxing resource URI checks or
+ * rewriting source. ASCII whitespace remains invalid. */
+export function resolveServerUrl(value:string,base:string):URL {
+ const reference=value.replace(/\s/gu,character=>character.charCodeAt(0)>0x7f?encodeURIComponent(character):character);
+ return resolveUri(reference,base);
 }
 
 /** Advice is deliberately separate from normative validity. Unused variables
@@ -51,8 +61,8 @@ export function serverVariableAdvice(server:any):{path:string[];message:string}[
 /** API URLs use the canonical graph's URL representation, including Unicode
  * and URL path literals. URI-only metadata grammar must not reject those URL
  * spellings. Validation never fetches or changes the authored spelling. */
-function fixedServerUrl(value:string,base:string):'valid'|'invalid'|'unsupported' {
- try{resolveUri(value,base);return 'valid';}
+export function serverUrlValidity(value:string,base:string):'valid'|'invalid'|'unsupported' {
+ try{resolveServerUrl(value,base);return 'valid';}
  catch(error){
   if(!(error instanceof Error))throw error;
   if(error.message==='Invalid URI reference'||/^Invalid (IRI-reference|absolute-IRI): /u.test(error.message))return 'invalid';
@@ -96,9 +106,10 @@ export function serverRelationships(graph:ReferenceGraph):GraphIssue[] {
     add(at,at.pointer+'/url',error.code,'Server URL template inspection exceeds its bounded work budget',true);continue;
    }
    if(family==='3.2'&&!template.valid)add(at,at.pointer+'/url','server.url.template','The Server URL does not follow the selected version’s template syntax');
+   if(family!=='3.2'&&!template.delimitersValid)add(at,at.pointer+'/url','server.url.template-delimiters','Server URL variables require matched, non-nested braces');
    if(['3.1','3.2'].includes(family)&&template.queryOrFragment)add(at,at.pointer+'/url','server.url.query-fragment',`An OpenAPI ${family} Server URL must not contain a query or fragment`);
    if(!/[{}]/u.test(node.value.url)&&(family!=='3.2'||template.valid)){
-    const validity=fixedServerUrl(node.value.url,documentUriBase(graph,at));
+    const validity=serverUrlValidity(node.value.url,documentUriBase(graph,at));
     if(validity==='invalid')add(at,at.pointer+'/url','server.url.uri','The fixed Server URL must be a valid URL reference');
     if(validity==='unsupported')add(at,at.pointer+'/url','server.url.unsupported','The URL validator cannot evaluate this Server host notation',true);
    }

@@ -16,172 +16,176 @@ import '../packages/busyapi_core/test/test_support.dart';
 void main() {
   for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
     for (final json in [false, true]) {
-      testWidgets(
-        'native fixed Server URL repair retains current errors, field ownership and exact history $version $json',
-        (tester) async {
-          tester.view.physicalSize = const Size(1400, 1000);
-          tester.view.devicePixelRatio = 1;
-          addTearDown(tester.view.resetPhysicalSize);
-          addTearDown(tester.view.resetDevicePixelRatio);
-          final messenger =
-              TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-          for (final name in ['yaru_window', 'yaru_window/events']) {
-            messenger.setMockMethodCallHandler(
-              MethodChannel(name),
-              (_) async => null,
-            );
-            addTearDown(
-              () =>
-                  messenger.setMockMethodCallHandler(MethodChannel(name), null),
-            );
-          }
-          final temp = Directory.systemTemp.createTempSync(
-            'busyapi-server-native-',
-          );
-          final c = WorkspaceController(
-            EngineProcess(executable: runtimeNode, helper: runtimeHelper),
-            StateLocations(
-              config: '${temp.path}/config',
-              state: '${temp.path}/state',
-              cache: '${temp.path}/cache',
-            ),
-          );
-          final failures = <Object>[];
-          Future<void>? pending;
-          Future<void> waitFor(bool Function() condition) async {
-            final clock = Stopwatch()..start();
-            await tester.pump();
-            while (!condition() &&
-                failures.isEmpty &&
-                clock.elapsed < const Duration(seconds: 12)) {
-              await tester.runAsync(
-                () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      for (final (invalid, repaired) in [
+        ('https://example.test/%zz', 'https://example.test/%20'),
+        ('https://example.test/{unfinished', 'https://example.test/ready'),
+      ]) {
+        testWidgets(
+          'native fixed Server URL repair retains current errors, field ownership and exact history $version $json $invalid',
+          (tester) async {
+            tester.view.physicalSize = const Size(1400, 1000);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.resetPhysicalSize);
+            addTearDown(tester.view.resetDevicePixelRatio);
+            final messenger = TestDefaultBinaryMessengerBinding
+                .instance
+                .defaultBinaryMessenger;
+            for (final name in ['yaru_window', 'yaru_window/events']) {
+              messenger.setMockMethodCallHandler(
+                MethodChannel(name),
+                (_) async => null,
               );
-              await tester.pump(const Duration(milliseconds: 20));
-            }
-            expect(failures, isEmpty);
-            expect(condition(), true, reason: '${c.error} ${c.storageError}');
-            await tester.pumpAndSettle();
-          }
-
-          final row = find.widgetWithText(BusyApiGroupedTextEntry, 'url');
-          final input = find.descendant(
-            of: row,
-            matching: find.byType(TextField),
-          );
-          try {
-            final file = File('${temp.path}/root.${json ? 'json' : 'yaml'}');
-            final source = json
-                ? '{"openapi":"$version","info":{"title":"Servers 🐾","version":"1"},"paths":{},"servers":[{"url":"https://example.test/%zz"}],"x-exact":900719925474099312345}'
-                : 'openapi: $version\r\ninfo: {title: "Servers 🐾", version: "1"}\npaths: {}\nservers:\n  - url: https://example.test/%zz\nx-exact: 900719925474099312345';
-            final original = [239, 187, 191, ...utf8.encode(source)];
-            await tester.runAsync(() async {
-              await file.writeAsBytes(original);
-              await c.initialize();
-              await c.open(file.path);
-              await c.selectObject({
-                'root': c.root,
-                'resource': c.root,
-                'pointer': '/servers/0',
-              });
-              await c.analyse();
-            });
-            await tester.pumpWidget(
-              MaterialApp(
-                theme: buildBusyApiTheme(
-                  brightness: json ? Brightness.dark : Brightness.light,
-                  accentColor: Colors.blue,
+              addTearDown(
+                () => messenger.setMockMethodCallHandler(
+                  MethodChannel(name),
+                  null,
                 ),
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                supportedLocales: AppLocalizations.supportedLocales,
-                home: Scaffold(
-                  body: ListenableBuilder(
-                    listenable: c,
-                    builder: (_, _) => Designer(
-                      controller: c,
-                      run: (action) => pending = action().catchError(
-                        (Object e) => failures.add(e),
+              );
+            }
+            final temp = Directory.systemTemp.createTempSync(
+              'busyapi-server-native-',
+            );
+            final c = WorkspaceController(
+              EngineProcess(executable: runtimeNode, helper: runtimeHelper),
+              StateLocations(
+                config: '${temp.path}/config',
+                state: '${temp.path}/state',
+                cache: '${temp.path}/cache',
+              ),
+            );
+            final failures = <Object>[];
+            Future<void>? pending;
+            Future<void> waitFor(bool Function() condition) async {
+              final clock = Stopwatch()..start();
+              await tester.pump();
+              while (!condition() &&
+                  failures.isEmpty &&
+                  clock.elapsed < const Duration(seconds: 12)) {
+                await tester.runAsync(
+                  () => Future<void>.delayed(const Duration(milliseconds: 20)),
+                );
+                await tester.pump(const Duration(milliseconds: 20));
+              }
+              expect(failures, isEmpty);
+              expect(condition(), true, reason: '${c.error} ${c.storageError}');
+              await tester.pumpAndSettle();
+            }
+
+            final row = find.widgetWithText(BusyApiGroupedTextEntry, 'url');
+            final input = find.descendant(
+              of: row,
+              matching: find.byType(TextField),
+            );
+            try {
+              final file = File('${temp.path}/root.${json ? 'json' : 'yaml'}');
+              final source = json
+                  ? '{"openapi":"$version","info":{"title":"Servers 🐾","version":"1"},"paths":{},"servers":[{"url":"$invalid"}],"x-exact":900719925474099312345}'
+                  : 'openapi: $version\r\ninfo: {title: "Servers 🐾", version: "1"}\npaths: {}\nservers:\n  - url: $invalid\nx-exact: 900719925474099312345';
+              final original = [239, 187, 191, ...utf8.encode(source)];
+              await tester.runAsync(() async {
+                await file.writeAsBytes(original);
+                await c.initialize();
+                await c.open(file.path);
+                await c.selectObject({
+                  'root': c.root,
+                  'resource': c.root,
+                  'pointer': '/servers/0',
+                });
+                await c.analyse();
+              });
+              await tester.pumpWidget(
+                MaterialApp(
+                  theme: buildBusyApiTheme(
+                    brightness: json ? Brightness.dark : Brightness.light,
+                    accentColor: Colors.blue,
+                  ),
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  home: Scaffold(
+                    body: ListenableBuilder(
+                      listenable: c,
+                      builder: (_, _) => Designer(
+                        controller: c,
+                        run: (action) => pending = action().catchError(
+                          (Object e) => failures.add(e),
+                        ),
+                        reveal: (_) {},
                       ),
-                      reveal: (_) {},
                     ),
                   ),
                 ),
-              ),
-            );
-            await waitFor(() => input.evaluate().isNotEmpty);
-            final field = tester.widget<TextField>(input).controller!;
-            expect(field.text, 'https://example.test/%zz');
-            expect(
-              tester.widget<BusyApiGroupedTextEntry>(row).errorText,
-              isNotNull,
-            );
-            await tester.enterText(input, 'https://example.test/%20');
-            expect(c.hasPendingFields, true);
-            await tester.runAsync(
-              () => tester.testTextInput.receiveAction(TextInputAction.done),
-            );
-            await waitFor(() => pending != null);
-            var applied = false;
-            await tester.runAsync(() async {
-              pending!.then((_) => applied = true);
-            });
-            await waitFor(() => applied);
-            await tester.runAsync(c.analyse);
-            await waitFor(
-              () =>
-                  input.evaluate().isNotEmpty &&
-                  tester.widget<BusyApiGroupedTextEntry>(row).errorText == null,
-            );
-            expect(tester.widget<TextField>(input).controller, same(field));
-            expect(field.text, 'https://example.test/%20');
-            expect(c.analysis!['status'], 'complete');
-            expect(file.readAsBytesSync(), original);
-            await tester.runAsync(c.undo);
-            await tester.runAsync(c.analyse);
-            await waitFor(
-              () =>
-                  input.evaluate().isNotEmpty &&
-                  tester.widget<TextField>(input).controller!.text ==
-                      'https://example.test/%zz',
-            );
-            expect(c.buffer!.bytes(), original);
-            expect(
-              tester.widget<BusyApiGroupedTextEntry>(row).errorText,
-              isNotNull,
-            );
-            await tester.runAsync(c.redo);
-            await tester.runAsync(c.analyse);
-            await waitFor(
-              () =>
-                  input.evaluate().isNotEmpty &&
-                  tester.widget<TextField>(input).controller!.text ==
-                      'https://example.test/%20',
-            );
-            await tester.runAsync(c.saveAll);
-            expect(file.readAsBytesSync(), [
-              239,
-              187,
-              191,
-              ...utf8.encode(
-                source.replaceFirst(
-                  'https://example.test/%zz',
-                  'https://example.test/%20',
-                ),
-              ),
-            ]);
-            await tester.runAsync(() => c.open(file.path));
-            expect(c.buffer!.bytes(), file.readAsBytesSync());
-            expect(c.error, isNull);
-            expect(tester.takeException(), isNull);
-          } finally {
-            await tester.pumpWidget(const SizedBox.shrink());
-            await tester.runAsync(c.shutdown);
-            c.dispose();
-            await tester.runAsync(c.engine.close);
-            temp.deleteSync(recursive: true);
-          }
-        },
-      );
+              );
+              await waitFor(() => input.evaluate().isNotEmpty);
+              final field = tester.widget<TextField>(input).controller!;
+              expect(field.text, invalid);
+              expect(
+                tester.widget<BusyApiGroupedTextEntry>(row).errorText,
+                isNotNull,
+              );
+              await tester.enterText(input, repaired);
+              expect(c.hasPendingFields, true);
+              await tester.runAsync(
+                () => tester.testTextInput.receiveAction(TextInputAction.done),
+              );
+              await waitFor(() => pending != null);
+              var applied = false;
+              await tester.runAsync(() async {
+                pending!.then((_) => applied = true);
+              });
+              await waitFor(() => applied);
+              await tester.runAsync(c.analyse);
+              await waitFor(
+                () =>
+                    input.evaluate().isNotEmpty &&
+                    tester.widget<BusyApiGroupedTextEntry>(row).errorText ==
+                        null,
+              );
+              expect(tester.widget<TextField>(input).controller, same(field));
+              expect(field.text, repaired);
+              expect(c.analysis!['status'], 'complete');
+              expect(file.readAsBytesSync(), original);
+              await tester.runAsync(c.undo);
+              await tester.runAsync(c.analyse);
+              await waitFor(
+                () =>
+                    input.evaluate().isNotEmpty &&
+                    tester.widget<TextField>(input).controller!.text == invalid,
+              );
+              expect(c.buffer!.bytes(), original);
+              expect(
+                tester.widget<BusyApiGroupedTextEntry>(row).errorText,
+                isNotNull,
+              );
+              await tester.runAsync(c.redo);
+              await tester.runAsync(c.analyse);
+              await waitFor(
+                () =>
+                    input.evaluate().isNotEmpty &&
+                    tester.widget<TextField>(input).controller!.text ==
+                        repaired,
+              );
+              await tester.runAsync(c.saveAll);
+              expect(file.readAsBytesSync(), [
+                239,
+                187,
+                191,
+                ...utf8.encode(source.replaceFirst(invalid, repaired)),
+              ]);
+              await tester.runAsync(() => c.open(file.path));
+              expect(c.buffer!.bytes(), file.readAsBytesSync());
+              expect(c.error, isNull);
+              expect(tester.takeException(), isNull);
+            } finally {
+              await tester.pumpWidget(const SizedBox.shrink());
+              await tester.runAsync(c.shutdown);
+              c.dispose();
+              await tester.runAsync(c.engine.close);
+              temp.deleteSync(recursive: true);
+            }
+          },
+        );
+      }
     }
   }
 }

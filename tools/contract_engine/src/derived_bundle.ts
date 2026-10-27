@@ -6,6 +6,7 @@ import {componentLocation} from './authoring';
 import {documentUriFields} from './document_uris';
 import {modernFamily} from './specification';
 import {swaggerFileContexts} from './swagger_file';
+import {resolveServerUrl} from './server_semantics';
 
 const within=(pointer:string,parent:string)=>pointer===parent||pointer.startsWith(parent+'/');
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
@@ -15,7 +16,7 @@ const fragment=(pointer:string)=>'#'+encodeURI(pointer).replaceAll('#','%23').re
 // Do not parse placeholder ports as integers, normalize away a variable with
 // a following '..', or choose a value/default for an unrestricted variable.
 export function serverTemplate(value:string,retrieval:string,variables:any):string {
- if(!value.includes('{'))return resolveUri(value,retrieval).href;
+ if(!value.includes('{'))return resolveServerUrl(value,retrieval).href;
  type Form='absolute'|'authority'|'root'|'path'|'query'|'fragment'|'empty';
  let work=0;
  const forms=new Set<Form>();

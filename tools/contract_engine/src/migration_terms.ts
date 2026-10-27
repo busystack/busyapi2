@@ -1,4 +1,4 @@
-import {documentUriValidity} from './document_uris';
+import {resolveServerUrl,serverUrlValidity} from './server_semantics';
 import {documentUriBase,resolveUri,type GraphScope,type ReferenceGraph} from './reference_graph';
 import type {MigrationSource} from './migration_source';
 import type {MigrationIssue} from './migration_schema';
@@ -17,11 +17,11 @@ export function migrateTerms(graph:ReferenceGraph,sources:Map<string,MigrationSo
             const doc=graph.docs.get(scope.resource)!,servers=doc.root.value?.servers;
             const choices=Array.isArray(servers)&&servers.length?servers:[{url:'/'}];
             for(const [index,server]of choices.entries()){
-                const urls=serverChoices(server,{...scope,pointer:'/servers/'+index+'/url'},issue);
+                const urls=serverChoices(server,{...scope,pointer:'/servers/'+index+'/url'},graph.retrievals.get(scope.resource)!,issue);
                 if(!urls){incomplete=true;continue;}
                 for(const url of urls){
                     if(++work>1024){issue(location,'limit.migration.terms-bases','Terms of Service resolution exceeds 1024 captured Server choices','implementation');incomplete=true;break;}
-                    const base=resolveUri(url,graph.retrievals.get(scope.resource)!).href;
+                    const base=resolveServerUrl(url,graph.retrievals.get(scope.resource)!).href;
                     targets.add(resolveUri(value,base).href);
                 }
                 if(work>1024)break;
@@ -39,7 +39,7 @@ export function migrateTerms(graph:ReferenceGraph,sources:Map<string,MigrationSo
 
 /** Finite declared Server choices are exhaustive. An unrestricted variable
  * is not replaced by its default to claim a faithful conversion. */
-function serverChoices(server:unknown,location:GraphScope,issue:MigrationIssue):readonly string[]|undefined {
+function serverChoices(server:unknown,location:GraphScope,base:string,issue:MigrationIssue):readonly string[]|undefined {
     if(server===null||typeof server!=='object'||!('url' in server)||typeof server.url!=='string'){
         issue(location,'migration.info.terms-server','The Terms of Service Server URL is unavailable','source-incomplete');return;
     }
@@ -57,9 +57,9 @@ function serverChoices(server:unknown,location:GraphScope,issue:MigrationIssue):
     }
     const urls=choices.map(choice=>url.replace(/\{([^{}]+)\}/gu,(_match,name)=>choice.get(name)!));
     for(const url of urls){
-        const validity=documentUriValidity(url);
+        const validity=serverUrlValidity(url,base);
         if(validity!=='valid'){
-            issue(location,'migration.info.terms-server-uri','The Terms of Service Server URL cannot be resolved with the captured URI evaluator',validity==='unsupported'?'implementation':'source-incomplete');return;
+            issue(location,'migration.info.terms-server-uri','The Terms of Service Server URL cannot be resolved with the captured URL evaluator',validity==='unsupported'?'implementation':'source-incomplete');return;
         }
     }
     return urls;
