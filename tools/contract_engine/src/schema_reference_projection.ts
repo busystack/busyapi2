@@ -7,7 +7,7 @@ export type SchemaReferenceProjection =
     {state:'dynamic';candidates:readonly GraphTarget[]} |
     {state:'unresolved';resolution:string};
 
-/** Representation hints consume captured graph resolution, never resolve a
+/** Static consumers project captured graph resolution, never resolve a
  * second URI or choose the first dynamic candidate. JSON Schema Core 8.2.3.2
  * gives pointer/static-anchor $dynamicRef the same target as $ref. A captured
  * dynamic anchor also has a fixed target when every candidate is that target;

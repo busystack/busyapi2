@@ -731,7 +731,7 @@ Native property-access evaluation uses the logical schema occurrence even when
 its source is a reusable or aliased definition. Swagger `readOnly` properties
 are excluded from requests through schema references; OpenAPI 3.0 retains its
 request/response `required` rules for readOnly/writeOnly. Modern annotations keep
-ordinary JSON Schema assertions. The shared evaluator revision is **1.18.0+36**;
+ordinary JSON Schema assertions. The shared evaluator revision is **1.18.0+37**;
 matching mock/worker revisions are required before readiness is reported.
 
 The derived bundler uses the canonical graph and exact CST reader. It preserves
@@ -888,3 +888,11 @@ still match. Listed decisions use `--decision ID=CHOICE`. A stale review or
 any unresolved blocker prevents publication. The desktop exposes the same
 operation as **Migrate specification…**. Conversion coverage is deliberately
 reported separately from native editing support in the implementation matrix.
+
+Discriminator composition and required-property diagnostics use captured schema
+references. Pointer and static-anchor `$dynamicRef` follow the same fixed target
+as `$ref`; single-target dynamic anchors can also establish inheritance. Unknown
+runtime choices retain an incomplete result. In OpenAPI 3.2, optional properties
+still require `defaultMapping`; discriminator metadata does not add an assertion
+to JSON Schema instance validation. The current qualification matrix distinguishes
+headless checks from native desktop acceptance.

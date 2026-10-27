@@ -1,3 +1,4 @@
+import {DiscriminatorRequirements,discriminatorContextRevision} from './discriminator_semantics';
 import {multipartProjectionRevision} from './schema_reference_projection';
 import {createHash} from 'node:crypto';
 import {addMediaTypePlugin,addUriSchemePlugin} from '@hyperjump/browser';
@@ -27,12 +28,12 @@ import {swaggerFileContexts} from './swagger_file';
 import {evaluateSerializedExamples} from './serialized_examples';
 import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+36',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+37',configuration:[
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',
  'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1','parameter-example-serialization-v1','literal-media-examples-v1','dialect-resource-identity-v1','dialect-declaration-v1','schema-access-occurrence-v1',
- `multipart-reference-projection-v${multipartProjectionRevision}`,
+ `multipart-reference-projection-v${multipartProjectionRevision}`,`discriminator-reference-projection-v${discriminatorContextRevision}`,
  'reference-family-v1','reference-position-v1','schema-context-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','serialized-media-examples-v1','multipart-header-values-v1','multipart-file-shapes-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1','response-content-presence-v1',
 ].join(':')};
 let configured=false,running=false;
@@ -126,8 +127,10 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    invalid.push(graph.scope(reference.resource,reference.pointer));
    add(docs.get(reference.resource)!,reference.pointer+'/$ref','schema.file.context','Swagger file schemas are only permitted at a response schema root; this reference uses the fragment in another schema position.');
   }
-  for(const issue of discriminatorRelationships(graph))
-   add(docs.get(issue.resource)!,issue.pointer,issue.code,issue.message);
+  for(const issue of discriminatorRelationships(graph)){
+   if(issue.incomplete)complete=false;
+   add(docs.get(issue.resource)!,issue.pointer,issue.code,issue.message,issue.severity??'error');
+  }
   if(all.length>20000)throw new SourceError('limit.schema.count','Schema evaluation exceeds 20000 authored schema locations');
   const failed=(doc:SourceDocument,pointer:string,error:any)=>{
    observeFailure?.(error);
@@ -315,34 +318,21 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   // OAS 3.2 discriminator metadata never changes JSON Schema validity.
   // Establish optionality using this same compiled canonical schema, rather
   // than treating the absence of a local required keyword as proof.
-  const schemaEdges=new Map(graph.references.filter(edge=>edge.kind==='schema'&&edge.keyword==='$ref').map(edge=>[edge.resource+'#'+edge.pointer,edge]));
-  let discriminatorWork=0;
-  const requires=(scope:GraphScope,name:string,seen=new Set<string>()):boolean=>{
-   const key=scope.resource+'#'+scope.pointer;
-   if(seen.has(key)||seen.size>=128||++discriminatorWork>20000)return false;
-   const value=docs.get(scope.resource)?.dataNode(scope.pointer)?.value;
-   if(!value||typeof value!=='object')return false;
-   if(Array.isArray(value.required)&&value.required.includes(name))return true;
-   const nested=new Set(seen);nested.add(key);
-   const ref=schemaEdges.get(key);
-   if(ref?.resolution==='resolved'&&requires(graph.scope(ref.targetResource!,ref.targetPointer!),name,nested))return true;
-   if(Array.isArray(value.allOf)&&value.allOf.some((_:any,i:number)=>requires(graph.scope(scope.resource,scope.pointer+'/allOf/'+i),name,nested)))return true;
-   for(const keyword of ['anyOf','oneOf'])if(Array.isArray(value[keyword])&&value[keyword].length&&value[keyword].every((_:any,i:number)=>requires(graph.scope(scope.resource,scope.pointer+'/'+keyword+'/'+i),name,nested)))return true;
-   return false;
-  };
+  let discriminatorRequirements:DiscriminatorRequirements|undefined;
   const emptyObject=new SourceDocument('{}','urn:busyapi:discriminator-absence',true);
   for(const scope of all) {
    const doc=docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value;
    if(scope.family!=='3.2'||typeof value?.discriminator?.propertyName!=='string'||value.discriminator.defaultMapping!==undefined)continue;
    const name=value.discriminator.propertyName,pointer=scope.pointer+'/discriminator';
-   if(requires(scope,name))continue;
+   const proof=discriminatorRequirements??=new DiscriminatorRequirements(graph);
+   if(proof.requires(scope,name))continue;
    let optional=false;
    try {
     const ast=await getCompiled(scope);
-    if(ast&&discriminatorWork<=20000) {
+    if(ast&&!proof.exhausted) {
      const candidates=[{doc:emptyObject,pointer:''},...examples.filter(example=>example.schema.resource===scope.resource&&example.schema.pointer===scope.pointer).slice(0,32)];
      for(const candidate of candidates) {
-      if(++discriminatorWork>20000)break;
+      if(!proof.consume())break;
       const node=candidate.doc.dataNode(candidate.pointer);
       if(node?.kind!=='object'||node.children.has(name))continue;
       const result:any=interpret(ast,exact.exactInstance(candidate.doc,candidate.pointer),BASIC);

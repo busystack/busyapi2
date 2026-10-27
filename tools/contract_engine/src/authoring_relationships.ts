@@ -1,5 +1,6 @@
+import {discriminatorLocation,discriminatorParents} from './discriminator_semantics';
 import {escape} from './document';
-import {GraphReference,GraphTarget,ReferenceGraph} from './reference_graph';
+import {GraphTarget,ReferenceGraph} from './reference_graph';
 
 export type AuthoringIssue=GraphTarget&{code:string;message:string;incomplete?:boolean;severity?:string};
 
@@ -7,41 +8,16 @@ export type AuthoringIssue=GraphTarget&{code:string;message:string;incomplete?:b
  * an instance assertion. A parent may qualify through a child's allOf even
  * when the parent has no adjacent composition keyword. */
 export function discriminatorRelationships(graph:ReferenceGraph):AuthoringIssue[] {
- const key=(at:GraphTarget)=>JSON.stringify([at.resource,at.pointer]);
- const edges=new Map<string,GraphReference[]>();
- for(const ref of graph.references) {
-  // Without a dynamic-anchor starting point, $dynamicRef is the same static
-  // applicator as $ref. Runtime-selected targets cannot prove this relationship.
-  if(ref.kind!=='schema'||ref.connection||ref.resolution!=='resolved'||
-   !(ref.keyword==='$ref'||ref.keyword==='$dynamicRef'&&!ref.dynamic))continue;
-  const id=key(ref),values=edges.get(id)??[];
-  values.push(ref);edges.set(id,values);
- }
- const parents=new Set<string>(),queue:GraphReference[]=[];
- // The schema owner establishes composition. A reference can type an isolated
- // literal-data descendant as a schema without typing its containing object.
- for(const scope of graph.scopes.values()) {
-  if(scope.kind!=='schema')continue;
-  const pointer=scope.pointer+'/allOf';
-  if(graph.scopes.get(scope.resource+'#'+pointer)?.kind!=='schema-array')continue;
-  const list=graph.docs.get(scope.resource)!.dataNode(pointer);
-  if(list?.kind!=='array')continue;
-  for(const index of list.children.keys())
-   queue.push(...edges.get(key({resource:scope.resource,pointer:pointer+'/'+index,kind:'schema'}))??[]);
- }
- for(let i=0;i<queue.length;i++) {
-  const ref=queue[i],target={resource:ref.targetResource!,pointer:ref.targetPointer!,kind:'schema'},id=key(target);
-  if(parents.has(id))continue;
-  parents.add(id);
-  const next=edges.get(id);if(next)queue.push(...next);
- }
+ const candidates=[...graph.scopes.values()].filter(scope=>scope.kind==='schema'&&scope.family!=='2.0'&&graph.docs.get(scope.resource)?.dataNode(scope.pointer)?.value?.discriminator);
+ if(!candidates.length)return [];
+ const parents=discriminatorParents(graph);
  const issues:AuthoringIssue[]=[];
- for(const scope of graph.scopes.values()) {
-  if(scope.kind!=='schema'||scope.family==='2.0')continue;
+ for(const scope of candidates) {
   const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value;
   if(!value?.discriminator||!doc.dataSyntaxSafe(scope.pointer))continue;
-  if(['oneOf','anyOf','allOf'].some(name=>Array.isArray(value[name])&&value[name].length>0)||parents.has(key(scope)))continue;
-  issues.push({...scope,pointer:scope.pointer+'/discriminator',code:'discriminator.composition',message:'A discriminator requires adjacent composition or a parent schema referenced by a child through allOf'});
+  if(['oneOf','anyOf','allOf'].some(name=>Array.isArray(value[name])&&value[name].length>0)||parents.established.has(discriminatorLocation(scope)))continue;
+  const incomplete=parents.incomplete||parents.possible.has(discriminatorLocation(scope));
+  issues.push({...scope,pointer:scope.pointer+'/discriminator',code:incomplete?'discriminator.composition.incomplete':'discriminator.composition',message:incomplete?'The captured references cannot establish whether this schema has an allOf child; no complete discriminator composition result is claimed':'A discriminator requires adjacent composition or a parent schema referenced by a child through allOf',...(incomplete?{incomplete:true,severity:'warning'}:{})});
  }
  return issues;
 }

@@ -11,6 +11,7 @@ void main() {
     'schema-version',
     'schema-previous',
     'schema-previous-multipart',
+    'schema-previous-discriminator',
     'response-version',
     'response-configuration',
     'parameter-version',
@@ -47,7 +48,7 @@ void main() {
       addTearDown(plan.close);
       final schema = <String, String>{
         'name': 'hyperjump+busyapi-exact',
-        'version': '1.18.0+36',
+        'version': '1.18.0+37',
         'configuration': 'fixture-runtime',
       };
       final response = <String, String>{
@@ -82,6 +83,8 @@ void main() {
           schema['version'] = '1.18.0+23';
         case 'schema-previous-multipart':
           schema['version'] = '1.18.0+35';
+        case 'schema-previous-discriminator':
+          schema['version'] = '1.18.0+36';
         case 'response-version':
           response['version'] = '2';
         case 'response-configuration':

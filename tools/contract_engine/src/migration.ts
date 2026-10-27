@@ -23,7 +23,7 @@ import {MigrationAccess} from './migration_access';
 import {migrateTerms} from './migration_terms';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='19';
+const migrationProducerVersion='20';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -262,9 +262,16 @@ export async function planMigration(input:MigrationInput) {
         if(!['$ref','$dynamicRef','operationRef'].includes(reference.keyword)||reference.resolution!=='resolved')continue;
         if(portableReferences.has(JSON.stringify([reference.resource,reference.pointer,reference.keyword,reference.value,reference.targetResource,reference.targetPointer])))continue;
         const scope=relocated.graph.scope(reference.resource,reference.pointer),destination=relocated.graph.scopes.get(reference.targetResource!+'#'+reference.targetPointer!);
-        const value=destination&&referenceValue(relocated.graph,scope,destination,reference.keyword);
+        const addressKeyword=reference.keyword==='$dynamicRef'&&!reference.dynamic?'$ref':reference.keyword;
+        const value=destination&&referenceValue(relocated.graph,scope,destination,addressKeyword);
         const location={resource:reference.resource,pointer:reference.pointer+'/'+escape(reference.keyword)};
         if(value===undefined){issue(location,'migration.reference.relocation','A captured reference has no proved portable target spelling','implementation');continue;}
+        if(reference.keyword==='$dynamicRef'){
+            const rebound=relocated.graph.resolveReference(value,scope,'$dynamicRef');
+            if(rebound.resolution!=='resolved'||rebound.targetResource!==reference.targetResource||rebound.targetPointer!==reference.targetPointer||Boolean(rebound.dynamic)!==Boolean(reference.dynamic)){
+                issue(location,'migration.reference.binding','The proposed spelling changes the captured dynamic reference binding','implementation');continue;
+            }
+        }
         if(value===reference.value)continue;
         const source=outputResources.find(resource=>resource.id===reference.resource)!;
         try{const doc=new SourceDocument(source.text,source.id);source.text=doc.set(location.pointer,value);}

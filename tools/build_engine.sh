@@ -83,6 +83,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" tools/documentation_renderers/test_license_declarations.mjs
 "$node_bin" "$engine_dir/test_parameters.cjs"
 "$node_bin" "$engine_dir/test_relationships.cjs"
+"$node_bin" "$engine_dir/test_discriminator_reference_proof.cjs"
 "$node_bin" "$engine_dir/test_diagnostic_fixes.cjs"
 "$node_bin" "$engine_dir/test_security.cjs"
 "$node_bin" "$engine_dir/test_evaluation.cjs"
