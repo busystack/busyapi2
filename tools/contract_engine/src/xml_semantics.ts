@@ -1,8 +1,9 @@
+import {isUri,isIri} from '@hyperjump/uri';
 import {supportedSchemaDialect} from './reference_graph';
 import {segments} from './document';
 import type {GraphScope,GraphTarget,GraphIssue,ReferenceGraph} from './reference_graph';
 
-export const xmlContextRevision='1';
+export const xmlContextRevision='2';
 export type XmlInferredName=
     Readonly<{kind:'component'|'property'|'item';name:string;source:GraphTarget}>|
     Readonly<{kind:'missing'}>;
@@ -39,15 +40,29 @@ export function xmlRequiresExplicitName(graph:ReferenceGraph,scope:GraphScope):b
     return schema?.kind==='schema'&&xmlInferredName(graph,schema).kind==='missing';
 }
 
-/** Informational meta-schemas cannot infer a node name from its containing
- * OpenAPI position. Keep contextual violations source-located in the graph. */
+/** Structural shapes cannot infer XML node names or enforce namespace URI
+ * requirements through non-validating format annotations. Keep these rules
+ * source-located in the canonical graph. */
 export function xmlRelationships(graph:ReferenceGraph):GraphIssue[] {
     const issues:GraphIssue[]=[];
     for(const scope of graph.scopes.values()){
-        if(!xmlRequiresExplicitName(graph,scope))continue;
+        if(scope.kind!=='xml')continue;
         const value=graph.docs.get(scope.resource)!.dataNode(scope.pointer)!.value;
-        if(Object.hasOwn(value,'name'))continue;
-        issues.push({...scope,code:'xml.name.required',message:'This XML node has no component or property name to inherit; add xml.name'});
+        if(xmlRequiresExplicitName(graph,scope)&&!Object.hasOwn(value,'name'))
+            issues.push({...scope,code:'xml.name.required',message:'This XML node has no component or property name to inherit; add xml.name'});
+        // OAS 3.0 §4.7.26 / 3.1 §4.8.26 require a URI; 3.2 §4.26
+        // permits IRIs. Swagger 2.0 §6.4.19 says SHOULD be a URL, not MUST.
+        if(scope.family==='2.0'||!supportedSchemaDialect(scope)||typeof value?.namespace!=='string')continue;
+        const target={...scope,pointer:scope.pointer+'/namespace'};
+        try {
+            if(!(scope.family==='3.2'?isIri:isUri)(value.namespace))
+                issues.push({...target,code:'xml.namespace.uri',message:scope.family==='3.2'?'XML namespace must be a non-relative IRI':'XML namespace must be a non-relative URI'});
+        } catch(error) {
+            // The pinned URI parser recognizes IPvFuture grammar but cannot
+            // evaluate its host notation. Keep that limitation incomplete.
+            if(!(error instanceof Error)||!error.message.startsWith('Unsupported IP version in host: '))throw error;
+            issues.push({...target,code:'xml.namespace.unsupported',message:'The URI validator cannot evaluate this namespace host notation',incomplete:true,severity:'warning'});
+        }
     }
     return issues;
 }
