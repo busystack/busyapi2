@@ -1,3 +1,4 @@
+import {xmlRequiresExplicitName} from './xml_semantics';
 import Ajv2020 from 'ajv/dist/2020';
 import {structuralSchema, structuralDefinition, structuralReference} from './structural_schema';
 import {modernFamily} from './specification';
@@ -80,7 +81,8 @@ export function removableField(kind: string, family: string, value: any, name: s
 /** Source-aware metadata uses the graph's occurrence policy, including the
  * distinction between reusable definitions and Reference Object usage sites. */
 export function fieldsForScope(graph: ReferenceGraph, scope: GraphScope, value: any, contextName = segments(scope.pointer).at(-1) ?? ''): any[] {
-    return fieldsFor(scope.kind, scope.family, value, contextName, graph.allowsReference(scope));
+    const fields=fieldsFor(scope.kind, scope.family, value, contextName, graph.allowsReference(scope));
+    return xmlRequiresExplicitName(graph,scope)?fields.map(field=>field.name==='name'?{...field,required:true}:field):fields;
 }
 export function fieldsFor(kind: string, family: string, value: any = {}, contextName = '', referenceAllowed = supportsReference(kind,family)): any[] {
     const standard = structuralSchema(family);

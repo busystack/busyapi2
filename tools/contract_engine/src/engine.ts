@@ -15,10 +15,11 @@ import {securityRequirementIssues,securityRequirementValueRule} from './security
 import {formMediaIssues} from './form_semantics';
 import {schemaInferenceSources} from './schema_inference';
 import {mediaTypeIssues} from './media_validation';
+import {xmlContextRevision,xmlRelationships} from './xml_semantics';
 import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
-const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2' };
+const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2', xmlContextRules:xmlContextRevision };
 export type Resource = {
     id: string;
     text: string;
@@ -266,7 +267,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
         if(issue.incomplete)complete=false;
         diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,issue.range,issue.severity??'error');
     }
-    for (const issue of [...authoringRelationships(graph), ...restrictedSchemaIssues(graph), ...securityRequirementIssues(graph), ...mediaTypeIssues(graph), ...formMediaIssues(graph),...responseStatusIssues(graph)]) {
+    for (const issue of [...authoringRelationships(graph), ...xmlRelationships(graph), ...restrictedSchemaIssues(graph), ...securityRequirementIssues(graph), ...mediaTypeIssues(graph), ...formMediaIssues(graph),...responseStatusIssues(graph)]) {
         if(issue.incomplete)complete=false;
         diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,undefined,issue.severity??'error');
     }
