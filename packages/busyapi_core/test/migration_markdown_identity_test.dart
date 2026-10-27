@@ -64,7 +64,7 @@ void main() {
           MigrationStatus.faithfullyConvertible,
           reason: '${review.result}',
         );
-        expect(review.result['producerVersion'], '7');
+        expect(review.result['producerVersion'], '8');
         expect(review.unsaved, isTrue);
         expect(Directory(destination).existsSync(), isFalse);
         await expectLater(
@@ -155,7 +155,7 @@ void main() {
           reason: '${prepared.stdout}\n${prepared.stderr}',
         );
         final report = jsonDecode(prepared.stdout as String) as Map;
-        expect(report['producerVersion'], '7');
+        expect(report['producerVersion'], '8');
         expect(report['published'], isFalse);
         final published = await cli([
           '--apply',

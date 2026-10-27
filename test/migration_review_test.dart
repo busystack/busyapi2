@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:busyapi/l10n/generated/app_localizations.dart';
 import 'package:busyapi/src/app/app_theme.dart';
@@ -36,15 +37,17 @@ void main() {
       messenger.setMockMethodCallHandler(MethodChannel(name), null);
     }
   });
-  for (final (stale, ignoredBody, formVersion) in [
-    (false, false, null),
-    (true, false, null),
-    (false, true, null),
+  for (final (stale, ignoredBody, formVersion, coordinatedVersion) in [
+    (false, false, null, null),
+    (true, false, null, null),
+    (false, true, null, null),
     for (final version in ['3.0.0', '3.0.4', '3.1.2', '3.2.1'])
-      (false, false, version),
+      (false, false, version, null),
+    for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1'])
+      (false, false, null, version),
   ]) {
     testWidgets(
-      'native migration ${formVersion ?? 'general'} reviews captured changes and ${stale
+      'native migration ${coordinatedVersion == null ? formVersion ?? 'general' : 'coordinated $coordinatedVersion'} reviews captured changes and ${stale
           ? 'rejects stale source'
           : ignoredBody
           ? 'requires an ignored-body decision'
@@ -60,9 +63,84 @@ void main() {
             file = File('${temp.path}/api.yaml');
         const base =
             '# Keep\nopenapi: 3.0.4\ninfo: {title: Original, version: "1"}\npaths: {}\ncomponents: {schemas: {Value: {type: string, nullable: true}}}\n';
-        final sourceVersion = formVersion ?? '3.0.4';
+        final sourceVersion = coordinatedVersion ?? formVersion ?? '3.0.4';
         final targetVersion = formVersion == null ? '3.2.1' : '2.0';
-        final original = formVersion != null
+        final swagger = sourceVersion == '2.0';
+        final coordinated = coordinatedVersion == null
+            ? null
+            : {
+                if (swagger)
+                  'swagger': sourceVersion
+                else
+                  'openapi': sourceVersion,
+                'info': {'title': 'Original', 'version': '1'},
+                if (swagger) ...{
+                  'host': 'a.example.invalid',
+                  'schemes': ['https'],
+                } else
+                  'servers': [
+                    {'url': 'https://a.example.invalid'},
+                  ],
+                'paths': {
+                  '/items': {
+                    'get': {
+                      'responses': {
+                        '200': {
+                          'description': 'Value',
+                          if (swagger)
+                            'schema': {
+                              r'$ref': 'shared.yaml#/definitions/Value',
+                            }
+                          else
+                            'content': {
+                              'application/json': {
+                                'schema': {
+                                  r'$ref':
+                                      'shared.yaml#/components/schemas/Value',
+                                },
+                              },
+                            },
+                        },
+                      },
+                    },
+                  },
+                },
+              };
+        final shared = File('${temp.path}/shared.yaml');
+        final sharedOriginal = coordinatedVersion == null
+            ? ''
+            : '# Keep shared source 雪\r\n${jsonEncode({
+                if (swagger) 'swagger': sourceVersion else 'openapi': sourceVersion,
+                'info': {'title': 'Shared', 'version': '1'},
+                if (swagger) ...{
+                  'host': 'b.example.invalid',
+                  'schemes': ['https'],
+                } else 'servers': [
+                    {'url': 'https://b.example.invalid'},
+                  ],
+                'paths': {
+                  '/other': {
+                    'get': {
+                      'responses': {
+                        '204': {'description': 'None'},
+                      },
+                    },
+                  },
+                },
+                if (swagger) 'definitions': {
+                    'Value': {'type': 'integer'},
+                  } else 'components': {
+                    'schemas': {
+                      'Value': {'type': 'integer'},
+                    },
+                  },
+              })}\r\n';
+        if (coordinatedVersion != null) {
+          shared.writeAsStringSync(sharedOriginal);
+        }
+        final original = coordinated != null
+            ? '# Keep original source\r\n${jsonEncode(coordinated)}\r\n'
+            : formVersion != null
             ? '# Keep\nopenapi: $sourceVersion\ninfo: {title: Original, version: "1"}\n'
                   'servers: [{url: https://fixture.invalid}]\npaths:\n  /form:\n    post:\n'
                   '      requestBody:\n        required: true\n        content:\n'
@@ -103,6 +181,16 @@ void main() {
             await c.initialize();
             await c.open(file.path);
             c.sourceEdit(c.root!, original.replaceFirst('Original', 'Unsaved'));
+            if (coordinatedVersion != null) {
+              final buffer = await c.project!.buffer(shared.uri.toString());
+              c.sourceEdit(
+                buffer.id,
+                buffer.text.replaceFirst(
+                  '"title":"Shared"',
+                  '"title":"Shared working"',
+                ),
+              );
+            }
             await c.analyse();
           });
           await tester.pumpWidget(
@@ -273,6 +361,24 @@ void main() {
             );
             expect(c.buffer!.text, contains(sourceVersion));
             expect(c.buffer!.dirty, true);
+            if (coordinatedVersion != null) {
+              final manifest = jsonDecode(
+                File('$path/busyapi.yaml').readAsStringSync(),
+              ) as Map;
+              expect(manifest['roots'], hasLength(2));
+              final secondary = (manifest['roots'] as List)
+                  .cast<Map>()
+                  .singleWhere((root) => root['path'] != 'openapi.yaml');
+              final copy = File('$path/${secondary['path']}')
+                  .readAsStringSync();
+              expect(copy, contains('Shared working'));
+              expect(copy, contains(targetVersion));
+              expect(shared.readAsStringSync(), sharedOriginal);
+              expect(
+                c.project!.store.get(shared.uri.toString()).text,
+                contains('Shared working'),
+              );
+            }
             if (ignoredBody) {
               expect(c.buffer!.text, contains('requestBody'));
               expect(

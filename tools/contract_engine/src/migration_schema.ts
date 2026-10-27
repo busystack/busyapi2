@@ -1,12 +1,12 @@
 import type {GraphScope,ReferenceGraph} from './reference_graph';
-import {MigrationSource} from './migration_source';
+import {MigrationSource,type MigrationLocation} from './migration_source';
 import {modernFamily} from './specification';
 import {escape} from './document';
 import {compare,decimal} from './exact_numbers';
 import {createHash} from 'node:crypto';
 
 export type MigrationProblem={resource:string;pointer:string;range:number[];code:string;message:string;reason:'target-representation'|'implementation'|'source-incomplete'|'decision';choices?:string[];id?:string};
-export type MigrationIssue=(scope:{resource:string;pointer:string},code:string,message:string,reason:MigrationProblem['reason'],choices?:string[])=>boolean;
+export type MigrationIssue=(scope:MigrationLocation&{original?:MigrationLocation},code:string,message:string,reason:MigrationProblem['reason'],choices?:string[])=>boolean;
 
 /** Normative schema mappings. No schema is evaluated under another family's
  * dialect to make a migration pass. These edits affect planning copies only. */

@@ -154,7 +154,7 @@ $_tail''').replaceAll('\n', '\r\n')}',
             MigrationStatus.faithfullyConvertible,
             reason: '${review.result}',
           );
-          expect(review.result['producerVersion'], '7');
+          expect(review.result['producerVersion'], '8');
           expect(review.unsaved, isTrue);
           expect(review.outdated, isFalse);
           expect(await Directory(review.destination).exists(), isFalse);
@@ -221,7 +221,7 @@ $_tail''').replaceAll('\n', '\r\n')}',
             reason: '${prepared.stdout}\n${prepared.stderr}',
           );
           final report = jsonDecode(prepared.stdout as String) as Map;
-          expect(report['producerVersion'], '7');
+          expect(report['producerVersion'], '8');
           expect(report['published'], false);
           expect(await Directory(cliDestination).exists(), isFalse);
           final published = await cli([

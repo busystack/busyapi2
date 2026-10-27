@@ -14,7 +14,7 @@ const mediaKey=(media:readonly string[])=>JSON.stringify([...new Set(media)].sor
  * Parameter/Response definition. OAS 3.0 §§4.7.13/4.7.17 instead put content on
  * that definition. Preserve one schema owner and specialize the media wrapper.
  * All copies are CST planning copies, with original payload provenance. */
-export function swaggerMediaMigration(graph:ReferenceGraph,sources:Map<string,MigrationSource>,issue:MigrationIssue) {
+export function swaggerMediaMigration(graph:ReferenceGraph,sources:Map<string,MigrationSource>,issue:MigrationIssue,contexts:readonly ReferenceGraph[]=[graph]) {
     const entry=sources.get(graph.root)!;
     const bodies=new Map<string,MediaOwner>(),variants=new Map<string,MigrationLocation>();
     const edges=new Map(graph.references.filter(edge=>edge.keyword==='$ref').map(edge=>[key(edge),edge]));
@@ -24,8 +24,8 @@ export function swaggerMediaMigration(graph:ReferenceGraph,sources:Map<string,Mi
         while(entry.doc.nodes.has('/components/'+group+'/'+name)||group==='schemas'&&entry.doc.nodes.has('/definitions/'+name))name=stem+'_'+(++index);
         return {resource:graph.root,pointer:'/components/'+group+'/'+name};
     };
-    const schemaOwner=(scope:MigrationLocation,pointer:string):MigrationLocation|undefined=>{
-        const source=sources.get(scope.resource)!;
+    const schemaOwner=(scope:MigrationLocation,pointer:string,resource=scope.resource):MigrationLocation|undefined=>{
+        const source=sources.get(resource)!;
         if(!source.doc.nodes.has(pointer+'/schema'))return;
         const destination=component('schemas',{resource:scope.resource,pointer:scope.pointer+'/schema'});
         if(source===entry)entry.move(pointer+'/schema',destination.pointer);
@@ -59,10 +59,19 @@ export function swaggerMediaMigration(graph:ReferenceGraph,sources:Map<string,Mi
         if(!owner){
             const source=sources.get(definition.resource)!,pointer=source.current(definition.pointer);
             if(pointer===undefined)return;
-            const destination=source===entry?component('requestBodies',definition):{resource:definition.resource,pointer};
-            if(source===entry)source.move(pointer,destination.pointer);
-            source.remove(destination.pointer+'/name');source.remove(destination.pointer+'/in');
-            owner={...destination,schema:schemaOwner(definition,destination.pointer),media:[...media]};
+            // An inline body disappears from its Parameters array below. A
+            // complete Swagger document's reusable map also changes kind.
+            // Give those bodies a surviving Request Body owner first.
+            const parent=definition.pointer.slice(0,definition.pointer.lastIndexOf('/'));
+            const hoist=source===entry||graph.specifications.has(definition.resource)||graph.scopes.get(definition.resource+'#'+parent)?.kind==='parameter-array';
+            const destination=hoist?component('requestBodies',definition):{resource:definition.resource,pointer};
+            if(hoist){
+                if(source===entry)source.move(pointer,destination.pointer);
+                else {entry.copy(source,pointer,destination.pointer);source.remove(pointer);}
+            }
+            const target=sources.get(destination.resource)!;
+            target.remove(destination.pointer+'/name');target.remove(destination.pointer+'/in');
+            owner={...destination,schema:schemaOwner(definition,destination.pointer,destination.resource),media:[...media]};
             content(owner,media);bodies.set(key(definition),owner);
         }
         return variant(owner,'requestBodies',media);
@@ -70,13 +79,14 @@ export function swaggerMediaMigration(graph:ReferenceGraph,sources:Map<string,Mi
     const unusedBodies=()=>{
         for(const scope of graph.scopes.values())if(scope.family==='2.0'&&scope.kind==='parameter'){
             const value=graph.docs.get(scope.resource)!.dataNode(scope.pointer)!.value;
-            if(value?.in==='body'&&typeof value.$ref!=='string'&&!bodies.has(key(scope)))body(scope,swaggerMedia(graph,graph.root,'','consumes'));
+            const context=contexts.find(context=>context.root===scope.resource)??graph;
+            if(value?.in==='body'&&typeof value.$ref!=='string'&&!bodies.has(key(scope)))body(scope,swaggerMedia(context,context.root,'','consumes'));
         }
     };
     const responses=():ReadonlyMap<string,MigrationLocation>=>{
         const uses=new Map<string,{occurrence:GraphTarget;media:string[]}[]>(),retargets=new Map<string,MigrationLocation>();
         const primary=new Map<string,MigrationLocation>(bodies);
-        for(const operation of graph.operations()){
+        for(const context of contexts)for(const operation of context.operations()){
             const declarations=graph.docs.get(operation.source.resource)!.dataNode(operation.source.pointer+'/responses');
             for(const name of declarations?.children.keys()??[]){
                 if(name.startsWith('x-'))continue;
@@ -88,7 +98,8 @@ export function swaggerMediaMigration(graph:ReferenceGraph,sources:Map<string,Mi
                     seen.add(identity);
                     if(typeof value?.$ref!=='string'){
                         const consumers=uses.get(identity)??[];
-                        consumers.push({occurrence,media:swaggerMedia(graph,operation.source.resource,operation.source.pointer,'produces')});
+                        const media=swaggerMedia(context,operation.source.resource,operation.source.pointer,'produces');
+                        if(!consumers.some(consumer=>key(consumer.occurrence)===key(occurrence)&&mediaKey(consumer.media)===mediaKey(media)))consumers.push({occurrence,media});
                         uses.set(identity,consumers);break;
                     }
                     const edge=edges.get(identity);
@@ -102,7 +113,8 @@ export function swaggerMediaMigration(graph:ReferenceGraph,sources:Map<string,Mi
         for(const scope of graph.scopes.values())if(scope.family==='2.0'&&scope.kind==='response'){
             const source=sources.get(scope.resource)!,pointer=source.current(scope.pointer);
             if(pointer===undefined||typeof graph.docs.get(scope.resource)!.dataNode(scope.pointer)!.value?.$ref==='string')continue;
-            const consumers=uses.get(key(scope))??[],media=consumers[0]?.media??swaggerMedia(graph,graph.root,'','produces');
+            const context=contexts.find(context=>context.root===scope.resource)??graph;
+            const consumers=uses.get(key(scope))??[],media=consumers[0]?.media??swaggerMedia(context,context.root,'','produces');
             const schema=schemaOwner(scope,pointer);
             const owner:MediaOwner={resource:scope.resource,pointer,schema,media:schema?media:[]};
             primary.set(key(scope),owner);

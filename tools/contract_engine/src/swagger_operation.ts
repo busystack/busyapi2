@@ -15,8 +15,8 @@ export function swaggerMedia(graph:ReferenceGraph,resource:string,pointer:string
     if(!Array.isArray(selected)||selected.some(value=>typeof value!=='string'))throw new SourceError('request.media','The effective Swagger '+field+' declaration must be a string array');
     return selected;
 }
-export function swaggerServers(graph:ReferenceGraph,resource:string,pointer:string,locate:Locate) {
-    const root=graph.docs.get(graph.root)!,operation=graph.docs.get(resource)!.dataNode(pointer)!,retrieval=graph.retrievals.get(graph.root)!;
+export function swaggerServers(graph:ReferenceGraph,resource:string,pointer:string,locate:Locate,descriptionRoot=graph.root) {
+    const root=graph.docs.get(descriptionRoot)!,operation=graph.docs.get(resource)!.dataNode(pointer)!,retrieval=graph.retrievals.get(descriptionRoot)!;
     const base=new URL(retrieval),host=root.root.value.host??(base.protocol==='http:'||base.protocol==='https:'?base.host:undefined);
     const declared=operation.children.has('schemes')?operation.value.schemes:root.root.value.schemes;
     const schemes=declared?.length?declared:[base.protocol==='http:'||base.protocol==='https:'?base.protocol.slice(0,-1):undefined];

@@ -10,13 +10,13 @@ const schemaFields=['type','format','items','default','maximum','exclusiveMaximu
 
 /** Structural mappings use native graph occurrences and effective parameters,
  * including inherited body/form parameters. No guessed traversal of payloads. */
-export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,MigrationSource>,issue:MigrationIssue) {
+export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,MigrationSource>,issue:MigrationIssue,contexts:readonly ReferenceGraph[]=[graph]) {
     // Reserve authored schema names before adding shared media schema owners.
     for(const [resource,specification]of graph.specifications)if(specification.family==='2.0'){
         const source=sources.get(resource)!;
         if(source.doc.nodes.has('/definitions'))source.move('/definitions','/components/schemas');
     }
-    const parameters=new ParameterSemantics(graph),media=swaggerMediaMigration(graph,sources,issue);
+    const parameters=new ParameterSemantics(graph),media=swaggerMediaMigration(graph,sources,issue,contexts);
     const path=(scope:GraphScope)=>sources.get(scope.resource)!.current(scope.pointer);
     const style=(scope:Pick<GraphScope,'resource'|'pointer'>,value:any)=>{
         const format=value.collectionFormat??'csv';
@@ -43,8 +43,17 @@ export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migration
             if(serialization)for(const [field,item]of Object.entries(serialization))source.set(pointer+'/'+field,item);
         }
     }
-    for(const operation of graph.operations()){
+    const represented=new Map<string,string>();
+    for(const context of contexts)for(const operation of context.operations()){
+        const graph=context;
         if(graph.scope(operation.source.resource,operation.source.pointer).family!=='2.0')continue;
+        const identity=operation.source.resource+'#'+operation.source.pointer;
+        const signature=JSON.stringify([swaggerMedia(graph,operation.source.resource,operation.source.pointer,'consumes'),swaggerMedia(graph,operation.source.resource,operation.source.pointer,'produces')]);
+        if(represented.has(identity)){
+            if(represented.get(identity)!==signature)issue(operation.source,'migration.operation.multiple-contexts','This shared Swagger operation has different inherited media in captured descriptions; it needs distinct target operation owners','implementation');
+            continue;
+        }
+        represented.set(identity,signature);
         const source=sources.get(operation.source.resource)!,pointer=source.current(operation.source.pointer);if(pointer===undefined)continue;
         const effective=parameters.operation(operation.source.resource,operation.source.pointer,operation.pathItem),consumes=swaggerMedia(graph,operation.source.resource,operation.source.pointer,'consumes');
         const body=effective.visible.find(parameter=>parameter.location==='body'),form=effective.visible.filter(parameter=>parameter.location==='formData');
@@ -123,7 +132,7 @@ export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migration
             const node=source.doc.node('/parameters/'+escape(name));if(node.value?.in==='formData')source.remove(node.pointer);
         }
         for(const [from,to]of [['parameters','parameters'],['responses','responses'],['securityDefinitions','securitySchemes']])if(source.doc.nodes.has('/'+from))source.move('/'+from,'/components/'+to);
-        const servers=swaggerServers(graph,graph.root,'',()=>({resource:graph.root,pointer:'',generation:0,range:[0,0]}));
+        const servers=swaggerServers(graph,resource,'',()=>({resource,pointer:'',generation:0,range:[0,0]}),resource);
         source.set('/servers',servers.map(({url})=>({url})));
         for(const name of ['swagger','host','basePath','schemes','consumes','produces'])source.remove('/'+name);
         source.set('/openapi','3.0.4');

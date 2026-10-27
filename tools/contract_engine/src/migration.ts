@@ -17,9 +17,10 @@ import {migrationRequestSignatures} from './migration_invariants';
 import {migrateEncodings} from './migration_encoding';
 import {checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
 import {checkSecurityRequirementTarget} from './migration_security';
+import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='7';
+const migrationProducerVersion='8';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -58,7 +59,7 @@ export async function planMigration(input:MigrationInput) {
         return {resource:input.root,pointer:'',range:original.get(input.root)!.root.range};
     };
     const issue:MigrationIssue=(location,code,message,reason,choices)=>{
-        const source=sourceLocation(location.resource,location.pointer),id=digest(key(source.resource,source.pointer)+code+decisionRevision).slice(0,24);
+        const source=location.original?{...location.original,range:original.get(location.original.resource)!.node(location.original.pointer).range}:sourceLocation(location.resource,location.pointer),id=digest(key(source.resource,source.pointer)+code+decisionRevision).slice(0,24);
         if(reason==='decision'&&choices)decisionChoices.set(id,choices);
         if(reason==='decision'&&choices?.includes(decisions[id])){accepted.add(id);return true;}
         if(!problems.some(problem=>problem.id===id))problems.push({...source,id,code,message,reason,...(choices?{choices}:{})});
@@ -69,22 +70,26 @@ export async function planMigration(input:MigrationInput) {
         issue(error.source??location,error.code,error.message,'implementation');
     };
     const validate=async(values:Resource[],root:string)=>{
-        const capture={...input,resources:values,root},analysis=analyse(capture),schemas=await evaluateSchemas(capture);
-        if(!analysis.complete||!schemas.complete)issue({resource:root,pointer:''},'migration.validation.incomplete','Native validation did not complete; no migration can be published','source-incomplete');
-        for(const finding of [...analysis.findings,...schemas.findings])if(finding.severity==='error')issue(finding,'migration.validation.'+finding.code,finding.message,'implementation');
-        return {analysis,schemas};
+        const roots=[root,...values.filter(value=>value.id!==root&&specificationDeclaration(new SourceDocument(value.text,value.id).root.value).status==='supported').map(value=>value.id)];
+        for(const root of roots){
+            const capture={...input,resources:values,root},analysis=analyse(capture),schemas=await evaluateSchemas(capture);
+            if(!analysis.complete||!schemas.complete)issue({resource:root,pointer:''},'migration.validation.incomplete','Native validation did not complete; no migration can be published','source-incomplete');
+            for(const finding of [...analysis.findings,...schemas.findings])if(finding.severity==='error')issue(finding,'migration.validation.'+finding.code,finding.message,'implementation');
+        }
     };
+    const initialContexts=migrationDocumentContexts(input,initial,issue);
     await validate(resources,input.root);
-    if(!problems.length)checkRequestBodyTarget(initial,resources,target.family,issue);
-    if(!problems.length)checkSecurityRequirementTarget(initial.graph,target.family,issue);
+    if(!problems.length)for(const context of initialContexts)checkRequestBodyTarget(context,resources,target.family,issue);
+    if(!problems.length)for(const context of initialContexts)checkSecurityRequirementTarget(context.graph,target.family,issue);
     const order=[...nativeFamilies],start=order.indexOf(from.family),finish=order.indexOf(target.family);
     const route=start<=finish?order.slice(start,finish+1):target.family==='2.0'?[from.family,target.family]:order.slice(finish,start+1).reverse();
-    if(initial.graph.specifications.size>1)issue({resource:input.root,pointer:''},'migration.multiple-roots','A graph containing multiple declared API roots needs a coordinated root-specific migration plan','implementation');
     for(let index=0;index<route.length-1&&!problems.length;index++){
         const before=route[index],after=route[index+1],context=createGraph({...input,resources}),{graph}=context;
+        const contexts=migrationDocumentContexts({...input,resources},context,issue);
+        if(problems.length)break;
         const sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
         try {
-            ignoredBodyOmissions.push(...migrateOperationBodies(graph,sources,before,after,from.family,issue));
+            for(const context of contexts)ignoredBodyOmissions.push(...migrateOperationBodies(context.graph,sources,before,after,from.family,issue));
             for(const scope of graph.scopes.values()){
                 const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value,source=sources.get(scope.resource)!;
                 if(source.current(scope.pointer)===undefined)continue;
@@ -106,7 +111,7 @@ export async function planMigration(input:MigrationInput) {
             if(problems.length)break;
             migrateSchemas(graph,sources,before,after,issue);
             migrateEncodings(graph,sources,before,after,issue);
-            const referenceTargets=before==='2.0'?upgradeSwagger(graph,sources,issue):undefined;
+            const referenceTargets=before==='2.0'?upgradeSwagger(graph,sources,issue,contexts.map(context=>context.graph)):undefined;
             if(after==='2.0')downgradeSwagger(graph,sources,issue);
             if(problems.length)break;
             for(const [id,specification]of graph.specifications){
@@ -165,9 +170,13 @@ export async function planMigration(input:MigrationInput) {
     };
     if(problems.length)return {...common(),changes:[],outputs:[]};
     if(start===finish)try{
-        const source=new MigrationSource(createGraph({...input,resources}).docs.get(input.root)!);
-        source.set(target.declaration==='swagger'?'/swagger':'/openapi',target.declaredVersion);
-        resources=resources.map(resource=>resource.id===input.root?{...resource,text:source.doc.text}:resource);
+        const context=createGraph({...input,resources});
+        resources=resources.map(resource=>{
+            if(!context.graph.specifications.has(resource.id))return resource;
+            const source=new MigrationSource(context.docs.get(resource.id)!);
+            source.set(target.declaration==='swagger'?'/swagger':'/openapi',target.declaredVersion);
+            return {...resource,text:source.doc.text};
+        });
     }catch(error){refused(error,{resource:input.root,pointer:''});}
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const context=createGraph({...input,resources}),sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
@@ -184,7 +193,10 @@ export async function planMigration(input:MigrationInput) {
         for(const reference of context.graph.references)if(['$ref','$dynamicRef','operationRef'].includes(reference.keyword)&&reference.resolution==='resolved')sources.get(reference.resource)!.set(reference.pointer+'/'+escape(reference.keyword),resolveUri(reference.value,reference.base).href);
     }catch(error){refused(error,{resource:input.root,pointer:''});}
     if(problems.length)return {...common(),changes:[],outputs:[]};
-    const paths=new Map(resources.map(resource=>[resource.id,(resource.id===input.root?'openapi':'resources/'+digest(resource.id).slice(0,24))+'.'+sources.get(resource.id)!.doc.format]));
+    // Each declared API must reopen with its containing directory as the
+    // standalone access boundary, including references to another API's owners.
+    const paths=new Map(resources.map(resource=>[resource.id,(resource.id===input.root?'openapi':(context.graph.specifications.has(resource.id)?'openapi-':'resources/')+digest(resource.id).slice(0,24))+'.'+sources.get(resource.id)!.doc.format]));
+    if(new Set(paths.values()).size!==paths.size)throw new SourceError('migration.destination.collision','Migrated resources need distinct output names');
     const identifiers=new Map([...paths].map(([id,path])=>[id,new URL(path,input.destination).href]));
     for(const [source,destination]of identifiers)relocatedResources.set(destination,source);
     if([...identifiers.values()].some(id=>context.graph.identities.has(id)))throw new SourceError('migration.destination','The output would replace a captured source identity');
@@ -241,9 +253,13 @@ export async function planMigration(input:MigrationInput) {
     await validate(outputResources,outputRoot);
     const finalContext=createGraph({...input,root:outputRoot,resources:outputResources});
     const operationKeys=(graph:typeof initial.graph)=>graph.operations().map(operation=>JSON.stringify([operation.role,operation.method,operation.customMethod===true,operation.path])).sort();
-    if(JSON.stringify(operationKeys(initial.graph))!==JSON.stringify(operationKeys(finalContext.graph)))issue({resource:input.root,pointer:''},'migration.invariant.operations','The migrated graph changed an operation method, path, role or occurrence count','implementation');
     try {
-        if(JSON.stringify(migrationRequestSignatures(initial.graph,input.resources))!==JSON.stringify(migrationRequestSignatures(finalContext.graph,outputResources)))issue({resource:input.root,pointer:''},'migration.invariant.request','The migrated graph changed effective URL, serialization, authentication, request media or response declarations','implementation');
+        for(const context of initialContexts){
+            const root=context.graph.root,output=identifiers.get(root)!,targetGraph=root===input.root?finalContext.graph:createGraph({...input,root:output,resources:outputResources}).graph;
+            if(JSON.stringify(operationKeys(context.graph))!==JSON.stringify(operationKeys(targetGraph)))issue({resource:root,pointer:''},'migration.invariant.operations','The migrated graph changed an operation method, path, role or occurrence count','implementation');
+            if(JSON.stringify(migrationRequestSignatures(context.graph,input.resources))!==JSON.stringify(migrationRequestSignatures(targetGraph,outputResources)))issue({resource:root,pointer:''},'migration.invariant.request','The migrated graph changed effective URL, serialization, authentication, request media or response declarations','implementation');
+            proveMigrationConnections(context.graph,targetGraph,location=>(origins.get(key(location.resource,location.pointer))??[]).map(location=>({resource:identifiers.get(location.resource)!,pointer:location.pointer})),issue);
+        }
     }catch(error){
         if(!(error instanceof SourceError))throw error;
         issue({resource:input.root,pointer:''},error.code,'Request invariants could not be established for this migration','implementation');
@@ -272,10 +288,12 @@ export async function planMigration(input:MigrationInput) {
     // sufficient; no original-source disk access is a migration dependency.
     // Core sorts approved mappings before choosing a retrieval identity. Prove
     // the delivered manifest with that same ordering, not transient old aliases.
-    const reopened=coldGraph(outputRoot,coldResources());
-    if(reopened.issues.length)issue({resource:input.root,pointer:''},'migration.reference.cold-reopen','The copied files and root identity mappings cannot reopen every captured dependency; a nested-resource relocation needs an additional mapping','implementation');
+    for(const context of initialContexts){
+        const root=context.graph.root,reopened=coldGraph(identifiers.get(root)!,coldResources());
+        if(reopened.issues.length)issue({resource:root,pointer:''},'migration.reference.cold-reopen','The copied files and root identity mappings cannot reopen every captured dependency; a nested-resource relocation needs an additional mapping','implementation');
+    }
     if(problems.length)return {...common(),changes:[],outputs:[]};
-    const manifest={version:1,roots:[{name:'migrated',path:paths.get(input.root)}],resourceMappings:Object.fromEntries(mappings)};
+    const manifest={version:1,roots:initialContexts.map(({graph})=>({name:graph.root===input.root?'migrated':'resource_'+digest(graph.root).slice(0,24),path:paths.get(graph.root)})),resourceMappings:Object.fromEntries(mappings)};
     const outputs=outputResources.map(resource=>({path:[...paths].find(([id])=>identifiers.get(id)===resource.id)![1],id:resource.id,text:resource.text,hasBom:input.resources.find((source:Resource)=>identifiers.get(source.id)===resource.id)?.hasBom===true,identity:digest(resource.text)}));
     const changes=resources.map(resource=>({resource:resource.id,destination:identifiers.get(resource.id),before:original.get(resource.id)!.text,after:outputResources.find(output=>output.id===identifiers.get(resource.id))!.text}));
     for(const decision of Object.keys(decisions))if(!accepted.has(decision))throw new SourceError('migration.decisions.stale','A supplied decision does not belong to this captured migration plan');

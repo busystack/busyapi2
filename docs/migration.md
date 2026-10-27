@@ -36,6 +36,12 @@ Missing dependencies, unsupported mappings and unresolved decisions produce
 located findings and no publishable output. Target validation and request
 invariants supplement the structural mappings.
 
+When referenced resources are themselves complete OpenAPI descriptions in the
+same family, the review includes their conversion to the selected target.
+Their own operations, servers, media and shared definitions retain separate
+entry contexts. Check every affected document in the review. Different-family
+routes and incompatible shared contexts can still require additional mappings.
+
 URL-encoded forms with independent scalar fields can be downgraded to Swagger
 `formData` parameters. Media type casing and explicit UTF-8 charset parameters
 are preserved in the target media declaration. Primitive arrays use their declared encoding, including
@@ -49,6 +55,11 @@ formats, a `migration.json` receipt, and an optional `busyapi.yaml` project that
 retains captured resource mappings. Open the output folder to use those mappings.
 Ordinary local references also reopen directly from the OpenAPI file, including
 after copying those documents to another folder without the project manifest.
+Complete API documents are published together at the output directory's top
+level; fragments can remain under `resources/`. Each API can therefore open
+within its normal containing-directory access boundary. The output project
+registers all captured complete descriptions; unrelated project roots outside
+the captured graph are not migrated.
 Comments and organization are retained where the mappings permit; restructuring
 is visible in the review. Explicit schema/document identities can still require
 their captured mappings.
