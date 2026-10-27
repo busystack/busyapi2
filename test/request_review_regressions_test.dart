@@ -3622,6 +3622,97 @@ paths:
     },
   );
 
+  for (final (rootVersion, definitionVersion) in [
+    ('3.1.2', '3.2.1'),
+    ('3.2.1', '3.1.2'),
+  ]) {
+    testWidgets(
+      '$rootVersion native cookies retain referenced $definitionVersion definitions',
+      (tester) async {
+        final f = _Fixture();
+        HttpServer? endpoint;
+        final observed = <(String, String, String?, List<int>)>[];
+        final newer = definitionVersion.startsWith('3.2.');
+        try {
+          await tester.runAsync(() async {
+            endpoint = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+            endpoint!.listen((request) async {
+              observed.add((
+                request.method,
+                request.uri.toString(),
+                request.headers.value('cookie'),
+                await request.fold<List<int>>(
+                  [],
+                  (all, part) => all..addAll(part),
+                ),
+              ));
+              request.response.statusCode = 204;
+              await request.response.close();
+            });
+            File('${f.dir.path}/parameters.yaml')
+                .writeAsStringSync('''# Keep shared definition 雪
+openapi: $definitionVersion
+info: {title: Shared parameters, version: '1'}
+paths: {}
+components:
+  parameters:
+    Value:
+      name: Value
+      in: cookie
+      required: true
+      style: ${newer ? 'cookie' : 'form'}
+${newer ? '' : '      explode: false\n'}      schema: {type: array, items: {type: string}}
+      example: ${newer ? '["100%25", "", "false", "9007199254740993"]' : '["雪"]'}
+''');
+            await f.open('''openapi: $rootVersion
+info: {title: Keep operation family, version: '1'}
+servers: [{url: 'http://127.0.0.1:${endpoint!.port}'}]
+paths:
+  /cookies:
+    post:
+      parameters: [{\$ref: './parameters.yaml#/components/parameters/Value'}]
+      responses: {'204': {description: None}}
+''');
+          });
+          final original = f.file.readAsStringSync();
+          final shared = File('${f.dir.path}/parameters.yaml')
+              .readAsStringSync();
+          final parameter =
+              (f.run.plan!.result['parameters'] as List).single as Map;
+          f.run.useExample(parameter);
+          await tester.pumpWidget(host(RequestRunPanel(run: f.run)));
+          await tester.pump();
+          await tester.runAsync(
+            () => HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp()),
+          );
+          expect(f.run.failure, isNull, reason: f.run.failureMessage);
+          expect(observed, hasLength(1));
+          expect(observed.single.$1, 'POST');
+          expect(observed.single.$2, '/cookies');
+          expect(
+            observed.single.$3,
+            newer
+                ? 'Value=100%25; Value=; Value=false; Value=9007199254740993'
+                : 'Value=%E9%9B%AA',
+          );
+          expect(observed.single.$4, isEmpty);
+          expect(f.file.readAsStringSync(), original);
+          expect(
+            File('${f.dir.path}/parameters.yaml').readAsStringSync(),
+            shared,
+          );
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.runAsync(() async {
+            await endpoint?.close(force: true);
+            await f.dispose();
+          });
+        }
+      },
+    );
+  }
+
   testWidgets(
     'U7 native tool components retain reachable controls at narrow widths and large text in both appearances',
     (tester) async {

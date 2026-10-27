@@ -296,10 +296,12 @@ export async function requestMultipartEncoding(input:any){
  * than as JavaScript values.
  */
 export function requestOperation(input:any,captured?:ReturnType<typeof createGraph>) {
-  const {docs,graph,family}=captured??createGraph(input);
+  const {docs,graph}=captured??createGraph(input);
   const generation=new Map((input.resources as Resource[]).map(resource=>[resource.id,resource.generation]));
   const operation=graph.scopes.get(input.resource+'#'+input.pointer);
   if(operation?.kind!=='operation')throw new SourceError('request.operation','Select an authored Operation Object');
+  const family=operation.family;
+  if(!isNativeFamily(family))throw new SourceError('request.family.unsupported','The captured operation owner has no supported specification family');
   const contexts=graph.operationContexts(input.resource,input.pointer);
   const context=input.occurrence===undefined
     ?contexts.length===1?contexts[0]:undefined
@@ -402,12 +404,14 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   const parameter=(entry:ParameterOccurrence)=>{
     if(entry.state!=='resolved'||!entry.definition||entry.name===undefined||!entry.location)throw new SourceError('request.parameter','An effective parameter is incomplete');
     const selected=follow(entry.definition,'parameter'),v=selected.node.value;
+    const parameterFamily=graph.scope(selected.resource,selected.pointer).family;
+    if(!isNativeFamily(parameterFamily))throw new SourceError('request.family.unsupported','The captured parameter owner has no supported specification family');
     const content=v.content&&typeof v.content==='object'?media(selected.resource,selected.pointer+'/content',v.content):[];
-    return {name:entry.name,in:entry.location,family,type:typeof v.schema?.type==='string'?v.schema.type:undefined,description:v.description,required:v.required===true||entry.location==='path',deprecated:v.deprecated===true,
-      ...parameterStyle(family,entry.location,v),
+    return {name:entry.name,in:entry.location,family:parameterFamily,type:typeof v.schema?.type==='string'?v.schema.type:undefined,description:v.description,required:v.required===true||entry.location==='path',deprecated:v.deprecated===true,
+      ...parameterStyle(parameterFamily,entry.location,v),
       allowReserved:v.allowReserved===true,allowEmptyValue:v.allowEmptyValue===true,source:location(entry.source.resource,entry.source.pointer),definition:selected.source,
       schema:schema(selected.resource,selected.pointer,v),content,example:example(selected.resource,selected.pointer,v),examples:examples(selected.resource,selected.pointer,v),
-      ...(family==='2.0'&&entry.location!=='body'?swaggerFlat(v,selected.source):{})};
+      ...(parameterFamily==='2.0'&&entry.location!=='body'?swaggerFlat(v,selected.source):{})};
   };
   const pathView=graph.pathItem(context.pathItem);
   if(!pathView.complete||!pathView.chainComplete)throw new SourceError('request.path-item','The selected Path Item inheritance is incomplete');
@@ -483,7 +487,9 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     if(v?.headers&&typeof v.headers==='object')for(const name of Object.keys(v.headers)){
       if(name.toLowerCase()==='content-type')continue;
       const hp=selected.pointer+'/headers/'+escape(name),header=follow({resource:selected.resource,pointer:hp,kind:'header'},'header'),hv=header.node.value;
-      headers.push({name,family,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv),shape:headerShape({resource:header.resource,pointer:family==='2.0'?header.pointer:header.pointer+'/schema',kind:'schema'}),...(family==='2.0'?swaggerFlat(hv,header.source):{})});
+      const headerFamily=graph.scope(header.resource,header.pointer).family;
+      if(!isNativeFamily(headerFamily))throw new SourceError('request.family.unsupported','The captured header owner has no supported specification family');
+      headers.push({name,family:headerFamily,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv),shape:headerShape({resource:header.resource,pointer:headerFamily==='2.0'?header.pointer:header.pointer+'/schema',kind:'schema'}),...(headerFamily==='2.0'?swaggerFlat(hv,header.source):{})});
     }
     responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,bodyAllowed:responseAllowsContent(family,v),content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location).map(item=>({...item,...runtimeMediaDescription(item.mediaType)})):media(selected.resource,selected.pointer+'/content',v?.content)});
   }
