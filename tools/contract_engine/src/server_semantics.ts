@@ -2,7 +2,7 @@ import {isIriReference} from '@hyperjump/uri';
 import {escape,SourceError} from './document';
 import {documentUriBase,resolveUri,type GraphIssue,type GraphTarget,type ReferenceGraph} from './reference_graph';
 
-export const serverContextRevision='2';
+export const serverContextRevision='3';
 
 // OAS 3.2 §4.6 ABNF. These are template literals, not an RFC 6570 expression
 // evaluator. Names are not restricted to ASCII or decoded from percent escapes.
@@ -13,7 +13,7 @@ const literal=(c:number)=>c===0x21||c>=0x23&&c<=0x24||c>=0x26&&c<=0x3b||c===0x3d
 /** Source-only classification, never URL substitution, retrieval or execution. */
 export function serverTemplateParts(url:string) {
  if(url.length>65536)throw new SourceError('limit.authoring.template','Server URL template inspection exceeds 65536 UTF-16 code units');
- const names:string[]=[];let valid=url.length>0,queryOrFragment=false,delimitersValid=true;
+ const names:string[]=[];let valid=url.length>0,queryOrFragment=false,delimitersValid=true,literalsValid=true;
  for(let i=0;i<url.length;) {
   const c=url.codePointAt(i)!;
   if(c===0x7b) {
@@ -27,14 +27,22 @@ export function serverTemplateParts(url:string) {
   }
   if(c===0x25) {
    if(/^[A-Fa-f0-9]{2}$/.test(url.slice(i+1,i+3))){i+=3;continue;}
+   // OAS 3.0/3.1 substitute before URL interpretation. A variable may
+   // complete a percent triplet (%{hex} or %A{digit}); fixed nonhex
+   // characters and an exhausted suffix cannot (RFC 3986 §2.1).
+   for(let next=i+1;next<=i+2;next++){
+    if(url[next]==='{')break;
+    if(!/^[A-Fa-f0-9]$/u.test(url[next]??'')){literalsValid=false;break;}
+   }
    valid=false;i++;continue;
   }
+  if(c<=0x20||c===0x5c)literalsValid=false;
   if(c===0x3f||c===0x23)queryOrFragment=true;
   if(c===0x7d)delimitersValid=false;
   if(!literal(c))valid=false;
   i+=c>0xffff?2:1;
  }
- return {names,valid,queryOrFragment,delimitersValid};
+ return {names,valid,queryOrFragment,delimitersValid,literalsValid};
 }
 
 /** OAS 3.2 §4.6 permits Unicode URL literals, including non-ASCII spaces.
@@ -107,6 +115,7 @@ export function serverRelationships(graph:ReferenceGraph):GraphIssue[] {
    }
    if(family==='3.2'&&!template.valid)add(at,at.pointer+'/url','server.url.template','The Server URL does not follow the selected version’s template syntax');
    if(family!=='3.2'&&!template.delimitersValid)add(at,at.pointer+'/url','server.url.template-delimiters','Server URL variables require matched, non-nested braces');
+   if(family!=='3.2'&&/[{}]/u.test(node.value.url)&&!template.literalsValid)add(at,at.pointer+'/url','server.url.template-literal','The Server URL contains invalid literal characters or a malformed percent escape');
    if(['3.1','3.2'].includes(family)&&template.queryOrFragment)add(at,at.pointer+'/url','server.url.query-fragment',`An OpenAPI ${family} Server URL must not contain a query or fragment`);
    if(!/[{}]/u.test(node.value.url)&&(family!=='3.2'||template.valid)){
     const validity=serverUrlValidity(node.value.url,documentUriBase(graph,at));

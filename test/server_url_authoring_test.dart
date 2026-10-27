@@ -19,6 +19,15 @@ void main() {
       for (final (invalid, repaired) in [
         ('https://example.test/%zz', 'https://example.test/%20'),
         ('https://example.test/{unfinished', 'https://example.test/ready'),
+        (
+          'https://example.test/{version}/bad space',
+          'https://example.test/ready',
+        ),
+        (
+          r'https://example.test/{version}/bad\path',
+          'https://example.test/ready',
+        ),
+        ('https://example.test/{version}/bad%zz', 'https://example.test/ready'),
       ]) {
         testWidgets(
           'native fixed Server URL repair retains current errors, field ownership and exact history $version $json $invalid',
@@ -79,7 +88,7 @@ void main() {
             try {
               final file = File('${temp.path}/root.${json ? 'json' : 'yaml'}');
               final source = json
-                  ? '{"openapi":"$version","info":{"title":"Servers 🐾","version":"1"},"paths":{},"servers":[{"url":"$invalid"}],"x-exact":900719925474099312345}'
+                  ? '{"openapi":"$version","info":{"title":"Servers 🐾","version":"1"},"paths":{},"servers":[{"url":${jsonEncode(invalid)}}],"x-exact":900719925474099312345}'
                   : 'openapi: $version\r\ninfo: {title: "Servers 🐾", version: "1"}\npaths: {}\nservers:\n  - url: $invalid\nx-exact: 900719925474099312345';
               final original = [239, 187, 191, ...utf8.encode(source)];
               await tester.runAsync(() async {
@@ -170,7 +179,12 @@ void main() {
                 239,
                 187,
                 191,
-                ...utf8.encode(source.replaceFirst(invalid, repaired)),
+                ...utf8.encode(
+                  source.replaceFirst(
+                    json ? jsonEncode(invalid) : invalid,
+                    json ? jsonEncode(repaired) : repaired,
+                  ),
+                ),
               ]);
               await tester.runAsync(() => c.open(file.path));
               expect(c.buffer!.bytes(), file.readAsBytesSync());

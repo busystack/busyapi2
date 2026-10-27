@@ -51,6 +51,9 @@ or changing source. OpenAPI 3.0 permits query and fragment components; 3.1 and
 3.2 prohibit them. Only 3.2 applies its newer nonempty template grammar and
 repeated-variable prohibition. Variable delimiters must be matched and non-nested
 in older families too; their URLs do not inherit the complete 3.2 grammar.
+Literal C0 controls, ASCII spaces, backslashes and impossible percent escapes
+are invalid outside variables. In 3.0/3.1 a substitution may complete a percent
+triplet, such as `%{hex}` or `%A{digit}`; 3.2 retains its own template grammar.
 Permitted Unicode URL literals, including non-ASCII spaces, retain their meaning
 through execution, bundles and file moves. URL resolution encodes these literals
 without rewriting the authored source. Unsupported IPvFuture host evaluation reports

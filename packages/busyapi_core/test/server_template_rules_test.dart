@@ -251,113 +251,122 @@ void main() {
   }
   for (final version in ['3.0.4', '3.1.2']) {
     for (final format in ['yaml', 'json']) {
-      test(
-        '$version $format native delimiter repair is localized, undoable and refuses invalid migration',
-        () async {
-          final temp = await Directory.systemTemp.createTemp(
-            'busyapi-server-delimiters-',
-          );
-          addTearDown(() => temp.delete(recursive: true));
-          final engine = EngineProcess(
-            executable: runtimeNode,
-            helper: runtimeHelper,
-          );
-          addTearDown(engine.close);
-          final file = File('${temp.path}/api.$format');
-          final original =
-              '${format == 'yaml' ? '# Keep delimiter comment\r\n' : ''}{"openapi":"$version","info":{"title":"Original","version":"1"},"servers":[{"url":"https://api.example.invalid/{unfinished"}],"paths":{},"x-exact":9007199254740993.00}\r\n';
-          await file.writeAsString(original);
-          final project = await BusyProject.open(file.path, engine);
-          addTearDown(project.close);
-          final root = file.uri.toString(), buffer = await project.buffer(root);
-          expect((await project.check(root))['status'], 'invalid');
-          final cli = await Process.run(
-            '$testBundle/busyapi',
-            ['check', file.path, '--json'],
-            environment: {'PATH': ''},
-            includeParentEnvironment: false,
-          );
-          expect(cli.exitCode, 1);
-          expect(
-            (jsonDecode(cli.stdout as String) as Map)['findings'],
-            contains(
-              isA<Map>().having(
-                (f) => f['code'],
-                'code',
-                'server.url.template-delimiters',
+      for (final invalid in [
+        'https://api.example.invalid/{unfinished',
+        'https://api.example.invalid/{version}/bad space',
+        r'https://api.example.invalid/{version}/bad\path',
+        'https://api.example.invalid/{version}/bad%zz',
+      ]) {
+        final code = invalid.endsWith('{unfinished')
+            ? 'server.url.template-delimiters'
+            : 'server.url.template-literal';
+        test(
+          '$version $format $invalid native Server URL repair is localized, undoable and refuses invalid migration',
+          () async {
+            final temp = await Directory.systemTemp.createTemp(
+              'busyapi-server-delimiters-',
+            );
+            addTearDown(() => temp.delete(recursive: true));
+            final engine = EngineProcess(
+              executable: runtimeNode,
+              helper: runtimeHelper,
+            );
+            addTearDown(engine.close);
+            final file = File('${temp.path}/api.$format');
+            final original =
+                '${format == 'yaml' ? '# Keep delimiter comment\r\n' : ''}{"openapi":"$version","info":{"title":"Original","version":"1"},"servers":[{"url":${jsonEncode(invalid)}}],"paths":{},"x-exact":9007199254740993.00}\r\n';
+            await file.writeAsString(original);
+            final project = await BusyProject.open(file.path, engine);
+            addTearDown(project.close);
+            final root = file.uri.toString(),
+                buffer = await project.buffer(root);
+            expect((await project.check(root))['status'], 'invalid');
+            final cli = await Process.run(
+              '$testBundle/busyapi',
+              ['check', file.path, '--json'],
+              environment: {'PATH': ''},
+              includeParentEnvironment: false,
+            );
+            expect(cli.exitCode, 1);
+            expect(
+              (jsonDecode(cli.stdout as String) as Map)['findings'],
+              contains(isA<Map>().having((f) => f['code'], 'code', code)),
+            );
+            final destination = '${temp.path}/refused-migration';
+            await expectLater(
+              project.prepareMigration(
+                root,
+                destination,
+                targetVersion: '3.2.1',
               ),
-            ),
-          );
-          final destination = '${temp.path}/refused-migration';
-          await expectLater(
-            project.prepareMigration(root, destination, targetVersion: '3.2.1'),
-            throwsA(
-              isA<OutputAnalysisFailure>().having(
-                (e) => e.code,
-                'code',
-                'migration.contract',
+              throwsA(
+                isA<OutputAnalysisFailure>().having(
+                  (e) => e.code,
+                  'code',
+                  'migration.contract',
+                ),
               ),
-            ),
-          );
-          expect(await Directory(destination).exists(), false);
-          final refused = await Process.run(
-            '$testBundle/busyapi',
-            [
-              'migrate',
-              file.path,
-              '--target',
-              '3.2.1',
-              '--output',
-              destination,
-              '--json',
-            ],
-            environment: {'PATH': ''},
-            includeParentEnvironment: false,
-          );
-          expect(
-            refused.exitCode,
-            1,
-            reason: '${refused.stdout} ${refused.stderr}',
-          );
-          expect(
-            (jsonDecode(refused.stdout as String) as Map)['status'],
-            'invalid',
-          );
-          expect(await Directory(destination).exists(), false);
-          final page = await project.inspectObject(root, root, '/servers/0'),
-              range = List<int>.from(page['range'] as List);
-          const repaired = 'https://api.example.invalid/ready';
-          await project.proposeAndApply(
-            root,
-            PropertySession(
-              root: root,
-              buffer: root,
-              generation: buffer.generation,
-              pointer: '/servers/0',
-              range: range,
-              expected: buffer.text.substring(range[0], range[1]),
-            ),
-            [
-              {'kind': 'set', 'pointer': '/servers/0/url', 'value': repaired},
-            ],
-          );
-          final changed = original.replaceFirst(
-            'https://api.example.invalid/{unfinished',
-            repaired,
-          );
-          expect(buffer.text, changed);
-          expect((await project.check(root))['status'], 'complete');
-          project.store.undo();
-          expect(buffer.text, original);
-          expect((await project.check(root))['status'], 'invalid');
-          project.store.redo();
-          await project.save(buffer);
-          final saved = await file.readAsBytes();
-          await project.save(buffer);
-          expect(await file.readAsBytes(), saved);
-          expect(await file.readAsString(), changed);
-        },
-      );
+            );
+            expect(await Directory(destination).exists(), false);
+            final refused = await Process.run(
+              '$testBundle/busyapi',
+              [
+                'migrate',
+                file.path,
+                '--target',
+                '3.2.1',
+                '--output',
+                destination,
+                '--json',
+              ],
+              environment: {'PATH': ''},
+              includeParentEnvironment: false,
+            );
+            expect(
+              refused.exitCode,
+              1,
+              reason: '${refused.stdout} ${refused.stderr}',
+            );
+            expect(
+              (jsonDecode(refused.stdout as String) as Map)['status'],
+              'invalid',
+            );
+            expect(await Directory(destination).exists(), false);
+            final page = await project.inspectObject(root, root, '/servers/0'),
+                range = List<int>.from(page['range'] as List);
+            const repaired = 'https://api.example.invalid/ready';
+            await project.proposeAndApply(
+              root,
+              PropertySession(
+                root: root,
+                buffer: root,
+                generation: buffer.generation,
+                pointer: '/servers/0',
+                range: range,
+                expected: buffer.text.substring(range[0], range[1]),
+              ),
+              [
+                {'kind': 'set', 'pointer': '/servers/0/url', 'value': repaired},
+              ],
+            );
+            final changed = original.replaceFirst(
+              jsonEncode(invalid),
+              jsonEncode(repaired),
+            );
+            expect(buffer.text, changed);
+            expect((await project.check(root))['status'], 'complete');
+            project.store.undo();
+            expect(buffer.text, original);
+            expect((await project.check(root))['status'], 'invalid');
+            project.store.redo();
+            await project.save(buffer);
+            final saved = await file.readAsBytes();
+            await project.save(buffer);
+            expect(await file.readAsBytes(), saved);
+            expect(await file.readAsString(), changed);
+          },
+        );
+      }
     }
   }
 }
