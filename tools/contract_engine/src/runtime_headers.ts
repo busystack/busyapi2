@@ -33,7 +33,6 @@ export const capturedRuntimeHeaders=(graph:ReferenceGraph)=>captureHeaders(graph
 export const capturedExampleHeaders=(graph:ReferenceGraph)=>captureHeaders(graph,true);
 
 function captureHeaders(graph:ReferenceGraph,example:boolean) {
-    const edges=new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]));
     const shapeFor=headerShapes(graph),projections=new Map<string,Record<string,unknown>>();
     const follow=(target:GraphTarget)=>{
         let {resource,pointer}=target;const seen=new Set<string>();
@@ -44,7 +43,7 @@ function captureHeaders(graph:ReferenceGraph,example:boolean) {
             const node=graph.docs.get(resource)?.dataNode(pointer);
             if(!node||!record(node.value))throw new SourceError('runtime.instance','The captured header declaration is unavailable');
             if(typeof node.value.$ref!=='string')return {resource,pointer,node};
-            const edge=edges.get(JSON.stringify([resource,pointer,'$ref']));
+            const edge=graph.referenceAs(resource,pointer,'$ref','header');
             if(edge?.kind!==target.kind||edge.resolution!=='resolved')unsupported('A captured header declaration has an unresolved reference');
             resource=edge.targetResource!;pointer=edge.targetPointer!;
         }

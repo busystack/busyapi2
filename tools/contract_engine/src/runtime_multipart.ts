@@ -21,7 +21,7 @@ const object=(value:unknown):value is ObjectValue=>value!==null&&typeof value===
 export function decodeRuntimeMultipart(text:string,id:string,contentType:string,base64:boolean,target:RuntimeFormTarget,graph:ReferenceGraph,decodeHeaderForm:MimeHeaderFormDecoder):RuntimeFormData|undefined {
     const owner=graph.docs.get(target.resource)?.dataNode(target.pointer),media=owner?.value;
     if(!object(media))throw new SourceError('runtime.form.owner','The captured multipart Media Type Object is unavailable',owner?.range??[0,0]);
-    const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+    const forms=new FormSemantics(graph);
     const transfers=new MultipartEncoding(graph),headers=mimeHeaders(graph,id+'/headers',transfers,decodeHeaderForm),checks:FormCheck[]=[],issues:FormIssue[]=[];
     const location=(pointer:string):GraphTarget=>({resource:target.resource,pointer,kind:'schema'});
     const hints:Hint[]=['schema','itemSchema'].filter(key=>graph.scopes.has(target.resource+'#'+target.pointer+'/'+key))

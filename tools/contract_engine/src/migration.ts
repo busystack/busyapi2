@@ -1,3 +1,4 @@
+import {assertRoleAnnotations} from './schema_role_annotations';
 import {createHash} from 'node:crypto';
 import {analyse,createGraph,Resource} from './engine';
 import {SourceDocument,SourceError,escape} from './document';
@@ -23,7 +24,7 @@ import {MigrationAccess} from './migration_access';
 import {migrateTerms} from './migration_terms';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='22';
+const migrationProducerVersion='23';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -86,6 +87,7 @@ export async function planMigration(input:MigrationInput) {
     };
     const initialContexts=migrationDocumentContexts(input,initial,issue);
     await validate(resources,input.root,'source');
+    if(!problems.length)try{initial.graph.assertReferenceEditsSupported();}catch(error){refused(error,{resource:input.root,pointer:''});}
     const markdownContexts=problems.length?[]:captureMigrationMarkdown(initial.graph,issue);
     if(!problems.length)for(const context of initialContexts){checkOperationTarget(context.graph,target.family,issue);checkRequestBodyTarget(context,resources,target.family,issue);}
     if(!problems.length)for(const context of initialContexts)checkSecurityRequirementTarget(context.graph,target.family,issue);
@@ -173,6 +175,10 @@ export async function planMigration(input:MigrationInput) {
                 }
             }
             if(problems.length)break;
+            for(const scope of graph.scopesFor('schema')){
+                const source=sources.get(scope.resource)!,at=source.current(scope.pointer);
+                if(at!==undefined||graph.hasOverlappingScope(scope.resource,scope.pointer))assertRoleAnnotations(graph,scope,source.doc,at??scope.pointer);
+            }
             const next=new Map<string,MigrationLocation[]>();
             for(const [origin,locations]of origins){
                 const mapped:MigrationLocation[]=[];
@@ -220,6 +226,7 @@ export async function planMigration(input:MigrationInput) {
         }
         for(const occurrence of documentUriOccurrences(context.graph))if(occurrence.scope.kind!=='server')sources.get(occurrence.scope.resource)!.set(occurrence.pointer,resolveUri(occurrence.value,documentUriBase(context.graph,occurrence.scope)).href);
         for(const reference of context.graph.references)if(['$ref','$dynamicRef','operationRef'].includes(reference.keyword)&&reference.resolution==='resolved')sources.get(reference.resource)!.set(reference.pointer+'/'+escape(reference.keyword),resolveUri(reference.value,reference.base).href);
+        for(const scope of context.graph.scopesFor('schema'))assertRoleAnnotations(context.graph,scope,sources.get(scope.resource)!.doc,scope.pointer);
     }catch(error){refused(error,{resource:input.root,pointer:''});}
     if(problems.length)return {...common(),changes:[],outputs:[]};
     // Each declared API must reopen with its containing directory as the

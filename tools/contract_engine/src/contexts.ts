@@ -1,3 +1,4 @@
+import {schemaDefinitionKeywords} from './schema_definitions';
 import {modernFamily} from './specification';
 
 export type Child = [
@@ -173,7 +174,7 @@ export function children(value: any, kind: string, family = '3.2', owner = value
             if(family!=='2.0')one('discriminator', 'discriminator');
             one('xml', 'xml');
             one('externalDocs', 'external-documentation');
-            for (const k of ['properties', ...(modernFamily(family) ? ['patternProperties', '$defs', 'dependentSchemas'] : [])])
+            for (const k of ['properties', ...(modernFamily(family) ? ['patternProperties', ...schemaDefinitionKeywords, 'dependentSchemas'] : [])])
                 one(k, 'schema-map');
             if(family==='2.0'&&Array.isArray(context.items))one('items','schema-array');
             for (const k of [...(family==='2.0'&&Array.isArray(context.items)?[]:['items']), ...(typeof context.additionalProperties === 'boolean' && !modernFamily(family) ? [] : ['additionalProperties']), ...(family==='2.0'?[]:['not']), ...(modernFamily(family) ? ['unevaluatedProperties', 'unevaluatedItems', 'contains', 'propertyNames', 'if', 'then', 'else', 'contentSchema'] : [])])

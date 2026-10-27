@@ -1,5 +1,7 @@
+import {assertRoleAnnotations} from './schema_role_annotations';
+import {captureRefactoringGraph as createGraph} from './refactoring_graph';
 import {createHash} from 'node:crypto';
-import {createGraph,Resource} from './engine';
+import {Resource} from './engine';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {referenceValue} from './reference_choices';
 import {fieldsForScope,componentFamily,componentLocation} from './authoring';
@@ -339,6 +341,7 @@ function planCopy(input:any,moving=false) {
  for(const g of graphs){
   const after=rebuilt(g);
   if(after.graph.issues.length)throw new SourceError('refactor.proof','Extraction would introduce an unresolved or ambiguous connection');
+  for(const scope of g.graph.scopesFor('schema'))assertRoleAnnotations(g.graph,scope,after.docs.get(movedResource(scope.resource,scope.pointer))!,move(scope.resource,scope.pointer));
   if(cross)for(const old of selected.graph.references)if(old.resource===resource.id&&inside(old.pointer,target.pointer)){
    const next=after.graph.references.find(ref=>ref.resource===destinationId&&ref.pointer===move(old.resource,old.pointer)&&ref.keyword===keywordFor(old));
    if(!next||next.resolution!=='resolved'||next.targetResource!==movedResource(old.targetResource!,old.targetPointer!)||next.targetPointer!==move(old.targetResource!,old.targetPointer!))

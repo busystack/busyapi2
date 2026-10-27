@@ -1,3 +1,4 @@
+import {schemaDefinitionKeywords} from './schema_definitions';
 import type {GraphScope,ReferenceGraph} from './reference_graph';
 import {MigrationSource,type MigrationLocation} from './migration_source';
 import {modernFamily} from './specification';
@@ -45,16 +46,16 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
             // the captured graph. Reference repair below maps their physical
             // owners before the target is evaluated without modern identities.
             for(const name of ['$id','$anchor'])source.remove(pointer+'/'+name);
-            if(source.doc.nodes.has(pointer+'/$defs')){
+            for(const keyword of schemaDefinitionKeywords)if(source.doc.nodes.has(pointer+'/'+keyword)){
                 const entry=sources.get(graph.root)!;
-                for(const name of [...source.doc.node(pointer+'/$defs').children.keys()]){
-                    const at=pointer+'/$defs/'+escape(name),stem='_migrated_'+createHash('sha256').update(scope.resource+'#'+scope.pointer+'/$defs/'+escape(name)).digest('hex').slice(0,24);
+                for(const name of [...source.doc.node(pointer+'/'+keyword).children.keys()]){
+                    const at=pointer+'/'+keyword+'/'+escape(name),stem='_migrated_'+createHash('sha256').update(scope.resource+'#'+scope.pointer+'/'+keyword+'/'+escape(name)).digest('hex').slice(0,24);
                     let destination='/components/schemas/'+stem,index=0;
                     while(entry.doc.nodes.has(destination))destination='/components/schemas/'+stem+'_'+(++index);
                     if(entry===source)source.move(at,destination);
                     else {entry.copy(source,at,destination);source.remove(at);}
                 }
-                source.remove(pointer+'/$defs');
+                source.remove(pointer+'/'+keyword);
             }
         }
         if(modernFamily(from)&&!modernFamily(to)){

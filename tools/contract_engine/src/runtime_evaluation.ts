@@ -52,7 +52,7 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
  if(!Array.isArray(runtime)||runtime.length>2048)throw new SourceError('limit.runtime.instances','Runtime conformance input exceeds 2048 instances');
  const evaluations:Finding[]=[],findings:Finding[]=[];
  let complete=true,instances=0,work=0,findingsLimited=false;
- const forms=new FormSemantics(owner.graph,new Map(owner.graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+ const forms=new FormSemantics(owner.graph);
  const mediaOwner=capturedRuntimeMedia(owner.graph);
  const fileSchemaFor=swaggerFileSchemas(owner.graph);
  const diagnosed=new Set<string>();

@@ -18,7 +18,7 @@ export type ParameterSerializationCheck={complete:boolean;valid:boolean;findings
  * native HTTP inversion and exact evaluation over the original graph owner. */
 export function parameterSerializationEvaluator(graph:ReferenceGraph,evaluate:Evaluate) {
  const parameters=new ParameterSemantics(graph),header=capturedExampleHeaders(graph),capture=capturedRuntimeMedia(graph);
- const shapes=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+ const shapes=new FormSemantics(graph);
  return async (owner:GraphScope,text:string):Promise<ParameterSerializationCheck>=>{
 
  if(owner.kind==='header'){

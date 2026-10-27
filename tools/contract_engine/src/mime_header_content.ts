@@ -25,7 +25,7 @@ export function capturedMimeHeaderContent(graph:ReferenceGraph,transfers:Multipa
  * OAS 3.0 §4.7.21 / 3.1 §4.8.21 / 3.2 Header Object. */
 export function mimeHeaderContent(graph:ReferenceGraph,id:string,transfers:MultipartEncoding,decodeForm:MimeHeaderFormDecoder) {
     const capture=capturedMimeHeaderContent(graph,transfers);
-    const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+    const forms=new FormSemantics(graph);
     let serial=0;
     return (header:GraphTarget,values:readonly string[],prefix:string):{checks:FormCheck[];issues:FormIssue[]}=>{
         const {type,captured}=capture(header),source=captured.source;

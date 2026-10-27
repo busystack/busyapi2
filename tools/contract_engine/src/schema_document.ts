@@ -28,7 +28,7 @@ export function typedSchemaDocument(value: any, id: string, graph: any, dialect:
   const flatParameters=new Set(scopes.filter(scope=>scope.family==='2.0'&&scope.objectKind==='parameter').map(scope=>scope.pointer));
   const applicators=new Map<string,string>();
   for(const reference of graph.references)if(reference.resource===id&&reference.kind==='schema'&&!reference.connection&&reference.resolution==='resolved'){
-    const target=graph.scopes.get(reference.targetResource+'#'+reference.targetPointer);
+    const target=graph.scopeAs(reference.targetResource,reference.targetPointer,'schema');
     if(target?.kind!=='schema')continue;
     // The vendor Document represents an embedded $id as a resource Reference,
     // not an ordinary map. A physical pointer traversing that boundary cannot
@@ -82,14 +82,14 @@ export function typedSchemaDocument(value: any, id: string, graph: any, dialect:
       // unsupported/incomplete; never activate their vocabulary merely by
       // constructing an ordinary instance-validation document.
       if(literalContainer||nonSchemaKeyword) {
-        const scope=graph.scope(id,pointer);
+        const scope=graph.scopeAs(id,pointer,'schema')??graph.scope(id,pointer);
         literals.push({pointer:at,scope,value:child});
       }else Object.defineProperty(output,name,{value:prepare(child,at),enumerable:true,writable:true,configurable:true});
     }
     return output;
   };
   const prepared=prepare(value,'');
-  const host=graph.scope(id,'');
+  const host=graph.scopeAs(id,'','schema')??graph.scope(id,'');
   const hostDialect=!supportedSchemaDialect({...host,dialect})&&host.kind==='root'?`https://spec.openapis.org/oas/${host.family}/dialect/base`:dialect;
   const document=buildSchemaDocument(prepared,host.base,schemaDialectIdentity(hostDialect));
   for(const resource of Object.values(document.embedded) as any[]){

@@ -59,7 +59,7 @@ String staticDynamicRefApi(String version, String format, {int? port}) {
       .replaceAll('"EXACT"', '9007199254740993.00');
 }
 
-String staticDynamicRefModel() {
+String staticDynamicRefModel({String definitionKeyword = r'$defs'}) {
   final schema = {
     r'$anchor': 'model',
     'type': 'object',
@@ -78,7 +78,7 @@ String staticDynamicRefModel() {
   return '# Preserve shared model comments and aliases\r\n'
       '\$schema: https://json-schema.org/draft/2020-12/schema\r\n'
       '\$id: model.yaml\r\ndescription: Original model\r\n'
-      '\$defs:\r\n  Actual: ${jsonEncode(schema).replaceAll('"EXACT"', '9007199254740993.00')}\r\n'
+      '$definitionKeyword:\r\n  Actual: ${jsonEncode(schema).replaceAll('"EXACT"', '9007199254740993.00')}\r\n'
       'x-kept: &literal {exact: 9007199254740993.00, flag: false, nil: null}\r\n'
       'x-alias: *literal\r\n';
 }

@@ -1,3 +1,4 @@
+import {schemaContext} from './schema_context';
 import {escape} from './document';
 import {GraphTarget, ReferenceGraph, supportedSchemaDialect} from './reference_graph';
 import {annotationOnlySchema} from './schema_boundaries';
@@ -29,7 +30,7 @@ export function headerShapes(graph:ReferenceGraph) {
     const key=JSON.stringify([target.resource,target.pointer]);
     if(cache.has(key))return cache.get(key);
     if(active.has(key)||depth>=128||++visited>2048)return;
-    const scope=graph.scopes.get(target.resource+'#'+target.pointer);
+    const scope=schemaContext(graph,target.resource,target.pointer);
     if(!scope||!supportedSchemaDialect(scope))return;
     const value=graph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
     if(value===false||value===true){const result={type:value?'any':'never'};cache.set(key,result);return result;}

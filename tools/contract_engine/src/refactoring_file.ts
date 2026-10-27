@@ -1,7 +1,9 @@
+import {assertRoleAnnotations} from './schema_role_annotations';
+import {captureRefactoringGraph as createGraph} from './refactoring_graph';
 import {posix} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
-import {createGraph,propose,Resource} from './engine';
+import {propose,Resource} from './engine';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {documentUriFields,documentUriOccurrences} from './document_uris';
 import {documentUriBase,GraphScope,implicitNameReference,resolveUri,type GraphReference} from './reference_graph';
@@ -407,6 +409,7 @@ export function planFileMove(input:any) {
   for(const g of graphs) {
    const after=rebuild(g,false).graph,cold=coldGraph(move(g.context.root),current());
    if(after.issues.length||cold.issues.length)throw new SourceError('file.move.retrieval','The moved project would not resolve after reopening from its configured roots');
+   for(const scope of g.graph.scopesFor('schema'))assertRoleAnnotations(g.graph,scope,after.docs.get(move(scope.resource))!,currentPointer(scope.resource,scope.pointer));
    for(const old of g.graph.references)for(const graph of [after,cold]) {
     const now=graph.references.find(r=>r.resource===move(old.resource)&&r.pointer===currentPointer(old.resource,old.pointer)&&r.keyword===currentKeyword(old));
     if(now?.resolution!=='resolved'||now.targetResource!==move(old.targetResource!)||now.targetPointer!==currentPointer(old.targetResource!,old.targetPointer!)||

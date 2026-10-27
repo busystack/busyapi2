@@ -1,3 +1,4 @@
+import {schemaContext} from './schema_context';
 import {SourceError,escape} from './document';
 import {record} from './engine_worker_client';
 import {supportedSchemaDialect,type ReferenceGraph,type GraphTarget} from './reference_graph';
@@ -46,7 +47,7 @@ export class MockSchemaShapes {
             if(seen.has(key))return [];
             if(depth>=128||!step(target)){limit??=source(target);return [];}
             seen.add(key);
-            const scope=this.graph.scopes.get(target.resource+'#'+target.pointer);
+            const scope=schemaContext(this.graph,target.resource,target.pointer);
             if(!scope||!supportedSchemaDialect(scope)) {
                 const origin=source(target);
                 throw new SourceError('mock.sample.dialect','Nested sample construction requires the captured supported dialect',origin.range,'unsupported',origin);
@@ -82,7 +83,7 @@ export class MockSchemaShapes {
             for(const location of scopes) {
                 if(!step(location))break;
                 const doc=this.graph.docs.get(location.resource)!,node=doc.dataNode(location.pointer)!;
-                const value=node.value,scope=this.graph.scopes.get(location.resource+'#'+location.pointer)!;
+                const value=node.value,scope=schemaContext(this.graph,location.resource,location.pointer)!;
                 const types=typeof value.type==='string'?[value.type]:Array.isArray(value.type)?value.type:[];
                 const properties=node.children.get('properties');
                 if(types.includes('object')||properties||node.children.has('required'))hasObject=true;

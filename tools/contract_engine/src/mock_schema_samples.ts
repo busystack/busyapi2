@@ -1,3 +1,4 @@
+import {schemaContext} from './schema_context';
 import {createHash,randomInt} from 'node:crypto';
 import {SourceError,type Node} from './document';
 import {record} from './engine_worker_client';
@@ -54,7 +55,7 @@ export class MockSchemaSamples {
             if(seen.has(key))return;
             if(depth>=128||seen.size>=2048)fail('Captured schema sample traversal exceeds its bounded depth or work');
             seen.add(key);
-            const scope=this.graph.scopes.get(target.resource+'#'+target.pointer);
+            const scope=schemaContext(this.graph,target.resource,target.pointer);
             if(!scope||!supportedSchemaDialect(scope)) {
                 const node=this.graph.docs.get(target.resource)?.dataNode(target.pointer),range=node?.range??[0,0];
                 throw new SourceError('mock.sample.dialect','Schema sample selection requires the captured supported dialect',range,'unsupported',{resource:target.resource,pointer:target.pointer,range});
@@ -137,7 +138,7 @@ export class MockSchemaSamples {
         if(!dynamic&&rawMedia.examples.length)return;
         const schema=schemaLocation(rawMedia.schema);
         if(!schema)return;
-        const scope=this.graph.scopes.get(schema.resource+'#'+schema.pointer);
+        const scope=schemaContext(this.graph,schema.resource,schema.pointer);
         const specification=this.graph.specifications.get(schema.resource)??this.graph.specifications.get(this.graph.root);
         const key=JSON.stringify([mockSampleProducer.version,this.revision,this.graph.root,
             schema.resource,this.identities.get(schema.resource),schema.pointer,

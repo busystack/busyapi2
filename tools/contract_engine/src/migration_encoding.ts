@@ -9,7 +9,7 @@ import {MigrationSource} from './migration_source';
  * would change request bytes even though both documents validate. */
 export function migrateEncodings(graph:ReferenceGraph,sources:Map<string,MigrationSource>,from:string,to:string,issue:MigrationIssue):void {
     if(from!=='3.0'&&to!=='3.0')return;
-    const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge])));
+    const forms=new FormSemantics(graph);
     for(const scope of graph.scopes.values())if(scope.kind==='media'&&scope.family===from){
         const content=scope.pointer.lastIndexOf('/content/');
         if(content<0||graph.scope(scope.resource,scope.pointer.slice(0,content)).kind!=='request-body')continue;

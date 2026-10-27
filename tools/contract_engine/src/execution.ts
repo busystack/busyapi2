@@ -317,7 +317,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     return {resource,pointer,generation:generation.get(resource)!,range:source.range};
   };
   const edgeIndex=new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]));
-  const forms=new FormSemantics(graph,edgeIndex);
+  const forms=new FormSemantics(graph);
   const follow=(target:GraphTarget,kind:string)=>{
     const seen=new Set<string>();let resource=target.resource,pointer=target.pointer;
     for(let depth=0;depth<128;depth++){
@@ -325,7 +325,7 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const current=docs.get(resource)?.dataNode(pointer);
       if(!current)throw new SourceError('request.source','A referenced request declaration is unavailable');
       if(typeof current.value?.$ref!=='string')return {resource,pointer,node:current,source:location(resource,pointer)};
-      const edge=edgeIndex.get(JSON.stringify([resource,pointer,'$ref']));
+      const edge=graph.referenceAs(resource,pointer,'$ref',kind);
       if(!edge||edge.kind!==kind||edge.resolution!=='resolved')throw new SourceError('request.reference','A referenced request declaration is unresolved');
       resource=edge.targetResource!;pointer=edge.targetPointer!;
     }

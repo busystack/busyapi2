@@ -3,6 +3,8 @@ import { SourceDocument, SourceError, escape, limits } from './document';
 import {resolveIri} from '@hyperjump/uri';
 import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, swaggerSchemaDialect, isNativeFamily, capabilitiesFor, Specification,declaredSchemaDialect} from './specification';
 
+export const schemaRoleContextRevision='1';
+
 export const knownDialects = new Set([
     restrictedSchemaDialect,
     swaggerSchemaDialect,
@@ -19,7 +21,7 @@ export const schemaDialectIdentity = (uri:string):string => uri.endsWith('#')?ur
 
 export type GraphTarget = { resource: string; pointer: string; kind: string };
 export type GraphScope = GraphTarget & {
-    base: string; resourcePointer: string; dialect: string|null; family: string;
+    base: string; resourcePointer: string; dialect: string|null; family: string; sourceKind?:string;
 };
 /** Restricted OpenAPI evaluation is an owning-family capability, not a
  * general-purpose additional JSON Schema dialect promised in modern roots. */
@@ -121,7 +123,48 @@ const same = (a: GraphTarget, b: GraphTarget) => a.resource === b.resource && a.
 export class ReferenceGraph {
     readonly specifications = new Map<string, Specification>();
     readonly scopes = new Map<string, GraphScope>();
+    private readonly roleScopes = new Map<string, GraphScope>();
+    private readonly overlappingScopes = new Set<string>();
+    /** Keep the physical authoring context while retaining explicitly reached
+     * schema interpretations of the same JSON value (Core 8.2.3.1). */
+    scopeAs(resource:string,pointer:string,kind:string):GraphScope|undefined {
+        const scope=this.scopes.get(key(resource,pointer));
+        return scope?.kind===kind?scope:this.roleScopes.get(key(resource,pointer)+':'+kind);
+    }
+    /** A single authored reference can have different object-context meanings.
+     * Source inspection/evaluation retain both; rewriting needs an explicit
+     * split/repair plan rather than choosing one physical-field interpretation. */
+    assertReferenceEditsSupported():void {
+        const meanings=new Map<string,GraphReference>();
+        for(const reference of this.references){
+            if(reference.resolution!=='resolved')continue;
+            const id=key(reference.resource,reference.pointer)+'/'+escape(reference.keyword),previous=meanings.get(id);
+            if(previous&&(previous.kind!==reference.kind||previous.connection!==reference.connection)){
+                const pointer=reference.pointer+'/'+escape(reference.keyword),range=this.docs.get(reference.resource)!.dataNode(pointer)!.range;
+                throw new SourceError('reference.edit.context','This authored reference is used in multiple object contexts; a faithful shared-field rewrite has not been established',range,'unsupported',{resource:reference.resource,pointer,range});
+            }
+            meanings.set(id,reference);
+        }
+    }
+    hasOverlappingScope(resource:string,pointer:string):boolean {
+        return this.overlappingScopes.has(key(resource,pointer));
+    }
+    scopesFor(kind:string):GraphScope[] {
+        const result:GraphScope[]=[];
+        for(const scope of this.scopes.values())if(scope.kind===kind)result.push(scope);
+        for(const scope of this.roleScopes.values())if(scope.kind===kind)result.push(scope);
+        return result;
+    }
     readonly references: GraphReference[] = [];
+    private referenceRoles?:Map<string,GraphReference>;
+    /** Select an established applicator by its object interpretation. A native
+     * Reference Object and a Schema reference can share text but have distinct
+     * URI bases; insertion order cannot choose their meaning. */
+    referenceAs(resource:string,pointer:string,keyword:string,kind:string):GraphReference|undefined {
+        if(!this.referenceRoles)this.referenceRoles=new Map(this.references.filter(reference=>!reference.connection).map(reference=>[JSON.stringify([reference.resource,reference.pointer,reference.keyword,reference.kind]),reference]));
+        return this.referenceRoles.get(JSON.stringify([resource,pointer,keyword,kind]));
+    }
+
     readonly issues: GraphIssue[] = [];
     readonly identities = new Map<string, GraphTarget[]>();
     readonly anchors = new Map<string, GraphTarget[]>();
@@ -153,7 +196,7 @@ export class ReferenceGraph {
         let work=0;
         for(let pass=0;pass<=limits.depth;pass++) {
             const graph=new ReferenceGraph(docs,root,family,aliases,[...seeds.values()]);
-            work+=graph.scopes.size;
+            work+=graph.scopes.size+graph.roleScopes.size;
             if(work>2*ReferenceGraph.scopeBudget)break;
             if(!graph.contextChanges.size)return graph;
             const before=seeds.size;
@@ -548,10 +591,12 @@ export class ReferenceGraph {
         const target = { resource, pointer, kind };
         if(kind==='schema')this.schemaAdmissions.set(id,{target,inherited,root:depth===0});
         const established=this.scopes.get(key(resource,pointer));
+        const schemaRole=established&&established.kind!==kind&&modernFamily(inherited.family)&&modernFamily(established.family)&&
+            (established.kind!=='root'||this.specifications.has(resource))&&(established.kind==='schema'||kind==='schema');
         // A whole OpenAPI document can also be a JSON Schema: its OpenAPI
         // members are extension keywords in that use. Other typed positions
         // retain the context declared by their containing specification object.
-        if(established&&established.kind!==kind&&!(established.kind==='root'&&kind==='schema')&&this.indexed.has(key(resource,pointer)+':'+established.kind)) {
+        if(established&&established.kind!==kind&&!schemaRole&&!(established.kind==='root'&&kind==='schema')&&this.indexed.has(key(resource,pointer)+':'+established.kind)) {
             this.issue(established,'reference.target.context','This location is used as incompatible OpenAPI object kinds; its original context is retained');
             return;
         }
@@ -561,6 +606,8 @@ export class ReferenceGraph {
         const doc = this.docs.get(resource)!;
         const value = doc.dataNode(pointer)?.value;
         let scope = { ...inherited, ...target };
+        // Interpretation provenance belongs to this occurrence, not its children.
+        delete scope.sourceKind;
         if (kind === 'schema' && modernFamily(scope.family) && value && typeof value === 'object') {
             if (typeof value.$id === 'string') {
                 try {
@@ -582,7 +629,7 @@ export class ReferenceGraph {
                 let parent = pointer, nested = false;
                 while (parent) {
                     parent = parent.slice(0, parent.lastIndexOf('/'));
-                    if (this.scopes.get(key(resource, parent))?.kind === 'schema') { nested = true; break; }
+                    if (this.scopeAs(resource,parent,'schema')) { nested = true; break; }
                 }
                 const dialect=declaredSchemaDialect(value.$schema);
                 if(dialect===null) {
@@ -608,7 +655,14 @@ export class ReferenceGraph {
             if (!supportedSchemaDialect(scope))
                 this.issue(target, 'dialect.unsupported', 'The declared JSON Schema dialect is not supported', true);
         }
-        this.scopes.set(key(resource, pointer), scope);
+        if(schemaRole){
+            this.overlappingScopes.add(key(resource,pointer));
+            const primarySchema=established.kind==='schema'&&kind!=='schema'&&depth>0&&this.schemaAdmissions.get(key(resource,pointer)+':schema')?.root;
+            if(primarySchema){
+                this.roleScopes.set(key(resource,pointer)+':schema',{...established,sourceKind:kind});
+                this.scopes.set(key(resource,pointer),scope);
+            }else this.roleScopes.set(id,{...scope,sourceKind:established.kind});
+        }else this.scopes.set(key(resource, pointer), scope);
         if (!value || typeof value !== 'object') return;
         const refKind = this.allowsReference(scope);
         for (const keyword of kind === 'schema' && modernFamily(scope.family) ? ['$ref', '$dynamicRef'] : ['$ref']) {

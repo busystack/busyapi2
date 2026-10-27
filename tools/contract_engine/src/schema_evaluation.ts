@@ -1,3 +1,5 @@
+import {isSchemaDefinitionKeyword} from './schema_definitions';
+import {children} from './contexts';
 import {discriminatorContextRevision} from './discriminator_semantics';
 import {SchemaPropertyRequirements} from './schema_property_requirements';
 import {multipartProjectionRevision} from './schema_reference_projection';
@@ -7,7 +9,7 @@ import {registerSchema,unregisterSchema,getAllRegisteredSchemaUris,setShouldVali
 import '@hyperjump/json-schema/openapi-3-1';
 import '@hyperjump/json-schema/openapi-3-2';
 import '@hyperjump/json-schema/openapi-3-0';
-import {compile,interpret,getSchema,toSchema,loadDialect,unloadDialect,BASIC} from '@hyperjump/json-schema/experimental';
+import {compile,interpret,getSchema,toSchema,loadDialect,unloadDialect,getKeywordId,BASIC} from '@hyperjump/json-schema/experimental';
 import dialect31 from '../schemas/oas31-dialect.json';
 import vocabulary31 from '../schemas/oas31-vocabulary.json';
 import dialect32 from '../schemas/oas32-dialect.json';
@@ -15,7 +17,7 @@ import vocabulary32 from '../schemas/oas32-vocabulary.json';
 import previousDialect32 from '../schemas/oas32-dialect-2025-09-17.json';
 import previousVocabulary32 from '../schemas/oas32-vocabulary-2025-09-17.json';
 import {createGraph} from './engine';
-import {knownDialects,supportedSchemaDialect,GraphScope,schemaAddress,schemaDialectIdentity} from './reference_graph';
+import {knownDialects,supportedSchemaDialect,GraphScope,schemaAddress,schemaDialectIdentity,schemaRoleContextRevision} from './reference_graph';
 import {SourceDocument,SourceError,escape} from './document';
 import {createExactNumericAdapter} from './exact_numbers';
 import {evaluateRuntimeInstances} from './runtime_evaluation';
@@ -23,33 +25,47 @@ import {typedSchemaDocument,embeddedSchemaDocument} from './schema_document';
 import {safeFinding} from './security_design';
 import {schemaRoots,nestedSchemaBoundaries} from './schema_boundaries';
 import {discriminatorRelationships} from './authoring_relationships';
-import {restrictedSchemaDialect,swaggerSchemaDialect,modernFamily} from './specification';
+import {restrictedSchemaDialect,swaggerSchemaDialect,modernFamily,defaultSchemaDialect} from './specification';
 import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,swaggerMetaIdentity,SchemaEvaluationScope} from './swagger_schema';
 import {swaggerFileContexts} from './swagger_file';
 import {evaluateSerializedExamples} from './serialized_examples';
 import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+37',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+38',configuration:[
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',
  'exact-cst-v5','canonical-graph-addresses','runtime-media-v2','runtime-alternatives-v1','swagger-header-wire-v1','response-header-wire-v2','form-context-v1','example-serialization-coverage-v2','evaluation-stage-coverage-v1','parameter-example-serialization-v1','literal-media-examples-v1','dialect-resource-identity-v1','dialect-declaration-v1','schema-access-occurrence-v1',
- `multipart-reference-projection-v${multipartProjectionRevision}`,`discriminator-reference-projection-v${discriminatorContextRevision}`,
- 'reference-family-v1','reference-position-v1','schema-context-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','serialized-media-examples-v1','multipart-header-values-v1','multipart-file-shapes-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1','response-content-presence-v1',
+ `schema-role-context-v${schemaRoleContextRevision}`,`multipart-reference-projection-v${multipartProjectionRevision}`,`discriminator-reference-projection-v${discriminatorContextRevision}`,
+ 'reference-family-v1','reference-position-v1','schema-context-v1','schema-definition-containers-v1','multipart-position-v1','generic-named-multipart-v1','binary-instance-v1','body-media-owner-v1','legacy-binary-media-v1','swagger-file-body-v1','mime-framing-v1','swagger-file-media-v1','mime-header-content-v1','serialized-media-examples-v1','multipart-header-values-v1','multipart-file-shapes-v1','media-description-v1','component-names-v1','security-bindings-v2','response-status-v1','response-content-presence-v1',
 ].join(':')};
 let configured=false,running=false;
 const standardIds=new Set<string>(),reservedIds=new Set<string>(),standardMetas=new Map<string,any>();
 const standardSources=new Map<string,any>();
+const oasStandards=Object.freeze([
+ {dialect:previousDialect32,vocabulary:previousVocabulary32,alias:undefined},
+ {dialect:dialect31,vocabulary:vocabulary31,alias:defaultSchemaDialect('3.1')},
+ {dialect:dialect32,vocabulary:vocabulary32,alias:defaultSchemaDialect('3.2')},
+]);
+/** Recognition follows the selected trusted dialect, including its OAS
+ * annotations, rather than the containing document's version or UI fields. */
+export function schemaKeywordKnown(dialect:string,name:string):boolean {
+ standards();
+ if(isSchemaDefinitionKeyword(name))return true;
+ // This is an unknown standard keyword; avoid the vendor's inherited
+ // object-prototype getter under the packaged Node prototype guard.
+ if(name==='__proto__')return false;
+ const identity=schemaDialectIdentity(dialect),keyword=getKeywordId(name,identity);
+ if(typeof keyword==='string'&&!keyword.startsWith('https://json-schema.org/keyword/unknown#'))return true;
+ return oasStandards.some(entry=>(entry.dialect.$id===identity||entry.alias===identity)&&Object.hasOwn(entry.vocabulary.properties,name));
+}
 function standards() {
  if(configured)return;
  installSwaggerSchemaDialect();
- registerSchema(previousVocabulary32);registerSchema(previousDialect32);
- loadDialect(previousDialect32.$id,previousDialect32.$vocabulary,true);
- for(const [family,dialect,vocabulary]of [['3.1',dialect31,vocabulary31],['3.2',dialect32,vocabulary32]] as any[]) {
+ for(const {dialect,vocabulary,alias}of oasStandards) {
   registerSchema(vocabulary);
-  const alias=`https://spec.openapis.org/oas/${family}/dialect/base`;
-  unregisterSchema(alias);registerSchema(dialect,alias);registerSchema(dialect);
-  loadDialect(alias,dialect.$vocabulary,true);loadDialect(dialect.$id,dialect.$vocabulary,true);
+  if(alias!==undefined){unregisterSchema(alias);registerSchema(dialect,alias);loadDialect(alias,dialect.$vocabulary,true);}
+  registerSchema(dialect);loadDialect(dialect.$id,dialect.$vocabulary,true);
  }
  // The library's automatic meta path builds rounded JS instances. Every
  // authored schema is instead explicitly meta-evaluated from canonical CST
@@ -171,7 +187,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
    if(!doc)throw new SourceError('resource.unapproved','The schema snapshot is unavailable');
    let document=documents.get(doc.id);
    if(!document){document=typedSchemaDocument(doc.root.value,doc.id,graph,graph.scope(doc.id,'').dialect);documents.set(doc.id,document);}
-   const scope=graph.scope(doc.id,target.pointer);
+   const scope=graph.scopeAs(doc.id,target.pointer,'schema')??graph.scope(doc.id,target.pointer);
    const selected=embeddedSchemaDocument(document,scope.base);
    if(!selected)throw new SourceError('schema.resource','The schema resource boundary is unavailable');
    return selected;
@@ -179,7 +195,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   for(const doc of docs.values())exact.addExactSource(doc,graph);
   // A parent meta-schema checks its nested schemas. Distinct dialect/resource
   // roots need their own explicit check; siblings stay independently eligible.
-  const roots=schemaRoots(all),nestedBoundaries=nestedSchemaBoundaries(roots);
+  const physicalRoots=schemaRoots(all.filter(scope=>!scope.sourceKind)),roots=[...physicalRoots,...all.filter(scope=>scope.sourceKind)],nestedBoundaries=nestedSchemaBoundaries(physicalRoots);
   for(const scope of roots) {
    const doc=docs.get(scope.resource)!;
    if(!supportedSchemaDialect(scope)){complete=false;invalid.push(scope);add(doc,scope.pointer,'schema.dialect.incomplete','This schema dialect is not configured; its content is preserved and no instance result is claimed.','warning');continue;}
@@ -216,12 +232,12 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   };
   for(const scope of all) {
    const id=scopeId(scope);let parent=scope.pointer;
-   while(parent){parent=parent.slice(0,parent.lastIndexOf('/'));const candidate=graph.scopes.get(scope.resource+'#'+parent);if(candidate?.kind==='schema'){
+   while(parent){parent=parent.slice(0,parent.lastIndexOf('/'));const candidate=graph.scopeAs(scope.resource,parent,'schema');if(candidate?.kind==='schema'){
     // Reserved definitions are not applicators. Their schema is required only
     // if an established reference reaches it; an unfamiliar unused $defs
     // resource cannot disable this independent parent's supported assertions.
     const keyword=scope.pointer.slice(parent.length+1).split('/')[0];
-    if(!['$defs','definitions'].includes(keyword))depends(scopeId(candidate),id);
+    if(!['$defs','definitions'].includes(keyword)&&children(docs.get(candidate.resource)!.dataNode(candidate.pointer)?.value,'schema',candidate.family).some(([name])=>name===keyword))depends(scopeId(candidate),id);
     break;
    }}
    if(invalid.some(ancestor=>ancestor.resource===scope.resource&&within(scope.pointer,ancestor.pointer)))mark(id,1);
@@ -230,7 +246,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   for(const ref of graph.references)if(ref.kind==='schema'&&!ref.connection) {
    const id=scopeId(ref);
    if(ref.resolution==='resolved') {
-    const target=graph.scopes.get(ref.targetResource+'#'+ref.targetPointer);
+    const target=graph.scopeAs(ref.targetResource!,ref.targetPointer!,'schema');
     if(target?.kind==='schema')depends(id,scopeId(target));
    } else if(ref.resolution==='unavailable'&&standardIds.has(ref.targetUri!))continue;
    else mark(id,['missing','invalid'].includes(ref.resolution)?1:2);

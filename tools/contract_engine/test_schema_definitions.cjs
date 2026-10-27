@@ -7,16 +7,17 @@ const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
 const escape=value=>value.replaceAll('~','~0').replaceAll('/','~1');
 const versions=['3.1.0','3.1.1','3.1.2','3.2.0','3.2.1'];
 
+function registerSchemaDefinitions(keyword){
 function fixture(version,format){
  const root='file:///definitions/api.'+format,model='file:///definitions/parts/model.'+format;
- const pointer='/Envelope/$defs/Container/$defs/Old';
- const address='#/$defs/Container/$defs/Old';
+ const pointer=`/Envelope/${keyword}/Container/${keyword}/Old`;
+ const address=`#/${keyword}/Container/${keyword}/Old`;
  const value={type:'object',required:['n'],properties:{n:{type:'integer',enum:['EXACT']},next:{$ref:address}},additionalProperties:false,$anchor:'value'};
  const document={openapi:version,info:{title:'Definitions 雪😀',version:'1'},paths:{},components:{schemas:{
   Envelope:{$ref:'parts/model.'+format+'#/Envelope'},Direct:{$ref:'parts/model.'+format+'#'+pointer},
   Anchored:{$ref:'https://schemas.invalid/envelope#value'}}},
-  'x-payload':{$defs:{Old:'literal'},$ref:'literal reference',number:'EXACT'}};
- const fragment={Envelope:{$id:'https://schemas.invalid/envelope',type:'object',properties:{value:{$ref:address}},$defs:{Container:{$defs:{Old:value}}}},
+  'x-payload':{[keyword]:{Old:'literal'},$ref:'literal reference',number:'EXACT'}};
+ const fragment={Envelope:{$id:'https://schemas.invalid/envelope',type:'object',properties:{value:{$ref:address}},[keyword]:{Container:{[keyword]:{Old:value}}}},
   'x-unrelated':{Old:'unrelated',number:'EXACT'}};
  const encode=value=>(format==='json'?JSON.stringify(value,null,2):'# retained unrelated comment 雪😀\r\n'+YAML.stringify(value).replaceAll('\n','\r\n'))
   .replaceAll(format==='json'?'"EXACT"':'EXACT','9007199254740993.00');
@@ -43,7 +44,7 @@ async function behavior(input){
 }
 
 for(const version of versions)for(const format of ['yaml','json'])for(const name of ['New','clé/雪 ~😀 #?%','','__proto__'])
-test(`native $defs rename ${version} ${format} ${JSON.stringify(name)}`,async()=>{
+test(`native ${keyword} rename ${version} ${format} ${JSON.stringify(name)}`,async()=>{
  const input=fixture(version,format),before=input.resources.map(resource=>resource.text);
  assert.deepEqual(analyse(input).findings,[]);
  const metadata=inspect({...input,resource:input.model,pointer:input.pointer});
@@ -72,18 +73,18 @@ test(`native $defs rename ${version} ${format} ${JSON.stringify(name)}`,async()=
  assert.equal(same.kind,'schema-definition-rename');
 });
 
-for(const version of versions)for(const format of ['yaml','json'])test(`$defs ownership and collision refusals ${version} ${format}`,()=>{
+for(const version of versions)for(const format of ['yaml','json'])test(`${keyword} ownership and collision refusals ${version} ${format}`,()=>{
  const input=fixture(version,format),original=input.resources.map(resource=>resource.text);
- for(const pointer of ['/x-payload/$defs/Old','/Envelope/properties/value','/Envelope/$defs'])
+ for(const pointer of [`/x-payload/${keyword}/Old`,'/Envelope/properties/value',`/Envelope/${keyword}`])
   assert.throws(()=>planSchemaDefinitionRename({...input,target:{...input.target,pointer,range:undefined,expected:undefined},name:'New'}),error=>['refactor.name','refactor.definition','refactor.schema-definition.context'].includes(error.code));
  assert.throws(()=>planSchemaDefinitionRename({...input,name:'x'.repeat(4097)}),error=>error.code==='refactor.name');
- const doc=createGraph(input).docs.get(input.model),text=doc.set('/Envelope/$defs/Container/$defs/New',false);
+ const doc=createGraph(input).docs.get(input.model),text=doc.set(`/Envelope/${keyword}/Container/${keyword}/New`,false);
  const collision={...input,resources:input.resources.map(resource=>resource.id===input.model?{...resource,text}:resource)};
  assert.throws(()=>planSchemaDefinitionRename({...collision,target:{...input.target,range:undefined,expected:undefined},name:'New'}),error=>error.code==='edit.collision');
  assert.deepEqual(input.resources.map(resource=>resource.text),original);
 });
 
-for(const version of ['2.0','3.0.4'])for(const format of ['yaml','json'])test(`$defs is not a native older-family definition ${version} ${format}`,()=>{
+for(const version of ['2.0','3.0.4'])for(const format of ['yaml','json'])test(`${keyword} is not a native older-family definition ${version} ${format}`,()=>{
  const input=fixture('3.1.2',format),root=input.resources[0];
  const value=YAML.parse(root.text);delete value.openapi;value[version==='2.0'?'swagger':'openapi']=version;
  if(version==='2.0'){value.definitions=value.components.schemas;delete value.components;}
@@ -93,9 +94,9 @@ for(const version of ['2.0','3.0.4'])for(const format of ['yaml','json'])test(`$
  });
 });
 
-for(const version of versions)test(`aliased $defs retains physical ownership ${version}`,()=>{
+for(const version of versions)test(`aliased ${keyword} retains physical ownership ${version}`,()=>{
  const input=fixture(version,'yaml'),resource=input.resources[1],doc=YAML.parseDocument(resource.text);
- const value=doc.getIn(['Envelope','$defs','Container','$defs','Old'],true);
+ const value=doc.getIn(['Envelope',keyword,'Container',keyword,'Old'],true);
  value.anchor='shared';doc.set('x-shared',doc.createAlias(value));resource.text=doc.toString();
  const original=resource.text;
  assert.throws(()=>planSchemaDefinitionRename({...input,target:{...input.target,range:undefined,expected:undefined},name:'New'}),
@@ -103,7 +104,7 @@ for(const version of versions)test(`aliased $defs retains physical ownership ${v
  assert.equal(resource.text,original);
 });
 
-for(const version of versions)test(`unsupported $defs dialect is not silently reinterpreted ${version}`,()=>{
+for(const version of versions)test(`unsupported ${keyword} dialect is not silently reinterpreted ${version}`,()=>{
  const input=fixture(version,'json'),resource=input.resources[0],value=JSON.parse(resource.text);
  value.jsonSchemaDialect='https://unsupported.invalid/schema';resource.text=JSON.stringify(value);
  const original=resource.text;
@@ -114,7 +115,7 @@ for(const version of versions)test(`unsupported $defs dialect is not silently re
  assert.equal(resource.text,original);
 });
 
-for(const format of ['yaml','json'])test(`mixed modern roots coalesce shared $defs repairs ${format}`,()=>{
+for(const format of ['yaml','json'])test(`mixed modern roots coalesce shared ${keyword} repairs ${format}`,()=>{
  const input=fixture('3.1.2',format),root='file:///definitions/other.'+format;
  const value={openapi:'3.2.1',info:{title:'Other root',version:'1'},paths:{},components:{schemas:{
   Envelope:{$ref:'parts/model.'+format+'#/Envelope'},Direct:{$ref:'parts/model.'+format+'#'+input.pointer}}}};
@@ -129,3 +130,6 @@ for(const format of ['yaml','json'])test(`mixed modern roots coalesce shared $de
   assert.equal(createGraph(checked).graph.issues.length,0);assert.deepEqual(analyse(checked).findings,[]);
  }
 });
+
+}
+for(const keyword of ['$defs','definitions'])registerSchemaDefinitions(keyword);

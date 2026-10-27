@@ -88,7 +88,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         if(decoded)return decoded;
     }
     const input=parts(runtimeMediaBytes(text,base64),contentType,scope.kind==='media'&&(scope.family==='3.0'||scope.family==='3.1')),multipart=mediaTypes(contentType,false)[0].type==='multipart';
-    const forms=new FormSemantics(graph,new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]))),transfers=new MultipartEncoding(graph);
+    const forms=new FormSemantics(graph),transfers=new MultipartEncoding(graph);
     const genericHeaders=mimeHeaders(graph,id+'/headers',transfers,decodeHeaderForm);
     const checks:FormCheck[]=[],issues:FormIssue[]=[],members=new Map<string,string>(),claimed=new Map<Part,string>(),notes=new Set<string>();
     const binary=new Map<string,Buffer>();

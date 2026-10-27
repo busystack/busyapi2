@@ -1,5 +1,8 @@
+import {assertRoleAnnotations} from './schema_role_annotations';
+import {captureRefactoringGraph as createGraph} from './refactoring_graph';
+import {isSchemaDefinitionKeyword} from './schema_definitions';
 import { createHash } from 'node:crypto';
-import { createGraph, propose, Resource } from './engine';
+import { propose, Resource } from './engine';
 import { escape, segments, SourceError } from './document';
 import { GraphReference, resolveUri, pointerFragment } from './reference_graph';
 import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
@@ -22,7 +25,7 @@ export function planRename(input: any) {
     const schemaDefinition = input.schemaDefinition === true;
     if ([property,response,schemaDefinition].filter(Boolean).length>1)
         throw new SourceError('refactor.context','Choose one kind of authored binding');
-    if (typeof input.name !== 'string' || input.name.length > 4096 || (property ? parts.length < 2 || parts.at(-2) !== 'properties' : response ? parts.at(-2)!=='responses' : schemaDefinition ? parts.at(-2)!=='$defs' : !(parts.length===2&&['definitions','parameters','responses','securityDefinitions'].includes(parts[0]) || parts.length===3&&parts[0]==='components'&&['schemas','parameters','responses','headers','requestBodies','examples','links','callbacks','pathItems','securitySchemes','mediaTypes'].includes(parts[1]))))
+    if (typeof input.name !== 'string' || input.name.length > 4096 || (property ? parts.length < 2 || parts.at(-2) !== 'properties' : response ? parts.at(-2)!=='responses' : schemaDefinition ? !isSchemaDefinitionKeyword(parts.at(-2)) : !(parts.length===2&&['definitions','parameters','responses','securityDefinitions'].includes(parts[0]) || parts.length===3&&parts[0]==='components'&&['schemas','parameters','responses','headers','requestBodies','examples','links','callbacks','pathItems','securitySchemes','mediaTypes'].includes(parts[1]))))
         throw new SourceError('refactor.name', 'Choose a component definition and a legal component name');
     const oldName = parts.at(-1)!, oldPointer = input.target.pointer;
     const nextPointer = '/' + parts.slice(0,-1).map(escape).join('/') + '/' + escape(input.name);
@@ -37,6 +40,12 @@ export function planRename(input: any) {
             throw new SourceError('refactor.context', 'A root context contains an unavailable resource');
         return {context, ...createGraph({root: context.root, resources: resources.filter(r => context.resources.includes(r.id))})};
     });
+    const parentMap=oldPointer.slice(0,oldPointer.lastIndexOf('/'));
+    const roleOwner=graphs.find(({graph})=>graph.scopes.get(source.id+'#'+parentMap)?.kind==='schema-map'&&graph.scopeAs(source.id,parentMap,'schema'));
+    if(roleOwner){
+        const range=roleOwner.docs.get(source.id)!.dataNode(parentMap)!.range;
+        throw new SourceError('refactor.shared-role','This name also belongs to an independently referenced Schema Object; its interpretations need separate reviewed ownership',range,'unsupported',{resource:source.id,pointer:parentMap,range});
+    }
     const definition = graphs.map((g: any) => g.docs.get(source.id)?.nodes.get(oldPointer)).find(Boolean);
     if(schemaDefinition&&(!definition||!definition.keyRange||definition.shared||definition.keyShared))
         throw new SourceError('refactor.definition','The definition needs an unambiguous physical key, not an alias or reference projection');
@@ -45,7 +54,7 @@ export function planRename(input: any) {
         return scope?[{graph,scope}]:[];
     });
     if(schemaDefinition&&(!owners.length||owners.some(({graph,scope})=>!schemaDefinitionNamePolicy(graph,scope))))
-        throw new SourceError('refactor.schema-definition.context','The captured roots must establish a $defs binding in a supported schema dialect',definition.range,undefined,{resource:source.id,pointer:oldPointer,range:definition.range});
+        throw new SourceError('refactor.schema-definition.context','The captured roots must establish a named schema definition in a supported schema dialect',definition.range,undefined,{resource:source.id,pointer:oldPointer,range:definition.range});
     if(!property&&(!owners.length||owners.some(({graph,scope})=>!permitsMemberName(schemaDefinition?schemaDefinitionNamePolicy(graph,scope):response?responseStatusNamePolicy(scope.family):componentNamePolicy(scope.family),input.name))))
         throw new SourceError('refactor.name','Choose a name permitted by every owning specification family',input.target.range,undefined,{resource:source.id,pointer:oldPointer,range:input.target.range});
     if(!property&&!response&&!schemaDefinition&&parts.length===2&&!graphs.some((g:any)=>g.graph.specifications.get(source.id)?.family==='2.0'))throw new SourceError('refactor.definition','Choose a native Swagger reusable definition');
@@ -129,7 +138,7 @@ export function planRename(input: any) {
             if(dependent?.kind==='object')for(const [name,child]of dependent.children){if(name===oldName)renameKey(child.pointer);sameInstance(child.pointer,depth+1);}
         };
         // Climb only inline applicators that evaluate the very same instance.
-        // Child properties/items and unapplied $defs are separate rename scopes;
+        // Child properties/items and unapplied named definitions are separate rename scopes;
         // URI resource boundaries alone do not create a different instance.
         let instanceOwner=ownerPointer;
         for(let depth=0;depth<128;depth++) {
@@ -238,6 +247,7 @@ export function planRename(input: any) {
     const securityBindings:SecurityBindingChange[]=[];
     for (const {context, graph} of graphs) {
         const after = createGraph({root: context.root, resources: resources.filter(r => context.resources.includes(r.id)).map(r => outputs.has(r.id) ? {...r, text: outputs.get(r.id)!} : r)}).graph;
+        for(const scope of graph.scopesFor('schema'))assertRoleAnnotations(graph,scope,after.docs.get(scope.resource)!,transition(scope.resource,scope.pointer));
         if (after.issues.length) throw new SourceError('refactor.proof', 'The derived snapshot introduces an unresolved or ambiguous semantic connection');
         for (const ref of graph.references) {
             const pointer = transition(ref.resource, ref.pointer);

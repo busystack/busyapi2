@@ -1,5 +1,6 @@
+import {schemaContext} from './schema_context';
 import {escape,segments,SourceError} from './document';
-import type {GraphReference,ReferenceGraph} from './reference_graph';
+import type {ReferenceGraph} from './reference_graph';
 import {mediaTypeOptions,mediaTypes} from './media_types';
 import {MultipartFileShapes} from './multipart_file_shapes';
 import {isNativeFamily,modernFamily,type SpecificationFamily} from './specification';
@@ -44,7 +45,7 @@ export function formContentType(shape:FormShape,family:string):string {
  * validator. Exact instance evaluation remains with the captured Schema Object.
  * OAS 3.0 §4.7.15 and 3.1 §4.8.15 differ on multipart RFC6570 fields. */
 export class FormSemantics {
-    constructor(private readonly graph:ReferenceGraph,private readonly references:ReadonlyMap<string,GraphReference>){}
+    constructor(private readonly graph:ReferenceGraph){}
 
     shape(resource:string,pointer:string,seen:ReadonlySet<string>=new Set(),depth=0):FormShape {
         const key=resource+'#'+pointer;
@@ -52,10 +53,11 @@ export class FormSemantics {
         seen=new Set(seen).add(key);
         const node=this.graph.docs.get(resource)?.dataNode(pointer),value=node?.value;
         if(!value||typeof value!=='object'||Array.isArray(value))return {};
-        const scope=this.graph.scope(resource,pointer);
+        const scope=schemaContext(this.graph,resource,pointer);
+        if(!scope)return {};
         const inherited:FormShape[]=[];
         for(const keyword of modernFamily(scope.family)?['$ref','$dynamicRef']:['$ref'])if(typeof value[keyword]==='string'){
-            const edge=this.references.get(JSON.stringify([resource,pointer,keyword]));
+            const edge=this.graph.referenceAs(resource,pointer,keyword,'schema');
             const projection=edge?projectSchemaReference(edge):undefined;
             const shape=projection?.state==='fixed'?this.shape(projection.target.resource,projection.target.pointer,seen,depth+1):{};
             inherited.push(shape);

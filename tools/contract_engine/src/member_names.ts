@@ -1,3 +1,4 @@
+import {isSchemaDefinitionKeyword} from './schema_definitions';
 import {componentFamily,componentLocation} from './authoring';
 import {referenceKinds} from './contexts';
 import {escape,segments} from './document';
@@ -19,21 +20,21 @@ export const componentNamePolicy=(family:string):MemberNamePolicy|undefined=>
 export const responseStatusNamePolicy=(family:string):MemberNamePolicy|undefined=>
     isNativeFamily(family)?family==='2.0'?swaggerStatuses:modernStatuses:undefined;
 
-/** JSON Schema 2020-12 Core §8.2.4 defines $defs as independently named,
- * unapplied schemas. Their JSON member names have no Components restriction. */
+/** Core 2020-12 §8.2.4 and Validation Appendix A define named, unapplied
+ * schema containers. Their member names have no Components restriction. */
 export function schemaDefinitionNamePolicy(graph:ReferenceGraph,scope:GraphScope):MemberNamePolicy|undefined {
     if(scope.kind!=='schema'||!modernFamily(scope.family)||!supportedSchemaDialect(scope))return;
     const parts=segments(scope.pointer);
-    if(parts.at(-2)!=='$defs')return;
+    if(!isSchemaDefinitionKeyword(parts.at(-2)))return;
     const parent='/'+parts.slice(0,-1).map(escape).join('/');
     const collection=graph.scopes.get(scope.resource+'#'+parent);
     if(collection)return schemaDefinitionMapNamePolicy(graph,collection);
 }
 
 function schemaDefinitionMapNamePolicy(graph:ReferenceGraph,scope:GraphScope):MemberNamePolicy|undefined {
-    if(scope.kind!=='schema-map'||!modernFamily(scope.family)||!supportedSchemaDialect(scope))return;
+    if(scope.kind!=='schema-map'||!modernFamily(scope.family)||!supportedSchemaDialect(scope)||graph.scopeAs(scope.resource,scope.pointer,'schema'))return;
     const parts=segments(scope.pointer);
-    if(parts.at(-1)!=='$defs')return;
+    if(!isSchemaDefinitionKeyword(parts.at(-1)))return;
     const owner=parts.length===1?'':'/'+parts.slice(0,-1).map(escape).join('/');
     if(graph.scopes.get(scope.resource+'#'+owner)?.kind==='schema')return schemaNames;
 }
@@ -60,6 +61,7 @@ export function permitsMemberName(policy:MemberNamePolicy|undefined,value:unknow
 /** Classify the actual collection, not a reference-looking pointer in payload
  * data or a Schema Object's independently named properties/definitions. */
 export function collectionMemberNamePolicy(graph:ReferenceGraph,scope:GraphScope):MemberNamePolicy|undefined {
+    if(scope.kind==='schema-map'&&graph.scopeAs(scope.resource,scope.pointer,'schema'))return;
     const specification=graph.specifications.get(scope.resource);
     if(specification)for(const kind of referenceKinds){
         const group=componentFamily(kind,specification.family);

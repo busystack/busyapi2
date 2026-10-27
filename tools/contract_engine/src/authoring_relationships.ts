@@ -8,7 +8,7 @@ export type AuthoringIssue=GraphTarget&{code:string;message:string;incomplete?:b
  * an instance assertion. A parent may qualify through a child's allOf even
  * when the parent has no adjacent composition keyword. */
 export function discriminatorRelationships(graph:ReferenceGraph):AuthoringIssue[] {
- const candidates=[...graph.scopes.values()].filter(scope=>scope.kind==='schema'&&scope.family!=='2.0'&&graph.docs.get(scope.resource)?.dataNode(scope.pointer)?.value?.discriminator);
+ const candidates=graph.scopesFor('schema').filter(scope=>scope.kind==='schema'&&scope.family!=='2.0'&&graph.docs.get(scope.resource)?.dataNode(scope.pointer)?.value?.discriminator);
  if(!candidates.length)return [];
  const parents=discriminatorParents(graph);
  const issues:AuthoringIssue[]=[];

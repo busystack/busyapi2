@@ -16,13 +16,19 @@ import '../packages/busyapi_core/test/static_dynamicref_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final keyword in [r'$defs', 'definitions']) {
+    _registerMigrationTests(keyword);
+  }
+}
+
+void _registerMigrationTests(String definitionKeyword) {
   for (final (from, format, target, blocked) in [
     for (final (from, format) in [('3.1.2', 'yaml'), ('3.2.1', 'json')])
       for (final target in ['3.0.4', '2.0'])
         for (final blocked in [false, true]) (from, format, target, blocked),
   ]) {
     testWidgets(
-      '$from $format → $target dynamic-anchor=$blocked reviews static schema conversion before safe publication',
+      '$from $format → $target dynamic-anchor=$blocked reviews $definitionKeyword static schema conversion before safe publication',
       (tester) async {
         tester.view.physicalSize = const Size(1400, 1200);
         tester.view.devicePixelRatio = 1;
@@ -68,11 +74,9 @@ void main() {
             model = File('${temp.path}/model.yaml');
         final original = staticDynamicRefApi(from, format);
         final modelOriginal = blocked
-            ? staticDynamicRefModel().replaceFirst(
-                r'"$anchor"',
-                r'"$dynamicAnchor"',
-              )
-            : staticDynamicRefModel();
+            ? staticDynamicRefModel(definitionKeyword: definitionKeyword)
+                  .replaceFirst(r'"$anchor"', r'"$dynamicAnchor"')
+            : staticDynamicRefModel(definitionKeyword: definitionKeyword);
         file.writeAsStringSync(original);
         model.writeAsStringSync(modelOriginal);
         final c = WorkspaceController(

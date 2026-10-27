@@ -1,3 +1,4 @@
+import {flatSchemaContext} from './schema_context';
 import {registerSchema} from '@hyperjump/json-schema/draft-04';
 import {defineVocabulary,loadDialect} from '@hyperjump/json-schema/experimental';
 import schema20 from '../schemas/oas20.json';
@@ -33,11 +34,12 @@ export function schemaEvaluationScopes(graph:ReferenceGraph):SchemaEvaluationSco
     const scopes:SchemaEvaluationScope[]=[],{contexts}=swaggerFileContexts(graph);
     for(const scope of graph.scopes.values()) {
         const value=graph.docs.get(scope.resource)!.dataNode(scope.pointer)?.value;
-        const flat=scope.family==='2.0'&&(scope.kind==='parameter'&&value?.in!=='body'&&typeof value?.$ref!=='string'||['header','items'].includes(scope.kind));
+        const flat=flatSchemaContext(graph,scope);
         if(scope.kind!=='schema'&&!flat)continue;
         const fileContext=scope.kind==='parameter'&&value?.in==='formData'||contexts.has(scope.resource+'#'+scope.pointer);
         scopes.push({...scope,kind:'schema',objectKind:scope.kind,file:scope.family==='2.0'&&fileContext&&value?.type==='file'&&!isReferenceObject(value,'schema',scope.family)});
     }
+    for(const scope of graph.scopesFor('schema'))if(scope.sourceKind)scopes.push({...scope,objectKind:'schema'});
     return scopes;
 }
 export function swaggerMetaAddress(scope:SchemaEvaluationScope):string {

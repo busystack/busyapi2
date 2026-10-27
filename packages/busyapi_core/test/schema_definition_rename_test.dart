@@ -9,9 +9,9 @@ import 'test_support.dart';
 String _escape(String value) =>
     value.replaceAll('~', '~0').replaceAll('/', '~1');
 
-String _source(String version, String format, int port) {
+String _source(String version, String format, int port, String keyword) {
   final model = './model.$format';
-  final reference = {'\$ref': '$model#/Envelope/\$defs/Old'};
+  final reference = {'\$ref': '$model#/Envelope/$keyword/Old'};
   final value = {
     'openapi': version,
     'info': {'title': 'Authored definitions 雪😀', 'version': '1'},
@@ -47,20 +47,20 @@ String _source(String version, String format, int port) {
       '${const JsonEncoder.withIndent('  ').convert(value).replaceFirst('"EXACT"', '9007199254740993.00')}\r\n';
 }
 
-String _model(String format) {
+String _model(String format, String keyword) {
   if (format == 'yaml') {
     return '''# retained block definitions 雪😀
 Envelope:
   \$id: https://schemas.invalid/envelope
   type: object
-  \$defs:
+  $keyword:
     'Old': # keep this binding comment
       \$anchor: value
       type: object
       required: [n]
       properties:
         n: {type: integer, enum: [9007199254740993.00]}
-        next: {\$ref: '#/\$defs/Old'}
+        next: {\$ref: '#/$keyword/Old'}
       additionalProperties: false
 x-kept: &data [9007199254740993.00, '雪😀']
 x-mirror: *data
@@ -71,7 +71,7 @@ x-mirror: *data
     'Envelope': {
       '\$id': 'https://schemas.invalid/envelope',
       'type': 'object',
-      '\$defs': {
+      keyword: {
         'Old': {
           '\$anchor': 'value',
           'type': 'object',
@@ -81,7 +81,7 @@ x-mirror: *data
               'type': 'integer',
               'enum': ['EXACT'],
             },
-            'next': {'\$ref': '#/\$defs/Old'},
+            'next': {'\$ref': '#/$keyword/Old'},
           },
           'additionalProperties': false,
         },
@@ -92,10 +92,16 @@ x-mirror: *data
 }
 
 void main() {
+  for (final keyword in [r'$defs', 'definitions']) {
+    _registerDefinitionTests(keyword);
+  }
+}
+
+void _registerDefinitionTests(String keyword) {
   for (final version in ['3.1.0', '3.1.1', '3.1.2', '3.2.0', '3.2.1']) {
     for (final format in ['yaml', 'json']) {
       test(
-        'captured schema definition rename $version $format preserves behavior and publication',
+        'captured $keyword schema definition rename $version $format preserves behavior and publication',
         () async {
           final directory = await Directory.systemTemp.createTemp(
             'busyapi-schema-definitions-',
@@ -119,8 +125,8 @@ void main() {
             request.response.write('{"n":9007199254740993.00}');
             await request.response.close();
           });
-          final original = _source(version, format, server.port),
-              fragment = _model(format);
+          final original = _source(version, format, server.port, keyword),
+              fragment = _model(format, keyword);
           final file = File('${directory.path}/api.$format')
             ..writeAsBytesSync([239, 187, 191, ...utf8.encode(original)]);
           final modelFile = File('${directory.path}/model.$format')
@@ -173,11 +179,11 @@ void main() {
           final target = await project.inspectObject(
             root,
             model,
-            '/Envelope/\$defs/Old',
+            '/Envelope/$keyword/Old',
           );
           expect(target['componentDefinition'], false);
           final name = 'clé/雪 ~😀 #?%',
-              destination = '/Envelope/\$defs/${_escape(name)}';
+              destination = '/Envelope/$keyword/${_escape(name)}';
           expect(
             MemberNamePolicy.fromJson(target['schemaDefinitionNamePolicy'])
                 .allows(name),

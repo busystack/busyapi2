@@ -10,11 +10,17 @@ import 'test_support.dart';
 const _body = '{"n":9007199254740993.00,"name":"雪","flag":true}';
 
 void main() {
+  for (final keyword in [r'$defs', 'definitions']) {
+    _registerMigrationTests(keyword);
+  }
+}
+
+void _registerMigrationTests(String definitionKeyword) {
   for (final version in ['3.1.2', '3.2.1']) {
     for (final format in ['yaml', 'json']) {
       for (final targetVersion in ['3.0.4', '2.0']) {
         test(
-          '$version $format static schema references migrate to $targetVersion with exact HTTP semantics and reviewed publication',
+          '$version $format static $definitionKeyword schema references migrate to $targetVersion with exact HTTP semantics and reviewed publication',
           () async {
             final temp = await Directory.systemTemp.createTemp(
               'busyapi-static-dynamicref-',
@@ -55,7 +61,9 @@ void main() {
                   format,
                   port: server.port,
                 ),
-                modelText = staticDynamicRefModel();
+                modelText = staticDynamicRefModel(
+                  definitionKeyword: definitionKeyword,
+                );
             final original = [0xef, 0xbb, 0xbf, ...utf8.encode(text)],
                 originalModel = [0xef, 0xbb, 0xbf, ...utf8.encode(modelText)];
             await file.writeAsBytes(original);
@@ -184,7 +192,7 @@ void main() {
               reason: '${review.result}',
             );
             expect(review.unsaved, isTrue);
-            expect(review.result['producerVersion'], '22');
+            expect(review.result['producerVersion'], '23');
             final outputs = (review.result['outputs'] as List).cast<Map>();
             expect(
               outputs.any(

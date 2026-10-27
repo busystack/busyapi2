@@ -33,12 +33,18 @@ void main() {
       messenger.setMockMethodCallHandler(MethodChannel(name), null);
     }
   });
+  for (final keyword in [r'$defs', 'definitions']) {
+    _registerDefinitionTests(keyword);
+  }
+}
+
+void _registerDefinitionTests(String keyword) {
   for (final version in ['3.1.2', '3.2.1']) {
     for (final format in ['yaml', 'json']) {
       for (final brightness in Brightness.values) {
         for (final name in ['clé/雪 ~😀 #?%', '']) {
           testWidgets(
-            'reviewed native schema definition $version $format $brightness ${jsonEncode(name)}',
+            'reviewed native $keyword schema definition $version $format $brightness ${jsonEncode(name)}',
             (tester) async {
               tester.view.physicalSize = const Size(1400, 1100);
               tester.view.devicePixelRatio = 1;
@@ -47,7 +53,7 @@ void main() {
               final directory = Directory.systemTemp.createTempSync(
                 'busyapi-schema-definition-design-',
               );
-              final pointer = '/components/schemas/Envelope/\$defs/Old';
+              final pointer = '/components/schemas/Envelope/$keyword/Old';
               final original =
                   '${format == 'yaml' ? '# retained schema definition 雪😀\r\n' : ''}'
                   '${const JsonEncoder.withIndent('  ').convert({
@@ -57,7 +63,7 @@ void main() {
                     'components': {
                       'schemas': {
                         'Envelope': {
-                          '\$defs': {'Old': false},
+                          keyword: {'Old': false},
                         },
                         'Use': {'\$ref': '#$pointer'},
                       },
@@ -221,7 +227,7 @@ void main() {
                   if (!accept) expect(c.buffer!.text, original);
                 }
                 final destination =
-                    '/components/schemas/Envelope/\$defs/${name.replaceAll('~', '~0').replaceAll('/', '~1')}';
+                    '/components/schemas/Envelope/$keyword/${name.replaceAll('~', '~0').replaceAll('/', '~1')}';
                 await ready(
                   () => c.selectedPointer == destination && !c.checking,
                 );
@@ -233,12 +239,12 @@ void main() {
                   ),
                 ) as Map;
                 expect(
-                  (parsed['components']['schemas']['Envelope']['\$defs'] as Map)
+                  (parsed['components']['schemas']['Envelope'][keyword] as Map)
                       .containsKey(name),
                   true,
                 );
                 expect(
-                  parsed['components']['schemas']['Envelope']['\$defs'][name],
+                  parsed['components']['schemas']['Envelope'][keyword][name],
                   false,
                 );
                 expect(parsed['x-literal']['\$ref'], '#$pointer');

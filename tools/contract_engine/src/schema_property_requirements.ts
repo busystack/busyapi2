@@ -21,7 +21,7 @@ export class SchemaPropertyRequirements {
  requires(target:GraphTarget,name:string,seen:ReadonlySet<string>=new Set()):boolean {
   const key=this.key(target);
   if(seen.has(key)||seen.size>=128||!this.consume())return false;
-  const scope=this.graph.scopes.get(target.resource+'#'+target.pointer);
+  const scope=this.graph.scopeAs(target.resource,target.pointer,'schema');
   if(!scope||!supportedSchemaDialect(scope))return false;
   const value=this.graph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
   if(!value||typeof value!=='object'||Array.isArray(value))return false;

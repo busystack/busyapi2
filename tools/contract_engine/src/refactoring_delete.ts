@@ -1,5 +1,7 @@
+import {assertRoleAnnotations} from './schema_role_annotations';
+import {captureRefactoringGraph as createGraph} from './refactoring_graph';
 import {createHash} from 'node:crypto';
-import {createGraph, propose, Resource} from './engine';
+import {propose, Resource} from './engine';
 import {removableField} from './authoring';
 import {escape, segments, SourceError} from './document';
 import {resolveUri} from './reference_graph';
@@ -117,6 +119,7 @@ export function planDelete(input: any) {
     }
     if (!blockers.size) for (const {context, graph} of graphs) {
         const after = createGraph({root: context.root, resources: resources.filter(r => context.resources.includes(r.id)).map(r => outputs.has(r.id) ? {...r, text: outputs.get(r.id)!} : r)}).graph;
+        for(const scope of graph.scopesFor('schema'))if(!(scope.resource===resource.id&&within(scope.pointer,target.pointer)))assertRoleAnnotations(graph,scope,after.docs.get(scope.resource)!,shift(scope.resource,scope.pointer));
         if (after.issues.length) throw new SourceError('refactor.proof', 'Deletion would leave an unresolved or ambiguous semantic connection');
         for (const ref of graph.references) {
             if (ref.resource === resource.id && within(ref.pointer, target.pointer)) continue;

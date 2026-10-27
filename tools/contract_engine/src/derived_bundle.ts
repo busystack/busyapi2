@@ -1,3 +1,4 @@
+import {assertRoleAnnotations} from './schema_role_annotations';
 import {createHash} from 'node:crypto';
 import {analyse,createGraph,Resource} from './engine';
 import {escape,RawJsonValue,SourceDocument,SourceError} from './document';
@@ -68,6 +69,7 @@ type Placement={resource:string;from:string;to:string;kind:string;schema?:boolea
  */
 export function deriveBundle(input:any) {
  const {docs,graph,family}=createGraph(input),root=docs.get(input.root)!;
+ graph.assertReferenceEditsSupported();
  const groups={...componentGroups};
  const collection=(group:string)=>componentLocation(group,family)??'/'+group;
  const schemaCollection=collection('schemas');
@@ -86,12 +88,12 @@ export function deriveBundle(input:any) {
  if([...docs.values()].some(doc=>doc.issues.length))throw new SourceError('bundle.syntax','Repair ambiguous source syntax before bundling');
  if(graph.issues.length)throw new SourceError('bundle.graph','The approved reference graph must be complete and unambiguous before bundling');
  if(graph.references.length>20000)throw new SourceError('limit.bundle.references','Bundle exceeds 20000 semantic connections');
- const schemaScopes=[...graph.scopes.values()].filter(scope=>scope.kind==='schema');
+ const schemaScopes=graph.scopesFor('schema');
  const fileSchemas=swaggerFileContexts(graph).fileSchemas;
  const placements:Placement[]=[],imports=new Map<string,Map<string,string>>(),patches=new Map<string,string>();
  const entryBase=graph.scope(input.root,'').base;
  const defaultServer=family!=='2.0'&&(!root.root.children.has('servers')||Array.isArray(root.root.value.servers)&&root.root.value.servers.length===0);
- const needsEntryIdentity=graph.references.some(ref=>ref.kind==='schema'&&ref.targetResource===input.root&&ref.base!==entryBase&&graph.scope(input.root,ref.targetPointer!).resourcePointer==='');
+ const needsEntryIdentity=graph.references.some(ref=>ref.kind==='schema'&&ref.targetResource===input.root&&ref.base!==entryBase&&graph.scopeAs(input.root,ref.targetPointer!,'schema')!.resourcePointer==='');
  const retainEntryResource=family==='3.1'&&needsEntryIdentity;
  const addSelf=family==='3.2'&&typeof root.root.value.$self!=='string'&&needsEntryIdentity;
  if(family==='3.2'&&typeof root.root.value.$self==='string')patches.set(key(input.root,'/$self'),JSON.stringify(entryBase));
@@ -181,7 +183,7 @@ export function deriveBundle(input:any) {
  const requested=new Map<string,GraphScope>();
  for(const ref of graph.references) {
   if(ref.targetResource===input.root||ref.kind==='schema'||ref.connection==='discriminator')continue;
-  let target=graph.scopes.get(ref.targetResource!+'#'+ref.targetPointer!)??graph.scope(ref.targetResource!,ref.targetPointer!);
+  let target=graph.scopeAs(ref.targetResource!,ref.targetPointer!,ref.kind)??graph.scope(ref.targetResource!,ref.targetPointer!);
   if(ref.kind==='operation') {
    let at=ref.targetPointer!;
    while(at){at=at.slice(0,at.lastIndexOf('/'));const parent=graph.scopes.get(ref.targetResource!+'#'+at);if(parent?.kind==='path-item'){target=parent;break;}}
@@ -409,8 +411,8 @@ export function deriveBundle(input:any) {
  const targetAddress=(resource:string,pointer:string,schema:boolean)=>{
   const to=locate(resource,pointer);
   if(!schema)return fragment(to);
-  const scope=layout.graph.scope(outputId,to);
-  if(scope.kind!=='schema')throw new SourceError('bundle.schema.context','The derived schema target lost its schema-bearing context');
+  const scope=layout.graph.scopeAs(outputId,to,'schema');
+  if(!scope)throw new SourceError('bundle.schema.context','The derived schema target lost its schema-bearing context');
   return scope.base+fragment(to.slice(scope.resourcePointer.length));
  };
  for(const move of rootSchemaMoves.values())schemaAddresses.set(key(move.resource,move.from),targetAddress(move.resource,move.from,true));
@@ -427,11 +429,11 @@ export function deriveBundle(input:any) {
   // pointer. Retain the resolved resource id and the actual anchor fragment.
   const originalUri=resolveUri(ref.value,ref.base);
   if(schema&&originalUri.hash&&!decodeURIComponent(originalUri.hash.slice(1)).startsWith('/')) {
-   const to=locate(ref.targetResource!,ref.targetPointer!),scope=layout.graph.scope(outputId,to);
+   const to=locate(ref.targetResource!,ref.targetPointer!),scope=layout.graph.scopeAs(outputId,to,'schema')!;
    next=scope.base+originalUri.hash;
   }
   if(schema) {
-   const sourceScope=layout.graph.scope(outputId,locate(ref.resource,ref.pointer)),targetScope=layout.graph.scope(outputId,locate(ref.targetResource!,ref.targetPointer!));
+   const sourceScope=layout.graph.scopeAs(outputId,locate(ref.resource,ref.pointer),'schema')!,targetScope=layout.graph.scopeAs(outputId,locate(ref.targetResource!,ref.targetPointer!),'schema')!;
    if(sourceScope.base===targetScope.base)next=next.slice(next.indexOf('#'));
    else if(family==='3.1'&&ref.targetResource===input.root&&targetScope.resourcePointer==='')
     throw new SourceError('bundle.entry.identity','A schema in a distinct identified resource refers back to the 3.1 entry resource; a stable portable entry identity is required');
@@ -480,7 +482,8 @@ export function deriveBundle(input:any) {
   return pointer;
  };
  for(const scope of schemaScopes) {
-  const next=after.scopes.get(outputId+'#'+locate(scope.resource,scope.pointer));
+  const at=locate(scope.resource,scope.pointer),next=after.scopeAs(outputId,at,'schema');
+  assertRoleAnnotations(graph,scope,after.docs.get(outputId)!,at);
   const derivedEntryBase=after.scope(outputId,'').base;
   const placement=placementAt(scope.resource,scope.pointer);
   const expectedBase=!modernFamily(family)||scope.resource===input.root&&scope.resourcePointer===''&&(!placement?.schema||placement.entryContext)?derivedEntryBase:scope.base;

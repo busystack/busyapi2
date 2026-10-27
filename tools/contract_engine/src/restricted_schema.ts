@@ -1,3 +1,4 @@
+import {flatSchemaContext} from './schema_context';
 import {GraphIssue, GraphScope, ReferenceGraph} from './reference_graph';
 import {decimal} from './exact_numbers';
 import {isReferenceObject} from './contexts';
@@ -27,7 +28,7 @@ export function restrictedSchemaIssues(graph: ReferenceGraph): GraphIssue[] {
     };
     for (const scope of graph.scopes.values()) {
         const doc = graph.docs.get(scope.resource)!, node = doc.dataNode(scope.pointer), value = node?.value;
-        const flat=scope.family==='2.0'&&(scope.kind==='parameter'&&value?.in!=='body'&&typeof value?.$ref!=='string'||['header','items'].includes(scope.kind));
+        const flat=flatSchemaContext(graph,scope);
         if ((!flat&&scope.kind !== 'schema') || !['2.0','3.0'].includes(scope.family)) continue;
         if (!node || !doc.dataSyntaxSafe(scope.pointer) || !value || typeof value !== 'object' || Array.isArray(value) || isReferenceObject(value, 'schema', scope.family)) continue;
         if(typeof value.multipleOf==='number') {

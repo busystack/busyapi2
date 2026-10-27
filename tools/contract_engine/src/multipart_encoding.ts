@@ -1,7 +1,8 @@
+import {schemaContext} from './schema_context';
 import {projectSchemaReference} from './schema_reference_projection';
 import {modernFamily} from './specification';
 import {escape,SourceError,type Range} from './document';
-import {ReferenceGraph,supportedSchemaDialect,type GraphReference,type GraphTarget} from './reference_graph';
+import {ReferenceGraph,supportedSchemaDialect,type GraphTarget} from './reference_graph';
 import {MultipartFileShapes,type MultipartFileShape} from './multipart_file_shapes';
 
 type MultipartSource={resource:string;pointer:string;range:number[]};
@@ -18,10 +19,7 @@ export const supportsMultipartTransfer=(encoding:string):boolean=>multipartTrans
  * boundaries belong to the captured graph; transport never resolves them.
  * OAS 3.0 §4.7.15.3; 3.1 §4.8.15.3; 3.2 §4.15.4.2. */
 export class MultipartEncoding {
-    private edges:Map<string,GraphReference>;
-    constructor(private graph:ReferenceGraph){
-        this.edges=new Map(graph.references.map(edge=>[JSON.stringify([edge.resource,edge.pointer,edge.keyword]),edge]));
-    }
+    constructor(private graph:ReferenceGraph){}
 
     failure(code:string,message:string,target:Pick<GraphTarget,'resource'|'pointer'>,unsupported=false):never {
         const node=this.graph.docs.get(target.resource)?.dataNode(target.pointer),range:Range=node?.range??[0,0];
@@ -37,7 +35,7 @@ export class MultipartEncoding {
             const node=this.graph.docs.get(target.resource)?.dataNode(target.pointer);
             if(!node)this.failure('request.reference','A multipart declaration is unavailable',target);
             if(typeof node.value?.$ref!=='string')return target;
-            const edge=this.edges.get(JSON.stringify([target.resource,target.pointer,'$ref']));
+            const edge=this.graph.referenceAs(target.resource,target.pointer,'$ref',kind);
             if(edge?.kind!==kind||edge.resolution!=='resolved')this.failure('request.reference','A multipart reference is unresolved',target);
             target={resource:edge.targetResource!,pointer:edge.targetPointer!,kind};
         }
@@ -58,7 +56,7 @@ export class MultipartEncoding {
         if(!array)return 'text/plain';
         const shapes=new MultipartFileShapes(this.graph),path=[{property:name},{item:undefined}];
         const kinds=['string','number','boolean','object','array','null'].filter(kind=>shapes.allows(schema,path,kind));
-        if(kinds.length===6)return this.graph.scopes.get(schema.resource+'#'+schema.pointer)?.family==='3.0'?'text/plain':'application/octet-stream';
+        if(kinds.length===6)return schemaContext(this.graph,schema.resource,schema.pointer)?.family==='3.0'?'text/plain':'application/octet-stream';
         if(kinds.length&&kinds.every(kind=>['string','number','boolean','null'].includes(kind)))return 'text/plain';
         if(kinds.includes('object')&&kinds.every(kind=>['object','null'].includes(kind)))return 'application/json';
         return this.failure('request.form.content-type.unsupported','The selected file items have competing or nested default media representations; select an explicit captured contentType',schema);
@@ -77,14 +75,14 @@ export class MultipartEncoding {
             const key=JSON.stringify([target.resource,target.pointer,path]);
             if(active.has(key))return;
             active=new Set(active).add(key);
-            const node=this.graph.docs.get(target.resource)?.dataNode(target.pointer),scope=this.graph.scopes.get(target.resource+'#'+target.pointer);
+            const node=this.graph.docs.get(target.resource)?.dataNode(target.pointer),scope=schemaContext(this.graph,target.resource,target.pointer);
             if(!scope||!supportedSchemaDialect(scope))this.failure('request.multipart.dialect.unsupported','The part schema has no supported captured dialect',target);
             const value=node?.value;
             if(shapes&&!shapes.allows(target,path,'string'))return;
             if(typeof value==='boolean')return;
             if(!value||typeof value!=='object'||Array.isArray(value))this.failure('request.multipart.schema','The part schema is unavailable',target);
             for(const keyword of modernFamily(scope.family)?['$ref','$dynamicRef']:['$ref'])if(typeof value[keyword]==='string'){
-                const edge=this.edges.get(JSON.stringify([target.resource,target.pointer,keyword]));
+                const edge=this.graph.referenceAs(target.resource,target.pointer,keyword,'schema');
                 if(!edge)this.failure('request.reference','A multipart schema reference is unresolved',target);
                 const projection=projectSchemaReference(edge);
                 if(projection.state==='dynamic')this.failure('request.multipart.encoding.unsupported','Dynamic part annotations require evaluation before serialization',target);

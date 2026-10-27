@@ -70,7 +70,6 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
             kind: graph.scopes.get(resource + '#' + pointer)?.kind ?? 'data', syntaxSafe: source!.dataSyntaxSafe(pointer)};
     };
     const fieldDefinitions = fieldsForScope(graph,{...graph.scope(doc.id,node.pointer),kind},node.value);
-    const referenceIndex = new Map(graph.references.map(ref => [JSON.stringify([ref.resource, ref.pointer, ref.keyword]), ref]));
     const definitions = new Map(fieldDefinitions.map(field => [field.name, field]));
     // Do not use String(number), JSON.stringify(parsed values), or ?? to select
     // examples: source numeric lexemes, null, false and zero must survive.
@@ -140,7 +139,7 @@ export function referencePage(input: any, context?:ReturnType<typeof createGraph
             visited.add(key);chain.push({resource,pointer});
             const n=read(resource,pointer)!;
             if(typeof n.value?.$ref!=='string' || !graph.allowsReference({...graph.scope(resource,pointer),kind}))return {resource,pointer,chain};
-            const edge=referenceIndex.get(JSON.stringify([resource,pointer,'$ref']));
+            const edge=graph.referenceAs(resource,pointer,'$ref',kind);
             if(!edge || edge.resolution!=='resolved')return;
             resource=edge.targetResource!;pointer=edge.targetPointer!;
         }

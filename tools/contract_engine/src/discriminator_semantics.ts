@@ -28,7 +28,7 @@ export function discriminatorParents(graph:ReferenceGraph):{established:Readonly
   else if(reference.state==='dynamic')for(const target of reference.candidates){if(!spend())break;enqueue(target,true);}
   else incomplete=true;
  };
- for(const scope of graph.scopes.values()){
+ for(const scope of graph.scopesFor('schema')){
   if(scope.kind!=='schema'||work>1000000)continue;
   const pointer=scope.pointer+'/allOf';
   if(graph.scopes.get(scope.resource+'#'+pointer)?.kind!=='schema-array')continue;

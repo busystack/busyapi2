@@ -1,3 +1,4 @@
+import {schemaContext} from './schema_context';
 import {projectSchemaReference} from './schema_reference_projection';
 import {modernFamily} from './specification';
 import type {GraphTarget,ReferenceGraph} from './reference_graph';
@@ -37,7 +38,7 @@ export class MultipartFileShapes {
   const key=JSON.stringify([target.resource,target.pointer,path,kind]);
   const cached=this.cache.get(key);if(cached)return cached;
   if(depth>=128||active.has(key)||++this.work>100000)return unknown;
-  const scope=this.graph.scopes.get(target.resource+'#'+target.pointer);
+  const scope=schemaContext(this.graph,target.resource,target.pointer);
   if(!scope||!supportedSchemaDialect(scope))return unknown;
   const value=this.graph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
   if(value===false)return {possible:false,array:false};
