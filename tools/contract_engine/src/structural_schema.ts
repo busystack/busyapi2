@@ -72,6 +72,10 @@ delete bound30.$defs.operation.properties.parameters.uniqueItems;
 delete bound30.$defs.schema.properties.multipleOf.exclusiveMinimum;
 const bound20 = bindDraft4(schema20);
 bound20.$id = 'urn:busyapi:structural:2.0:2017-08-27';
+// The informational host regex excludes bracketed IPv6 and admits user-info
+// and query delimiters. OAS 2.0 §6.4.1 permits IP hosts; the canonical Swagger
+// server owner applies its normative host/port grammar. Keep the asset intact.
+delete bound20.properties.host.pattern;
 delete bound20.$defs['parameters-list'].uniqueItems;
 delete bound20.$defs.security.uniqueItems;
 const schemas: Readonly<Record<string, any>> = Object.freeze({'2.0': bound20, '3.0': bound30, '3.1': schema31, '3.2': schema32});

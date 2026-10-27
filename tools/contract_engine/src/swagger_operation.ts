@@ -15,16 +15,7 @@ export function swaggerMedia(graph:ReferenceGraph,resource:string,pointer:string
     if(!Array.isArray(selected)||selected.some(value=>typeof value!=='string'))throw new SourceError('request.media','The effective Swagger '+field+' declaration must be a string array');
     return selected;
 }
-export function swaggerServers(graph:ReferenceGraph,resource:string,pointer:string,locate:Locate,descriptionRoot=graph.root) {
-    const root=graph.docs.get(descriptionRoot)!,operation=graph.docs.get(resource)!.dataNode(pointer)!,retrieval=graph.retrievals.get(descriptionRoot)!;
-    const base=new URL(retrieval),host=root.root.value.host??(base.protocol==='http:'||base.protocol==='https:'?base.host:undefined);
-    const declared=operation.children.has('schemes')?operation.value.schemes:root.root.value.schemes;
-    const schemes=declared?.length?declared:[base.protocol==='http:'||base.protocol==='https:'?base.protocol.slice(0,-1):undefined];
-    const path=root.root.value.basePath??'/';
-    return schemes.map((scheme:string|undefined)=>({url:host?(scheme?scheme+':':'')+'//'+host+path:path,variables:{},base:retrieval,
-        origin:operation.children.has('schemes')?'operation':'root',source:locate(root.id,''),
-        sources:['host','basePath','schemes'].filter(field=>root.root.children.has(field)).map(field=>locate(root.id,'/'+field))}));
-}
+export {swaggerServers} from './swagger_servers';
 export function swaggerFlat(value:any,source:LocatedSource) {
     const collectionFormat=value.collectionFormat??'csv';
     return {family:'2.0',type:value.type,collectionFormat,

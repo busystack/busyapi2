@@ -79,6 +79,21 @@ When available, CLI JSON includes the original URI, pointer and range in
 `error.source`. Core preserves coordinates from unsaved desktop buffers; CLI
 coordinates refer to its captured input.
 
+Swagger server fields follow [2.0 §6.4.1](https://spec.openapis.org/oas/v2.0.html#swagger-object).
+`host` accepts a name or IP address with an optional port, including bracketed
+IPv6. Scheme, user-info, path, query, fragment and templates belong outside that
+field. `basePath` is a fixed path beginning with `/`; escape URI delimiters and
+invalid characters rather than introducing Server-variable semantics. Permitted
+Unicode spelling is retained. The pinned URI implementation cannot evaluate
+IPvFuture hosts and reports incomplete evaluation.
+Operation `schemes` overrides the root list and retains its actual defining-file
+location. BusyAPI keeps its established empty-list policy: an empty operation
+list overrides the root and uses the description retrieval protocol. An omitted
+host uses the retrieval host when available. Local descriptions can still need
+an explicit execution base. Invalid fields remain available in Design and Source;
+native Reference shows an incomplete effective declaration with its source,
+without inventing an effective URL. Requests and migration refuse that context.
+
 Source type completions retain the containing schema rules: Swagger Schema
 Objects inherit Draft 4 types, including `null`; its non-body Parameter, Header
 and Items Objects have narrower choices. OpenAPI 3.0 uses its restricted type

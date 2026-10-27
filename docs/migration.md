@@ -69,6 +69,12 @@ proves the relocated target. References that start at a dynamic anchor still
 require a faithful dynamic-scope mapping and block older-family conversion.
 Literal reference-looking keys inside example and extension data are preserved.
 
+Swagger server conversion preserves bracketed IPv6 hosts and effective operation
+scheme overrides. A malformed host, fixed base path or scheme list blocks
+migration before output; source-located findings remain available for correction.
+The pinned URI implementation's unsupported IPvFuture host notation remains an
+implementation blocker, rather than being converted into an invalid target URL.
+
 Swagger 2.0 permits free-text `info.termsOfService`; 3.x requires a URI.
 Prose that cannot form a URI produces a located blocker. A URI-shaped value
 requires the explicit `interpret-terms-as-uri` decision before it becomes a link.

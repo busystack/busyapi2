@@ -1,3 +1,4 @@
+import {swaggerServerContextRevision,swaggerServerRelationships} from './swagger_servers';
 import {discriminatorContextRevision} from './discriminator_semantics';
 import {multipartProjectionRevision} from './schema_reference_projection';
 import { createHash } from 'node:crypto';
@@ -23,7 +24,7 @@ import {xmlContextRevision,xmlRelationships} from './xml_semantics';
 import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
-const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2', xmlContextRules:xmlContextRevision, documentUriRules:documentUriRevision, dialectUriRules:dialectUriRevision, serverRules:serverContextRevision, multipartRules:multipartProjectionRevision, discriminatorRules:discriminatorContextRevision, schemaRoleRules:schemaRoleContextRevision };
+const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2', xmlContextRules:xmlContextRevision, documentUriRules:documentUriRevision, dialectUriRules:dialectUriRevision, serverRules:serverContextRevision, swaggerServerRules:swaggerServerContextRevision, multipartRules:multipartProjectionRevision, discriminatorRules:discriminatorContextRevision, schemaRoleRules:schemaRoleContextRevision };
 export type Resource = {
     id: string;
     text: string;
@@ -272,7 +273,7 @@ export function analyse(input: any, context?: ReturnType<typeof createGraph>) {
         if(issue.incomplete)complete=false;
         diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,issue.range,issue.severity??'error');
     }
-    for (const issue of [...authoringRelationships(graph), ...serverRelationships(graph), ...xmlRelationships(graph), ...documentUriRelationships(graph), ...restrictedSchemaIssues(graph), ...securityRequirementIssues(graph), ...mediaTypeIssues(graph), ...formMediaIssues(graph),...responseStatusIssues(graph)]) {
+    for (const issue of [...authoringRelationships(graph), ...serverRelationships(graph),...swaggerServerRelationships(graph), ...xmlRelationships(graph), ...documentUriRelationships(graph), ...restrictedSchemaIssues(graph), ...securityRequirementIssues(graph), ...mediaTypeIssues(graph), ...formMediaIssues(graph),...responseStatusIssues(graph)]) {
         if(issue.incomplete)complete=false;
         diagnostic(input.resources.find((r:Resource)=>r.id===issue.resource),'openapi',issue.code,issue.message,issue.pointer,undefined,issue.severity??'error',issue.incomplete);
     }

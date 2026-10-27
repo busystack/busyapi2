@@ -1,6 +1,6 @@
 import {createGraph, Resource} from './engine';
 import {children} from './contexts';
-import {swaggerServers} from './swagger_operation';
+import {swaggerServers,swaggerServerContextProblem} from './swagger_servers';
 import {fieldsForScope,richTextField} from './authoring';
 import {escape, segments, SourceError} from './document';
 import {ParameterSemantics} from './parameter_semantics';
@@ -23,7 +23,11 @@ function operationEffective(graph:ReferenceGraph,resource:string,pointer:string,
     const view=path?graph.pathItem(path):undefined;
     for(const name of ['servers','security']) {
         if(name==='servers'&&graph.scope(resource,pointer).family==='2.0') {
-            effective.push({name,origin:'root',inherited:true,complete:true,source:located(root.id,''),default:swaggerServers(graph,resource,pointer,located).map(server=>({url:server.url}))});
+            const local=node.children.has('schemes'),problem=swaggerServerContextProblem(graph,resource,pointer);
+            effective.push({name,origin:local?'operation':'root',inherited:!local,complete:!problem,
+                ...(problem?{invalid:!problem.unsupported,source:located(problem.resource,problem.pointer),
+                    issues:[{code:problem.code,message:problem.message,source:located(problem.resource,problem.pointer),...(problem.unsupported?{incomplete:true}:{})}]}:
+                    {source:local?located(resource,pointer+'/schemes'):located(root.id,''),default:swaggerServers(graph,resource,pointer,located).map(server=>({url:server.url}))})});
             continue;
         }
         const local=node.children.has(name)?{resource,pointer:pointer+'/'+name,origin:'operation'}:undefined;
@@ -305,7 +309,9 @@ export function referenceDocument(input:any) {
             ...(!['object','array'].includes(node.kind)?{text:retain(doc.dataJson(scope.pointer)),representation:'json'}:{}),
         };
     });
-    const result={version:1,producer:'busyapi-native-reference',producerVersion:'2',snapshot:input.snapshot,root:input.root,family,complete:true,sections};
+    const complete=sections.every(section=>section.effective.every(field=>field.complete!==false&&!field.invalid)&&
+        (section.contexts??[]).every(context=>context.effective.every(field=>field.complete!==false&&!field.invalid)));
+    const result={version:1,producer:'busyapi-native-reference',producerVersion:'2',snapshot:input.snapshot,root:input.root,family,complete,sections};
     if(Buffer.byteLength(JSON.stringify(result))>48*1024*1024)throw new SourceError('limit.documentation.projection','Documentation exceeds its bounded projection size');
     return result;
 }

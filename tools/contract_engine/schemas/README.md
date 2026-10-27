@@ -13,6 +13,14 @@ Unmodified OpenAPI JSON from the OpenAPI Initiative specification registry:
   Original identity: <http://json-schema.org/draft-04/schema>. Retain the MIT
   validator notices and JSON-SCHEMA-LICENSE dataset attribution.
 
+  The trusted structural binding omits the informational `host` pattern: it
+  excludes bracketed IPv6 and admits user-info/query delimiters contrary to
+  [Swagger 2.0 §6.4.1](https://spec.openapis.org/oas/v2.0.html#swagger-object).
+  The canonical `swagger_servers.ts` owner applies the component grammar using
+  existing pinned `@hyperjump/uri` 1.3.9 (MIT). `test_swagger_servers.cjs` covers
+  accepted hosts, invalid components, unsupported syntax and retained source.
+  The published asset and its recorded hash remain unchanged.
+
 
 - [3.0 schema, 2024-10-18](https://spec.openapis.org/oas/3.0/schema/2024-10-18),
   SHA-256 `2385f5bbb8c37878daae73baeabe7f34b2f022a4a8c049329ee61f71796f039c`.
