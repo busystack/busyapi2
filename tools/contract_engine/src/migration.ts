@@ -23,7 +23,7 @@ import {MigrationAccess} from './migration_access';
 import {migrateTerms} from './migration_terms';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='20';
+const migrationProducerVersion='21';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -156,7 +156,8 @@ export async function planMigration(input:MigrationInput) {
             const retainedReferences=new Set(retainedGraph.references.filter(reference=>reference.resolution==='resolved').map(reference=>
                 JSON.stringify([reference.resource,reference.pointer,reference.keyword,reference.value,reference.targetResource,reference.targetPointer])));
             for(const reference of graph.references){
-                if(!['$ref','operationRef'].includes(reference.keyword)||reference.resolution!=='resolved')continue;
+                if(!['$ref','$dynamicRef','operationRef'].includes(reference.keyword)||reference.resolution!=='resolved')continue;
+                if(reference.keyword==='$dynamicRef'&&(modernFamily(after)||reference.dynamic))continue;
                 const destinations=[...sources].flatMap(([id,source])=>[...(id===reference.targetResource?source.origins.get(reference.targetPointer!):source.foreignOrigins.get(reference.targetResource+'#'+reference.targetPointer!))??[]].map(pointer=>({resource:id,pointer})));
                 const destination=referenceTargets?.get(reference.resource+'#'+reference.pointer)??(destinations.length===1?destinations[0]:undefined);
                 for(const [id,source]of sources){

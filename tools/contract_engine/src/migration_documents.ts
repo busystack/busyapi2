@@ -32,7 +32,7 @@ export function migrationDocumentContexts(input:{root:string;resources:Resource[
  * selects the original definition. Prove its relocated physical owner for
  * every source entry, including names that intentionally vary by entry. */
 export function proveMigrationConnections(source:ReferenceGraph,target:ReferenceGraph,mapped:(location:MigrationLocation)=>readonly MigrationLocation[],issue:MigrationIssue):void {
-    const connections=new Map(target.references.filter(reference=>reference.connection||reference.keyword==='$dynamicRef').map(reference=>[JSON.stringify([reference.resource,reference.pointer+'/'+escape(reference.keyword)]),reference]));
+    const connections=new Map(target.references.filter(reference=>reference.connection||reference.kind==='schema'&&['$ref','$dynamicRef'].includes(reference.keyword)).map(reference=>[JSON.stringify([reference.resource,reference.pointer+'/'+escape(reference.keyword)]),reference]));
     for(const reference of source.references){
         if((!reference.connection&&reference.keyword!=='$dynamicRef')||reference.resolution!=='resolved')continue;
         const field={resource:reference.resource,pointer:reference.pointer+'/'+escape(reference.keyword)};

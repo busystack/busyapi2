@@ -54,6 +54,13 @@ required-property behavior or introduce Swagger's stronger request exclusion are
 blocked until a faithful mapping is available. The review identifies the source
 annotation; migration does not silently change which payloads are accepted.
 
+A modern `$dynamicRef` that resolves to a pointer or ordinary anchor can be
+converted to a static reference in Swagger 2.0 or OpenAPI 3.0. Its assertions
+and sibling constraints remain in separate `allOf` branches, and the review
+proves the relocated target. References that start at a dynamic anchor still
+require a faithful dynamic-scope mapping and block older-family conversion.
+Literal reference-looking keys inside example and extension data are preserved.
+
 Swagger 2.0 permits free-text `info.termsOfService`; 3.x requires a URI.
 Prose that cannot form a URI produces a located blocker. A URI-shaped value
 requires the explicit `interpret-terms-as-uri` decision before it becomes a link.
