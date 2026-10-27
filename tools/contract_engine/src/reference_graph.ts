@@ -58,6 +58,15 @@ export const schemaAddress=(scope:GraphScope)=>scope.base+pointerFragment(scope.
 export const documentUriBase=(graph:ReferenceGraph,scope:GraphScope)=>scope.kind==='server'?graph.retrievals.get(scope.resource)!:scope.base;
 
 
+/** BusyAPI's native CommonMark rendering context follows the captured logical
+ * occurrence (OAS 3.1 §4.6 / 3.2 §4.1.2.2.3 leave rendering context to tools).
+ * Physical alias ranges remain source coordinates, never a substitute base. */
+export function referenceMarkdownBase(graph:ReferenceGraph,resource:string,pointer:string):string|undefined {
+    const scope=graph.scope(resource,pointer);
+    return scope?documentUriBase(graph,scope):undefined;
+}
+
+
 // URI identity never grants access. The caller supplies immutable, approved
 // resources; this module has no filesystem, HTTP or resolver dependency.
 export function resolveUri(value: string, base: string): URL {

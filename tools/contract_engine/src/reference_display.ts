@@ -72,7 +72,7 @@ export function referenceDisplay(input:any) {
   if(source.resource!==owner.resource||source.pointer!==owner.from&&!source.pointer.startsWith(owner.from+'/'))throw new SourceError('documentation.display-owner','A renderer field lost its captured occurrence owner');
   const pointer=owner.to+source.pointer.slice(owner.from.length),node=display.nodes.get(pointer);
   if(!node)throw new SourceError('documentation.display-pointer','A renderer coordinate lost its exact source value');
-  return {resource:outputId,pointer,generation:0,range:node.range};
+  return {resource:outputId,pointer,markdownBase:outputId,generation:0,range:node.range};
  };
  const provenance=[];
  const effective=fields=>fields.map(field=>({...field,...(field.source?{source:locate(field.source)}:{}),

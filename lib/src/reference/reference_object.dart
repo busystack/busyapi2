@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:busyapi_core/busyapi_core.dart' show httpOperationMethod;
+import 'package:busyapi_core/busyapi_core.dart'
+    show httpOperationMethod, referenceMarkdownBase;
 
 import '../app/busyapi_design.dart';
 import '../app/contract_labels.dart';
@@ -238,7 +239,7 @@ class _ReferenceObjectViewState extends State<ReferenceObjectView> {
         pointer: source['pointer'] as String? ?? pointer,
         key: ValueKey((source['resource'], source['pointer'], 'description')),
         text: text,
-        base: Uri.tryParse(source['resource'] as String? ?? resource),
+        base: referenceMarkdownBase(source),
         parseMarkup: complete,
       );
   Widget contextChoices(Map page, {required bool enabled}) {

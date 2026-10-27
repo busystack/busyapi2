@@ -131,6 +131,16 @@ class ReferenceMarkdown {
   }
 }
 
+/// Decode the canonical captured rendering context. Missing or malformed
+/// metadata leaves relative destinations inactive; physical source coordinates
+/// cannot establish the URI context of a mapped resource or schema identity.
+Uri? referenceMarkdownBase(Map source) {
+  final value = source['markdownBase'];
+  if (value is! String) return null;
+  final uri = Uri.tryParse(value);
+  return uri != null && uri.hasScheme ? uri : null;
+}
+
 /// Only explicit links can navigate. Relative file/resource links remain text
 /// until an owner with graph/access capabilities supplies a navigation policy.
 /// A fragment is retained as a fragment, never turned into filesystem access.

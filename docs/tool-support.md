@@ -636,8 +636,11 @@ Migration checks original description contexts across structural conversion and
 file relocation. It preserves unchanged text when every inspected destination
 remains equal under the captured canonical context. Changed destinations and
 unresolvable URIs remain blocked; explicit identity loss is checked before
-publication. Renderer-specific CommonMark base selection remains separately
-qualified and is tracked in the implementation matrix.
+publication. Native Reference and native HTML export share the captured document/schema
+identity as their CommonMark rendering context; Server descriptions use the
+retrieval URI. Physical source coordinates remain independent. This is BusyAPI's
+rendering policy. External renderers keep their isolated display URI context and
+are qualified separately in the implementation matrix.
 
 Native descriptions and headless HTML use Dart `markdown` **7.3.1**
 (BSD-3-Clause) for display-only CommonMark parsing. It has no resolver, network

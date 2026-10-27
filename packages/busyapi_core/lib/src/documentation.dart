@@ -770,7 +770,8 @@ void _verifyReferenceDocument(
   bool located(Object? value) {
     if (value is! Map ||
         value['resource'] is! String ||
-        value['pointer'] is! String)
+        value['pointer'] is! String ||
+        referenceMarkdownBase(value) == null)
       return false;
     final source = resources[value['resource']];
     if (source == null || value['generation'] != source['generation'])
@@ -1266,7 +1267,7 @@ String _referenceHtml(Map document, String Function(String) portable) {
         try {
           parsed = ReferenceMarkdown.parseInWorker(
             field['text'] as String,
-            base: Uri.tryParse(section['retrieval'] as String),
+            base: referenceMarkdownBase(field['source'] as Map),
           );
         } on Object {
           parsed = ReferenceMarkdown([

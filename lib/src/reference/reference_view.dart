@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:busyapi_core/busyapi_core.dart' show httpOperationMethod;
+import 'package:busyapi_core/busyapi_core.dart'
+    show httpOperationMethod, referenceMarkdownBase;
 
 import '../app/busyapi_design.dart';
 import '../app/busyapi_glyphs.dart';
@@ -200,7 +201,7 @@ class _ReferenceViewState extends State<_ReferenceBody> {
             resource: source['resource'] as String? ?? root!,
             pointer: source['pointer'] as String? ?? '',
             text: value,
-            base: Uri.tryParse(source['resource'] as String? ?? root ?? ''),
+            base: referenceMarkdownBase(source),
           )
         else
           SelectableText(

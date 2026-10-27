@@ -123,6 +123,21 @@ class _DocumentationEngine extends EngineProcess {
                 as Map<String, dynamic>
           : payload;
       if (fault == 'incomplete') result['complete'] = false;
+      if (fault?.startsWith('markdown-') == true) {
+        final source =
+            ((result['sections'] as List).first as Map)['source'] as Map;
+        switch (fault) {
+          case 'markdown-missing':
+            source.remove('markdownBase');
+          case 'markdown-type':
+            source['markdownBase'] = false;
+          case 'markdown-relative':
+            source['markdownBase'] = '../unowned';
+          case 'markdown-uri':
+            source['markdownBase'] = 'https://[';
+        }
+      }
+
       if (fault == 'location')
         result['sections'][0]['source']['range'] = [0, 1 << 30];
       if (fault == 'missing-target')
@@ -674,6 +689,10 @@ void main() {
         'missing-target',
         'dynamic-target',
         'effective-target',
+        'markdown-missing',
+        'markdown-type',
+        'markdown-relative',
+        'markdown-uri',
       ]) {
         engine.fault = fault;
         await expectLater(
@@ -859,6 +878,10 @@ void main() {
       'missing-target',
       'dynamic-target',
       'effective-target',
+      'markdown-missing',
+      'markdown-type',
+      'markdown-relative',
+      'markdown-uri',
     ]) {
       engine.fault = fault;
       await expectLater(
