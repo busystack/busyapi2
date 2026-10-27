@@ -196,7 +196,7 @@ void main() {
             expect(fixed['complete'], true, reason: '${fixed['findings']}');
             expect(
               fixed['categories']['openapi']['schema']['producerVersion'],
-              '1.18.0+34',
+              '1.18.0+35',
             );
             final valid = await prepare();
             addTearDown(valid.close);

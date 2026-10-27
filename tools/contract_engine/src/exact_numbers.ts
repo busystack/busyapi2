@@ -10,6 +10,7 @@ import {SourceDocument, SourceError} from './document';
 import {schemaMetaView} from './schema_boundaries';
 import {isReferenceObject} from './contexts';
 import {swaggerDiscriminator} from './swagger_discriminator';
+import {propertyAccess,swaggerPropertiesKeyword} from './schema_access';
 import type {BinaryLocations} from './runtime_binary';
 
 export function decimal(raw: string) {
@@ -68,6 +69,7 @@ export function createExactNumericAdapter(trustedSchemaIdentities:ReadonlySet<st
 let disposed=false;
 const exactInstanceNumbers=new WeakMap<object,any>(), sourceLocations=new Map<string,{doc:SourceDocument,node:any}>();
 const binaryInstances=new WeakMap<object,Buffer>();
+const propertyAccessFlags=new WeakMap<object,readonly string[]>();
 let referenceGraph:any;
 let direction: 'request' | 'response' | undefined;
 const current=()=>{if(disposed)throw new SourceError('schema.owner','The schema evaluation owner was disposed');};
@@ -139,7 +141,10 @@ const sourceAt=(uri:string)=>{
  const targets=referenceGraph?.identities.get(address.href);
  if(targets?.length!==1||fragment&&!fragment.startsWith('/'))return;
  const doc=referenceGraph.docs.get(targets[0].resource) as SourceDocument;
- const node=doc.dataNode(targets[0].pointer+fragment);
+ const pointer=targets[0].pointer+fragment,physical=doc.dataNode(pointer);
+ // Access semantics follow the logical schema occurrence; an alias's physical
+ // anchor still supplies exact CST data, but cannot replace that occurrence.
+ const node=physical&&physical.pointer!==pointer?{...physical,pointer}:physical;
  return node?{doc,node}:undefined;
 };
 const schemaNumber=schema=>{
@@ -204,28 +209,26 @@ function installExactNumericKeywords() {
   if(Instance.typeOf(instance)!=='number')return oas30.interpret(types,instance,context);
   return (typeof types==='string'?[types]:types).some(t=>t==='number'||t==='integer'&&(number(instance).coefficient===0n||number(instance).exponent>=0n));
  }});
+ const properties=getKeyword(id('properties'));
+ addKeyword({...properties,id:swaggerPropertiesKeyword,simpleApplicator:false,compile:async(schema,ast,parent)=>{
+  const source=sourceAt(canonicalUri(parent)),scope=source&&referenceGraph?.scope(source.doc.id,source.node.pointer);
+  const compiled=await properties.compile(schema,ast,parent);
+  if(!compiled||typeof compiled!=='object'||Array.isArray(compiled))throw new SourceError('schema.access.protocol','The pinned properties compiler returned an invalid representation');
+  const readOnly=scope?.family==='2.0'?Object.keys(compiled).filter(name=>propertyAccess(referenceGraph,scope,name).readOnly):[];
+  propertyAccessFlags.set(compiled,readOnly);
+  return compiled;
+ },interpret:(compiled,instance,context)=>{
+  const valid=properties.interpret(compiled,instance,context),readOnly=propertyAccessFlags.get(compiled)??[];
+  return valid&&!(direction==='request'&&Instance.typeOf(instance)==='object'&&readOnly.some(name=>Object.hasOwn(Instance.value(instance),name)));
+ }} as any);
  const required=standardRequired??(standardRequired=getKeyword(id('required')));
  addKeyword({...required,compile:(schema,_ast,parent)=>{
   const source=sourceAt(canonicalUri(parent)),names=Browser.value(schema);
   if(!Array.isArray(names))throw new SourceError('schema.required','required must be an array of property names');
   const owner=source&&referenceGraph?.scope(source.doc.id,source.node.pointer);
   if(owner?.family!=='3.0')return {names};
-  const flags=(name:string)=>{
-   let target=referenceGraph.scopes.get(source.doc.id+'#'+source.node.pointer+'/properties/'+name.replaceAll('~','~0').replaceAll('/','~1'));
-   const seen=new Set<string>();
-   while(target){
-    const identity=target.resource+'#'+target.pointer;
-    if(seen.has(identity)||seen.size>=128)return {};
-    seen.add(identity);
-    const value=referenceGraph.docs.get(target.resource)?.dataNode(target.pointer)?.value;
-    if(typeof value?.$ref!=='string')return {readOnly:value?.readOnly===true,writeOnly:value?.writeOnly===true};
-    const resolved=referenceGraph.resolveReference(value.$ref,target);
-    if(resolved.resolution!=='resolved')return {};
-    target=referenceGraph.scopes.get(resolved.targetResource+'#'+resolved.targetPointer);
-   }
-   return {};
-  };
-  return {names,flags:Object.fromEntries(names.map((name:string)=>[name,flags(name)]))};
+
+  return {names,flags:Object.fromEntries(names.map((name:string)=>[name,propertyAccess(referenceGraph,owner,name)]))};
  },interpret:({names,flags},instance,context)=>required.interpret(
   flags&&direction?names.filter((name:string)=>!(direction==='request'?flags[name]?.readOnly:flags[name]?.writeOnly)):names,instance,context,
  )} as any);

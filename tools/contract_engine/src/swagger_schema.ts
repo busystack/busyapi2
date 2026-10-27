@@ -4,6 +4,7 @@ import schema20 from '../schemas/oas20.json';
 import {swaggerSchemaDialect} from './specification';
 import type {GraphScope,ReferenceGraph} from './reference_graph';
 import {swaggerDiscriminatorKeyword} from './swagger_discriminator';
+import {swaggerPropertiesKeyword} from './schema_access';
 import {isReferenceObject} from './contexts';
 import {swaggerFileContexts} from './swagger_file';
 
@@ -17,6 +18,7 @@ export function installSwaggerSchemaDialect():void {
     const ordinary=['additionalProperties','allOf','default','description','enum','maxItems','maxLength','maxProperties','minItems','minLength','minProperties','multipleOf','pattern','properties','readOnly','required','title','type','uniqueItems'];
     const vocabulary:Record<string,string>=Object.fromEntries(ordinary.map(name=>[name,keyword(name)]));
     vocabulary.discriminator=swaggerDiscriminatorKeyword;
+    vocabulary.properties=swaggerPropertiesKeyword;
     for(const name of ['$ref','exclusiveMaximum','exclusiveMinimum','format','items','maximum','minimum'])
         vocabulary[name]=keyword('draft-04/'+(name==='$ref'?'ref':name));
     defineVocabulary(swaggerSchemaDialect,vocabulary);
