@@ -294,6 +294,10 @@ class _MigrationReviewState extends State<_MigrationReview> {
                 : BusyApiStatusKind.warning,
           ),
           SelectableText(review.identity),
+          for (final entry in review.entryRoutes)
+            SelectableText(
+              '${entry.resource} · ${entry.from.declaredVersion} → ${entry.target.declaredVersion}',
+            ),
           if ((review.result['presentationChanges'] as List).isNotEmpty)
             Text(l.migrationPresentation),
           if (review.problems.length > 50)

@@ -37,17 +37,26 @@ void main() {
       messenger.setMockMethodCallHandler(MethodChannel(name), null);
     }
   });
-  for (final (stale, ignoredBody, formVersion, coordinatedVersion) in [
-    (false, false, null, null),
-    (true, false, null, null),
-    (false, true, null, null),
-    for (final version in ['3.0.0', '3.0.4', '3.1.2', '3.2.1'])
-      (false, false, version, null),
-    for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1'])
-      (false, false, null, version),
-  ]) {
+  for (final (
+        stale,
+        ignoredBody,
+        formVersion,
+        coordinatedVersion,
+        secondaryVersion,
+      )
+      in [
+        (false, false, null, null, null),
+        (true, false, null, null, null),
+        (false, true, null, null, null),
+        for (final version in ['3.0.0', '3.0.4', '3.1.2', '3.2.1'])
+          (false, false, version, null, null),
+        for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1'])
+          (false, false, null, version, null),
+        (false, false, null, '3.1.2', '3.2.1'),
+        (false, false, null, '3.2.1', '3.1.2'),
+      ]) {
     testWidgets(
-      'native migration ${coordinatedVersion == null ? formVersion ?? 'general' : 'coordinated $coordinatedVersion'} reviews captured changes and ${stale
+      'native migration ${coordinatedVersion == null ? formVersion ?? 'general' : 'coordinated $coordinatedVersion + ${secondaryVersion ?? coordinatedVersion}'} reviews captured changes and ${stale
           ? 'rejects stale source'
           : ignoredBody
           ? 'requires an ignored-body decision'
@@ -64,6 +73,7 @@ void main() {
         const base =
             '# Keep\nopenapi: 3.0.4\ninfo: {title: Original, version: "1", description: "[Guide](/guide)"}\npaths: {}\ncomponents: {schemas: {Value: {type: string, nullable: true}}}\n';
         final sourceVersion = coordinatedVersion ?? formVersion ?? '3.0.4';
+        final sharedVersion = secondaryVersion ?? sourceVersion;
         final targetVersion = formVersion == null ? '3.2.1' : '2.0';
         final swagger = sourceVersion == '2.0';
         final coordinated = coordinatedVersion == null
@@ -114,7 +124,7 @@ void main() {
         final sharedOriginal = coordinatedVersion == null
             ? ''
             : '# Keep shared source 雪\r\n${jsonEncode({
-                if (swagger) 'swagger': sourceVersion else 'openapi': sourceVersion,
+                if (swagger) 'swagger': sharedVersion else 'openapi': sharedVersion,
                 'info': {'title': 'Shared', 'version': '1', 'description': '[Guide](/guide)'},
                 if (swagger) ...{
                   'host': 'b.example.invalid',
@@ -315,6 +325,16 @@ void main() {
           expect(comparison.before, contains('Unsaved'));
           expect(comparison.after, contains(targetVersion));
           expect(comparison.after, contains('[Guide](/guide)'));
+          expect(
+            find.text('${file.uri} · $sourceVersion → $targetVersion'),
+            findsOneWidget,
+          );
+          if (coordinatedVersion != null) {
+            expect(
+              find.text('${shared.uri} · $sharedVersion → $targetVersion'),
+              findsOneWidget,
+            );
+          }
           if (formVersion != null) {
             expect(comparison.after, contains('formData'));
             expect(comparison.after, isNot(contains('requestBody')));

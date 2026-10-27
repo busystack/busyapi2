@@ -12,12 +12,13 @@ void _verifyMigrationReview(
   if (result['version'] != 1 ||
       result['snapshot'] != input.snapshot.identity ||
       result['producer'] != 'busyapi-native-migration' ||
-      result['producerVersion'] != '9' ||
+      result['producerVersion'] != '10' ||
       result['problems'] is! List ||
       result['outputs'] is! List ||
       result['changes'] is! List ||
       result['presentationChanges'] is! List ||
-      result['affectedResources'] is! List)
+      result['affectedResources'] is! List ||
+      result['entryRoutes'] is! List)
     invalid();
   final target = SpecificationContext.fromJson(result['target']);
   if (target.declaredVersion != targetVersion) invalid();
@@ -34,6 +35,18 @@ void _verifyMigrationReview(
     for (final resource in input.snapshot.resources)
       resource['id'] as String: resource,
   };
+  final entries = result['entryRoutes'] as List, entryResources = <String>{};
+  if (entries.isEmpty || entries.length > resources.length) invalid();
+  for (final value in entries) {
+    if (value is! Map ||
+        value['resource'] is! String ||
+        !resources.containsKey(value['resource']) ||
+        !entryResources.add(value['resource'] as String))
+      invalid();
+    final entry = MigrationEntryRoute._(value);
+    if (entry.target.declaredVersion != targetVersion) invalid();
+  }
+  if (!entryResources.contains(input.snapshot.root)) invalid();
   for (final value in result['problems'] as List) {
     if (value case {
       'id': String _,
@@ -127,6 +140,16 @@ void _verifyMigrationReview(
     invalid();
 }
 
+/// One captured API description's explicit source and target specifications.
+class MigrationEntryRoute {
+  MigrationEntryRoute._(Map value)
+    : resource = value['resource'] as String,
+      from = SpecificationContext.fromJson(value['from']),
+      target = SpecificationContext.fromJson(value['target']);
+  final String resource;
+  final SpecificationContext from, target;
+}
+
 enum MigrationStatus { faithfullyConvertible, requiresDecision, blocked }
 
 enum MigrationProblemReason {
@@ -200,6 +223,9 @@ class MigrationOutput extends BundleOutput {
         (result['changes'] as List).cast<Map>().map(MigrationChange._),
       ),
       target = SpecificationContext.fromJson(result['target']),
+      entryRoutes = List.unmodifiable(
+        (result['entryRoutes'] as List).cast<Map>().map(MigrationEntryRoute._),
+      ),
       super._(
         owner,
         input.access,
@@ -215,6 +241,7 @@ class MigrationOutput extends BundleOutput {
   final List<MigrationProblem> problems;
   final List<MigrationChange> changes;
   final SpecificationContext target;
+  final List<MigrationEntryRoute> entryRoutes;
   bool get publishable =>
       status == MigrationStatus.faithfullyConvertible &&
       result['complete'] == true;

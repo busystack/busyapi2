@@ -11,14 +11,9 @@ type Context=ReturnType<typeof createGraph>;
  * whichever entry happened to be visited first. Named connections are proved
  * separately against each migrated entry's namespace. */
 export function migrationDocumentContexts(input:{root:string;resources:Resource[]},primary:Context,issue:MigrationIssue):readonly Context[] {
-    const family=primary.graph.specifications.get(input.root)!.family;
     const contexts=[primary];
-    for(const [root,specification]of primary.graph.specifications){
+    for(const [root]of primary.graph.specifications){
         if(root===input.root)continue;
-        if(specification.family!==family){
-            issue({resource:root,pointer:specification.declaration==='swagger'?'/swagger':'/openapi'},'migration.documents.family','Captured descriptions in different specification families need distinct coordinated conversion routes','implementation');
-            continue;
-        }
         contexts.push(createGraph({...input,root}));
     }
     const scopes=new Map<string,string>();

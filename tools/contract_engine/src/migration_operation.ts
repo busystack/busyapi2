@@ -1,5 +1,5 @@
 import type {createGraph,Resource} from './engine';
-import type {ReferenceGraph} from './reference_graph';
+import type {ReferenceGraph,GraphScope} from './reference_graph';
 import type {MigrationIssue} from './migration_schema';
 import type {MigrationLocation,MigrationSource} from './migration_source';
 import {requestOperation} from './execution';
@@ -31,11 +31,11 @@ export function checkRequestBodyTarget(context:ReturnType<typeof createGraph>,re
 
 /** A source 3.0 ignored body must not become active merely by upgrading.
  * A composed Swagger upgrade retains its originally active body instead. */
-export function migrateOperationBodies(graph:ReferenceGraph,sources:Map<string,MigrationSource>,from:string,to:string,original:string,issue:MigrationIssue):MigrationLocation[] {
+export function migrateOperationBodies(graph:ReferenceGraph,sources:Map<string,MigrationSource>,from:string,to:string,original:(scope:GraphScope)=>string,issue:MigrationIssue):MigrationLocation[] {
     const omitted:MigrationLocation[]=[];
-    if(from!=='3.0'||original!=='3.0'||!modernFamily(to))return omitted;
+    if(from!=='3.0'||!modernFamily(to))return omitted;
     for(const scope of graph.scopes.values()) {
-        if(scope.kind!=='operation'||!graph.docs.get(scope.resource)!.dataNode(scope.pointer)?.children.has('requestBody'))continue;
+        if(scope.kind!=='operation'||scope.family!==from||original(scope)!=='3.0'||!graph.docs.get(scope.resource)!.dataNode(scope.pointer)?.children.has('requestBody'))continue;
         const contexts=graph.operationContexts(scope.resource,scope.pointer),ignored=contexts.filter(context=>ignoresRequestBody(scope.family,context.method.toUpperCase()));
         if(!ignored.length)continue;
         const location={resource:scope.resource,pointer:scope.pointer+'/requestBody'};

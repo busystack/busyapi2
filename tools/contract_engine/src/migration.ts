@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {analyse,createGraph,Resource} from './engine';
 import {SourceDocument,SourceError,escape} from './document';
-import {specificationDeclaration,nativeFamilies,modernFamily} from './specification';
+import {specificationDeclaration,modernFamily} from './specification';
 import {MigrationSource,MigrationLocation,migrationValueIdentity} from './migration_source';
 import {migrateSchemas,MigrationProblem,MigrationIssue} from './migration_schema';
 import {upgradeSwagger} from './migration_swagger';
@@ -18,9 +18,10 @@ import {migrateEncodings} from './migration_encoding';
 import {checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
 import {checkSecurityRequirementTarget} from './migration_security';
 import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
+import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='9';
+const migrationProducerVersion='10';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -82,18 +83,22 @@ export async function planMigration(input:MigrationInput) {
     const markdownContexts=problems.length?[]:captureMigrationMarkdown(initial.graph,issue);
     if(!problems.length)for(const context of initialContexts)checkRequestBodyTarget(context,resources,target.family,issue);
     if(!problems.length)for(const context of initialContexts)checkSecurityRequirementTarget(context.graph,target.family,issue);
-    const order=[...nativeFamilies],start=order.indexOf(from.family),finish=order.indexOf(target.family);
-    const route=start<=finish?order.slice(start,finish+1):target.family==='2.0'?[from.family,target.family]:order.slice(finish,start+1).reverse();
-    for(let index=0;index<route.length-1&&!problems.length;index++){
-        const before=route[index],after=route[index+1],context=createGraph({...input,resources}),{graph}=context;
+    const route=migrationBatches(initial.graph.specifications,target.family);
+    for(const stage of route){
+        if(problems.length)break;
+        const after=stage.to,context=createGraph({...input,resources});
         const contexts=migrationDocumentContexts({...input,resources},context,issue);
         if(problems.length)break;
+        const active=contexts.find(context=>stage.sources.includes(context.graph.specifications.get(context.graph.root)!.family));
+        if(!active)throw new SourceError('migration.route.owner','The conversion stage has no captured source entry');
+        const graph=active.graph;
         const sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
         try {
-            for(const context of contexts)ignoredBodyOmissions.push(...migrateOperationBodies(context.graph,sources,before,after,from.family,issue));
+            for(const before of stage.sources)for(const context of contexts)ignoredBodyOmissions.push(...migrateOperationBodies(context.graph,sources,before,after,scope=>initial.graph.scope(scope.resource,scope.pointer).family,issue));
             for(const scope of graph.scopes.values()){
                 const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value,source=sources.get(scope.resource)!;
-                if(source.current(scope.pointer)===undefined)continue;
+                const before=scope.family;
+                if(!stage.sources.some(family=>family===before)||source.current(scope.pointer)===undefined)continue;
                 if(graph.referenceObject(value,scope)&&scope.kind!=='path-item'){
                     const siblings=Object.keys(value).filter(name=>name!=='$ref');
                     if(siblings.length&&modernFamily(after)&&!modernFamily(before)&&issue(scope,'migration.reference.ignored-siblings','The target would activate ignored Reference Object siblings; explicitly discard those preserved values or revise the source','decision',['discard-ignored-siblings']))for(const name of siblings)source.remove(scope.pointer+'/'+escape(name));
@@ -110,16 +115,17 @@ export async function planMigration(input:MigrationInput) {
                 }
             }
             if(problems.length)break;
-            migrateSchemas(graph,sources,before,after,issue);
-            migrateEncodings(graph,sources,before,after,issue);
-            const referenceTargets=before==='2.0'?upgradeSwagger(graph,sources,issue,contexts.map(context=>context.graph)):undefined;
-            if(after==='2.0')downgradeSwagger(graph,sources,issue);
+            for(const before of stage.sources)migrateSchemas(graph,sources,before,after,issue);
+            for(const before of stage.sources)migrateEncodings(graph,sources,before,after,issue);
+            const referenceTargets=stage.sources.includes('2.0')?upgradeSwagger(graph,sources,issue,contexts.map(context=>context.graph)):undefined;
+            if(after==='2.0')for(const before of stage.sources)downgradeSwagger(graph,sources,before,issue);
             if(problems.length)break;
             for(const [id,specification]of graph.specifications){
+                if(!stage.sources.includes(specification.family))continue;
                 const source=sources.get(id)!;
                 if(!modernFamily(after))source.remove('/jsonSchemaDialect');
-                if(after!=='2.0')source.set('/openapi',index===route.length-2?target.declaredVersion:patch[after]);
-                if(before==='3.1'&&after==='3.2'&&!source.doc.nodes.has('/jsonSchemaDialect'))source.set('/jsonSchemaDialect',specification.schemaDialect);
+                if(after!=='2.0')source.set('/openapi',after===target.family?target.declaredVersion:patch[after]);
+                if(specification.family==='3.1'&&after==='3.2'&&!source.doc.nodes.has('/jsonSchemaDialect'))source.set('/jsonSchemaDialect',specification.schemaDialect);
             }
             // Repair only established contract references at their mapped CST
             // occurrences. Example and extension payloads are never searched.
@@ -155,7 +161,7 @@ export async function planMigration(input:MigrationInput) {
             origins=next;
             for(const [resource,source]of sources)for(const pointer of source.presentationChanges)presentationChanges.push({resource,pointer});
             resources=resources.map(resource=>({...resource,text:sources.get(resource.id)!.doc.text}));
-            stages.push({from:before,to:after});await validate(resources,input.root);
+            stages.push(...stage.sources.map(from=>({from,to:after})));await validate(resources,input.root);
         }catch(error){
             refused(error,{resource:input.root,pointer:''});
         }
@@ -166,11 +172,11 @@ export async function planMigration(input:MigrationInput) {
             if(!decisionChoices.has(id))throw new SourceError('migration.decisions.stale','A supplied decision does not belong to this captured migration graph and target');
             if(!decisionChoices.get(id)!.includes(String(choice)))throw new SourceError('migration.decisions.choice','Choose a listed migration decision');
         }
-        return ({version:1,snapshot:input.snapshot,producer:'busyapi-native-migration',producerVersion:migrationProducerVersion,from,target,stages,status:status(),complete:!problems.length,problems,acceptedDecisions:[...accepted],presentationChanges,
+        return ({version:1,snapshot:input.snapshot,producer:'busyapi-native-migration',producerVersion:migrationProducerVersion,from,target,stages,entryRoutes:entryMigrationRoutes(initial.graph.specifications,target),status:status(),complete:!problems.length,problems,acceptedDecisions:[...accepted],presentationChanges,
         affectedResources:resources.map(resource=>({resource:resource.id,generation:resource.generation,identity:resource.identity})),coverage:{source:'captured-native-graph',target:'native-structure-and-schema-evaluation',externalConsumers:'Only captured resources and their established connections are known'}});
     };
     if(problems.length)return {...common(),changes:[],outputs:[]};
-    if(start===finish)try{
+    try{
         const context=createGraph({...input,resources});
         resources=resources.map(resource=>{
             if(!context.graph.specifications.has(resource.id))return resource;

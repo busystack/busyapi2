@@ -522,6 +522,10 @@ Future<void> runBusyApi(
             'Migration to ${output.target.declaredVersion}: ${output.result['status']}',
           );
           stdout.writeln('Review identity: ${output.identity}');
+          for (final entry in output.entryRoutes)
+            stdout.writeln(
+              '${entry.resource}: ${entry.from.declaredVersion} → ${entry.target.declaredVersion}',
+            );
           for (final problem in output.problems)
             stdout.writeln(
               '${problem.resource} ${problem.pointer}: ${problem.code}: ${problem.message}${problem.choices.isEmpty ? '' : ' [${problem.id}: ${problem.choices.join(', ')}]'}',

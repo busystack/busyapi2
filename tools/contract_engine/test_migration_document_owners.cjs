@@ -81,10 +81,10 @@ test(`${version} ${format} coordinated patch update applies the reviewed declara
  assert.deepEqual(input.resources.map(r=>r.text),before);
 });
 
-for(const format of ['yaml','json'])test(`${format} mixed modern families need distinct reviewed conversion routes`,async()=>{
+for(const format of ['yaml','json'])test(`${format} mixed modern shared resources retain incompatible context blockers`,async()=>{
  const input={...fixture('3.1.2',format),targetVersion:'3.2.1'},resource=input.resources[1];resource.text=new SourceDocument(resource.text,resource.id).set('/openapi','3.2.1');
  const before=input.resources.map(r=>r.text),result=await planMigration(input);assert.equal(result.status,'blocked');assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);
- const problem=result.problems.find(p=>p.code==='migration.documents.family');assert(problem);assert.equal(problem.resource,resource.id);assert.equal(problem.pointer,'/openapi');assert(resource.text.slice(...problem.range).includes('3.2.1'));assert.deepEqual(input.resources.map(r=>r.text),before);
+ const problem=result.problems.find(p=>p.code==='migration.documents.context');assert(problem,JSON.stringify(result.problems));assert.equal(problem.resource,input.resources[3].id);assert.equal(problem.pointer,'');assert(input.resources[3].text.slice(...problem.range).includes('Node/~'));assert.deepEqual(input.resources.map(r=>r.text),before);
 });
 
 for(const format of ['yaml','json'])test(`${format} one Swagger operation cannot silently collapse distinct inherited media`,async()=>{

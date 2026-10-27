@@ -8,8 +8,9 @@ import {isNativeFamily} from './specification';
 
 /** Evaluate actual target representation. A simple 3.x API can be faithfully
  * represented in Swagger; newer-only constructs receive located blockers. */
-export function downgradeSwagger(graph:ReferenceGraph,sources:Map<string,MigrationSource>,issue:MigrationIssue):void {
+export function downgradeSwagger(graph:ReferenceGraph,sources:Map<string,MigrationSource>,from:string,issue:MigrationIssue):void {
     for(const scope of graph.scopes.values()){
+        if(scope.family!==from)continue;
         const source=sources.get(scope.resource)!,pointer=source.current(scope.pointer);if(pointer===undefined)continue;
         const value=graph.docs.get(scope.resource)!.dataNode(scope.pointer)!.value;
         if(scope.kind==='parameter'||scope.kind==='header'){
@@ -97,7 +98,8 @@ export function downgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migrati
             if(value.type==='apiKey'&&!['query','header'].includes(value.in))issue(scope,'migration.security.location','Swagger API keys must be query or header parameters','target-representation');
         }
     }
-    for(const [resource]of graph.specifications){
+    for(const [resource,specification]of graph.specifications){
+        if(specification.family!==from)continue;
         const source=sources.get(resource)!,servers=source.doc.dataNode('/servers')?.value;
         if(servers!==undefined){
             if(!Array.isArray(servers)||servers.length!==1||servers[0].variables){issue({resource,pointer:'/servers'},'migration.servers','Swagger needs one fixed host/basePath; these Server choices cannot be collapsed faithfully','target-representation');}
