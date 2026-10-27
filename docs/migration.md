@@ -43,6 +43,12 @@ separate entry contexts, and BusyAPI coordinates connected entries before
 validating the target graph. Check every affected document in the review. Shared
 resources with incompatible interpretations produce source-located blockers.
 
+A 3.0 request-body declaration that consumers must ignore needs an explicit
+omission decision before conversion to Swagger, 3.1 or 3.2. The reviewed copy
+omits that declaration; original documents stay intact. Active request bodies
+are preserved. Methods absent from the target family, such as TRACE in Swagger,
+produce a source-located blocker.
+
 Descriptions keep their original text when the captured link and image
 destinations remain unchanged across conversion and relocation. This includes
 root-relative, network-path and normalized parent paths where their resolved
