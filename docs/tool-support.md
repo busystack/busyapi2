@@ -40,8 +40,10 @@ accepted. An unsupported URI host form reports incomplete evaluation.
 OpenAPI 3.0 Terms of Service URLs use the declared Server base. Bundling and file
 moves retain their relative spelling with the preserved Servers. When migrating
 to modern document-relative URI semantics, BusyAPI proves a destination across
-captured Server choices; different destinations block conversion. Unrestricted
-variable proofs remain an explicit migration limitation.
+captured Server choices; different destinations block conversion. A fixed scheme
+or authority can prove a destination when the Terms reference replaces the
+variable components. Variables affecting the retained base still need exhaustive
+choices or produce an explicit migration limitation; defaults are not proof.
 
 Server URLs retain their family rules. Fixed URLs are checked through the
 canonical URL resolver, including relative and Unicode URLs, without fetching

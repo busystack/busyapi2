@@ -61,8 +61,11 @@ Normal Swagger editing, bundling and relocation preserve the original text.
 
 OpenAPI 3.0 resolves relative Terms of Service URLs against its Servers.
 Migration captures that destination before switching to another family's URI
-rules. Different Server destinations cannot be silently collapsed to one.
-Unrestricted variable proofs or work limits report a precise limitation; no
+rules. Different Server destinations cannot be silently collapsed to one. A fixed
+scheme or authority can prove a destination even with open Server variables
+when the Terms reference replaces those variable components; a default value
+alone does not establish that proof.
+Unproved variable dependencies or work limits report a precise limitation; no
 partially qualified copy is published.
 
 A 3.0 request-body declaration that consumers must ignore needs an explicit

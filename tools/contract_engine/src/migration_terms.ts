@@ -1,3 +1,4 @@
+import {independentTermsDestination} from './migration_terms_base';
 import {resolveServerUrl,serverUrlValidity} from './server_semantics';
 import {documentUriBase,resolveUri,type GraphScope,type ReferenceGraph} from './reference_graph';
 import type {MigrationSource} from './migration_source';
@@ -17,7 +18,10 @@ export function migrateTerms(graph:ReferenceGraph,sources:Map<string,MigrationSo
             const doc=graph.docs.get(scope.resource)!,servers=doc.root.value?.servers;
             const choices=Array.isArray(servers)&&servers.length?servers:[{url:'/'}];
             for(const [index,server]of choices.entries()){
-                const urls=serverChoices(server,{...scope,pointer:'/servers/'+index+'/url'},graph.retrievals.get(scope.resource)!,issue);
+                const retrieval=graph.retrievals.get(scope.resource)!;
+                const independent=independentTermsDestination(server,value,retrieval);
+                if(independent!==undefined){targets.add(independent);continue;}
+                const urls=serverChoices(server,{...scope,pointer:'/servers/'+index+'/url'},retrieval,issue);
                 if(!urls){incomplete=true;continue;}
                 for(const url of urls){
                     if(++work>1024){issue(location,'limit.migration.terms-bases','Terms of Service resolution exceeds 1024 captured Server choices','implementation');incomplete=true;break;}

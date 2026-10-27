@@ -15,12 +15,14 @@ import 'package:flutter_test/flutter_test.dart';
 import '../packages/busyapi_core/test/test_support.dart';
 
 void main() {
-  for (final (version, format) in [
+  for (final (version, format, variable) in [
     for (final version in ['2.0', '3.0.4'])
-      for (final format in ['yaml', 'json']) (version, format),
+      for (final format in ['yaml', 'json'])
+        for (final variable in [false, if (version == '3.0.4') true])
+          (version, format, variable),
   ]) {
     testWidgets(
-      '$version $format native Terms URI review preserves unsaved intent',
+      '$version $format $variable native Terms URI review preserves unsaved intent',
       (tester) async {
         tester.view.physicalSize = const Size(1400, 1200);
         tester.view.devicePixelRatio = 1;
@@ -48,9 +50,18 @@ void main() {
             '${format == 'yaml' ? '# Keep terms\r\n' : ''}${jsonEncode({
               version == '2.0' ? 'swagger' : 'openapi': version,
               if (version != '2.0') 'servers': [
-                  {'url': 'https://api.example.invalid/v1/'},
+                  {
+                    'url': variable ? 'https://api.example.invalid/{version}/' : 'https://api.example.invalid/v1/',
+                    if (variable) 'variables': {
+                        'version': {'default': 'v1'},
+                      },
+                  },
                 ],
-              'info': {'title': 'Original', 'version': '1', 'termsOfService': version == '2.0' ? 'https://terms.example.invalid/policy' : 'terms'},
+              'info': {'title': 'Original', 'version': '1', 'termsOfService': version == '2.0'
+                  ? 'https://terms.example.invalid/policy'
+                  : variable
+                  ? '/terms'
+                  : 'terms'},
               'paths': {},
             })}';
         file.writeAsStringSync(original);
@@ -166,10 +177,19 @@ void main() {
             contains(
               version == '2.0'
                   ? 'https://terms.example.invalid/policy'
+                  : variable
+                  ? 'https://api.example.invalid/terms'
                   : 'https://api.example.invalid/v1/terms',
             ),
           );
           expect(comparison.after, contains('3.2.1'));
+          if (variable) {
+            expect(
+              comparison.after,
+              contains('https://api.example.invalid/{version}/'),
+            );
+          }
+
           expect(
             tester.widget<BusyApiDialogButton>(publish).onPressed,
             isNotNull,
