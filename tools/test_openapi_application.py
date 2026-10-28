@@ -49,7 +49,7 @@ from native_focus import (
 )
 
 
-def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False, schema_definitions=False, multipart=None, source_file_choice=False):
+def fixture_sources(version, format, mock_samples=False, mock_methods=False, mock_nested=False, schema_definitions=False, multipart=None, source_file_choice=False, definition_container='$defs', server_fragment=False):
     swagger = version == '2.0'
     schema = {
         'type': 'object',
@@ -104,9 +104,11 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
     if schema_definitions:
         document['components'] = {'schemas': {
             'Envelope': {'$ref': './model.' + format + '#/Envelope'},
-            'Use': {'$ref': './model.' + format + '#/Envelope/$defs/Old'},
+            'Use': {'$ref': './model.' + format + '#/Envelope/' + definition_container + '/Old'},
         }}
-        model['Envelope'] = {'type': 'object', '$defs': {'Old': False}}
+        model['Envelope'] = {'type': 'object', definition_container: {'Old': False}}
+    if server_fragment:
+        document['servers'][0]['url'] += '/#native-anchor'
     if format == 'json':
         source = json.dumps(document, ensure_ascii=False, indent=2) + '\r\n'
         shared = json.dumps(model, ensure_ascii=False, indent=2)
@@ -153,7 +155,7 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
                 f"  title: 'Production {version}'\r\n"
                 '  version: api-version\r\n'
                 + (f'host: "127.0.0.1:{multipart.port}"\r\nschemes: [http]\r\nproduces: [application/json]\r\n' if swagger
-                   else f'servers: [{{url: "http://127.0.0.1:{multipart.port}"}}]\r\n') +
+                   else 'servers: [{url: ' + json.dumps(document['servers'][0]['url']) + '}]\r\n') +
                 'paths:\r\n  /items:\r\n    post: '
                 + json.dumps(document['paths']['/items']['post'], ensure_ascii=False) + '\r\n'
             )
@@ -184,9 +186,9 @@ def fixture_sources(version, format, mock_samples=False, mock_methods=False, moc
             source += (
                 'components:\r\n  schemas:\r\n'
                 "    Envelope: {$ref: './model.yaml#/Envelope'}\r\n"
-                "    Use: {$ref: './model.yaml#/Envelope/$defs/Old'}\r\n"
+                "    Use: {$ref: './model.yaml#/Envelope/" + definition_container + "/Old'}\r\n"
             )
-            shared += "Envelope:\r\n  type: object\r\n  $defs:\r\n    'Old': false\r\n"
+            shared += "Envelope:\r\n  type: object\r\n  " + definition_container + ":\r\n    'Old': false\r\n"
     return b'\xef\xbb\xbf' + source.encode(), shared.encode()
 
 
@@ -573,11 +575,13 @@ def main():
     parser.add_argument('--mock-nested', action='store_true')
     parser.add_argument('--documentation', action='store_true')
     parser.add_argument('--schema-definitions', action='store_true')
+    parser.add_argument('--definition-container', choices=['$defs', 'definitions'], default='$defs')
     parser.add_argument('--source-file-choice', action='store_true')
     parser.add_argument('--operations', action='store_true')
     parser.add_argument('--form-migration', action='store_true')
     parser.add_argument('--migrate-target', choices=['2.0', '3.0.4', '3.1.2', '3.2.1'])
     parser.add_argument('--multipart', choices=['ordered', 'nested', 'named'])
+    parser.add_argument('--server-fragment', action='store_true')
     parser.add_argument('--binary', choices=['raw', 'named', 'ordered', 'nested'])
     parser.add_argument('--binary-schema-free', action='store_true')
     parser.add_argument('--swagger-form', choices=['urlencoded', 'multipart'])
@@ -620,6 +624,8 @@ def main():
                                     or args.migrate_target or args.multipart or args.binary
                                     or args.swagger_form or args.header_content):
         parser.error('--generated-headers requires --edit, an applicable 3.x root (generic: 3.0/3.1), and its dedicated MIME journey')
+    if args.server_fragment and (not args.version.startswith('3.0.') or args.multipart != 'named'):
+        parser.error('--server-fragment requires a 3.0 named multipart HTTP journey')
     if args.mock_nested:
         args.mock_samples = True
     if args.mock_methods:
@@ -630,6 +636,8 @@ def main():
         parser.error('--mock-samples requires --edit for the save/reopen journey')
     if args.documentation and not args.edit:
         parser.error('--documentation requires --edit for the save/reopen journey')
+    if args.definition_container != '$defs' and not args.schema_definitions:
+        parser.error('--definition-container requires the dedicated schema-definitions journey')
     if args.schema_definitions and (not args.edit or not args.version.startswith(('3.1.', '3.2.'))):
         parser.error('--schema-definitions requires --edit and a modern OpenAPI family')
     if args.operations and not args.edit:
@@ -673,11 +681,13 @@ def main():
                 *(['--mock-nested'] if args.mock_nested else []),
                 *(['--documentation'] if args.documentation else []),
                 *(['--schema-definitions'] if args.schema_definitions else []),
+                *(['--definition-container', args.definition_container] if args.schema_definitions else []),
                 *(['--source-file-choice'] if args.source_file_choice else []),
                 *(['--operations'] if args.operations else []),
                 *(['--migrate-target', args.migrate_target] if args.migrate_target else []),
                 *(['--form-migration'] if args.form_migration else []),
                 *(['--multipart', args.multipart] if args.multipart else []),
+                *(['--server-fragment'] if args.server_fragment else []),
                 *(['--binary', args.binary] if args.binary else []),
                 *(['--binary-schema-free'] if args.binary_schema_free else []),
                 *(['--swagger-form', args.swagger_form] if args.swagger_form else []),
@@ -734,10 +744,12 @@ def main():
             + ('-nested' if args.mock_nested else '')
             + ('-documentation' if args.documentation else '')
             + ('-schema-definitions' if args.schema_definitions else '')
+            + ('-definitions' if args.schema_definitions and args.definition_container == 'definitions' else '')
             + ('-source-file-choice' if args.source_file_choice else '')
             + ('-operations' if args.operations else '')
             + ('-migrate-' + args.migrate_target if args.migrate_target else '')
             + ('-multipart-' + args.multipart if args.multipart else '')
+            + ('-server-fragment' if args.server_fragment else '')
             + ('-form-migration' if args.form_migration else '')
             + ('-binary-' + args.binary if args.binary else '')
             + ('-schema-free' if args.binary_schema_free else '')
@@ -783,7 +795,7 @@ def main():
         elif args.multipart:
             from native_multipart import MultipartFixture
             multipart = fixtures.enter_context(MultipartFixture(args.multipart))
-        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested, args.schema_definitions, multipart, args.source_file_choice)
+        source, shared = fixture_sources(args.version, args.format, args.mock_samples, args.mock_methods, args.mock_nested, args.schema_definitions, multipart, args.source_file_choice, args.definition_container, args.server_fragment)
         file.write_bytes(source)
         fragment.write_bytes(shared)
         files = [file, fragment]
@@ -903,7 +915,7 @@ def main():
                     if args.schema_definitions:
                         from native_schema_definitions import maintain_definitions
                         changed, schema_definition_result = maintain_definitions(
-                            native, process, file, fragment, expected_sources, args.version)
+                            native, process, file, fragment, expected_sources, args.version, args.definition_container)
                         expected_sources.update(changed)
                         nodes = tree(process.pid, details=True)
                     if args.documentation:
@@ -1000,6 +1012,7 @@ def main():
                     'nativeOperations': operation_result,
                     'nativeMigration': migration_result,
                     'nativeMultipart': multipart_results,
+                    'nativeServerFragment': args.server_fragment,
                     'nativeCaseFileMaintenance': case_file_result,
                     'nativeAuthoredExamples': authored_examples,
                     'files': {

@@ -8,7 +8,9 @@ from test_openapi_application import (
 )
 
 
-def maintain_definitions(native, process, file, fragment, baseline, version):
+def maintain_definitions(native, process, file, fragment, baseline, version, keyword='$defs'):
+    before_pointer = '/Envelope/' + keyword + '/Old'
+    after_pointer = '/Envelope/' + keyword + '/Renamed'
     native.perform({'kind': 'click', 'scale': 1, 'point': [110, 455], 'viewport': [1280, 720]})
     wait_tree(native, process.pid,
         lambda nodes: contains(nodes, 'Envelope') and contains(nodes, 'Use') and contains(nodes, 'Add entry'),
@@ -19,8 +21,8 @@ def maintain_definitions(native, process, file, fragment, baseline, version):
         'Schema reference did not retain its native occurrence')
     activate_control(native, process.pid, 'Edit Definition')
     wait_tree(native, process.pid,
-        lambda nodes: contains(nodes, 'Rename schema definition') and contains(nodes, '/Envelope/$defs/Old'),
-        'Native definition navigation did not expose the captured $defs binding')
+        lambda nodes: contains(nodes, 'Rename schema definition') and contains(nodes, before_pointer),
+        'Native definition navigation did not expose the captured schema-definition binding')
     assert all(Path(name).read_bytes() == raw for name, raw in baseline.items())
     for accept in [False, True]:
         activate_control(native, process.pid, 'Rename schema definition')
@@ -41,15 +43,15 @@ def maintain_definitions(native, process, file, fragment, baseline, version):
                   'Native definition review did not finish')
         if not accept:
             wait_tree(native, process.pid,
-                lambda nodes: contains(nodes, '/Envelope/$defs/Old') and contains(nodes, 'Rename schema definition'),
+                lambda nodes: contains(nodes, before_pointer) and contains(nodes, 'Rename schema definition'),
                 'Cancelled native review changed the selected binding')
     wait_tree(native, process.pid,
-        lambda nodes: contains(nodes, '/Envelope/$defs/Renamed') and complete_problems(nodes),
+        lambda nodes: contains(nodes, after_pointer) and complete_problems(nodes),
         'Reviewed definition did not retain its renamed native scope')
     old_token = b"'Old': false" if fragment.suffix == '.yaml' else b'"Old": false'
     new_token = old_token.replace(b'Old', b'Renamed')
     changed = {
-        str(file): baseline[str(file)].replace(b'/Envelope/$defs/Old', b'/Envelope/$defs/Renamed', 1),
+        str(file): baseline[str(file)].replace(before_pointer.encode(), after_pointer.encode(), 1),
         str(fragment): baseline[str(fragment)].replace(old_token, new_token, 1),
     }
     assert changed[str(file)] != baseline[str(file)]
@@ -85,5 +87,5 @@ def maintain_definitions(native, process, file, fragment, baseline, version):
     wait_tree(native, process.pid,
         lambda nodes: design_values(nodes, 'edited ' + version, 'api-version2') and complete_problems(nodes),
         'Native overview did not retain the original family after schema maintenance')
-    return changed, {'reviewCancelled': True, 'reviewApplied': True, 'definitionNavigation': True,
+    return changed, {'definitionContainer': keyword, 'reviewCancelled': True, 'reviewApplied': True, 'definitionNavigation': True,
                      'oneOperationUndoRedo': True, 'exactMultiFileSave': True}
