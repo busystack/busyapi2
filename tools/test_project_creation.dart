@@ -48,6 +48,9 @@ Future<void> exercise() async {
       Platform.environment['BUSYAPI_FILE_CONTROLS_DIRECTORY'] ?? '';
   final version = Platform.environment['BUSYAPI_FILE_CONTROLS_VERSION'] ?? '';
   final format = Platform.environment['BUSYAPI_FILE_CONTROLS_FORMAT'] ?? '';
+  final mode = InitializationMode.values.byName(
+    Platform.environment['BUSYAPI_FILE_CONTROLS_CREATION_MODE'] ?? 'project',
+  );
   check(
     RegExp(r'^/tmp/busyapi-file-controls-[A-Za-z0-9_-]+$').hasMatch(directory),
     'fixture-boundary',
@@ -269,6 +272,7 @@ Future<void> exercise() async {
   check(!destination.existsSync(), 'invalid-creation-published');
   await text(l.title, 'native api');
   await text(l.apiVersion, '9.8.7');
+  await combo(l.creationType, mode.name);
   await combo(l.openapiVersion, version);
   await combo(l.format, format);
   await button(l.apply);
@@ -294,7 +298,20 @@ Future<void> exercise() async {
   );
   final original = source.readAsBytesSync();
   final manifest = File('${destination.path}/busyapi.yaml');
-  final configuration = manifest.readAsBytesSync();
+  final hasManifest = mode == InitializationMode.project;
+  check(manifest.existsSync() == hasManifest, 'created-configuration-mode');
+  check(
+    controller.project!.configurationResource ==
+        (hasManifest ? manifest.uri.toString() : null),
+    'created-configuration-owner',
+  );
+  final configuration = hasManifest ? manifest.readAsBytesSync() : null;
+  bool creationFilesUnchanged() =>
+      base64Encode(source.readAsBytesSync()) == base64Encode(original) &&
+      manifest.existsSync() == hasManifest &&
+      (configuration == null ||
+          base64Encode(manifest.readAsBytesSync()) ==
+              base64Encode(configuration));
   final info = await controller.project!.inspectObject(root, root, '/info');
   check(
     info['value']['title'] == 'native api' &&
@@ -318,7 +335,8 @@ Future<void> exercise() async {
   );
   await send({
     'kind': 'snapshot',
-    'name': 'create-${version.replaceAll('.', '-')}-$format-reference',
+    'name':
+        'create-${version.replaceAll('.', '-')}-$format-${mode.name}-reference',
     'texts': ['native api'],
   });
   check(
@@ -332,6 +350,8 @@ Future<void> exercise() async {
     'collision-dialog',
   );
   await text(l.title, 'native replacement');
+  await combo(l.creationType, mode.name);
+  await combo(l.format, format);
   await button(l.apply);
   await waitFor(
     () => elements(
@@ -345,31 +365,23 @@ Future<void> exercise() async {
     elements((w) => w is FormValueEditor && w.label == l.title).length == 1,
     'collision-form-retained',
   );
-  check(
-    base64Encode(source.readAsBytesSync()) == base64Encode(original) &&
-        base64Encode(manifest.readAsBytesSync()) == base64Encode(configuration),
-    'collision-mutated-files',
-  );
+  check(creationFilesUnchanged(), 'collision-mutated-files');
   await button(l.cancel);
   await waitFor(
     () => elements((w) => w is FormValueEditor && w.label == l.title).isEmpty,
     'collision-cancelled',
   );
-  await controller.open(destination.path);
+  await controller.open(hasManifest ? destination.path : source.path);
   await controller.analyse();
   check(
     controller.specification?.declaredVersion == version &&
         controller.analysis?['status'] == 'complete',
     'reopened-native-version',
   );
-  check(
-    base64Encode(source.readAsBytesSync()) == base64Encode(original) &&
-        base64Encode(manifest.readAsBytesSync()) == base64Encode(configuration),
-    'reopen-mutated-files',
-  );
+  check(creationFilesUnchanged(), 'reopen-mutated-files');
   await input.cancel();
   await controller.shutdown();
   stdout.writeln(
-    'BUSYAPI_NATIVE_CREATION_PASS version=$version format=$format',
+    'BUSYAPI_NATIVE_CREATION_PASS version=$version format=$format mode=${mode.name}',
   );
 }

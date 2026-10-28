@@ -618,12 +618,22 @@
   "contextApprovalExplanation": "Allow this open project to read local references and edit selected files in the chosen directory. This approval lasts until the project closes. Remote resources remain unavailable.",
   "recoveryUnavailable": "Recovery checkpoint failed. Buffers remain open; activate to retry.",
   "copyPath": "Copy path",
-  "projectFolderRequired": "Provide a project folder name",
+  "projectFolderRequired": "Provide a folder name",
+  "creationType": "Create",
+  "creationProject": "Project",
+  "creationContractOnly": "Contract only",
   "apiTitleRequired": "API title is required",
   "apiVersionRequired": "API version is required",
   "creationSuperseded": "Workspace navigation changed. Cancel this form and create from the current workspace.",
   "retryOpening": "Retry Opening",
-  "createdFieldsLocked": "Use Retry Opening to open the existing files. Edit project details after opening succeeds.",
+  "createdFieldsLocked": "Use Retry Opening to open the existing files. Edit details after opening succeeds.",
+  "contractCreatedOpenFailed": "Contract created at {path}. Opening or checking did not complete: {error}",
+  "@contractCreatedOpenFailed": {
+    "placeholders": {
+      "path": { "type": "String" },
+      "error": { "type": "String" }
+    }
+  },
   "projectCreatedOpenFailed": "Project created at {path}. Opening or checking did not complete: {error}",
   "@projectCreatedOpenFailed": {
     "placeholders": {

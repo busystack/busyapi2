@@ -845,6 +845,10 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
       String? partialPath;
       CoreFailure? partialFailure;
       Map<String, dynamic>? publishedValues;
+      String openingFailure(String path, String error) =>
+          publishedValues?['mode'] == InitializationMode.standalone.name
+          ? l.contractCreatedOpenFailed(path, error)
+          : l.projectCreatedOpenFailed(path, error);
       await editForm(
         context,
         l.createProject,
@@ -852,6 +856,17 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
           FormFieldSpec('folder', l.name),
           FormFieldSpec('title', l.title),
           FormFieldSpec('apiVersion', l.apiVersion),
+          FormFieldSpec(
+            'mode',
+            l.creationType,
+            options: InitializationMode.values
+                .map((mode) => mode.name)
+                .toList(),
+            labels: {
+              InitializationMode.project.name: l.creationProject,
+              InitializationMode.standalone.name: l.creationContractOnly,
+            },
+          ),
           FormFieldSpec(
             'openapi',
             l.openapiVersion,
@@ -863,6 +878,7 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
           'folder': 'api',
           'title': '',
           'apiVersion': '1.0.0',
+          'mode': InitializationMode.project.name,
           'openapi': '3.1.2',
           'format': 'yaml',
         },
@@ -888,14 +904,20 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
             // Failures stay in this form with their inputs, including init.partial.
             // A retry is always explicit and uses the initializer's collision guard.
             try {
-              await Initializer.create(
+              final mode = InitializationMode.values.byName(values['mode']);
+              final contract = await Initializer.create(
                 destination: path,
                 title: values['title'],
                 apiVersion: values['apiVersion'],
                 openapi: values['openapi'],
                 format: values['format'],
+                mode: mode,
                 beforePublish: widget.initializerBoundary,
+                cancelled: () => !current(),
               );
+              createdPath = mode == InitializationMode.standalone
+                  ? contract
+                  : path;
             } on CoreFailure catch (e) {
               if (e.code == 'init.partial') {
                 partialPath = path;
@@ -903,12 +925,11 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
               }
               rethrow;
             }
-            createdPath = path;
             publishedValues = Map<String, dynamic>.from(values);
           } else if (jsonEncode(publishedValues) != jsonEncode(values)) {
             throw CoreFailure(
               'create.created',
-              l.projectCreatedOpenFailed(createdPath!, l.createdFieldsLocked),
+              openingFailure(createdPath!, l.createdFieldsLocked),
             );
           }
           if (!current()) return; // Published files survive host removal.
@@ -931,7 +952,7 @@ class WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
           } on Object catch (e) {
             throw CoreFailure(
               'create.open',
-              l.projectCreatedOpenFailed(createdPath!, e.toString()),
+              openingFailure(createdPath!, e.toString()),
             );
           }
         },

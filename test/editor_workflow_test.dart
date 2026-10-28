@@ -2296,12 +2296,27 @@ void main() {
     },
   );
   for (final format in ['yaml', 'json']) {
-    for (final version in ['3.1.2', '3.2.1']) {
+    for (final (version, mode) in [
+      for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1'])
+        for (final mode in InitializationMode.values) (version, mode),
+    ]) {
       testWidgets(
-        'actual Create command installs $format $version with bundled assets and leaves modes usable',
+        'actual Create command installs $format $version ${mode.name} with bundled assets and leaves modes usable',
         (tester) async {
           final temp = Directory.systemTemp.createTempSync('busyapi-create-');
+          tester.view.physicalSize = const Size(1280, 1100);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
           final parent = Directory('${temp.path}/testapiproject')..createSync();
+          var folder = 'api';
+          File? foreignManifest;
+          if (mode == InitializationMode.standalone && version == '3.0.4') {
+            Directory('${parent.path}/api').createSync();
+            foreignManifest = File('${parent.path}/api/busyapi.yaml')
+              ..writeAsStringSync('foreign: [invalid manifest\n# retained\n');
+          }
+          final foreignBytes = foreignManifest?.readAsBytesSync();
           // Use the production resolver for a Flutter debug layout and a
           // relocated package layout, including spaces in the bundle path.
           final bundle = format == 'yaml'
@@ -2360,10 +2375,54 @@ void main() {
             await tester.runAsync(() => tester.tap(find.text('yaml')));
             await tester.pumpAndSettle();
           }
-          if (version == '3.2.1') {
-            menuChoice = '3.2.1';
+          if (version != '3.1.2') {
+            menuChoice = version;
             await tester.runAsync(() => tester.tap(find.text('3.1.2')));
             await tester.pumpAndSettle();
+          }
+          if (mode == InitializationMode.standalone) {
+            menuChoice = 'Contract only';
+            await tester.runAsync(
+              () => tester.tap(
+                find.descendant(
+                  of: find.byWidgetPredicate(
+                    (widget) =>
+                        widget is BusyApiComboRow<String> &&
+                        widget.title == 'Create',
+                  ),
+                  matching: find.text('Project'),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+          }
+          if (foreignManifest != null) {
+            await tester.runAsync(() async {
+              tester
+                  .widget<BusyApiDialogButton>(
+                    find.widgetWithText(BusyApiDialogButton, 'Apply'),
+                  )
+                  .onPressed!();
+            });
+            final watch = Stopwatch()..start();
+            while (find.textContaining('init.collision').evaluate().isEmpty &&
+                watch.elapsed < const Duration(seconds: 20)) {
+              await tester.runAsync(
+                () => Future<void>.delayed(const Duration(milliseconds: 20)),
+              );
+              await tester.pump(const Duration(milliseconds: 20));
+            }
+            expect(find.textContaining('init.collision'), findsOneWidget);
+            expect(foreignManifest.readAsBytesSync(), foreignBytes);
+            expect(
+              File('${parent.path}/api/openapi.$format').existsSync(),
+              false,
+            );
+            folder = 'new-api';
+            await tester.enterText(
+              find.widgetWithText(TextFormField, 'Name'),
+              folder,
+            );
           }
           await tester.runAsync(() async {
             tester
@@ -2378,21 +2437,27 @@ void main() {
           expect(tester.takeException(), isNull);
           await tester.pumpAndSettle();
           expect(picks, 1);
-          final files = Directory('${parent.path}/api')
+          final files = Directory('${parent.path}/$folder')
               .listSync()
               .whereType<File>()
               .map((f) => f.uri.pathSegments.last)
               .toSet();
-          expect(files, {'openapi.$format', 'busyapi.yaml'});
+          expect(files, {
+            'openapi.$format',
+            if (mode == InitializationMode.project) 'busyapi.yaml',
+          });
+          if (foreignManifest != null) {
+            expect(foreignManifest.readAsBytesSync(), foreignBytes);
+          }
           expect(
             c.root,
-            Uri.file('${parent.path}/api/openapi.$format').toString(),
+            Uri.file('${parent.path}/$folder/openapi.$format').toString(),
           );
           expect(c.mode, 'Design');
           expect(c.projection!['info']['value']['title'], 'test');
           expect(c.projection!['operations'], isEmpty);
           expect(find.widgetWithText(TextFormField, 'Title'), findsOneWidget);
-          final before = File('${parent.path}/api/openapi.$format')
+          final before = File('${parent.path}/$folder/openapi.$format')
               .readAsBytesSync();
           c.setMode('Source');
           await tester.pumpAndSettle();
@@ -2402,12 +2467,16 @@ void main() {
           expect(find.byType(ReferenceView), findsOneWidget);
           await tester.runAsync(() async {
             await c.saveAll();
-            await c.open('${parent.path}/api');
+            await c.open(
+              mode == InitializationMode.standalone
+                  ? '${parent.path}/$folder/openapi.$format'
+                  : '${parent.path}/$folder',
+            );
             await c.analyse();
           });
           await tester.pumpAndSettle();
           expect(
-            File('${parent.path}/api/openapi.$format').readAsBytesSync(),
+            File('${parent.path}/$folder/openapi.$format').readAsBytesSync(),
             before,
           );
           expect(c.projection!['operations'], isEmpty);
