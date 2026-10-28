@@ -69,6 +69,14 @@ dependencies; other conditional dependencies produce a located blocker. A depend
 separate representation and blocks conversion. Original arrays and comments are
 retained where the mapping permits; restructuring appears in the review.
 
+Modern `dependentSchemas` conditions can also migrate to OpenAPI 3.0. The
+dependent schema still applies to the whole object only when its named property
+is present. Non-object values keep their original behavior. Swagger conversion
+currently requires a declared object-only type and a proved required trigger;
+other conditions receive a located implementation blocker. References to a moved
+dependent schema follow its reviewed destination. Shared YAML ownership and a
+dependency map independently interpreted as a schema remain explicit blockers.
+
 A modern `$dynamicRef` that resolves to a pointer or ordinary anchor can be
 converted to a static reference in Swagger 2.0 or OpenAPI 3.0. Its assertions
 and sibling constraints remain in separate `allOf` branches, and the review
