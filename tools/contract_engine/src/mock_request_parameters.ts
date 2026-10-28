@@ -10,6 +10,7 @@ import {nativeMedia,schemaLocation,sourceLocation,type NativeMockCheck,type Nati
 type Pair=readonly [string,string];
 type Parameter={name:string;in:string;style:string;explode:boolean;required:boolean;allowEmptyValue:boolean;family:string;source:SourceLocation;schema?:{resource:string;pointer:string};content:ReturnType<typeof nativeMedia>;shape:FormShape;swagger?:SwaggerWireShape};
 type Candidates={present:boolean;texts:string[]};
+export type ParameterOmission={source:SourceLocation;location:string;collections:readonly string[]};
 type Evaluate=(instances:NativeRuntimeInstance[])=>Promise<NativeRuntimeCheck>;
 const maximumCandidates=256,maximumInstances=2048;
 const decimal=/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/;
@@ -111,7 +112,13 @@ function data(parameter:Parameter,values:readonly string[],raw:boolean,fields:re
         object=fields.filter(([key])=>Object.hasOwn(shape.properties??{},key)||!reserved.has(key));
         present=present||object.length>0;
     }
-    if(!present)return {present:false,texts:[]};
+    // RFC 6570 §2.3 / OAS 3.2 Appendix C.4.3 omit empty collections.
+    // Retain finite inverse witnesses for authored examples. An actual absent
+    // HTTP parameter still has no instance and does not apply its schema.
+    if(!present)return {present:false,texts:
+        location==='query'&&style==='deepObject'&&possible('object')?['{}']:
+        (location==='query'||location==='cookie')&&explode&&(style==='form'||location==='cookie'&&parameter.family==='3.2'&&style==='cookie')?
+            [...(possible('array')?['[]']:[]),...(possible('object')?['{}']:[])]:[]};
     if(style==='deepObject')return {present:true,texts:objects(object!,shape)};
     if(location==='path'&&style==='matrix'){
         if(values.length!==1||!values[0].startsWith(';'))malformed('A matrix path parameter must start with a semicolon');
@@ -159,7 +166,7 @@ function data(parameter:Parameter,values:readonly string[],raw:boolean,fields:re
 
 /** Decode wire parameters using graph-owned effective definitions, including
  * inheritance and references. These codecs never resolve or evaluate schemas. */
-export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,template:string,path:string,query:string,headers:Readonly<Record<string,string>>,evaluate:Evaluate,parameterShapes?:FormSemantics):Promise<NativeMockCheck> {
+export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,template:string,path:string,query:string,headers:Readonly<Record<string,string>>,evaluate:Evaluate,parameterShapes?:FormSemantics,onOmission?:(omission:ParameterOmission)=>void):Promise<NativeMockCheck> {
     if(!record(plan)||!Array.isArray(plan.parameters)||plan.parameters.length>maximumInstances)throw new SourceError('mock.validation.protocol','The native parameter projection is malformed');
     const shapes=parameterShapes??new FormSemantics(graph);
     const parameters:Parameter[]=plan.parameters.map(value=>{
@@ -211,7 +218,11 @@ export async function validateMockParameters(graph:ReferenceGraph,plan:unknown,t
                 texts=[raw&&!form?decode(values[0],parameter.in==='query'):values[0]];
             }else{
                 const decoded=data(parameter,values,raw,fields,reserved);
-                if(!decoded.present){if(parameter.required)issue(parameter,'runtime.request.parameter.required','A required parameter is absent');continue;}
+                if(!decoded.present){
+                    if(parameter.required)issue(parameter,'runtime.request.parameter.required','A required parameter is absent');
+                    else onOmission?.({source:parameter.source,location,collections:decoded.texts});
+                    continue;
+                }
                 texts=decoded.texts;
             }
             if(candidates+texts.length>maximumInstances)unsupported('Native parameter validation exceeds 2048 captured instances');

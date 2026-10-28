@@ -213,7 +213,7 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
    instances+=result.instances;if(!result.complete)complete=false;
    const pointer=example.document.dataNode(example.pointer)!.pointer,source={resource:example.owner.resource,pointer:example.owner.pointer};
    evaluations.push({resource:example.document.id,pointer,...(pointer!==example.pointer?{occurrencePointer:example.pointer}:{}),
-    ...(example.owner.kind==='header'?{header:source}:{parameter:source}),complete:result.complete,valid:result.valid});
+    ...(example.owner.kind==='header'?{header:source}:{parameter:source}),complete:result.complete,valid:result.valid,...(result.omission?{omission:result.omission}:{})});
    if(!result.valid){
     const code=result.complete?'example.serialization.incompatible':'example.serialization.incomplete',identity=JSON.stringify([example.document.id,pointer,code]);
     const context={source,details:result.findings.map(note=>({code:note.code,detailCode:note.detailCode,pointer:note.pointer,schema:note.schema,source:note.source}))};

@@ -76,7 +76,7 @@ void main() {
         expect(captured['categories']['openapi']['complete'], false);
         expect(captured['categories']['policy']['complete'], true);
         final schema = captured['categories']['openapi']['schema'];
-        expect(schema['producerVersion'], '1.18.0+38');
+        expect(schema['producerVersion'], '1.18.0+39');
         expect(schema['coverage']['authoredData']['complete'], true);
         expect(
           schema['coverage']['serializedMediaExamples']['complete'],
