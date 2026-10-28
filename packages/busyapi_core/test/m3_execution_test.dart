@@ -108,11 +108,32 @@ paths:
           await response.close();
           expect(paths.last, '${input.uri.path}?${input.uri.query}');
         }
-        for (final bad in [
-          'v1#fragment',
-          '{unresolved}',
-          'v1\r\nInjected: true',
-        ]) {
+        // RFC 9110 §7.1 omits a substituted URI fragment from the HTTP target.
+        final sourceBytes = contract.readAsBytesSync();
+        final fragment = await const ContractRequestBuilder().build(
+          plan,
+          OperationRequestDraft(
+            planIdentity: plan.identity,
+            variables: {'version': 'v1#fragment'},
+            parameters: {
+              OperationRequestDraft.parameterKey('path', 'label'):
+                  const RequestValue.text('fragment'),
+            },
+          ),
+          resolveSecret: (_) async => null,
+        );
+        expect(fragment.uri.hasFragment, false);
+        expect(
+          fragment.uri.toString(),
+          'http://127.0.0.1:${server.port}/v1/items/.fragment',
+        );
+        final fragmentResponse = await const ContractHttpTransport().send(
+          fragment,
+        );
+        await fragmentResponse.close();
+        expect(paths.last, '/v1/items/.fragment');
+        expect(contract.readAsBytesSync(), sourceBytes);
+        for (final bad in ['{unresolved}', 'v1\r\nInjected: true']) {
           await expectLater(
             const ContractRequestBuilder().build(
               plan,
