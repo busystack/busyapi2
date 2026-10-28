@@ -238,19 +238,23 @@ void main() {
         }
     },
   );
-  test('R14 authored and environment base query API-key collisions precede any HTTP request', () async {
-    var received = 0;
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(() => server.close(force: true));
-    server.listen((r) async {
-      received++;
-      await r.response.close();
-    });
-    for (final environmentBase in [false, true])
-      for (final name in ['api_key', '%61pi%5Fkey']) {
-        final base =
-            'http://127.0.0.1:${server.port}/base?$name=old&tag=one%2ftwo&tag=three+four';
-        await File('${temp.path}/openapi.yaml').writeAsString('''openapi: 3.2.1
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
+    test(
+      '$version R14 authored and environment base query API-key collisions precede any HTTP request',
+      () async {
+        var received = 0;
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        server.listen((r) async {
+          received++;
+          await r.response.close();
+        });
+        for (final environmentBase in [false, true])
+          for (final name in ['api_key', '%61pi%5Fkey']) {
+            final base =
+                'http://127.0.0.1:${server.port}/base?$name=old&tag=one%2ftwo&tag=three+four';
+            await File('${temp.path}/openapi.yaml')
+                .writeAsString('''openapi: $version
 info: {title: Query, version: "1"}
 servers: [{url: '${environmentBase ? 'http://example.invalid' : base}'}]
 security: [{key: []}]
@@ -260,237 +264,278 @@ paths:
     get:
       responses: {'200': {description: ok}}
 ''');
-        await File('${temp.path}/busyapi.yaml').writeAsString('''version: 1
+            await File('${temp.path}/busyapi.yaml').writeAsString('''version: 1
 roots: [{name: api, path: openapi.yaml}]
 environments: {local: {${environmentBase ? "baseUrl: '$base', " : ''}authentication: {alternative: 0, schemes: {key: {secretRef: 123e4567-e89b-42d3-a456-426614174000}}}}}
 ''');
-        final project = await BusyProject.open(temp.path, engine);
-        try {
-          final plan = await planFor(project, 'get', '/pets');
-          addTearDown(plan.close);
-          final draft = OperationRequestDraft(
-            planIdentity: plan.identity,
-            environment: 'local',
-            securityAlternative: 0,
-          );
-          for (final preview in [true, false]) {
-            await expectLater(
-              const ContractRequestBuilder().build(
-                plan,
-                draft,
-                resolveSecret: (_) async => 'new',
-                previewOnly: preview,
-              ),
-              throwsA(
-                isA<CoreFailure>().having(
-                  (e) => e.code,
-                  'code',
-                  'request.security.collision',
-                ),
-              ),
-            );
-            if (!preview)
-              await expectLater(
-                const ContractRequestExecutor().execute(
-                  plan,
-                  draft,
-                  resolveSecret: (_) async => 'new',
-                ),
-                throwsA(
-                  isA<CoreFailure>().having(
-                    (e) => e.code,
-                    'code',
-                    'request.security.collision',
+            final project = await BusyProject.open(temp.path, engine);
+            try {
+              if (version != '3.0.4' && !environmentBase) {
+                final before = File('${temp.path}/openapi.yaml')
+                    .readAsBytesSync();
+                await expectLater(
+                  planFor(project, 'get', '/pets'),
+                  throwsA(
+                    isA<CoreFailure>()
+                        .having(
+                          (failure) => failure.code,
+                          'code',
+                          'server.url.query-fragment',
+                        )
+                        .having(
+                          (failure) => failure.kind,
+                          'kind',
+                          CoreFailureKind.specification,
+                        )
+                        .having(
+                          (failure) => failure.source?.pointer,
+                          'pointer',
+                          '/servers/0/url',
+                        ),
                   ),
-                ),
+                );
+                expect(
+                  File('${temp.path}/openapi.yaml').readAsBytesSync(),
+                  before,
+                );
+                expect(received, 0);
+                continue;
+              }
+              final plan = await planFor(project, 'get', '/pets');
+              addTearDown(plan.close);
+              final draft = OperationRequestDraft(
+                planIdentity: plan.identity,
+                environment: 'local',
+                securityAlternative: 0,
               );
-            expect(draft.securityAlternative, 0);
-            expect(draft.environment, 'local');
+              for (final preview in [true, false]) {
+                await expectLater(
+                  const ContractRequestBuilder().build(
+                    plan,
+                    draft,
+                    resolveSecret: (_) async => 'new',
+                    previewOnly: preview,
+                  ),
+                  throwsA(
+                    isA<CoreFailure>().having(
+                      (e) => e.code,
+                      'code',
+                      'request.security.collision',
+                    ),
+                  ),
+                );
+                if (!preview)
+                  await expectLater(
+                    const ContractRequestExecutor().execute(
+                      plan,
+                      draft,
+                      resolveSecret: (_) async => 'new',
+                    ),
+                    throwsA(
+                      isA<CoreFailure>().having(
+                        (e) => e.code,
+                        'code',
+                        'request.security.collision',
+                      ),
+                    ),
+                  );
+                expect(draft.securityAlternative, 0);
+                expect(draft.environment, 'local');
+              }
+            } finally {
+              project.close();
+            }
           }
-        } finally {
-          project.close();
-        }
-      }
-    expect(received, 0);
-  });
+        expect(received, 0);
+      },
+    );
 
-  test('R14-B API-key checks preserve unrelated opaque base-query values', () async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(() => server.close(force: true));
-    server.listen((r) async {
-      r.response.statusCode = 303;
-      r.response.headers.set(
-        'location',
-        'http://other.invalid/new?reflected=new',
-      );
-      await r.response.close();
-    });
-    for (final location in ['header', 'query'])
-      for (final opaque in ['%E9', '%C3%A9']) {
-        final base =
-            'http://127.0.0.1:${server.port}/base?opaque=$opaque&tag=one%2Ftwo';
-        await File('${temp.path}/openapi.yaml').writeAsString('''openapi: 3.2.1
+    test('$version R14-B API-key checks preserve unrelated opaque base-query values', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((r) async {
+        r.response.statusCode = 303;
+        r.response.headers.set(
+          'location',
+          'http://other.invalid/new?reflected=new',
+        );
+        await r.response.close();
+      });
+      for (final location in ['header', 'query'])
+        for (final opaque in ['%E9', '%C3%A9']) {
+          final base =
+              'http://127.0.0.1:${server.port}/base?opaque=$opaque&tag=one%2Ftwo';
+          await File('${temp.path}/openapi.yaml')
+              .writeAsString('''openapi: $version
 info: {title: Query, version: "1"}
-servers: [{url: '$base'}]
+servers: [{url: '${version == '3.0.4' ? base : base.split('?').first}'}]
 security: [{key: []}]
 components: {securitySchemes: {key: {type: apiKey, in: $location, name: api_key}}}
 paths: {"/pets": {get: {responses: {'200': {description: ok}}}}}
 ''');
-        await File('${temp.path}/busyapi.yaml').writeAsString(
-          'version: 1\nroots: [{name: api, path: openapi.yaml}]\nenvironments: {local: {authentication: {alternative: 0, schemes: {key: {secretRef: 123e4567-e89b-42d3-a456-426614174000}}}}}\n',
-        );
-        final project = await BusyProject.open(temp.path, engine);
-        try {
-          final plan = await planFor(project, 'get', '/pets');
-          addTearDown(plan.close);
-          final draft = OperationRequestDraft(
-            planIdentity: plan.identity,
-            securityAlternative: 0,
-            environment: 'local',
+          await File('${temp.path}/busyapi.yaml').writeAsString(
+            'version: 1\nroots: [{name: api, path: openapi.yaml}]\nenvironments: {local: {${version == '3.0.4' ? '' : "baseUrl: '$base', "}authentication: {alternative: 0, schemes: {key: {secretRef: 123e4567-e89b-42d3-a456-426614174000}}}}}\n',
           );
-          for (final preview in [true, false]) {
-            final request = await const ContractRequestBuilder().build(
-              plan,
-              draft,
-              resolveSecret: (_) async => 'new',
-              previewOnly: preview,
+          final project = await BusyProject.open(temp.path, engine);
+          try {
+            final plan = await planFor(project, 'get', '/pets');
+            addTearDown(plan.close);
+            final draft = OperationRequestDraft(
+              planIdentity: plan.identity,
+              securityAlternative: 0,
+              environment: 'local',
             );
-            expect(
-              request.uri.query,
-              startsWith('opaque=$opaque&tag=one%2Ftwo'),
-            );
-            expect(draft.securityAlternative, 0);
-            if (!preview) {
-              final response = await const ContractHttpTransport().send(
-                request,
+            for (final preview in [true, false]) {
+              final request = await const ContractRequestBuilder().build(
+                plan,
+                draft,
+                resolveSecret: (_) async => 'new',
+                previewOnly: preview,
               );
-              addTearDown(response.close);
-              expect(response.status, 303);
-              expect(response.redirects.single, isNot(contains('=new')));
+              expect(
+                request.uri.query,
+                startsWith('opaque=$opaque&tag=one%2Ftwo'),
+              );
+              expect(draft.securityAlternative, 0);
+              if (!preview) {
+                final response = await const ContractHttpTransport().send(
+                  request,
+                );
+                addTearDown(response.close);
+                expect(response.status, 303);
+                expect(response.redirects.single, isNot(contains('=new')));
+              }
             }
+          } finally {
+            project.close();
           }
-        } finally {
-          project.close();
         }
-      }
-  });
-  for (final location in ['header', 'query']) {
-    test(
-      'R14-E $location credentials retain redirects through the accepted size limit in the VM',
-      () => long_redirect.verifyLongRedirects(location),
-    );
-    test(
-      'R14-E $location credentials retain redirects through the accepted size limit in AOT',
-      () async {
-        final result = await Process.run(
-          '$testBundle/redirect-redaction-child',
-          [location],
-        );
-        expect(
-          result.exitCode,
-          0,
-          reason: '${result.stdout}\n${result.stderr}',
-        );
-        expect(
-          result.stdout,
-          contains('R14-E $location long redirect controls passed'),
-        );
-      },
-    );
-    test('R14-D redirect summaries redact mixed URI spellings of $location keys', () async {
-      var destinationRequests = 0;
-      final destination = await HttpServer.bind(
-        InternetAddress.loopbackIPv4,
-        0,
+    });
+    for (final location in ['header', 'query']) {
+      test(
+        '$version R14-E $location credentials retain redirects through the accepted size limit in the VM',
+        () => long_redirect.verifyLongRedirects(location, version: version),
       );
-      addTearDown(() => destination.close(force: true));
-      destination.listen((request) async {
-        destinationRequests++;
-        request.response.statusCode = 204;
-        await request.response.close();
-      });
-      var reflected = '';
-      final queries = <String>[];
-      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      addTearDown(() => server.close(force: true));
-      server.listen((request) async {
-        queries.add(request.uri.query);
-        request.response.statusCode = 302;
-        request.response.headers.set('location', reflected);
-        await request.response.close();
-      });
-      await File('${temp.path}/openapi.yaml').writeAsString('''openapi: 3.2.1
+      test(
+        '$version R14-E $location credentials retain redirects through the accepted size limit in AOT',
+        () async {
+          final result = await Process.run(
+            '$testBundle/redirect-redaction-child',
+            [location, version],
+          );
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+          expect(
+            result.stdout,
+            contains('R14-E $location long redirect controls passed'),
+          );
+        },
+      );
+      test(
+        '$version R14-D redirect summaries redact mixed URI spellings of $location keys',
+        () async {
+          var destinationRequests = 0;
+          final destination = await HttpServer.bind(
+            InternetAddress.loopbackIPv4,
+            0,
+          );
+          addTearDown(() => destination.close(force: true));
+          destination.listen((request) async {
+            destinationRequests++;
+            request.response.statusCode = 204;
+            await request.response.close();
+          });
+          var reflected = '';
+          final queries = <String>[];
+          final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+          addTearDown(() => server.close(force: true));
+          server.listen((request) async {
+            queries.add(request.uri.query);
+            request.response.statusCode = 302;
+            request.response.headers.set('location', reflected);
+            await request.response.close();
+          });
+          final base =
+              'http://127.0.0.1:${server.port}/base?opaque=%E9&tag=one%2Ftwo';
+          await File('${temp.path}/openapi.yaml')
+              .writeAsString('''openapi: $version
 info: {title: Redirect redaction, version: "1"}
-servers: [{url: 'http://127.0.0.1:${server.port}/base?opaque=%E9&tag=one%2Ftwo'}]
+servers: [{url: '${version == '3.0.4' ? base : base.split('?').first}'}]
 security: [{key: []}]
 components: {securitySchemes: {key: {type: apiKey, in: $location, name: api_key}}}
 paths: {"/pets": {get: {responses: {'302': {description: redirect}}}}}
 ''');
-      await File('${temp.path}/busyapi.yaml').writeAsString(
-        'version: 1\nroots: [{name: api, path: openapi.yaml}]\nenvironments: {local: {authentication: {alternative: 0, schemes: {key: {secretRef: 123e4567-e89b-42d3-a456-426614174000}}}}}\n',
+          await File('${temp.path}/busyapi.yaml').writeAsString(
+            'version: 1\nroots: [{name: api, path: openapi.yaml}]\nenvironments: {local: {${version == '3.0.4' ? '' : "baseUrl: '$base', "}authentication: {alternative: 0, schemes: {key: {secretRef: 123e4567-e89b-42d3-a456-426614174000}}}}}\n',
+          );
+          final project = await BusyProject.open(temp.path, engine);
+          addTearDown(project.close);
+          final plan = await planFor(project, 'get', '/pets');
+          addTearDown(plan.close);
+          const secret = 'BUSYAPI_TEST_ONLY/plus+equals=end';
+          const percentSecret = 'PERCENT_TEST_ONLY%2B/path+end';
+          final spaceSecret = location == 'query'
+              ? 'SPACE_TEST_ONLY é/+'
+              : 'SPACE_TEST_ONLY x/+';
+          final cases = [
+            (secret, secret),
+            (secret, Uri.encodeComponent(secret)),
+            (secret, 'BUSYAPI_TEST_ONLY/plus%2Bequals%3Dend'),
+            (secret, 'BUSYAPI_TEST_ONLY%2fplus%2bequals=end'),
+            (secret, 'B%55SYAPI_TEST_ONLY/plus%2Bequals%3Dend'),
+            (
+              spaceSecret,
+              'SPACE_TEST_ONLY+${location == 'query' ? '%c3%a9' : 'x'}/%2B',
+            ),
+            (spaceSecret, Uri.encodeQueryComponent(spaceSecret)),
+            (spaceSecret, Uri.encodeComponent(spaceSecret)),
+            (percentSecret, 'PERCENT_TEST_ONLY%252B/path%2Bend'),
+          ];
+          for (final (selected, spelling) in cases) {
+            reflected =
+                'http://127.0.0.1:${destination.port}/target?reflected=before${spelling}after&again=$spelling&opaque=%E9&tag=one%2Ftwo';
+            final result = await const ContractRequestExecutor().execute(
+              plan,
+              OperationRequestDraft(
+                planIdentity: plan.identity,
+                environment: 'local',
+                securityAlternative: 0,
+              ),
+              resolveSecret: (_) async => selected,
+            );
+            try {
+              expect(result.response.status, 302);
+              expect(
+                result.response.incompleteReason,
+                'cross-origin-redirect-not-followed',
+              );
+              expect(
+                result.response.redirects.single,
+                'http://127.0.0.1:${destination.port}/target?reflected=before[REDACTED]after&again=[REDACTED]&opaque=%E9&tag=one%2Ftwo',
+                reason: spelling,
+              );
+              expect(
+                result.response.headers,
+                contains(('location', reflected)),
+                reason:
+                    'The intentionally inspectable original header is retained',
+              );
+            } finally {
+              await result.close();
+            }
+          }
+          expect(destinationRequests, 0);
+          expect(queries, hasLength(cases.length));
+          expect(
+            queries.every((q) => q.startsWith('opaque=%E9&tag=one%2Ftwo')),
+            true,
+          );
+        },
       );
-      final project = await BusyProject.open(temp.path, engine);
-      addTearDown(project.close);
-      final plan = await planFor(project, 'get', '/pets');
-      addTearDown(plan.close);
-      const secret = 'BUSYAPI_TEST_ONLY/plus+equals=end';
-      const percentSecret = 'PERCENT_TEST_ONLY%2B/path+end';
-      final spaceSecret = location == 'query'
-          ? 'SPACE_TEST_ONLY é/+'
-          : 'SPACE_TEST_ONLY x/+';
-      final cases = [
-        (secret, secret),
-        (secret, Uri.encodeComponent(secret)),
-        (secret, 'BUSYAPI_TEST_ONLY/plus%2Bequals%3Dend'),
-        (secret, 'BUSYAPI_TEST_ONLY%2fplus%2bequals=end'),
-        (secret, 'B%55SYAPI_TEST_ONLY/plus%2Bequals%3Dend'),
-        (
-          spaceSecret,
-          'SPACE_TEST_ONLY+${location == 'query' ? '%c3%a9' : 'x'}/%2B',
-        ),
-        (spaceSecret, Uri.encodeQueryComponent(spaceSecret)),
-        (spaceSecret, Uri.encodeComponent(spaceSecret)),
-        (percentSecret, 'PERCENT_TEST_ONLY%252B/path%2Bend'),
-      ];
-      for (final (selected, spelling) in cases) {
-        reflected =
-            'http://127.0.0.1:${destination.port}/target?reflected=before${spelling}after&again=$spelling&opaque=%E9&tag=one%2Ftwo';
-        final result = await const ContractRequestExecutor().execute(
-          plan,
-          OperationRequestDraft(
-            planIdentity: plan.identity,
-            environment: 'local',
-            securityAlternative: 0,
-          ),
-          resolveSecret: (_) async => selected,
-        );
-        try {
-          expect(result.response.status, 302);
-          expect(
-            result.response.incompleteReason,
-            'cross-origin-redirect-not-followed',
-          );
-          expect(
-            result.response.redirects.single,
-            'http://127.0.0.1:${destination.port}/target?reflected=before[REDACTED]after&again=[REDACTED]&opaque=%E9&tag=one%2Ftwo',
-            reason: spelling,
-          );
-          expect(
-            result.response.headers,
-            contains(('location', reflected)),
-            reason: 'The intentionally inspectable original header is retained',
-          );
-        } finally {
-          await result.close();
-        }
-      }
-      expect(destinationRequests, 0);
-      expect(queries, hasLength(cases.length));
-      expect(
-        queries.every((q) => q.startsWith('opaque=%E9&tag=one%2Ftwo')),
-        true,
-      );
-    });
+    }
   }
   test('R10 cancellation owns the acquired gzip connection', () async {
     final entered = Completer<void>(), release = Completer<void>();
