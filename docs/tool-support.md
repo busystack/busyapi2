@@ -303,6 +303,8 @@ sources, http-spec **7.1.0** OAS2 response transformation, and the pinned MIT
 context and dynamic object cloning are not native semantic authorities. These
 packages, their locks and the packaged runtime remain unchanged.
 
+For OpenAPI 3.2 serialized parameter examples, an empty serialization can be completely checked when the native named query/cookie codec omits an empty collection and the original exact schema evaluator proves a valid empty-array or empty-object witness. Shared referenced 3.2 Examples retain their containing parameter family. Successful checks report `omission: "empty-collection"`; required parameters, explicit empty strings, zero, false and literal null keep their separate presence rules. Absence alone never proves schema validity. Failed or unsupported witnesses and other unimplemented omission/media interpretations remain incomplete.
+
 Mock parameter assertions also use the original captured schemas, with a separate
 `nativeParameterValidation` identity in `mock --json`. Query, path and cookie
 names retain case; headers ignore case. Empty values retain presence, decimal
