@@ -10,11 +10,15 @@ import 'test_support.dart';
 const _body = '{"seed":false,"n":9007199254740993.00,"name":"雪","flag":true}';
 
 void main() {
-  for (final version in ['3.1.2', '3.2.1']) {
+  for (final (version, conditionalSchemas) in [
+    for (final version in ['3.1.2', '3.2.1'])
+      for (final conditionalSchemas in [false, true])
+        (version, conditionalSchemas),
+  ]) {
     for (final format in ['yaml', 'json']) {
       for (final targetVersion in ['3.0.4', '2.0']) {
         test(
-          '$version $format property dependencies migrate to $targetVersion with exact HTTP semantics and reviewed publication',
+          '$version $format conditionalSchemas=$conditionalSchemas dependencies migrate to $targetVersion with exact HTTP semantics and reviewed publication',
           () async {
             final temp = await Directory.systemTemp.createTemp(
               'busyapi-dependency-migration-',
@@ -57,6 +61,7 @@ void main() {
                 ),
                 modelText = dependencyMigrationModel(
                   requiredTrigger: targetVersion == '2.0',
+                  conditionalSchemas: conditionalSchemas,
                 );
             final original = [0xef, 0xbb, 0xbf, ...utf8.encode(text)],
                 originalModel = [0xef, 0xbb, 0xbf, ...utf8.encode(modelText)];
@@ -186,7 +191,7 @@ void main() {
               reason: '${review.result}',
             );
             expect(review.unsaved, isTrue);
-            expect(review.result['producerVersion'], '24');
+            expect(review.result['producerVersion'], '25');
             final outputs = (review.result['outputs'] as List).cast<Map>();
             expect(
               outputs.any(

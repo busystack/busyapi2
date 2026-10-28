@@ -16,13 +16,15 @@ import '../packages/busyapi_core/test/dependency_migration_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final (from, format, target, blocked) in [
+  for (final (from, format, target, blocked, conditionalSchemas) in [
     for (final (from, format) in [('3.1.2', 'yaml'), ('3.2.1', 'json')])
       for (final target in ['3.0.4'])
-        for (final blocked in [false, true]) (from, format, target, blocked),
+        for (final blocked in [false, true])
+          for (final conditionalSchemas in [false, true])
+            (from, format, target, blocked, conditionalSchemas),
   ]) {
     testWidgets(
-      '$from $format → $target shared-role=$blocked reviews dependency conversion before safe publication',
+      '$from $format → $target shared-role=$blocked conditionalSchemas=$conditionalSchemas reviews dependency conversion before safe publication',
       (tester) async {
         tester.view.physicalSize = const Size(1400, 1200);
         tester.view.devicePixelRatio = 1;
@@ -72,8 +74,11 @@ void main() {
           from,
           format,
           sharedRole: blocked,
+          conditionalSchemas: conditionalSchemas,
         );
-        final modelOriginal = dependencyMigrationModel();
+        final modelOriginal = dependencyMigrationModel(
+          conditionalSchemas: conditionalSchemas,
+        );
         file.writeAsStringSync(original);
         model.writeAsStringSync(modelOriginal);
         final c = WorkspaceController(

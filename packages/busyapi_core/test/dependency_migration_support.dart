@@ -7,6 +7,7 @@ String dependencyMigrationApi(
   String format, {
   int? port,
   bool sharedRole = false,
+  bool conditionalSchemas = false,
 }) {
   final text = static_reference.staticDynamicRefApi(
     version,
@@ -16,25 +17,39 @@ String dependencyMigrationApi(
   return sharedRole
       ? text.replaceFirst(
           '"Flags":',
-          '"Independent": {"\$ref":"./model.yaml#/\$defs/Actual/dependentRequired"},"Flags":',
+          '"Independent": {"\$ref":"./model.yaml#/\$defs/Actual/${conditionalSchemas ? 'dependentSchemas' : 'dependentRequired'}"},"Flags":',
         )
       : text;
 }
 
-String dependencyMigrationModel({bool requiredTrigger = false}) {
+String dependencyMigrationModel({
+  bool requiredTrigger = false,
+  bool conditionalSchemas = false,
+}) {
   final schema = {
     r'$anchor': 'model',
     'type': 'object',
     if (requiredTrigger)
       'allOf': [
         {
-          'required': ['seed'],
+          'required': ['seed', if (conditionalSchemas) 'name'],
         },
       ],
-    'dependentRequired': {
-      if (requiredTrigger) 'seed': ['name'],
-      'name': ['n'],
-    },
+    if (conditionalSchemas)
+      'dependentSchemas': {
+        if (requiredTrigger)
+          'seed': {
+            'required': ['name'],
+          },
+        'name': {
+          'required': ['n'],
+        },
+      }
+    else
+      'dependentRequired': {
+        if (requiredTrigger) 'seed': ['name'],
+        'name': ['n'],
+      },
     'properties': {
       if (requiredTrigger) 'seed': <String, Object>{},
       'n': {
