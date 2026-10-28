@@ -275,9 +275,8 @@ class EngineProcess {
         } else {
           if (!request.result.isCompleted) {
             final error = value['error'];
-            if (error is! Map ||
-                error['kind'] != null && error['kind'] != 'unsupported')
-              throw const FormatException();
+            if (error is! Map) throw const FormatException();
+            final kind = CoreFailureKind.fromWire(error['kind']);
             final source = error['source'];
             CoreFailureSource? location;
             if (source != null) {
@@ -302,9 +301,7 @@ class EngineProcess {
               CoreFailure(
                 (error['code'] as String?) ?? 'engine.error',
                 (error['message'] as String?) ?? 'Engine rejected the request',
-                kind: error['kind'] == 'unsupported'
-                    ? CoreFailureKind.unsupported
-                    : null,
+                kind: kind,
                 source: location,
               ),
             );

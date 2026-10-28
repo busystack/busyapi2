@@ -281,7 +281,7 @@ class ContractTestRunner {
                 !failure.code.contains('timeout') &&
                 !failure.code.contains('transport') &&
                 !failure.unsupported,
-            operationalFailure: !failure.unsupported,
+            operationalFailure: failure.kind == CoreFailureKind.operational,
           ),
         );
       } finally {

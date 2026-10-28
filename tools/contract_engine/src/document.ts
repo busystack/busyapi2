@@ -28,8 +28,10 @@ export type Node = {
 export class RawJsonValue {
     constructor(public text: string) { }
 }
+export type SourceErrorKind='unsupported'|'specification';
+export const sourceErrorKind=(value:unknown):value is SourceErrorKind=>value==='unsupported'||value==='specification';
 export class SourceError extends Error {
-    constructor(public code: string, message: string, public range: Range = [0, 0],public kind?:'unsupported',public source?:{resource:string;pointer:string;range:Range}) { super(message); }
+    constructor(public code: string, message: string, public range: Range = [0, 0],public kind?:SourceErrorKind,public source?:{resource:string;pointer:string;range:Range}) { super(message); }
 }
 export const escape = (s: string) => s.replaceAll('~', '~0').replaceAll('/', '~1');
 export const segments = (p: string) => p === '' ? [] : p.slice(1).split('/').map(s => s.replaceAll('~1', '/').replaceAll('~0', '~'));

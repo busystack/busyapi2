@@ -1,8 +1,12 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {EngineWorkerClient}=require('./dist/engine_worker_client.cjs');
+const {EngineWorkerClient,engineFailure}=require('./dist/engine_worker_client.cjs');
 const {mockStart}=require('./mock_test_capture.cjs');
 const capture=()=>mockStart({openapi:'3.0.4',info:{title:'Worker lifecycle',version:'1'},paths:{}}).capture;
+for(const kind of ['specification','unsupported'])test(`native adapter retains ${kind} failure and rejects unknown wire kinds`,()=>{
+ const source={resource:'file:///fixture/雪.yaml',pointer:'/servers/0/url',range:[2,8]},failure=engineFailure({code:'server.fixture',message:'Captured server failure',kind,source});
+ assert(failure);assert.equal(failure.kind,kind);assert.deepEqual(failure.source,source);assert.equal(engineFailure({code:'claimed.success',message:'Not a supported failure',kind:'success'}),undefined);
+});
 
 test('native adapter cancellation retires the real worker and permits later evaluation',{timeout:15000},async t=>{
  const client=new EngineWorkerClient();t.after(()=>client.close());

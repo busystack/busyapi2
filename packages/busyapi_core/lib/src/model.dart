@@ -23,7 +23,20 @@ String httpOperationMethod(Map operation) => operation['customMethod'] == true
     ? '${operation['method']}'
     : '${operation['method']}'.toUpperCase();
 
-enum CoreFailureKind { operational, unsupported }
+enum CoreFailureKind {
+  operational,
+  unsupported,
+  specification;
+
+  /// Missing kinds retain the established code-based compatibility rule.
+  /// Unknown wire values are protocol failures, never successful fallbacks.
+  static CoreFailureKind? fromWire(Object? value) => switch (value) {
+    null => null,
+    'unsupported' => unsupported,
+    'specification' => specification,
+    _ => throw const FormatException('Unknown contract worker failure kind'),
+  };
+}
 
 class CoreFailureSource {
   const CoreFailureSource(this.resource, this.pointer, this.range);

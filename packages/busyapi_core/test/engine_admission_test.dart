@@ -55,6 +55,39 @@ Future<void> received(EngineProcess engine, int count) async {
 }
 
 void main() {
+  test('specification failure metadata stays distinct from operational and unsupported failures', () async {
+    final engine = await heldEngine();
+    await expectLater(
+      engine.request('inspect', {
+        'failure': {
+          'code': 'server.fixture',
+          'message': 'A captured specification violation',
+          'kind': 'specification',
+          'source': {
+            'resource': 'file:///fixture/雪.yaml',
+            'pointer': '/servers/0/url',
+            'range': [2, 8],
+          },
+        },
+      }),
+      throwsA(
+        isA<CoreFailure>()
+            .having(
+              (value) => value.kind,
+              'kind',
+              CoreFailureKind.specification,
+            )
+            .having((value) => value.unsupported, 'unsupported', false)
+            .having(
+              (value) => value.source?.pointer,
+              'pointer',
+              '/servers/0/url',
+            )
+            .having(outputFailureExitCode, 'exit', 1),
+      ),
+    );
+    expect((await engine.request('hello', const {}))['protocol'], 1);
+  });
   test('engine errors retain typed unsupported meaning and exact source locations independently of their code', () async {
     final engine = await heldEngine();
     await expectLater(

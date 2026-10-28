@@ -194,6 +194,8 @@ class OutputAnalysisFailure extends CoreFailure {
 
 int outputFailureExitCode(Object error) {
   final code = error is CoreFailure ? error.code : 'io.failure';
+  if (error is CoreFailure && error.kind == CoreFailureKind.specification)
+    return 1;
   if (code == 'bundle.contract' ||
       code == 'documentation.contract' ||
       code == 'migration.contract' ||

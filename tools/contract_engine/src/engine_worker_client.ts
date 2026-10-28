@@ -1,6 +1,6 @@
 import {join} from 'node:path';
 import {Worker} from 'node:worker_threads';
-import {SourceError,type Range} from './document';
+import {SourceError,sourceErrorKind,type Range} from './document';
 import {WorkerDispatcher} from './worker_dispatcher';
 
 const maximumFrame=64*1024*1024;
@@ -8,13 +8,13 @@ export const record=(value:unknown):value is Record<string,unknown>=>value!==nul
 const range=(value:unknown):value is Range=>Array.isArray(value)&&value.length===2&&value.every(Number.isSafeInteger)&&value[0]>=0&&value[1]>=value[0];
 
 export function engineFailure(value:unknown):SourceError|undefined {
-    if(!record(value)||typeof value.code!=='string'||typeof value.message!=='string'||value.kind!==undefined&&value.kind!=='unsupported'||value.range!==undefined&&!range(value.range))return;
+    if(!record(value)||typeof value.code!=='string'||typeof value.message!=='string'||value.kind!==undefined&&!sourceErrorKind(value.kind)||value.range!==undefined&&!range(value.range))return;
     let source:SourceError['source'];
     if(value.source!==undefined){
         if(!record(value.source)||typeof value.source.resource!=='string'||typeof value.source.pointer!=='string'||!range(value.source.range))return;
         source={resource:value.source.resource,pointer:value.source.pointer,range:value.source.range};
     }
-    return new SourceError(value.code,value.message,range(value.range)?value.range:undefined,value.kind==='unsupported'?'unsupported':undefined,source);
+    return new SourceError(value.code,value.message,range(value.range)?value.range:undefined,sourceErrorKind(value.kind)?value.kind:undefined,source);
 }
 type Pending={resolve:(value:Record<string,unknown>)=>void;reject:(error:Error)=>void;timer:ReturnType<typeof setTimeout>;detach:()=>void;stopped?:SourceError};
 

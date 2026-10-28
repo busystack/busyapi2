@@ -90,7 +90,7 @@ class MockPlan {
         result['snapshot'] != snapshot.identity ||
         result['complete'] != true ||
         result['producer'] != 'busyapi-graph-bundle' ||
-        result['producerVersion'] != '3' ||
+        result['producerVersion'] != '4' ||
         output is! Map ||
         output['id'] != outputId ||
         output['text'] is! String ||
@@ -200,11 +200,14 @@ class MockValidationIdentity {
 }
 
 CoreFailure? _mockStartupFailure(Object? value, MockPlan plan) {
-  if (value is! Map ||
-      value['code'] is! String ||
-      value['message'] is! String ||
-      value['kind'] != null && value['kind'] != 'unsupported')
+  if (value is! Map || value['code'] is! String || value['message'] is! String)
     return null;
+  CoreFailureKind? kind;
+  try {
+    kind = CoreFailureKind.fromWire(value['kind']);
+  } on FormatException {
+    return null;
+  }
   CoreFailureSource? location;
   if (value['source'] != null) {
     final source = value['source'];
@@ -239,7 +242,7 @@ CoreFailure? _mockStartupFailure(Object? value, MockPlan plan) {
       utf8.encode(value['message'] as String),
       plan._owner.access.boundary,
     ),
-    kind: value['kind'] == 'unsupported' ? CoreFailureKind.unsupported : null,
+    kind: kind,
     source: location,
   );
 }
