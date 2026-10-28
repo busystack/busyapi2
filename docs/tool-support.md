@@ -2,8 +2,13 @@
 
 Native Swagger 2.0 and OpenAPI 3.0 authoring use their own Schema Object semantics,
 field metadata, reference rules and exact instance evaluation. Creation accepts
-the published patches in every approved family; normal workflows retain the declaration. Native Reference and native HTML export
-use the same captured graph. Swagger/Redoc, Prism, generation and comparison
+the published patches in every approved family; normal workflows retain the
+declaration. Creation offers a project or a contract-only file;
+`busyapi init --standalone` omits `busyapi.yaml`. Both modes preserve the selected
+declaration. Contract-only creation requires a destination without an existing
+manifest. Opening existing files retains the established adjacent project
+settings and single-root selection. Native Reference and native HTML export use
+the same captured graph. Swagger/Redoc, Prism, generation and comparison
 qualification remain separate. The evolving [family/workflow matrix](implementation/native-openapi-support.md)
 records actual coverage and outstanding native and packaged checks.
 

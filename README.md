@@ -16,6 +16,7 @@ BusyAPI provides native editing for **Swagger 2.0 and OpenAPI 3.0.x, 3.1.x and 3
 
 ### Projects and document integrity
 
+- In **Create Project**, choose **Project** to include `busyapi.yaml`, or **Contract only** to create a standard OpenAPI file. Choose the specification version and YAML or JSON format. Creation preserves existing API and project files; use a destination without an existing manifest for a contract-only file.
 - Open an individual YAML/JSON contract with **Open File…**, or open a folder containing `busyapi.yaml` with **Open Folder…**. Existing contracts can be opened without creating a manifest; a standalone file has its own containing-directory dependency scope.
 - Work with multiple named roots and shared resources. Local dependencies stay within approved contexts; additional directories and URI-to-file mappings require explicit configuration or session approval. Remote references are not automatically fetched.
 - Stage new files, file moves and deletions, component extraction/inlining/renaming, definition moves, property changes, and operation/path relocation through impact reviews. Related source and reference changes form undoable transactions; filesystem changes are published on Save.
@@ -72,6 +73,10 @@ The Linux bundle includes `busyapi-desktop` and the independent compiled `busyap
 busyapi init ./my-api --title 'My API' --api-version 1.0.0 --openapi 3.2.1 --format yaml
 busyapi check ./my-api --json
 busyapi lint ./my-api --ruleset spectral:oas --json
+
+# Create a contract without a project manifest.
+busyapi init ./standalone-api --title 'My API' --api-version 1.0.0 --openapi 3.0.4 --standalone
+busyapi check ./standalone-api/openapi.yaml --json
 
 # Work with project resources and publish derived outputs.
 busyapi import ./incoming/openapi.yaml --kind file --output ./imported-api --json
