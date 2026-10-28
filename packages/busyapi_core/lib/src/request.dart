@@ -17,6 +17,7 @@ import 'form_media_types.dart';
 import 'multipart_encoding.dart';
 import 'multipart_transfer.dart';
 import 'request_form_values.dart';
+import 'request_text_encoding.dart';
 import 'project.dart';
 import 'atomic_file_writer.dart';
 import 'storage.dart';
@@ -733,10 +734,15 @@ class ContractRequestBuilder {
     }
     if (draft.body.mediaType != null &&
         draft.body.kind != RequestBodyKind.binaryFile) {
-      validateTextCharset(draft.body.mediaType!, [
+      final values = [
         draft.body.text ?? '',
         for (final field in draft.body.fields) ...[field.name, field.value],
-      ]);
+      ];
+      if (draft.body.kind == RequestBodyKind.raw) {
+        validateRawTextCharset(draft.body.mediaType!, values);
+      } else {
+        validateTextCharset(draft.body.mediaType!, values);
+      }
     }
     if (previewOnly && draft.body.kind == RequestBodyKind.raw) {
       trace?.content((draft.body.text ?? '').isEmpty ? 0 : 1);
@@ -1777,7 +1783,12 @@ class ContractRequestBuilder {
       case RequestBodyKind.none:
         return null;
       case RequestBodyKind.raw:
-        final bytes = Uint8List.fromList(utf8.encode(body.text ?? ''));
+        final bytes = Uint8List.fromList(
+          RequestTextEncoding.forMedia(
+            body.mediaType!,
+            rawBody: true,
+          ).encode(body.text ?? ''),
+        );
         _uploadLimit(bytes.length);
         return PreparedRequestBody(
           bytes.length,
@@ -2205,22 +2216,17 @@ class ContractRequestBuilder {
 
   static String _quoted(String value) =>
       value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+  static void validateRawTextCharset(
+    String mediaType,
+    Iterable<String> values,
+  ) {
+    _mediaType(mediaType);
+    RequestTextEncoding.forMedia(mediaType, rawBody: true).validate(values);
+  }
+
   static void validateTextCharset(String mediaType, Iterable<String> values) {
     _mediaType(mediaType);
-    final charset = ContentType.parse(mediaType).charset?.toLowerCase();
-    if (charset != null && charset != 'utf-8' && charset != 'us-ascii') {
-      throw CoreFailure(
-        'request.charset.unsupported',
-        'Choose UTF-8; this request charset is unsupported.',
-      );
-    }
-    if (charset == 'us-ascii' &&
-        values.any((v) => v.runes.any((r) => r > 127))) {
-      throw CoreFailure(
-        'request.charset',
-        'The selected ASCII charset cannot encode this value.',
-      );
-    }
+    RequestTextEncoding.forMedia(mediaType).validate(values);
   }
 
   static void _mediaType(String value) {

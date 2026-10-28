@@ -757,15 +757,23 @@ class RequestRunController extends ChangeNotifier {
     final example = media['example'];
     if (example is! Map || example['raw'] is! String) return;
     final type = media['mediaType'] as String;
+    final kind = _kindForMedia(type);
+    void validateText(Iterable<String> values) {
+      if (kind == RequestBodyKind.raw) {
+        ContractRequestBuilder.validateRawTextCharset(type, values);
+      } else {
+        ContractRequestBuilder.validateTextCharset(type, values);
+      }
+    }
+
     try {
-      ContractRequestBuilder.validateTextCharset(type, const []);
+      validateText(const []);
     } on CoreFailure catch (error) {
       failure = error.code;
       failureMessage = error.message;
       _notify();
       return;
     }
-    final kind = _kindForMedia(type);
     final mime = ContentType.parse(type).mimeType;
     // Exact data input bypasses the literal-row projection. The shared builder
     // retains its kinds and owns the applicable serialization checks.
@@ -820,7 +828,7 @@ class RequestRunController extends ChangeNotifier {
       }
     }
     try {
-      ContractRequestBuilder.validateTextCharset(type, [text]);
+      validateText([text]);
     } on CoreFailure catch (error) {
       failure = error.code;
       failureMessage = error.message;
