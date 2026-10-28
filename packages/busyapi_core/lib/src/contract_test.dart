@@ -7,6 +7,8 @@ import 'form_media_types.dart';
 import 'multipart_encoding.dart';
 import 'storage.dart';
 
+const contractTestProducerVersion = '2';
+
 class ContractCaseResult {
   const ContractCaseResult({
     required this.name,
@@ -77,7 +79,7 @@ class ContractTestReport {
     'input': saved ? 'saved-source' : 'working-buffers',
     'unsaved': !saved,
     'producer': 'busyapi-contract-tests',
-    'producerVersion': '1',
+    'producerVersion': contractTestProducerVersion,
     'cases': cases.map((value) => value.toJson()).toList(),
     'executedOperations': executedOperations,
     'untestedOperations': untestedOperations,
@@ -166,6 +168,7 @@ class ContractTestRunner {
     final operations = projection is Map && projection['operations'] is List
         ? (projection['operations'] as List).whereType<Map>().toList()
         : const <Map>[];
+    final selectionFailure = _selectionFailure(captured.analysis);
     final results = <ContractCaseResult>[], executed = <String>{};
     for (final name in selectedCases) {
       cancellation?.throwIfCancelled();
@@ -210,13 +213,24 @@ class ContractTestRunner {
           selected['resource'] is! String ||
           selected['pointer'] is! String) {
         results.add(
-          _failedCase(
-            name,
-            'unresolved operation',
-            captured.snapshot.identity,
-            'test.operation',
-            'The configured operation is not uniquely available in the captured contract.',
-          ),
+          selectionFailure == null
+              ? _failedCase(
+                  name,
+                  'unresolved operation',
+                  captured.snapshot.identity,
+                  'test.operation',
+                  'The configured operation is not uniquely available in the captured contract.',
+                )
+              : ContractCaseResult(
+                  name: name,
+                  operation: 'unresolved operation',
+                  snapshot: captured.snapshot.identity,
+                  status: selectionFailure.complete ? 'failed' : 'incomplete',
+                  complete: selectionFailure.complete,
+                  passed: false,
+                  findings: selectionFailure.findings,
+                  dispatched: false,
+                ),
         );
         continue;
       }
@@ -305,6 +319,43 @@ class ContractTestRunner {
         (all..removeAll(executed)).toList(),
       ),
       saved: saved,
+    );
+  }
+
+  /// An incomplete inventory cannot prove that a configured operation is absent.
+  /// Reuse the captured validation result, preserving its first error (or first
+  /// diagnostic) and source. Other findings remain in the validation report.
+  static ({bool complete, List<Map<String, Object?>> findings})?
+  _selectionFailure(Map<String, dynamic> analysis) {
+    final complete = analysis['complete'], findings = analysis['findings'];
+    if (complete is! bool || findings is! List) {
+      throw CoreFailure('test.analysis', 'Contract analysis is malformed');
+    }
+    Map<String, Object?>? first, error;
+    for (final finding in findings) {
+      if (finding is! Map || finding.keys.any((key) => key is! String)) {
+        throw CoreFailure(
+          'test.analysis',
+          'Contract diagnostics are malformed',
+        );
+      }
+      first ??= Map<String, Object?>.from(finding);
+      if (finding['severity'] == 'error') {
+        error ??= Map<String, Object?>.from(finding);
+      }
+    }
+    if (complete && error == null) return null;
+    return (
+      complete: complete,
+      findings: List.unmodifiable([
+        error ??
+            first ??
+            {
+              'code': 'test.operation.incomplete',
+              'severity': 'warning',
+              'message': 'The operation cannot be resolved from incomplete contract analysis. Review validation before retrying.',
+            },
+      ]),
     );
   }
 
