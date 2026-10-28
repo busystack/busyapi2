@@ -42,6 +42,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'tools'))
+from native_application_process import launch_application
 from test_file_controls import NativeInput, Gdk, Atspi
 from native_focus import (
     private_session_command, private_session_environment, restore_native_environment,
@@ -568,6 +569,8 @@ def edit(native, process, file, fragment, original, version):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--session', action='store_true')
+    parser.add_argument('--quit-backtrace', action='store_true',
+                        help='Capture owned application Quit stacks with the installed host GDB')
     parser.add_argument('--edit', action='store_true')
     parser.add_argument('--project', action='store_true')
     parser.add_argument('--mock-samples', action='store_true')
@@ -674,6 +677,7 @@ def main():
                 *private_session_command(runtime), sys.executable, __file__,
                 '--session', '--version', args.version, '--format', args.format,
                 '--evidence', str(args.evidence),
+                *(['--quit-backtrace'] if args.quit_backtrace else []),
                 *(['--edit'] if args.edit else []),
                 *(['--project'] if args.project else []),
                 *(['--mock-samples'] if args.mock_samples else []),
@@ -739,6 +743,7 @@ def main():
             args.version + '-' + args.format
             + ('-project' if args.project else '-standalone')
             + ('-journey' if args.edit else '')
+            + ('-quit-backtrace' if args.quit_backtrace else '')
             + ('-mock-samples' if args.mock_samples else '')
             + ('-methods' if args.mock_methods else '')
             + ('-nested' if args.mock_nested else '')
@@ -851,8 +856,9 @@ def main():
                 json.dumps(preflight, indent=2, ensure_ascii=False) + '\n')
         binary = ROOT / 'build/linux/x64/release/bundle/busyapi-desktop'
         log = evidence / (case + '.log')
+        backtrace = evidence if args.quit_backtrace else None
         with log.open('w') as stream:
-            process = subprocess.Popen([str(binary), str(startup)], stdout=stream, stderr=subprocess.STDOUT, env=env)
+            process = launch_application(binary, startup, stream, env, backtrace=backtrace)
             native = None
             try:
                 native = NativeInput(process.pid)
@@ -950,8 +956,8 @@ def main():
                             target_startup = target_directory / migration_result['entry']
                             assert not (target_directory / 'busyapi.yaml').exists()
                         copied = {path: path.read_bytes() for path in target_directory.rglob('*') if path.is_file()}
-                        process = subprocess.Popen([str(binary), str(target_startup)], stdout=stream,
-                            stderr=subprocess.STDOUT, env=env)
+                        process = launch_application(binary, target_startup, stream, env,
+                            backtrace=backtrace)
                         native = NativeInput(process.pid)
                         wait_for_initial_focus(native.ready, timeout=8)
                         inspect_copy(native, process, args.version, args.migrate_target)
@@ -964,10 +970,8 @@ def main():
                         native = None
                         assert all(path.read_bytes() == raw for path, raw in copied.items())
                         migration_result['targetReopened'] = True
-                    process = subprocess.Popen(
-                        [str(binary), str(startup)], stdout=stream,
-                        stderr=subprocess.STDOUT, env=env,
-                    )
+                    process = launch_application(binary, startup, stream, env,
+                        backtrace=backtrace)
                     native = NativeInput(process.pid)
                     wait_for_initial_focus(native.ready, timeout=8)
                     # Reopen retains the operation selected by Try. Inspect
@@ -1013,6 +1017,7 @@ def main():
                     'nativeMigration': migration_result,
                     'nativeMultipart': multipart_results,
                     'nativeServerFragment': args.server_fragment,
+                    'nativeQuitBacktrace': args.quit_backtrace,
                     'nativeCaseFileMaintenance': case_file_result,
                     'nativeAuthoredExamples': authored_examples,
                     'files': {
