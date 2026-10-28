@@ -380,6 +380,20 @@ empty multipart generation is refused before dispatch. MIME decoding requires
 an opening part and rejects reserved boundary prefixes, including nested boundary
 collisions. Explicit serialized entities retain their exact bytes for findings.
 
+Raw `text/plain` request bodies honor explicit `ISO-8859-1` and `latin1`
+charsets with the SDK's strict one-byte encoder. Unrepresentable characters are
+refused before dispatch, including in preview. Concrete media selected from a
+declared range use the same codec. The desktop body-example action delegates to
+the shared Core guard; CLI cases send the same bytes. Parameter, form and MIME-part
+codecs retain their separate policies. The 50-case Core/CLI/HTTP matrix covers all
+published patches in both formats; eight new widget variants are analyzed only.
+
+Default-charset conformance remains incomplete: `text/plain` defaults to US-ASCII
+under [RFC 6657 §4](https://www.rfc-editor.org/rfc/rfc6657.txt), while existing
+omitted-charset paths still assume UTF-8. Response/example/mock paths need their
+separate conformance audit. This explicit-charset qualification establishes no
+interoperability guarantee for those unfinished paths.
+
 Finite JSONL/NDJSON, JSON text sequences and server-sent events map to ordered
 arrays. In 3.2, `schema` checks the complete array and `itemSchema` checks each
 item separately, including parameter/header content and saved cases. Numeric
