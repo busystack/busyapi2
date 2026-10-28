@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../packages/busyapi_core/test/test_support.dart';
 
 void main() {
-  for (final version in ['3.1.2', '3.2.1']) {
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
     for (final json in [false, true]) {
       testWidgets(
         'native Server default editing retains current errors, field ownership and exact history $version $json',
@@ -113,7 +113,20 @@ void main() {
             expect(field.text, 'west');
             expect(
               tester.widget<BusyApiGroupedTextEntry>(row).errorText,
-              contains('default must be one of its authored enum values'),
+              version == '3.0.4'
+                  ? isNull
+                  : contains('default must be one of its authored enum values'),
+            );
+            expect(
+              c.analysis!['status'],
+              version == '3.0.4' ? 'complete' : 'invalid',
+            );
+            expect(
+              (c.analysis!['findings'] as List).singleWhere(
+                (dynamic finding) =>
+                    finding['code'] == 'server.variable.default-enum',
+              )['severity'],
+              version == '3.0.4' ? 'warning' : 'error',
             );
             await tester.enterText(input, 'east');
             expect(c.hasPendingFields, true);
@@ -146,7 +159,7 @@ void main() {
             expect(c.buffer!.bytes(), original);
             expect(
               tester.widget<BusyApiGroupedTextEntry>(row).errorText,
-              isNotNull,
+              version == '3.0.4' ? isNull : isNotNull,
             );
             await tester.runAsync(c.redo);
             await tester.runAsync(c.analyse);

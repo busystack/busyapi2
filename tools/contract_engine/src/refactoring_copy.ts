@@ -186,8 +186,12 @@ function relocateCopiedUris(before:ReferenceGraph,after:ReferenceGraph,from:{res
   if(!nextScope||nextScope.kind!==scope.kind)throw new SourceError('refactor.copy.uri-context','A copied URI field has no matching typed destination');
   const originalBase=documentUriBase(before,scope),nextBase=documentUriBase(after,nextScope);
   const meaning=(text:string,base:string)=>{
-   try{return scope.kind==='server'?serverTemplate(text,base,before.docs.get(scope.resource)!.node(scope.pointer).value?.variables):resolveUri(text,base).href;}
-   catch{throw new SourceError('refactor.copy.uri-context','A copied URI or Server template has no proved relocation at '+pointer);}
+   try{return scope.kind==='server'?serverTemplate(text,base,before.docs.get(scope.resource)!.node(scope.pointer).value?.variables,{resource:scope.resource,pointer,range:before.docs.get(scope.resource)!.dataNode(pointer)!.range}):resolveUri(text,base).href;}
+   catch(error){
+    if(!(error instanceof SourceError))throw error;
+    const range=before.docs.get(scope.resource)!.dataNode(pointer)!.range;
+    throw new SourceError('refactor.copy.uri-context','A copied URI or Server template has no proved relocation at '+pointer,range,'unsupported',{resource:scope.resource,pointer,range});
+   }
   };
   const wanted=meaning(value,originalBase),key='uri:'+to.resource+'#'+nextPointer,previous=repairs.get(key);
   if(previous!==undefined&&previous!==wanted)throw new SourceError('refactor.context.ambiguous','Configured roots give a copied URI different original targets');
@@ -497,10 +501,11 @@ export function planOperationMove(input:any) {
    if(server.kind!=='object'||typeof server.value?.url!=='string')throw new SourceError('edit.path.servers','The effective Server declaration needs an authored URL');
    if(raw)continue;
    let url:string;
-   try{url=serverTemplate(server.value.url,retrieval,server.value.variables);}catch{
-    throw new SourceError('edit.path.servers','The Server template cannot retain one proved retrieval context after relocation');
+   const at=pointer+'/'+escape(index)+'/url',range=document.dataNode(at)!.range,location={resource:source.id,pointer:at,range};
+   try{url=serverTemplate(server.value.url,retrieval,server.value.variables,location);}catch(error){
+    if(!(error instanceof SourceError))throw error;
+    throw new SourceError('edit.path.servers','The Server template cannot retain one proved retrieval context after relocation',range,'unsupported',location);
    }
-   const at=pointer+'/'+escape(index)+'/url';
    if(document.node(at).value!==url){admit(source.id);document=new SourceDocument(document.set(at,url),source.id);}
   }
   const result={document,pointer,canonical:(raw?retrieval+'\u0000':'')+value(document,pointer),origin:source.id,defaulted};

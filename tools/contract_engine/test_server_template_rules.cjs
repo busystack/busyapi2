@@ -8,7 +8,7 @@ function capture(version,format,url){
 }
 for(const version of versions)for(const format of ['yaml','json'])for(const character of ['\u00a0','\u1680','\u2000','\u200a','\u2028','\u2029','\u202f','\u205f','\u3000','\ufeff'])test(`${version} ${format} Server preserves allowed Unicode URL literal U+${character.charCodeAt(0).toString(16)}`,()=>{
  const input=capture(version,format,'https://api.example.invalid/path'+character+'part'),original=JSON.stringify(input),result=analyse(input);
- assert.equal(result.status,'complete',JSON.stringify(result.findings));assert.equal(result.complete,true);assert.equal(result.versions.serverRules,'3');assert.equal(JSON.stringify(input),original);
+ assert.equal(result.status,'complete',JSON.stringify(result.findings));assert.equal(result.complete,true);assert.equal(result.versions.serverRules,'4');assert.equal(JSON.stringify(input),original);
 });
 for(const version of versions)for(const format of ['yaml','json'])for(const suffix of ['{unfinished','stray}','{outer{inner}}','{v}/{unfinished','{v}}'])test(`${version} ${format} Server delimiters reject ${suffix}`,()=>{
  const input=capture(version,format,'https://api.example.invalid/'+suffix),original=input.resources[0].text,result=analyse(input),code=version.startsWith('3.2')?'server.url.template':'server.url.template-delimiters',finding=result.findings.find(f=>f.code===code);
@@ -30,7 +30,7 @@ for(const version of ['3.0.4','3.1.2','3.2.1'])for(const format of ['yaml','json
 });
 for(const format of ['yaml','json'])for(const character of ['\u00a0','\ufeff','\u2028'])for(const targetVersion of ['2.0','3.1.2','3.2.1'])test(`3.0 ${format} Unicode Server preserves relative Terms on migration to ${targetVersion}`,async()=>{
  const input=capture('3.0.4',format,'https://api.example.invalid/path'+character+'part/'),value=YAML.parse(input.resources[0].text);value.info.termsOfService='terms';input.resources[0].text=format==='json'?JSON.stringify(value):YAML.stringify(value);const original=input.resources[0].text;
- const result=await planMigration({...input,targetVersion,destination:'file:///output/migrated/'});assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.producerVersion,'23');const output=result.outputs.find(o=>o.id===result.outputRoot),converted=YAML.parse(output.text);assert.equal(converted.info.termsOfService,new URL('terms',new URL(value.servers[0].url,input.root)).href);assert.equal(input.resources[0].text,original);
+ const result=await planMigration({...input,targetVersion,destination:'file:///output/migrated/'});assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.producerVersion,'24');const output=result.outputs.find(o=>o.id===result.outputRoot),converted=YAML.parse(output.text);assert.equal(converted.info.termsOfService,new URL('terms',new URL(value.servers[0].url,input.root)).href);assert.equal(input.resources[0].text,original);
 });
 for(const version of ['3.0.4','3.1.2'])for(const format of ['yaml','json'])test(`${version} ${format} malformed delimiters cannot publish any supported target`,async()=>{
  const input=capture(version,format,'https://api.example.invalid/{unfinished'),original=input.resources[0].text;

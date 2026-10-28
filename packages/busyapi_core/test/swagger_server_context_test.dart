@@ -104,7 +104,7 @@ void main() {
           expect(file.readAsBytesSync(), bytes);
           final checked = await project.check(root);
           expect(checked['status'], 'complete', reason: jsonEncode(checked));
-          expect((checked['versions'] as Map)['swaggerServerRules'], '1');
+          expect((checked['versions'] as Map)['swaggerServerRules'], '2');
           Future<void> execute(BusyProject current) async {
             final active = current.roots.single.id;
             final plan = await current.prepareRequest(

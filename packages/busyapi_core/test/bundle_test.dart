@@ -174,7 +174,7 @@ void main() {
           );
           addTearDown(plan.close);
           expect(plan.unsaved, true);
-          expect(plan.result['producerVersion'], '3');
+          expect(plan.result['producerVersion'], '4');
           expect(plan.result['output']['text'], contains('Unsaved tree'));
           expect(
             plan.result['output']['text'],

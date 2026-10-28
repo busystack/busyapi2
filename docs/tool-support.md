@@ -39,6 +39,11 @@ another OpenAPI object. BusyAPI retains the physical authoring context and the
 reached schema's own dialect/base. Shared-field transformations requiring separate
 interpretations remain explicitly incomplete; opening and native editing do not
 require migration.
+For OpenAPI 3.0, BusyAPI rejects a reference requiring different OpenAPI object
+interpretations of one source object, with a located context diagnostic.
+[3.0.4 §4.3.1](https://spec.openapis.org/oas/v3.0.4.html#structural-interoperability)
+explicitly permits this implementation policy. It is distinct from the supported
+Schema Object keyword rules and from modern schema interpretations.
 
 Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
@@ -74,10 +79,54 @@ incomplete validation. A migration cannot publish output that violates the targe
 family's Server URL rules. Migration reports distinguish invalid source (exit 1),
 incomplete analysis (exit 2), and operational failure (exit 3), retaining source
 findings when planning cannot begin.
-Typed unsupported output failures retain that distinction through the Core and CLI.
-When available, CLI JSON includes the original URI, pointer and range in
-`error.source`. Core preserves coordinates from unsaved desktop buffers; CLI
-coordinates refer to its captured input.
+Selected effective Server declarations use the same pinned structural validator
+and normative relationship rules as analysis. A valid operation override can be
+prepared even when an unrelated inherited declaration is invalid. Invalid selected
+arrays, objects, variable definitions and URLs refuse preparation; Reference keeps
+a located invalid/incomplete context. Contract payloads and extensions retain their
+literal meaning.
+
+OpenAPI 3.0 [Server Variable §4.7.6](https://spec.openapis.org/oas/v3.0.4.html#server-variable-object)
+requires the declared default when no alternate is supplied, while enum membership
+is a recommendation. BusyAPI sends that exact default, including an empty string
+or a value outside the enum, and retains the authored choices. Explicitly selecting
+that same default is permitted; other unlisted alternate values are refused.
+[3.1 §4.8.6](https://spec.openapis.org/oas/v3.1.2.html#server-variable-object) and
+[3.2 §4.6](https://spec.openapis.org/oas/v3.2.1.html#server-variable-object) require
+nonempty enums and default membership, so those invalid declarations remain
+specification failures. This policy belongs to the captured engine projection;
+Core and desktop do not select semantics by version string.
+
+Finite Server relocation proofs include the declared default alongside enum
+choices. A 3.0 empty enum permits its declared default and supplies no alternate
+choices; an absent enum remains unrestricted. Bundles, file moves, copied URI
+contexts and migration refuse unproved URL reference-form changes instead of
+checking only the enum. Refusals retain the original Server URL location. Explicit
+3.0→3.1/3.2 migration appends a missing default to the target enum, retaining the
+existing order and choices through a targeted CST edit. This represents a value
+already permitted by the source. Relative Terms links must retain their destination
+for that default too. Changed shared YAML syntax still needs unambiguous ownership.
+
+Typed specification and unsupported failures retain their distinction through the
+worker protocol, Core and CLI. Invalid output is exit 1; unsupported output is
+incomplete/exit 2; crashed or closed helpers remain operational/exit 3. When
+available, CLI JSON includes the original URI, pointer and range in `error.source`.
+Core preserves coordinates from unsaved desktop buffers; CLI coordinates refer to
+its captured input. Unknown failure kinds are protocol failures.
+
+The HTTP target excludes URI fragments under
+[RFC 9110 §7.1](https://www.rfc-editor.org/rfc/rfc9110.txt#section-7.1).
+Captured Server declarations retain their authored URLs. A valid 3.0 query/fragment
+URL executes with its query retained and its client-side fragment omitted from the
+request target. Literal query/fragment fields in 3.1 and 3.2 still fail their own
+declaration rules. BusyAPI resolves runtime Server substitutions as URI references
+and applies the same HTTP fragment handling to the resulting reference. This is a
+documented substitution policy; no cross-client guarantee is inferred. Environment
+base overrides retain their existing stricter input checks. Other schemes,
+including Swagger's standard `ws`/`wss` choices, produce unsupported execution:
+no dispatch, an incomplete case/CLI exit 2, and no operational-failure label.
+Native authoring, validation and documentation retain these declarations.
+WebSocket execution remains an explicit transport limitation.
 
 Swagger server fields follow [2.0 §6.4.1](https://spec.openapis.org/oas/v2.0.html#swagger-object).
 `host` accepts a name or IP address with an optional port, including bracketed
@@ -598,7 +647,9 @@ producer **3**; Core rejects previous producer responses before publication.
 
 Contract-case JSON reports include `dispatched` and `operationalFailure`. Coverage
 counts operation occurrences handed to the HTTP transport; refused preparation
-remains untested. The retained `executedOperations` field counts these dispatched
+remains untested. A specification or unsupported-evaluation refusal is not an
+operational failure; helper, transport and other operational failures retain that
+status. The retained `executedOperations` field counts these dispatched
 attempts, which can still fail during connection or receipt. Desktop results show
 “Request not sent” or “Request dispatched” alongside the case outcome.
 
@@ -699,7 +750,10 @@ New-file component extraction composes the existing CST/graph proofs and creates
 
 Server-template bundling retains absolute templates (including variable ports), scheme-relative authorities and relative-path substitutions without pre-normalizing away variable-dependent dot segments. Finite enums can prove that an initial variable has one URL-reference form; literal braces inside enum values are data, not recursively substituted templates. Independent before/after URL expectations exercise both families. An unrestricted initial variable or an enum mixing reference forms can make one relocated template unable to retain its original retrieval context; this returns explicit `bundle.server.template-context`, not a guessed default or an altered declaration. Native Reference HTML remains independent and can document that original contract without bundling it.
 
-Captured Reference/display projections use producer revision **2**, preserving explicit logical Markdown bases within the existing 48-MiB coordinate limit. Matching offline adapters are Redoc **8** / Swagger **7**; vendor locks are unchanged. Private-session Chrome 156 checks now pass six rich modern and eight migrated native-reference sites, 39 pinned-renderer DOM cases and 20 actual external-renderer exports. Four Redoc 2.0 requests correctly remain incomplete without output. The [qualification evidence](implementation/native-openapi-support.md#qualification-evidence) distinguishes these browser results from blocked current GTK acceptance and the unfinished full assembled gate.
+Captured Reference/display projections retain logical Markdown bases and opaque
+source coordinates. Native Reference, offline exports and each external renderer
+have separate compatibility checks; a renderer result does not establish native
+authoring or packaged acceptance.
 
 Native XML annotations keep their family semantics: explicit 3.2 element/attribute names use captured component/property context, 3.0/3.1 namespaces require non-relative URIs, and 3.2 permits non-relative IRIs. Swagger's URL recommendation remains distinct. The existing pinned URI validator's unsupported IPvFuture host notation reports incomplete (CLI exit 2); it is never silently accepted or treated as a missing resource. Source, Design, Core and CLI use the same engine rules. Complete XML serialization and current desktop acceptance remain incomplete; see the [support matrix](implementation/native-openapi-support.md).
 
@@ -928,3 +982,7 @@ runtime choices retain an incomplete result. In OpenAPI 3.2, optional properties
 still require `defaultMapping`; discriminator metadata does not add an assertion
 to JSON Schema instance validation. The current qualification matrix distinguishes
 headless checks from native desktop acceptance.
+
+Server URL template validation rejects raw ASCII DEL consistently with request
+preparation. A percent-encoded `%7F` stays encoded and is not treated as a raw
+control character. The original YAML/JSON spelling remains authoritative.

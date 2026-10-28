@@ -1,5 +1,5 @@
 import {independentTermsDestination} from './migration_terms_base';
-import {resolveServerUrl,serverUrlValidity} from './server_semantics';
+import {finiteServerVariableValues,resolveServerUrl,serverUrlValidity} from './server_semantics';
 import {documentUriBase,resolveUri,type GraphScope,type ReferenceGraph} from './reference_graph';
 import type {MigrationSource} from './migration_source';
 import type {MigrationIssue} from './migration_schema';
@@ -41,8 +41,8 @@ export function migrateTerms(graph:ReferenceGraph,sources:Map<string,MigrationSo
     }
 }
 
-/** Finite declared Server choices are exhaustive. An unrestricted variable
- * is not replaced by its default to claim a faithful conversion. */
+/** A finite enum plus its declared default covers the permitted substitutions.
+ * An absent enum is not replaced by its default to claim a faithful conversion. */
 function serverChoices(server:unknown,location:GraphScope,base:string,issue:MigrationIssue):readonly string[]|undefined {
     if(server===null||typeof server!=='object'||!('url' in server)||typeof server.url!=='string'){
         issue(location,'migration.info.terms-server','The Terms of Service Server URL is unavailable','source-incomplete');return;
@@ -52,7 +52,7 @@ function serverChoices(server:unknown,location:GraphScope,base:string,issue:Migr
     let choices:ReadonlyMap<string,string>[]=[new Map()];
     for(const name of names){
         const variable=variables&&Object.hasOwn(variables,name)?Reflect.get(variables,name):undefined;
-        const values=variable!==null&&typeof variable==='object'&&'enum' in variable?variable.enum:undefined;
+        const values=finiteServerVariableValues(variable);
         if(Array.isArray(values)&&choices.length*values.length>256){issue(location,'limit.migration.terms-servers','Terms of Service resolution exceeds 256 declared Server variable combinations','implementation');return;}
         if(!Array.isArray(values)||!values.length||values.some(value=>typeof value!=='string')){
             issue(location,'migration.info.terms-server-variable','A Terms of Service Server variable has no exhaustive declared enum; its default does not prove one destination','implementation');return;

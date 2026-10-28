@@ -1,3 +1,4 @@
+import {finiteServerVariableValues} from './server_semantics';
 import {requestOperation} from './execution';
 import type {ReferenceGraph} from './reference_graph';
 import type {Resource} from './engine';
@@ -42,7 +43,15 @@ export function migrationRequestSignatures(graph:ReferenceGraph,resources:Resour
             style:parameter.style,explode:['array','object'].includes(parameter.type)?parameter.explode:false,allowReserved:parameter.allowReserved})).sort((a:any,b:any)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
         const media=(values:any[])=>values.map(value=>value.mediaType).sort();
         return JSON.stringify(normalize({method:plan.operation.method,path:plan.operation.path,
-            servers:plan.servers.map((server:any)=>({url:serverTemplate(server.url,server.base,server.variables),variables:server.variables})),
+            servers:plan.servers.map((server:any)=>{
+                const source=server.urlSource??server.source;
+                const variables=Object.fromEntries(Object.entries(server.variables).map(([name,definition])=>{
+                    if(definition===null||typeof definition!=='object'||Array.isArray(definition))throw new Error('Expected captured Server variable semantics');
+                    const choices=finiteServerVariableValues(definition);
+                    return [name,{...Object.fromEntries(Object.entries(definition).filter(([field])=>field!=='enum'&&field!=='defaultOutsideEnumAllowed')),...(choices?{enum:[...choices].sort()}: {})}];
+                }));
+                return {url:serverTemplate(server.url,server.base,server.variables,source),variables};
+            }),
             parameters,security:plan.security,body:plan.requestBody?{required:plan.requestBody.required,media:media(plan.requestBody.content),forms:plan.requestBody.content.map((value:any)=>({mediaType:value.mediaType,fields:formSignatures(value)})).sort((a:any,b:any)=>a.mediaType.localeCompare(b.mediaType))}:undefined,
             responses:plan.responses.map((response:any)=>({status:response.status,headers:response.headers.map((header:any)=>({name:header.name,required:header.required})),bodyAllowed:response.bodyAllowed??response.content.length>0,media:response.bodyAllowed===false?[]:media(response.content)}))}));
     }).sort();

@@ -1,8 +1,20 @@
 import {isIriReference} from '@hyperjump/uri';
-import {escape,SourceError} from './document';
-import {documentUriBase,resolveUri,type GraphIssue,type GraphTarget,type ReferenceGraph} from './reference_graph';
+import {escape,SourceError,type Range} from './document';
+import {structuralEvaluator,structuralSchema} from './structural_schema';
+import {documentUriBase,resolveUri,type GraphIssue,type GraphScope,type GraphTarget,type ReferenceGraph} from './reference_graph';
 
-export const serverContextRevision='3';
+export const serverContextRevision='4';
+export type ServerContextProblem={resource:string;pointer:string;code:string;message:string;range:Range;unsupported:boolean};
+type ServerVariableValue={default:string;enum?:readonly string[];description?:string;defaultOutsideEnumAllowed?:true};
+const serverVariableEnumIsRequired=(family:string)=>family!=='3.0';
+const serverUrlAllowsQueryFragment=(family:string):boolean=>family==='3.0';
+// RFC 9110 §7.1 excludes fragments from HTTP targets after URI substitution.
+// The selected declaration must separately satisfy its family's URL rules.
+export const serverHttpFragmentPolicy='omit';
+export function serverContextError(problem:ServerContextProblem):SourceError {
+ return new SourceError(problem.code,problem.message,problem.range,problem.unsupported?'unsupported':'specification',
+  {resource:problem.resource,pointer:problem.pointer,range:problem.range});
+}
 
 // OAS 3.2 §4.6 ABNF. These are template literals, not an RFC 6570 expression
 // evaluator. Names are not restricted to ASCII or decoded from percent escapes.
@@ -36,7 +48,7 @@ export function serverTemplateParts(url:string) {
    }
    valid=false;i++;continue;
   }
-  if(c<=0x20||c===0x5c)literalsValid=false;
+  if(c<=0x20||c===0x7f||c===0x5c)literalsValid=false;
   if(c===0x3f||c===0x23)queryOrFragment=true;
   if(c===0x7d)delimitersValid=false;
   if(!literal(c))valid=false;
@@ -91,20 +103,20 @@ export function serverUrlValidity(value:string,base:string):'valid'|'invalid'|'u
 /** Server policies belong to their declared family, independently of schema
  * dialect. OAS 3.0 §4.7.5 permits query/fragment; 3.1 §4.8.5 prohibits them.
  * 3.2 §§4.5–4.6 additionally defines nonempty ABNF and unique expressions. */
-export function serverRelationships(graph:ReferenceGraph):GraphIssue[] {
+export function serverRelationships(graph:ReferenceGraph,scopes:Iterable<GraphScope>=graph.scopes.values()):GraphIssue[] {
  const issues=new Map<string,GraphIssue>();
  const key=(at:GraphTarget)=>JSON.stringify([at.resource,at.pointer]);
  const add=(at:GraphTarget,pointer:string,code:string,message:string,incomplete=false)=>{
   issues.set(JSON.stringify([at.resource,pointer,code]),{...at,pointer,code,message,...(incomplete?{incomplete:true,severity:'warning' as const}:{})});
  };
- for(const at of graph.scopes.values()){
+ for(const at of scopes){
   if(at.kind!=='server'&&at.kind!=='server-variable'&&at.kind!=='server-array')continue;
   const doc=graph.docs.get(at.resource)!,node=doc.dataNode(at.pointer),family=at.family;
   if(!node||!doc.dataSyntaxSafe(at.pointer))continue;
   if(at.kind==='server-variable'&&node.kind==='object') {
    const value=node.value;
    if(typeof value.default==='string'&&Array.isArray(value.enum)&&value.enum.every((v:any)=>typeof v==='string')&&!value.enum.includes(value.default))
-    if(family==='3.0')issues.set(key(at)+':server.variable.default-enum',{...at,pointer:at.pointer+'/default',code:'server.variable.default-enum',message:'A Server variable default should be one of its authored enum values',severity:'warning'});
+    if(!serverVariableEnumIsRequired(family))issues.set(key(at)+':server.variable.default-enum',{...at,pointer:at.pointer+'/default',code:'server.variable.default-enum',message:'A Server variable default should be one of its authored enum values',severity:'warning'});
     else add(at,at.pointer+'/default','server.variable.default-enum','A Server variable default must be one of its authored enum values');
   }
   if(at.kind==='server'&&typeof node.value?.url==='string') {
@@ -116,7 +128,7 @@ export function serverRelationships(graph:ReferenceGraph):GraphIssue[] {
    if(family==='3.2'&&!template.valid)add(at,at.pointer+'/url','server.url.template','The Server URL does not follow the selected version’s template syntax');
    if(family!=='3.2'&&!template.delimitersValid)add(at,at.pointer+'/url','server.url.template-delimiters','Server URL variables require matched, non-nested braces');
    if(family!=='3.2'&&/[{}]/u.test(node.value.url)&&!template.literalsValid)add(at,at.pointer+'/url','server.url.template-literal','The Server URL contains invalid literal characters or a malformed percent escape');
-   if(['3.1','3.2'].includes(family)&&template.queryOrFragment)add(at,at.pointer+'/url','server.url.query-fragment',`An OpenAPI ${family} Server URL must not contain a query or fragment`);
+   if(!serverUrlAllowsQueryFragment(family)&&template.queryOrFragment)add(at,at.pointer+'/url','server.url.query-fragment',`An OpenAPI ${family} Server URL must not contain a query or fragment`);
    if(!/[{}]/u.test(node.value.url)&&(family!=='3.2'||template.valid)){
     const validity=serverUrlValidity(node.value.url,documentUriBase(graph,at));
     if(validity==='invalid')add(at,at.pointer+'/url','server.url.uri','The fixed Server URL must be a valid URL reference');
@@ -134,4 +146,68 @@ export function serverRelationships(graph:ReferenceGraph):GraphIssue[] {
   }
  }
  return [...issues.values()];
+}
+
+/** Validate only the selected declaration. An unrelated invalid operation does
+ * not change this operation's effective server owner. The trusted structural
+ * validator and normative relationship rules remain the semantic authorities. */
+export function serverContextProblem(graph:ReferenceGraph,resource:string,pointer:string):ServerContextProblem|undefined {
+ const doc=graph.docs.get(resource)!,node=doc.dataNode(pointer)!,scope=graph.scope(resource,pointer);
+ const problem=(at:string,code:string,message:string,unsupported=false):ServerContextProblem=>{
+  while(!doc.dataNode(at))at=at.slice(0,at.lastIndexOf('/'));
+  return {resource,pointer:at,code,message,range:doc.dataNode(at)!.range,unsupported};
+ };
+ if(!doc.dataSyntaxSafe(pointer))return problem(pointer,'server.source','The selected Server declaration is syntactically ambiguous');
+ if(node.kind!=='array')return problem(pointer,'server.array.type','The selected Server declaration must be an array');
+ const schema=structuralSchema(scope.family),validate=structuralEvaluator.getSchema(schema.$id+'#/$defs/server');
+ if(!validate)throw new Error('The pinned Server validator is unavailable');
+ const scopes:GraphScope[]=[];
+ const retain=(at:string,kind:string)=>{
+  const scope=graph.scopeAs(resource,at,kind);
+  if(scope)scopes.push(scope);
+  return scope!==undefined;
+ };
+ if(!retain(pointer,'server-array'))return problem(pointer,'server.context.unsupported','The captured Server array has no canonical context',true);
+ for(const [index,server]of node.children){
+  const at=pointer+'/'+escape(index);
+  if(!validate(server.value))return problem(at+(validate.errors?.[0]?.instancePath??''),'server.structure','The captured Server declaration is invalid for OpenAPI '+scope.family);
+  if(!retain(at,'server'))return problem(at,'server.context.unsupported','The captured Server has no canonical context',true);
+  const variables=doc.dataNode(at+'/variables');
+  if(variables)for(const name of variables.children.keys())
+   if(!retain(at+'/variables/'+escape(name),'server-variable'))return problem(at+'/variables/'+escape(name),'server.context.unsupported','The captured Server variable has no canonical context',true);
+ }
+ const issue=serverRelationships(graph,scopes).find(issue=>issue.incomplete||issue.severity!=='warning');
+ if(issue)return problem(issue.pointer,issue.code,issue.message,issue.incomplete===true);
+}
+
+/** A finite enum does not exclude a 3.0 declared default (§4.7.6). URI
+ * relocation proofs must cover both; a default alone never bounds an absent
+ * enum. Strict-family defaults already belong to their validated enum. */
+export function finiteServerVariableValues(variable:unknown):readonly string[]|undefined {
+ if(variable===null||typeof variable!=='object'||Array.isArray(variable)||!('enum' in variable)||!('default' in variable)||typeof variable.default!=='string')return;
+ const values:unknown=variable.enum;
+ if(!Array.isArray(values)||!values.every(value=>typeof value==='string'))return;
+ return [...new Set([...values.filter((value):value is string=>typeof value==='string'),variable.default])];
+}
+
+/** A 3.0 declared default SHALL be used without an alternate substitution,
+ * even when it violates the enum recommendation (§4.7.6). Keep that exception
+ * in the captured semantics; consumers do not reinterpret version strings. */
+export function serverVariableValues(graph:ReferenceGraph,resource:string,pointer:string):Record<string,ServerVariableValue> {
+ const doc=graph.docs.get(resource)!,variables=doc.dataNode(pointer+'/variables');
+ if(!variables)return {};
+ const required=serverVariableEnumIsRequired(graph.scope(resource,pointer).family);
+ return Object.fromEntries([...variables.children.keys()].map(name=>{
+  const value=doc.dataNode(pointer+'/variables/'+escape(name))!.value;
+  if(typeof value?.default!=='string')throw new Error('Expected the captured validated Server variable');
+  const options:unknown=value.enum;
+  let values:string[]|undefined;
+  if(options!==undefined){
+   if(!Array.isArray(options)||!options.every(value=>typeof value==='string'))throw new Error('Expected the captured validated Server variable enum');
+   values=options.filter((value):value is string=>typeof value==='string');
+  }
+  const declaration:ServerVariableValue={default:value.default,enum:values,description:typeof value.description==='string'?value.description:undefined,
+   ...(!required&&values&&!values.includes(value.default)?{defaultOutsideEnumAllowed:true as const}:{})};
+  return [name,declaration];
+ }));
 }

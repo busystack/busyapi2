@@ -401,7 +401,9 @@ class ContractRequestBuilder {
         }
         if (definition is Map && definition['enum'] is List) {
           final options = (definition['enum'] as List).map((v) => '$v').toSet();
-          if (!options.contains(selected)) {
+          if (!options.contains(selected) &&
+              !(definition['defaultOutsideEnumAllowed'] == true &&
+                  selected == fallback)) {
             throw CoreFailure(
               'request.server.variable',
               'Server variable $name is outside its declared choices',
@@ -423,12 +425,21 @@ class ContractRequestBuilder {
           'The completed server URL contains invalid or unresolved characters',
         );
       }
+      final allowFragment = server['httpFragmentPolicy'] == 'omit';
+      final location = _definitionSource({
+        'source': server['urlSource'] ?? server['source'],
+      });
       final parsed = Uri.tryParse(authored);
       if (parsed == null) {
         throw CoreFailure('request.url', 'The selected server URL is invalid');
       }
       if (parsed.hasScheme) {
-        base = _httpUri(authored, 'server URL');
+        base = _httpUri(
+          authored,
+          'server URL',
+          allowFragment: allowFragment,
+          source: location,
+        );
       } else {
         final sourceBase = Uri.tryParse(server['base'] as String? ?? '');
         if (sourceBase == null ||
@@ -439,7 +450,12 @@ class ContractRequestBuilder {
             'Choose an environment base URL for this relative server; a local file path is not an API origin',
           );
         }
-        base = _httpUri(sourceBase.resolveUri(parsed).toString(), 'server URL');
+        base = _httpUri(
+          sourceBase.resolveUri(parsed).toString(),
+          'server URL',
+          allowFragment: allowFragment,
+          source: location,
+        );
       }
     }
     return (base, substitute);
@@ -782,6 +798,8 @@ class ContractRequestBuilder {
           else
             '${_encode(item.name, false)}=${item.encoded ? item.value : _encode(item.value, item.allowReserved)}',
       ].where((value) => value.isNotEmpty).join('&');
+      // RFC 9110 §7.1 excludes fragments from the HTTP target. A permitted
+      // authored Server fragment stays in the captured declaration.
       // The parameter serializer has already percent-encoded each path/query
       // value. Uri.replace would encode those percent signs a second time.
       final uri = Uri.parse(
@@ -839,19 +857,33 @@ class ContractRequestBuilder {
     }
   }
 
-  static Uri _httpUri(String text, String label) {
+  static Uri _httpUri(
+    String text,
+    String label, {
+    bool allowFragment = false,
+    CoreFailureSource? source,
+  }) {
     final uri = Uri.tryParse(text);
     if (RegExp(r'[\x00-\x20\x7f{}\\]').hasMatch(text) ||
         uri == null ||
-        !uri.isAbsolute ||
-        !const ['http', 'https'].contains(uri.scheme) ||
-        uri.host.isEmpty ||
+        !uri.hasScheme ||
         uri.userInfo.isNotEmpty ||
-        uri.fragment.isNotEmpty) {
+        (!allowFragment && uri.hasFragment)) {
       throw CoreFailure(
         'request.url',
-        'The $label must be an absolute HTTP(S) URL without credentials or a fragment',
+        'The $label must be an absolute HTTP(S) URL without credentials${allowFragment ? '' : ' or a fragment'}',
       );
+    }
+    if (!const ['http', 'https'].contains(uri.scheme)) {
+      throw CoreFailure(
+        'request.scheme.unsupported',
+        'The HTTP transport cannot execute the selected URL scheme',
+        kind: CoreFailureKind.unsupported,
+        source: source,
+      );
+    }
+    if (uri.host.isEmpty) {
+      throw CoreFailure('request.url', 'The $label needs an HTTP(S) host');
     }
     return uri;
   }

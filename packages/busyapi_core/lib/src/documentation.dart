@@ -325,7 +325,7 @@ extension _ContractDerivation on BusyProject {
         result['snapshot'] != snapshot.identity ||
         result['root'] != snapshot.root ||
         result['producer'] != 'busyapi-graph-bundle' ||
-        result['producerVersion'] != '3' ||
+        result['producerVersion'] != '4' ||
         output is! Map ||
         output['id'] != outputId ||
         output['text'] is! String ||

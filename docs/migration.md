@@ -41,6 +41,13 @@ Missing dependencies, unsupported mappings and unresolved decisions produce
 located findings and no publishable output. Target validation and request
 invariants supplement the structural mappings.
 
+OpenAPI 3.0 server-variable defaults are sent even when they fall outside the
+recommended enum. Explicit migration to 3.1 or 3.2 adds such a default to the
+target enum, preserving the existing choices and their order. An empty 3.0 enum
+becomes the default-only enum. The review shows these targeted changes. URI and
+Terms-of-Service destination proofs include the default; incompatible reference
+forms or ambiguous shared syntax receive located blockers, with no publication.
+
 Captured resources can themselves be complete OpenAPI descriptions, including
 entries from different supported families. The review lists each entry's original
 and target version. Their operations, servers, media and shared definitions keep
@@ -132,3 +139,8 @@ This also applies to shared version declarations and anchored empty destinations
 
 See the [native support matrix](implementation/native-openapi-support.md) for
 verified workflows and remaining conversion limitations.
+
+For a 3.x document with an absent or empty root `servers` array, migration
+materializes the original effective `/` server in the reviewed copy. This
+retains the API origin when the contract moves to another directory or URI;
+the original declaration stays unchanged.

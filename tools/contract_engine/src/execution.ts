@@ -25,6 +25,7 @@ import {multipartHeaderValues,type MultipartHeaderLine} from './multipart_header
 import {MultipartFileShapes} from './multipart_file_shapes';
 import {ignoresRequestBody} from './operation_semantics';
 import {annotationOnlySchema} from './schema_boundaries';
+import {serverContextProblem,serverContextError,serverVariableValues,serverHttpFragmentPolicy} from './server_semantics';
 
 const maximumItems = 2048;
 
@@ -421,23 +422,28 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     const inherited=pathView.fields.get(name);if(inherited)return {...inherited,origin:'path-item'};
     const rootDoc=docs.get(graph.root)!;if(root&&rootDoc.root.children.has(name))return {resource:graph.root,pointer:'/'+name,origin:'root'};
   };
-  const serverField=effectiveField('servers');
+  const serverField=family==='2.0'?undefined:effectiveField('servers');
   const servers:any[]=[];
   if(serverField){
-    const list=docs.get(serverField.resource)!.dataNode(serverField.pointer);
+    const problem=serverContextProblem(graph,serverField.resource,serverField.pointer);
+    if(problem)throw serverContextError(problem);
+    const serverDocument=docs.get(serverField.resource)!,list=serverDocument.dataNode(serverField.pointer);
     if(list?.kind!=='array')throw new SourceError('request.servers','Effective servers must be an array');
-    for(const [index,server] of list.children){
+    for(const index of list.children.keys()){
       if(servers.length>=maximumItems)throw new SourceError('limit.request.servers','Server choices exceed 2048');
-      if(server.kind!=='object'||typeof server.value?.url!=='string')continue;
       const pointer=serverField.pointer+'/'+index;
+      // Array children retain alias syntax; project their canonical data nodes.
+      const server=serverDocument.dataNode(pointer);
+      if(server?.kind!=='object'||typeof server.value?.url!=='string')throw new Error('Expected the captured validated Server');
       servers.push({url:server.value.url,description:typeof server.value.description==='string'?server.value.description:undefined,
-        variables:server.value.variables&&typeof server.value.variables==='object'?Object.fromEntries(Object.entries(server.value.variables).map(([name,value]:any)=>[name,{default:value?.default,enum:Array.isArray(value?.enum)?value.enum:undefined,description:value?.description}])):{},
+        variables:serverVariableValues(graph,serverField.resource,pointer),
+        httpFragmentPolicy:serverHttpFragmentPolicy,urlSource:location(serverField.resource,pointer+'/url'),
         base:graph.retrievals.get(serverField.resource),source:location(serverField.resource,pointer),origin:serverField.origin});
     }
   }
   if(family==='2.0')servers.push(...swaggerServers(graph,input.resource,input.pointer,location));
   else if(!serverField || serverField.origin==='root' && docs.get(serverField.resource)!.dataNode(serverField.pointer)?.children.size===0)
-    servers.push({url:'/',variables:{},base:graph.retrievals.get(graph.root),origin:'default'});
+    servers.push({url:'/',variables:{},httpFragmentPolicy:serverHttpFragmentPolicy,base:graph.retrievals.get(graph.root),origin:'default'});
   const securityField=effectiveField('security',false)??(docs.get(graph.root)!.root.children.has('security')?{resource:graph.root,pointer:'/security',origin:'root'}:undefined);
   const schemes=new Map<string,Record<string,unknown>>();
   const requirements:any[]=[];

@@ -1313,10 +1313,14 @@ String? _serverIdentity(RequestRunController run, int index) {
   // inside variables are authored data, even when named source or description.
   final server = {
     for (final key in ['url', 'base', 'origin']) key: declaration[key],
+    if (declaration['httpFragmentPolicy'] == 'omit')
+      'httpFragmentPolicy': 'omit',
     'variables': {
       for (final entry in (declaration['variables'] as Map).entries)
         entry.key: {
           for (final key in ['default', 'enum']) key: entry.value[key],
+          if (entry.value['defaultOutsideEnumAllowed'] == true)
+            'defaultOutsideEnumAllowed': true,
         },
     },
   };

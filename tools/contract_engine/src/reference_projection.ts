@@ -1,6 +1,7 @@
 import {createGraph, Resource} from './engine';
 import {children} from './contexts';
 import {swaggerServers,swaggerServerContextProblem} from './swagger_servers';
+import {serverContextProblem} from './server_semantics';
 import {fieldsForScope,richTextField} from './authoring';
 import {escape, segments, SourceError} from './document';
 import {ParameterSemantics} from './parameter_semantics';
@@ -34,6 +35,13 @@ function operationEffective(graph:ReferenceGraph,resource:string,pointer:string,
         const inherited=name==='servers'?view?.fields.get(name):undefined;
         const unknown=!local&&name==='servers'&&view&&!inherited&&(!view.chainComplete||view.conflicts.includes(name));
         const chosen=local??(inherited?{...inherited,origin:'path-item'}:undefined)??(!unknown&&root.root.children.has(name)?{resource:root.id,pointer:'/'+name,origin:'root'}:undefined);
+        const problem=name==='servers'&&chosen?serverContextProblem(graph,chosen.resource,chosen.pointer):undefined;
+        if(problem){
+            const source=located(problem.resource,problem.pointer);
+            effective.push({name,origin:chosen!.origin,inherited:chosen!.origin!=='operation',complete:false,invalid:!problem.unsupported,source,
+                issues:[{code:problem.code,message:problem.message,source,...(problem.unsupported?{incomplete:true}:{})}]});
+            continue;
+        }
         effective.push({name,origin:unknown?'unresolved':chosen?.origin??'specification',inherited:chosen?.origin!=='operation',complete:!unknown&&(name!=='servers'||!!local||!view||view.chainComplete),
             ...(chosen?{source:located(chosen.resource,chosen.pointer)}:{}),...(!chosen&&!unknown&&name==='servers'?{default:[{url:'/'}]}:{})});
     }

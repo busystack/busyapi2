@@ -7,7 +7,7 @@ import {componentLocation} from './authoring';
 import {documentUriFields} from './document_uris';
 import {modernFamily} from './specification';
 import {swaggerFileContexts} from './swagger_file';
-import {resolveServerUrl} from './server_semantics';
+import {finiteServerVariableValues,resolveServerUrl} from './server_semantics';
 
 const within=(pointer:string,parent:string)=>pointer===parent||pointer.startsWith(parent+'/');
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
@@ -16,7 +16,8 @@ const fragment=(pointer:string)=>'#'+encodeURI(pointer).replaceAll('#','%23').re
 // Only construct a portable spelling; URI resolution remains the graph's.
 // Do not parse placeholder ports as integers, normalize away a variable with
 // a following '..', or choose a value/default for an unrestricted variable.
-export function serverTemplate(value:string,retrieval:string,variables:any):string {
+export function serverTemplate(value:string,retrieval:string,variables:any,source?:SourceError['source']):string {
+ const refuse=(code:string,message:string)=>new SourceError(code,message,source?.range??[0,0],'unsupported',source);
  if(!value.includes('{'))return resolveServerUrl(value,retrieval).href;
  type Form='absolute'|'authority'|'root'|'path'|'query'|'fragment'|'empty';
  let work=0;
@@ -27,7 +28,7 @@ export function serverTemplate(value:string,retrieval:string,variables:any):stri
  }
  tokens.push([value.slice(at),false]);
  const classify=(index:number,prefix:string,selected=new Map<string,string>())=>{
-  if(++work>1024)throw new SourceError('limit.bundle.server.templates','Server template classification exceeds its bounded enum combinations');
+  if(++work>1024)throw refuse('limit.bundle.server.templates','Server template classification exceeds its bounded enum combinations');
   while(index<tokens.length&&!tokens[index][1])prefix+=tokens[index++][0];
   if(/^[A-Za-z][A-Za-z0-9+.-]*:/u.test(prefix)) {forms.add('absolute');return;}
   if(prefix.startsWith('//')) {forms.add('authority');return;}
@@ -36,9 +37,9 @@ export function serverTemplate(value:string,retrieval:string,variables:any):stri
   if(prefix.startsWith('#')) {forms.add('fragment');return;}
   if(index===tokens.length) {forms.add(prefix===''?'empty':prefix.startsWith('/')?'root':'path');return;}
   if(prefix.includes('/')&&prefix!=='/'||prefix.includes('?')||prefix.includes('#')||prefix!==''&&prefix!=='/'&&!/^[A-Za-z][A-Za-z0-9+.-]*$/u.test(prefix)) {forms.add('path');return;}
-  const name=tokens[index][0],known=selected.get(name),values=known===undefined?variables?.[name]?.enum:[known];
+  const name=tokens[index][0],known=selected.get(name),values=known===undefined?finiteServerVariableValues(variables?.[name]):[known];
   if(!Array.isArray(values)||!values.length||values.length>256||values.some(value=>typeof value!=='string'||value.length>4096))
-   throw new SourceError('bundle.server.template-context','An initial unrestricted Server variable can change the URL reference form; its original retrieval context cannot be preserved by one relocated template');
+   throw refuse('bundle.server.template-context','An initial unrestricted Server variable can change the URL reference form; its original retrieval context cannot be preserved by one relocated template');
   for(const choice of values) {
    // A repeated variable has one value, not an independent Cartesian choice.
    const next=new Map(selected);next.set(name,choice);
@@ -48,7 +49,7 @@ export function serverTemplate(value:string,retrieval:string,variables:any):stri
   }
  };
  classify(0,'');
- if(forms.size!==1)throw new SourceError('bundle.server.template-context','Server variable enum values select different URL reference forms; one relocated template cannot preserve their original retrieval context');
+ if(forms.size!==1)throw refuse('bundle.server.template-context','Server variable choices and the declared default select different URL reference forms; one relocated template cannot preserve their original retrieval context');
  const form=[...forms][0],base=resolveUri('',retrieval);
  if(form==='absolute')return value;
  if(form==='authority')return base.protocol+value;
@@ -305,7 +306,7 @@ export function deriveBundle(input:any) {
   for(const field of scope.kind==='server'?[]:documentUriFields(scope,node.value))if(typeof node.value?.[field]==='string')
    patches.set(key(scope.resource,scope.pointer+'/'+field),JSON.stringify(resolveUri(node.value[field],documentUriBase(graph,scope)).href));
   if(scope.kind==='server'&&typeof node.value?.url==='string') {
-   patches.set(key(scope.resource,scope.pointer+'/url'),JSON.stringify(serverTemplate(node.value.url,documentUriBase(graph,scope),node.value.variables)));
+   patches.set(key(scope.resource,scope.pointer+'/url'),JSON.stringify(serverTemplate(node.value.url,documentUriBase(graph,scope),node.value.variables,{resource:scope.resource,pointer:scope.pointer+'/url',range:docs.get(scope.resource)!.dataNode(scope.pointer+'/url')!.range})));
   }
  }
  const render=(resource:string,pointer:string,copySchema=false)=>docs.get(resource)!.dataJson(pointer,(node,occurrence)=>{
@@ -545,7 +546,7 @@ export function deriveBundle(input:any) {
   ]),
   ...(defaultServer?[{source:{resource:input.root,pointer:root.root.children.has('servers')?'/servers':''},derived:{resource:outputId,pointer:'/servers/0'},kind:'effective-server-default'}]:[])]
   .sort((a,b)=>compare(a.source.resource,b.source.resource)||compare(a.source.pointer,b.source.pointer)||compare(a.kind,b.kind));
- return {version:1,complete:true,producer:'busyapi-graph-bundle',producerVersion:'3',snapshot:input.snapshot,root:input.root,
+ return {version:1,complete:true,producer:'busyapi-graph-bundle',producerVersion:'4',snapshot:input.snapshot,root:input.root,
   output:{id:outputId,text,identity:resource.identity,format:'json'},provenance,sourceResources:(input.resources as Resource[]).map(r=>({id:r.id,identity:r.identity,generation:r.generation})).sort((a,b)=>compare(a.id,b.id)),
   identitiesRetained:[...new Set(schemaScopes.filter(scope=>scope.resource!==input.root||scope.resourcePointer!==''||placementAt(scope.resource,scope.pointer)?.schema||after.scope(outputId,'').base===entryBase).map(scope=>scope.base))].sort(),
   entryIdentity:{source:entryBase,derived:after.scope(outputId,'').base,declaredSelf:typeof root.root.value.$self==='string',derivedSelf:addSelf}};

@@ -188,7 +188,7 @@ function relative(target:string,base:string):string {
  }
  return to.href;
 }
-function rebaseTemplate(value:string,before:string,after:string,variables:any):string {
+function rebaseTemplate(value:string,before:string,after:string,variables:any,source:NonNullable<SourceError['source']>):string {
  const old=resolveUri('',before),next=resolveUri('',after);
  if(value.startsWith('/')&&old.protocol===next.protocol&&old.host===next.host)return value;
  if(!value.includes('{')){
@@ -196,8 +196,8 @@ function rebaseTemplate(value:string,before:string,after:string,variables:any):s
   return resolveServerUrl(value,after).href===original?value:relative(original,after);
  }
  let absolute:string;
- try{absolute=serverTemplate(value,before,variables);}catch(error){
-  if(error instanceof SourceError)throw new SourceError(error.code.replace('bundle.','file.move.'),error.message);
+ try{absolute=serverTemplate(value,before,variables,source);}catch(error){
+  if(error instanceof SourceError)throw new SourceError(error.code.replace('bundle.','file.move.'),error.message,error.range,error.kind,error.source);
   throw error;
  }
  // Rebase only the literal directory prefix. Never parse/normalize a template
@@ -315,7 +315,7 @@ export function planFileMove(input:any) {
     const oldBase=documentUriBase(g.graph,at),newBase=documentUriBase(afterUris,afterUris.scopes.get(destination+'#'+at.pointer)!);
     if(newBase!==oldBase&&typeof value==='string'&&!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) {
      // Shared template semantics do not normalize before substitution.
-     const next=at.kind==='server'?rebaseTemplate(value,oldBase,newBase,before.node(at.pointer).value?.variables):relative(resolveUri(value,oldBase).href,newBase);
+     const next=at.kind==='server'?rebaseTemplate(value,oldBase,newBase,before.node(at.pointer).value?.variables,{resource:source.id,pointer,range:before.node(pointer).range}):relative(resolveUri(value,oldBase).href,newBase);
      set(source.id,pointer,next,at.kind==='server'?'retrieval-relative-url':'description-relative-uri');
     }
    }

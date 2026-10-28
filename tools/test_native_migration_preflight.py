@@ -35,11 +35,13 @@ class PreflightTests(unittest.TestCase):
                 'target': {'declaredVersion': '2.0'}, 'reviewIdentity': 'a' * 64, **updates}
 
     def test_obsolete_producer_is_rejected_without_publication(self):
-        binary = self.fake(self.review(producerVersion='6'))
-        with self.assertRaisesRegex(RuntimeError, 'producer differ'):
-            preflight_migration(binary, self.source, '2.0', self.destination, self.originals)
-        self.assertFalse(self.destination.exists())
-        self.assertEqual(self.source.read_bytes(), self.raw)
+        for version in ['6', '23']:
+            with self.subTest(producerVersion=version):
+                binary = self.fake(self.review(producerVersion=version))
+                with self.assertRaisesRegex(RuntimeError, 'producer differ'):
+                    preflight_migration(binary, self.source, '2.0', self.destination, self.originals)
+                self.assertFalse(self.destination.exists())
+                self.assertEqual(self.source.read_bytes(), self.raw)
 
     def test_malformed_failed_and_nonreview_outputs_are_not_readiness(self):
         cases = [(self.review(), 0, '{broken'), ([], 0, None),

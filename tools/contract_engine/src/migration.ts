@@ -22,9 +22,10 @@ import {migrationDocumentContexts,proveMigrationConnections} from './migration_d
 import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 import {MigrationAccess} from './migration_access';
 import {migrateTerms} from './migration_terms';
+import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='23';
+const migrationProducerVersion='24';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
@@ -140,6 +141,7 @@ export async function planMigration(input:MigrationInput) {
                 }
             }
             if(problems.length)break;
+            for(const before of stage.sources)migrateServerVariableDefaults(graph,sources,before,after,issue);
             for(const before of stage.sources)migrateSchemas(graph,sources,before,after,issue);
             for(const before of stage.sources)migrateEncodings(graph,sources,before,after,issue);
             const referenceTargets=stage.sources.includes('2.0')?upgradeSwagger(graph,sources,issue,contexts.map(context=>context.graph)):undefined;
@@ -218,11 +220,12 @@ export async function planMigration(input:MigrationInput) {
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const context=createGraph({...input,resources}),sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
     try {
+        retainDefaultServers(context.graph,sources);
         for(const scope of context.graph.scopes.values()){
             const source=sources.get(scope.resource)!,value=context.docs.get(scope.resource)!.dataNode(scope.pointer)?.value;
             if(scope.kind==='schema'&&typeof value?.$id==='string')source.set(scope.pointer+'/$id',scope.base);
             if(scope.kind==='root'&&scope.family==='3.2'&&typeof value?.$self==='string')source.set('/$self',scope.base);
-            if(scope.kind==='server'&&typeof value?.url==='string')source.set(scope.pointer+'/url',serverTemplate(value.url,documentUriBase(context.graph,scope),value.variables));
+            if(scope.kind==='server'&&typeof value?.url==='string')source.set(scope.pointer+'/url',serverTemplate(value.url,documentUriBase(context.graph,scope),value.variables,{resource:scope.resource,pointer:scope.pointer+'/url',range:context.docs.get(scope.resource)!.dataNode(scope.pointer+'/url')!.range}));
         }
         for(const occurrence of documentUriOccurrences(context.graph))if(occurrence.scope.kind!=='server')sources.get(occurrence.scope.resource)!.set(occurrence.pointer,resolveUri(occurrence.value,documentUriBase(context.graph,occurrence.scope)).href);
         for(const reference of context.graph.references)if(['$ref','$dynamicRef','operationRef'].includes(reference.keyword)&&reference.resolution==='resolved')sources.get(reference.resource)!.set(reference.pointer+'/'+escape(reference.keyword),resolveUri(reference.value,reference.base).href);

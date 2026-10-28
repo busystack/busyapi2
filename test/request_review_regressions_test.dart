@@ -708,111 +708,128 @@ paths:
       },
     );
   }
-  for (final (location, long) in [
-    ('header', false),
-    ('query', false),
-    ('header', true),
-    ('query', true),
-  ]) {
-    testWidgets(
-      '${long ? 'R14-E long' : 'R14-D'} mixed $location key reflection is redacted in the selectable redirect row',
-      (tester) async {
-        tester.view.physicalSize = const Size(1400, 1400);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.reset);
-        final f = _Fixture();
-        const shortSecret = 'BUSYAPI_TEST_ONLY/plus+equals=end';
-        final secret = long
-            ? '${'A' * (5000 - shortSecret.length)}$shortSecret'
-            : shortSecret;
-        HttpServer? origin, destination;
-        var destinationRequests = 0;
-        try {
-          late String expected;
-          await tester.runAsync(() async {
-            destination = await HttpServer.bind(
-              InternetAddress.loopbackIPv4,
-              0,
-            );
-            destination!.listen((request) async {
-              destinationRequests++;
-              request.response.statusCode = 204;
-              await request.response.close();
-            });
-            origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-            origin!.listen((request) async {
-              expect(request.uri.query, startsWith('opaque=%E9&tag=one%2Ftwo'));
-              request.response.statusCode = 302;
-              request.response.headers.set(
-                'location',
-                'http://127.0.0.1:${destination!.port}/target?reflected=${secret.replaceAll('+', '%2B').replaceAll('=', '%3D')}&opaque=%E9',
+  for (final version in ['3.0.4', '3.1.2', '3.2.1']) {
+    for (final (location, long) in [
+      ('header', false),
+      ('query', false),
+      ('header', true),
+      ('query', true),
+    ]) {
+      testWidgets(
+        '$version ${long ? 'R14-E long' : 'R14-D'} mixed $location key reflection is redacted in the selectable redirect row',
+        (tester) async {
+          tester.view.physicalSize = const Size(1400, 1400);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          final f = _Fixture();
+          const shortSecret = 'BUSYAPI_TEST_ONLY/plus+equals=end';
+          final secret = long
+              ? '${'A' * (5000 - shortSecret.length)}$shortSecret'
+              : shortSecret;
+          HttpServer? origin, destination;
+          var destinationRequests = 0;
+          try {
+            late String expected;
+            await tester.runAsync(() async {
+              destination = await HttpServer.bind(
+                InternetAddress.loopbackIPv4,
+                0,
               );
-              await request.response.close();
-            });
-            await f.open(
-              '''openapi: 3.2.1
+              destination!.listen((request) async {
+                destinationRequests++;
+                request.response.statusCode = 204;
+                await request.response.close();
+              });
+              origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+              origin!.listen((request) async {
+                expect(
+                  request.uri.query,
+                  startsWith('opaque=%E9&tag=one%2Ftwo'),
+                );
+                request.response.statusCode = 302;
+                request.response.headers.set(
+                  'location',
+                  'http://127.0.0.1:${destination!.port}/target?reflected=${secret.replaceAll('+', '%2B').replaceAll('=', '%3D')}&opaque=%E9',
+                );
+                await request.response.close();
+              });
+              // Modern Server URLs prohibit query components. Preserve the same
+              // wire input through an environment override; 3.0 permits it natively.
+              final queryBase =
+                  'http://127.0.0.1:${origin!.port}?opaque=%E9&tag=one%2Ftwo';
+              final authoredQuery = version == '3.0.4';
+              final serverBase = authoredQuery
+                  ? queryBase
+                  : 'http://127.0.0.1:${origin!.port}';
+              await f.open(
+                '''openapi: $version
 info: {title: Redirect summary, version: "1"}
-servers: [{url: 'http://127.0.0.1:${origin!.port}?opaque=%E9&tag=one%2Ftwo'}]
+servers: [{url: '$serverBase'}]
 security: [{access: []}]
 components: {securitySchemes: {access: {type: apiKey, in: $location, name: api_key}}}
 paths: {/start: {get: {responses: {'302': {description: redirect}}}}}
 ''',
-              extraConfiguration: '''  secured:
-    authentication: {alternative: 0, schemes: {access: {secretRef: 123e4567-e89b-42d3-a456-426614174000}}}
+                extraConfiguration:
+                    '''  secured:
+${authoredQuery ? '' : "    baseUrl: '$queryBase'\n"}    authentication: {alternative: 0, schemes: {access: {secretRef: 123e4567-e89b-42d3-a456-426614174000}}}
 ''',
+              );
+              f.run.selectEnvironment('secured');
+              await f.run.writeSecret(
+                '123e4567-e89b-42d3-a456-426614174000',
+                secret,
+                SecretPersistence.sessionOnly,
+              );
+              expect(f.run.canSend, true);
+              await HttpOverrides.runWithHttpOverrides(
+                f.run.send,
+                _NativeHttp(),
+              );
+              expect(f.run.result, isNotNull, reason: f.run.failureMessage);
+              expect(
+                f.run.result!.response.incompleteReason,
+                'cross-origin-redirect-not-followed',
+              );
+              expected =
+                  'http://127.0.0.1:${destination!.port}/target?reflected=[REDACTED]&opaque=%E9';
+              expect(f.run.result!.response.redirects.single, expected);
+              expect(destinationRequests, 0);
+            });
+            await tester.pumpWidget(
+              host(SingleChildScrollView(child: RequestRunPanel(run: f.run))),
             );
-            f.run.selectEnvironment('secured');
-            await f.run.writeSecret(
-              '123e4567-e89b-42d3-a456-426614174000',
-              secret,
-              SecretPersistence.sessionOnly,
+            final row = find.byWidgetPredicate(
+              (w) => w is BusyApiActionRow && w.title == expected,
             );
-            expect(f.run.canSend, true);
-            await HttpOverrides.runWithHttpOverrides(f.run.send, _NativeHttp());
-            expect(f.run.result, isNotNull, reason: f.run.failureMessage);
+            expect(row, findsOneWidget);
             expect(
-              f.run.result!.response.incompleteReason,
-              'cross-origin-redirect-not-followed',
-            );
-            expected =
-                'http://127.0.0.1:${destination!.port}/target?reflected=[REDACTED]&opaque=%E9';
-            expect(f.run.result!.response.redirects.single, expected);
-            expect(destinationRequests, 0);
-          });
-          await tester.pumpWidget(
-            host(SingleChildScrollView(child: RequestRunPanel(run: f.run))),
-          );
-          final row = find.byWidgetPredicate(
-            (w) => w is BusyApiActionRow && w.title == expected,
-          );
-          expect(row, findsOneWidget);
-          expect(
-            find.descendant(
-              of: row,
-              matching: find.byWidgetPredicate(
-                (w) => w is SelectableText && w.data == expected,
+              find.descendant(
+                of: row,
+                matching: find.byWidgetPredicate(
+                  (w) => w is SelectableText && w.data == expected,
+                ),
               ),
-            ),
-            findsOneWidget,
-          );
-          expect(
-            find.byWidgetPredicate(
-              (w) =>
-                  w is SelectableText &&
-                  (w.data?.contains('BUSYAPI_TEST_ONLY') ?? false),
-            ),
-            findsNothing,
-          );
-        } finally {
-          await tester.pumpWidget(const SizedBox.shrink());
-          await tester.runAsync(() async {
-            await origin?.close(force: true);
-            await destination?.close(force: true);
-            await f.dispose();
-          });
-        }
-      },
-    );
+              findsOneWidget,
+            );
+            expect(
+              find.byWidgetPredicate(
+                (w) =>
+                    w is SelectableText &&
+                    (w.data?.contains('BUSYAPI_TEST_ONLY') ?? false),
+              ),
+              findsNothing,
+            );
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.runAsync(() async {
+              await origin?.close(force: true);
+              await destination?.close(force: true);
+              await f.dispose();
+            });
+          }
+        },
+      );
+    }
   }
   testWidgets(
     'F06 Cancel and owner replacement release authorization during a gated secret read',

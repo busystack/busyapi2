@@ -1,14 +1,12 @@
-import {SourceError,type Range} from './document';
 import {structuralEvaluator,structuralSchema} from './structural_schema';
 import {isIriReference,parseIriReference} from '@hyperjump/uri';
 import type {GraphIssue,GraphScope,ReferenceGraph} from './reference_graph';
 import type {LocatedSource} from './swagger_operation';
-import {serverUrlValidity} from './server_semantics';
+import {serverUrlValidity,serverContextError,serverHttpFragmentPolicy,type ServerContextProblem} from './server_semantics';
 
 type Locate=(resource:string,pointer:string)=>LocatedSource;
-export const swaggerServerContextRevision='1';
+export const swaggerServerContextRevision='2';
 type Validity='valid'|'invalid'|'unsupported';
-type SwaggerServerProblem={resource:string;pointer:string;code:string;message:string;range:Range;unsupported:boolean};
 
 /** Swagger 2.0 §6.4.1: a host is a host/optional port,
  * not a URL or an authority with user-info. Keep the URL
@@ -57,9 +55,9 @@ export function swaggerServerRelationships(graph:ReferenceGraph):GraphIssue[] {
  * Shared consumers must not turn malformed components into another URL, or
  * silently default a non-string field. Reference retains the located problem;
  * request preparation and conversion refuse it. */
-export function swaggerServerContextProblem(graph:ReferenceGraph,resource:string,pointer:string,descriptionRoot=graph.root):SwaggerServerProblem|undefined {
+export function swaggerServerContextProblem(graph:ReferenceGraph,resource:string,pointer:string,descriptionRoot=graph.root):ServerContextProblem|undefined {
     const root=graph.docs.get(descriptionRoot)!;
-    const problem=(owner:string,at:string,code:string,message:string,unsupported=false):SwaggerServerProblem=>{
+    const problem=(owner:string,at:string,code:string,message:string,unsupported=false):ServerContextProblem=>{
         const range=graph.docs.get(owner)!.dataNode(at)!.range;
         return {resource:owner,pointer:at,code,message,range,unsupported};
     };
@@ -83,14 +81,15 @@ export function swaggerServerContextProblem(graph:ReferenceGraph,resource:string
 
 export function swaggerServers(graph:ReferenceGraph,resource:string,pointer:string,locate:Locate,descriptionRoot=graph.root) {
     const problem=swaggerServerContextProblem(graph,resource,pointer,descriptionRoot);
-    if(problem)throw new SourceError(problem.code,problem.message,problem.range,problem.unsupported?'unsupported':undefined,{resource:problem.resource,pointer:problem.pointer,range:problem.range});
+    if(problem)throw serverContextError(problem);
     const root=graph.docs.get(descriptionRoot)!,operation=graph.docs.get(resource)!.dataNode(pointer)!,retrieval=graph.retrievals.get(descriptionRoot)!;
     const base=new URL(retrieval),host=root.root.value.host??(base.protocol==='http:'||base.protocol==='https:'?base.host:undefined);
     const operationSchemes=pointer!==''&&operation.children.has('schemes');
     const declared=operationSchemes?operation.value.schemes:root.root.value.schemes;
     const schemes=declared?.length?declared:[base.protocol==='http:'||base.protocol==='https:'?base.protocol.slice(0,-1):undefined];
     const path=root.root.value.basePath??'/';
-    return schemes.map((scheme:string|undefined)=>({url:host?(scheme?scheme+':':'')+'//'+host+path:path,variables:{},base:retrieval,
+    return schemes.map((scheme:string|undefined,index:number)=>({url:host?(scheme?scheme+':':'')+'//'+host+path:path,variables:{},httpFragmentPolicy:serverHttpFragmentPolicy,base:retrieval,
         origin:operationSchemes?'operation':'root',source:locate(root.id,''),
+        urlSource:declared?.length?locate(operationSchemes?resource:root.id,(operationSchemes?pointer+'/schemes':'/schemes')+'/'+index):locate(root.id,''),
         sources:[...['host','basePath'].filter(field=>root.root.children.has(field)).map(field=>locate(root.id,'/'+field)),...(operationSchemes?[locate(resource,pointer+'/schemes')]:root.root.children.has('schemes')?[locate(root.id,'/schemes')]:[])]}));
 }
