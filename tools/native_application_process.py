@@ -19,6 +19,14 @@ def _identity(pid):
         return None
 
 
+def _arguments(pid):
+    try:
+        return [os.fsdecode(value) for value in
+                (Path('/proc') / str(pid) / 'cmdline').read_bytes().split(b'\0')[:-1]]
+    except (FileNotFoundError, ProcessLookupError):
+        return None
+
+
 class DebuggedApplication:
     """Expose the inferior PID to the existing native focus/input guards.
 
@@ -37,11 +45,26 @@ class DebuggedApplication:
         self.directory.chmod(0o700)
         self.receipt = self.directory / 'process.json'
         pid_file = self.directory / 'inferior.pid'
+        # GDB 15's no-shell argument parser cannot preserve whitespace. Start
+        # an isolated Python bootstrap with ASCII-only arguments, then catch
+        # its direct execve before application code runs. No shell or project
+        # code participates; the eventual application keeps the same PID.
+        self._bootstrap = tempfile.TemporaryDirectory(prefix='busyapi-gdb-exec-', dir='/tmp')
+        bootstrap = Path(self._bootstrap.name) / 'launch.py'
+        bootstrap.write_text('import json, os\n'
+            'with open(__file__ + ".json") as source:\n'
+            '    value = json.load(source)\n'
+            'os.execve(value["binary"], [value["binary"], value["startup"]], os.environ)\n')
+        bootstrap.with_suffix('.py.json').write_text(json.dumps(
+            {'binary': str(binary), 'startup': str(startup)}))
+        self._bootstrap_arguments = ['/usr/bin/python3', '-I', '-S', str(bootstrap)]
         commands = [
             'set pagination off', 'set confirm off',
             'set startup-with-shell off',
+            'set disable-randomization off',
             'handle SIGALRM SIGPIPE SIGTERM SIGUSR1 SIGUSR2 SIGCHLD SIGWINCH nostop noprint pass',
             'starti',
+            'catch exec', 'continue',
             'python open(' + repr(str(pid_file)) + ', "x").write(str(gdb.selected_inferior().pid))',
             'continue', 'thread apply all bt',
         ]
@@ -50,9 +73,10 @@ class DebuggedApplication:
                    '-iex', 'set auto-load off']
         for item in commands:
             command.extend(['-ex', item])
-        command.extend(['--args', str(binary), str(startup)])
+        command.extend(['--args', *self._bootstrap_arguments])
         self.record = {'command': command, 'complete': False,
                        'started': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                       'applicationArguments': [str(binary), str(startup)],
                        'scope': 'Owned synthetic application; no debugger downloads, init scripts or system setting changes'}
         self._debugger = subprocess.Popen(command, stdout=stream,
             stderr=subprocess.STDOUT, env=environment)
@@ -68,7 +92,8 @@ class DebuggedApplication:
                         identity = _identity(pid)
                         if (identity is not None and identity[0] == os.getuid()
                                 and identity[1] == self._debugger.pid
-                                and identity[3] == self._binary):
+                                and identity[3] == self._binary
+                                and _arguments(pid) == [str(binary), str(startup)]):
                             self.pid, self._identity = pid, identity
                             self.record['inferiorPid'] = pid
                             self.record['inferiorStartTime'] = identity[2]
@@ -91,6 +116,7 @@ class DebuggedApplication:
         if code is not None and not self.record['complete']:
             self.record.update(complete=True, debuggerExitCode=code,
                 finished=datetime.datetime.now(datetime.timezone.utc).isoformat())
+            self._bootstrap.cleanup()
             self._save()
         return code
 
@@ -109,9 +135,12 @@ class DebuggedApplication:
             for raw in children.read_text().split():
                 pid = int(raw)
                 identity = _identity(pid)
-                if (identity is not None and identity[0] == os.getuid()
-                        and identity[1] == self._debugger.pid
-                        and identity[3] == self._binary):
+                owned_program = identity is not None and (
+                    identity[3] == self._binary or
+                    identity[3] == Path('/usr/bin/python3').resolve()
+                    and _arguments(pid) == self._bootstrap_arguments)
+                if (owned_program and identity[0] == os.getuid()
+                        and identity[1] == self._debugger.pid):
                     try:
                         os.kill(pid, signal.SIGKILL)
                     except ProcessLookupError:

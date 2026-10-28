@@ -18,11 +18,13 @@ class NativeApplicationProcess(unittest.TestCase):
         self.directory = Path(self.temp.name)
         self.binary = self.directory / 'owned fixture'
         source = self.directory / 'fixture.c'
-        source.write_text('''#include <string.h>
+        source.write_text('''#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 static void fault_marker(void) { volatile int *p = 0; *p = 1; }
 int main(int argc, char **argv) {
   usleep(250000);
+  if (argc > 1) printf("APPLICATION_ARG=%s\\n", argv[1]);
   if (argc > 1 && strcmp(argv[1], "fault") == 0) fault_marker();
   if (argc > 1 && strcmp(argv[1], "hold") == 0) sleep(30);
   return 0;
@@ -75,6 +77,14 @@ int main(int argc, char **argv) {
         receipt = json.loads(process.receipt.read_text())
         self.assertTrue(receipt['complete'])
         self.assertNotEqual(receipt['debuggerExitCode'], 0)
+
+    def test_startup_argument_preserves_spaces_unicode_and_shell_looking_text(self):
+        argument = "space 雪 'quote' $(literal) `literal`"
+        process = self.launch(argument)
+        self.assertEqual(process.wait(timeout=5), 0)
+        self.stream.flush()
+        self.assertIn('APPLICATION_ARG=' + argument + '\n',
+                      (self.directory / 'debugger.log').read_text())
 
     def test_cancellation_reaps_inferior_and_debugger(self):
         process = self.launch('hold')
