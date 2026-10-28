@@ -974,6 +974,12 @@ def main():
                         backtrace=backtrace)
                     native = NativeInput(process.pid)
                     wait_for_initial_focus(native.ready, timeout=8)
+                    wait_tree(
+                        native, process.pid,
+                        lambda nodes: contains(nodes, file.name)
+                        and complete_problems(nodes, problem_count),
+                        'Production reopen did not expose the saved contract before keyboard navigation',
+                    )
                     # Reopen retains the operation selected by Try. Inspect
                     # the API overview before asserting saved Info fields.
                     mode(native, process.pid, 'design')
