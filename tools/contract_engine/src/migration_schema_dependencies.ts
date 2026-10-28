@@ -12,7 +12,7 @@ export function migrateDependentRequired(graph:ReferenceGraph,scope:GraphScope,s
     if(!node)return;
     // This map's independent schema role has unknown keywords, rather than
     // the dependency assertions attached to its containing Schema Object.
-    if(graph.scopes.get(scope.resource+'#'+original)?.kind==='schema'){
+    if(graph.scopeAs(scope.resource,original,'schema')){
         issue({...scope,pointer:original},'migration.schema.dependency-shared-role','The dependency map is also used as a Schema Object and needs a separate faithful representation','implementation');return;
     }
     if(node.kind!=='object'){
@@ -57,6 +57,49 @@ export function migrateDependentRequired(graph:ReferenceGraph,scope:GraphScope,s
             const at=source.current(entry.pointer);
             if(at===undefined){issue({...scope,pointer:entry.pointer},'migration.schema.dependency-owner','The dependency array lost its planning owner','implementation');return;}
             source.move(at,collection+'/'+index+(required.has(entry.trigger)?'/required':'/anyOf/1/required'));
+        }
+    }
+    const at=source.current(original);if(at!==undefined)source.remove(at,true,true,true);
+}
+
+/** Core 2020-12 10.2.2.4 applies each schema to the whole object only when
+ * its trigger property is present. Both alternatives retain that condition,
+ * keeping successful-branch annotations conditional too. required alone also
+ * validates non-objects, whose assertions must remain unaffected. */
+export function migrateDependentSchemas(graph:ReferenceGraph,scope:GraphScope,source:MigrationSource,pointer:string,target:string,requirements:SchemaPropertyRequirements,issue:MigrationIssue):void {
+    const doc=graph.docs.get(scope.resource)!,original=scope.pointer+'/dependentSchemas',node=doc.dataNode(original);
+    if(!node)return;
+    if(graph.scopeAs(scope.resource,original,'schema')){
+        issue({...scope,pointer:original},'migration.schema.dependency-shared-role','The dependency map is also used as a Schema Object and needs a separate faithful representation','implementation');return;
+    }
+    if(node.kind!=='object'){
+        issue({...scope,pointer:original},'migration.schema.dependent-schemas','Expected a captured dependentSchemas map before conversion','source-incomplete');return;
+    }
+    const entries=[...node.children.keys()].map(trigger=>({trigger,pointer:original+'/'+escape(trigger)}));
+    const type=doc.dataNode(scope.pointer+'/type')?.value,objectOnly=type==='object'||Array.isArray(type)&&type.length===1&&type[0]==='object';
+    for(const entry of entries){
+        if(source.current(entry.pointer)===undefined){
+            issue({...scope,pointer:entry.pointer},'migration.schema.dependency-owner','The dependent schema has no unique surviving planning owner','implementation');return;
+        }
+        if(target==='2.0'&&(!objectOnly||!requirements.requires(scope,entry.trigger))){
+            issue({...scope,pointer:entry.pointer},'migration.schema.dependency-conditional',requirements.exhausted?'The captured property-presence proof exhausted its budget before establishing a faithful Swagger 2.0 mapping':'This dependent schema needs a proved object-only instance and required trigger before its conditional assertion can be represented in Swagger 2.0','implementation');return;
+        }
+    }
+    if(entries.length){
+        let collection=pointer+'/allOf';
+        if(source.doc.nodes.has(collection)){
+            const branch=collection+'/'+source.doc.node(collection).children.size;
+            source.set(branch,{allOf:[]});collection=branch+'/allOf';
+        }else source.set(collection,[]);
+        for(const entry of entries){
+            const at=source.current(entry.pointer);
+            if(at===undefined){issue({...scope,pointer:entry.pointer},'migration.schema.dependency-owner','The dependent schema lost its planning owner','implementation');return;}
+            let destination=collection+'/'+source.doc.node(collection).children.size;
+            if(target!=='2.0'){
+                source.set(destination,{anyOf:[{not:{type:'object',required:[entry.trigger]}},{type:'object',required:[entry.trigger],allOf:[]}]});
+                destination+='/anyOf/1/allOf/0';
+            }
+            source.move(at,destination,true);
         }
     }
     const at=source.current(original);if(at!==undefined)source.remove(at,true,true,true);

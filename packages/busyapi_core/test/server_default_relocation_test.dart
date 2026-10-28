@@ -112,7 +112,7 @@ void main() {
             reason: '${migration.result}',
           );
           expect(migration.unsaved, true);
-          expect(migration.result['producerVersion'], '24');
+          expect(migration.result['producerVersion'], '25');
           await migration.publish();
           final migrated = await BusyProject.open(
             migration.destination,

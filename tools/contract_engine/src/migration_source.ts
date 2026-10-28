@@ -2,6 +2,17 @@ import {SourceDocument,SourceError,escape,segments,RawJsonValue} from './documen
 
 export type MigrationLocation={resource:string;pointer:string};
 const inside=(pointer:string,parent:string)=>pointer===parent||pointer.startsWith(parent+'/');
+function outerCommentRanges(doc:SourceDocument,pointer:string,entryComments:boolean):[number,number][] {
+    if(doc.format!=='yaml')return [];
+    const node=doc.node(pointer),ranges=doc.comments(pointer,true).filter(range=>range[1]<=node.range[0]||range[0]>=node.range[1]);
+    if(entryComments){
+        const parent=pointer.slice(0,pointer.lastIndexOf('/')),siblings=[...doc.node(parent).children.values()];
+        const index=siblings.findIndex(sibling=>sibling.pointer===pointer),previous=index>0?siblings[index-1].end:doc.node(parent).entryStart??0,start=node.entryStart??node.range[0];
+        ranges.push(...doc.comments(parent,true).filter(range=>range[0]>=previous&&range[1]<=start));
+    }
+    const seen=new Set<string>();
+    return ranges.sort((a,b)=>a[0]-b[0]).filter(range=>{const key=range.join(':');if(seen.has(key))return false;seen.add(key);return true;});
+}
 export function migrationValueIdentity(doc:SourceDocument,pointer:string):string {
     const node=doc.dataNode(pointer)!;
     if(node.kind==='object')return '{'+[...node.children].map(([name,child])=>JSON.stringify(name)+':'+migrationValueIdentity(doc,child.pointer)).join(',')+'}';
@@ -129,15 +140,7 @@ export class MigrationSource {
         const owner=this.doc.node(parent),block=before.format==='yaml'&&!node.flow&&(node.kind==='object'||node.kind==='array');
         // Collection ranges begin at their first value token. Comments between
         // the entry key and that token still belong to the copied occurrence.
-        const leading=before.format==='yaml'?before.comments(from,true).filter(range=>range[1]<=node.range[0]).map(range=>before.text.slice(...range)):[];
-        if(entryComments&&before.format==='yaml'){
-            const sourceParent=from.slice(0,from.lastIndexOf('/')),siblings=[...before.node(sourceParent).children.values()];
-            const index=siblings.findIndex(sibling=>sibling.pointer===from),previous=index>0?siblings[index-1].end:before.node(sourceParent).entryStart??0;
-            const start=node.entryStart??node.range[0];
-            leading.unshift(...before.comments(sourceParent,true).filter(range=>range[0]>=previous&&range[1]<=start).map(range=>before.text.slice(...range)));
-        }
-        const outside=before.format==='yaml'?before.comments(from,true).filter(range=>range[0]>=node.range[1]).map(range=>before.text.slice(...range)):[];
-        leading.push(...outside);
+        const leading=outerCommentRanges(before,from,entryComments).map(range=>before.text.slice(...range));
         if(this.doc.format==='yaml'&&(!owner.flow||owner.children.size===0)&&this.blockParent(parent)&&block){
             const raw=before.text.slice(...node.range),indent=before.indent(node.range[0]);
             const local=(leading.length?leading.join(this.doc.newline)+this.doc.newline:'')+raw.replace(/(?:\r\n|\r|\n)([ \t]*)/g,(_match,space)=>this.doc.newline+space.slice(Math.min(indent,space.length)));
@@ -157,7 +160,10 @@ export class MigrationSource {
         }else if(before.format===this.doc.format&&!block){
             this.set(to,null);const slot=this.doc.node(to),raw=before.text.slice(...node.range);
             const indent=before.indent(node.range[0]),depth=this.doc.indent(slot.range[0]);
-            const adjusted=(leading.length?leading.join(this.doc.newline+' '.repeat(depth+2))+this.doc.newline+' '.repeat(depth+2):'')+raw.replace(/(?:\r\n|\r|\n)([ \t]*)/g,(_match,space)=>this.doc.newline+' '.repeat(depth)+space.slice(Math.min(indent,space.length)));
+            // A comment copied after a flow delimiter needs leading separation
+            // too; placing '#' directly after '[' or ':' changes YAML syntax.
+            const prefix=this.doc.newline+' '.repeat(depth+2);
+            const adjusted=(leading.length?prefix+leading.join(prefix)+prefix:'')+raw.replace(/(?:\r\n|\r|\n)([ \t]*)/g,(_match,space)=>this.doc.newline+' '.repeat(depth)+space.slice(Math.min(indent,space.length)));
             this.update(this.doc.replace(...slot.range,adjusted));
         }else{
             this.exact(to,expected);this.presentationChanges.push(to);
@@ -179,6 +185,15 @@ export class MigrationSource {
     move(from:string,to:string,entryComments=false):void {
         if(from===to)return;
         this.copy(this,from,to,entryComments);
+        // The copy already owns these parsed comment occurrences. Retiring the
+        // old container must not preserve them a second time. Equal comment
+        // texts at different ranges remain distinct authored occurrences.
+        const comments=outerCommentRanges(this.doc,from,entryComments);
+        if(comments.length){
+            let text=this.doc.text;
+            for(const [start,end]of comments.reverse())text=text.slice(0,start)+text.slice(end);
+            this.update(text);
+        }
         for(const values of this.originSets())for(const at of [...values])if(inside(at,from)){values.delete(at);values.add(to+at.slice(from.length));}
         this.remove(from,false,false);
     }

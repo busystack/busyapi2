@@ -7,7 +7,7 @@ import {compare,decimal} from './exact_numbers';
 import {createHash} from 'node:crypto';
 import {MigrationSchemaReferences} from './migration_schema_references';
 import {SchemaPropertyRequirements} from './schema_property_requirements';
-import {migrateDependentRequired} from './migration_schema_dependencies';
+import {migrateDependentRequired,migrateDependentSchemas} from './migration_schema_dependencies';
 
 export type MigrationProblem={resource:string;pointer:string;range:number[];code:string;message:string;reason:'target-representation'|'implementation'|'source-incomplete'|'decision';choices?:string[];id?:string};
 export type MigrationIssue=(scope:MigrationLocation&{original?:MigrationLocation},code:string,message:string,reason:MigrationProblem['reason'],choices?:string[])=>boolean;
@@ -61,8 +61,9 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
         if(modernFamily(from)&&!modernFamily(to)){
             references.lower(scope,source,pointer,issue);
             migrateDependentRequired(graph,scope,source,pointer,to,requirements,issue);
+            migrateDependentSchemas(graph,scope,source,pointer,to,requirements,issue);
         }
-        if(!modernFamily(to))for(const name of ['$dynamicAnchor','patternProperties','dependentSchemas','if','then','else','contains','minContains','maxContains','unevaluatedItems','unevaluatedProperties','propertyNames','contentSchema','contentEncoding','contentMediaType'])
+        if(!modernFamily(to))for(const name of ['$dynamicAnchor','patternProperties','if','then','else','contains','minContains','maxContains','unevaluatedItems','unevaluatedProperties','propertyNames','contentSchema','contentEncoding','contentMediaType'])
             if(Object.hasOwn(value,name))issue(field(name),'migration.schema.keyword','This schema keyword or resource identity has no implemented faithful mapping to '+to,'implementation');
         if(!modernFamily(to)&&Array.isArray(value.prefixItems)){
             if(to==='2.0'){

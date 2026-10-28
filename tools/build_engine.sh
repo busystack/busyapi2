@@ -118,6 +118,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" --disable-proto=throw "$engine_dir/test_migration_default_servers.cjs"
 "$node_bin" "$engine_dir/test_migration_static_dynamicref.cjs"
 "$node_bin" "$engine_dir/test_migration_dependencies.cjs"
+"$node_bin" "$engine_dir/test_migration_dependent_schemas.cjs"
 "$node_bin" "$engine_dir/test_migration_form_downgrade.cjs"
 "$node_bin" "$engine_dir/test_migration_form_defaults.cjs"
 "$node_bin" "$engine_dir/test_migration_form_fidelity.cjs"
