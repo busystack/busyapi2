@@ -3464,6 +3464,8 @@ class BusyProject {
   }
 }
 
+enum InitializationMode { project, standalone }
+
 class Initializer {
   static Future<String> create({
     required String destination,
@@ -3471,8 +3473,17 @@ class Initializer {
     required String apiVersion,
     String openapi = '3.1.2',
     String format = 'yaml',
+    InitializationMode mode = InitializationMode.project,
     PublicationBoundary? beforePublish,
+    bool Function()? cancelled,
   }) async {
+    void requireCurrent() {
+      if (cancelled?.call() ?? false) {
+        throw CoreFailure('init.cancelled', 'Contract creation was cancelled');
+      }
+    }
+
+    requireCurrent();
     if (title.trim().isEmpty || apiVersion.trim().isEmpty) {
       throw CoreFailure('init.input', 'API title and API version are required');
     }
@@ -3507,30 +3518,50 @@ class Initializer {
             FileSystemEntityType.notFound) {
           throw CoreFailure(
             'init.collision',
-            'Project files already exist; nothing was overwritten',
+            'Creation files already exist; nothing was overwritten',
           );
         }
       }
       await beforePublish?.call(path);
+      requireCurrent();
+      if (mode == InitializationMode.standalone &&
+          await FileSystemEntity.type(manifest, followLinks: false) !=
+              FileSystemEntityType.notFound) {
+        throw CoreFailure(
+          'init.collision',
+          'A project manifest appeared before contract-only publication; nothing was overwritten',
+        );
+      }
       await access.publish(path, utf8.encode(text));
       published = true;
-      await beforePublish?.call(manifest);
-      await access.publish(
-        manifest,
-        utf8.encode('version: 1\nroots:\n  - name: main\n    path: $name\n'),
-      );
+      if (mode == InitializationMode.project) {
+        await beforePublish?.call(manifest);
+        requireCurrent();
+        await access.publish(
+          manifest,
+          utf8.encode('version: 1\nroots:\n  - name: main\n    path: $name\n'),
+        );
+      } else if (await FileSystemEntity.type(manifest, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        throw CoreFailure(
+          'init.context',
+          'A project manifest appeared during contract-only publication',
+        );
+      }
       return path;
     } on Object catch (error) {
       if (published) {
         throw CoreFailure(
           'init.partial',
-          'Contract creation completed at $path, but manifest publication failed. Existing and concurrent files were retained: $error',
+          mode == InitializationMode.project
+              ? 'Contract creation completed at $path, but manifest publication failed. Existing and concurrent files were retained: $error'
+              : 'Contract creation completed at $path, but its directory acquired a project manifest. Existing and concurrent files were retained: $error',
         );
       }
       if (error is AtomicFileAlreadyExistsException) {
         throw CoreFailure(
           'init.collision',
-          'Project files already exist; nothing was overwritten',
+          'Creation files already exist; nothing was overwritten',
         );
       }
       rethrow;

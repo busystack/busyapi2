@@ -7,7 +7,7 @@ import 'package:busyapi_core/busyapi_core.dart';
 
 const usage = '''BusyAPI 0.1.0
 Usage:
-  busyapi init DESTINATION --title TITLE --api-version VERSION [--openapi 2.0|3.0.4|3.1.2|3.2.1] [--format yaml|json]
+  busyapi init DESTINATION --title TITLE --api-version VERSION [--openapi 2.0|3.0.4|3.1.2|3.2.1] [--format yaml|json] [--standalone]
   busyapi check FILE_OR_PROJECT [--root NAME_OR_PATH] [--allow-directory PATH] [--map-resource URI FILE] [--json]
   busyapi lint FILE_OR_PROJECT [--root NAME_OR_PATH] [--ruleset URI_OR_PATH] [--fail-severity error|warning|information|hint] [--review-code | --approve-code TRUST_SHA256] [--map-resource URI FILE] [--json]
   busyapi bundle FILE_OR_PROJECT --output DIRECTORY [--format single-file|resource-package] [--root NAME_OR_PATH] [--map-resource URI FILE] [--replace-output RECEIPT_SHA256] [--json]
@@ -21,6 +21,7 @@ Usage:
   busyapi generate --generator NAME --generator-options [--json]
   busyapi generate FILE_OR_PROJECT --generator NAME --output DIRECTORY [--root NAME_OR_PATH] [--option NAME=JSON_OR_TEXT ...] [--template-directory DIRECTORY] [--replace-output RECEIPT_SHA256] [--json]
   busyapi --help | --version
+Creation: init writes a contract and busyapi.yaml by default; --standalone writes only the contract. Both print the contract path.
 Reports: check/lint --sarif FILE; test --junit FILE (no-clobber exports; command exit status is unchanged).
 Exit codes: 0 complete clean; 1 contract failure; 2 incomplete/unsupported; 3 operational/configuration failure.
 ''';
@@ -85,6 +86,7 @@ Future<void> runBusyApi(
       '--secrets-stdin',
       '--list-generators',
       '--generator-options',
+      '--standalone',
     ].contains(args[i])) {
       options[args[i].substring(2)] = 'true';
     } else if (args[i].startsWith('--')) {
@@ -133,7 +135,7 @@ Future<void> runBusyApi(
       );
     }
     final allowed = args.first == 'init'
-        ? {'title', 'api-version', 'openapi', 'format'}
+        ? {'title', 'api-version', 'openapi', 'format', 'standalone'}
         : args.first == 'import'
         ? {'kind', 'output', 'root', 'json'}
         : {
@@ -303,6 +305,9 @@ Future<void> runBusyApi(
         apiVersion: options['api-version']!,
         openapi: options['openapi'] ?? '3.1.2',
         format: options['format'] ?? 'yaml',
+        mode: options['standalone'] == 'true'
+            ? InitializationMode.standalone
+            : InitializationMode.project,
         beforePublish: beforePublish,
       );
       stdout.writeln(file);
