@@ -412,8 +412,9 @@ The pinned consumer's ordering among real named examples is preserved. Its
 synthetic schema default cannot shadow a media example or round the authored
 numeric lexeme. These are derived generator inputs; the original schema and
 received response validation remain authoritative. Shared working buffers and
-source-file preservation are covered in the focused verification record; current
-assembled and native acceptance remain separate.
+source-file preservation are covered in the verification record. Current complete
+engine, all-Core-file coverage, compiled Linux and installed CLI checks pass there;
+actual native desktop acceptance remains blocked by the user graphics constraint.
 
 Raw `text/plain` request bodies honor explicit `ISO-8859-1` and `latin1`
 charsets with the SDK's strict one-byte encoder. Unrepresentable characters are
