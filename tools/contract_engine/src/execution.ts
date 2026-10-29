@@ -401,7 +401,8 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     if(!schemaFieldScope(resource,pointer,value,ownerKind))return {examples:[]};
     const selected=schemaExampleCandidates(graph,{resource,pointer:pointer+'/schema',kind:'schema'});
     return {examples:selected.values.map(source=>({...projectExample({resource,pointer,value,level,mediaType},source.resource,source.pointer,
-      source.field==='examples'?'dataValue':'example',source.name),origin:'schema'})),
+      source.field==='examples'?'dataValue':'example',source.name),origin:'schema',schemaApplicability:'not-evaluated',
+      schemaContext:source.context.map(step=>({keyword:step.keyword,...('selector' in step?{selector:step.selector}:{}),source:location(step.resource,step.pointer)}))})),
       schemaExamples:{complete:selected.complete,issues:selected.issues.map(issue=>({code:issue.code,message:issue.message,source:location(issue.resource,issue.pointer)}))}};
   };
   const schema=(resource:string,pointer:string,value:any,kind:ExampleOwnerKind='media')=>{

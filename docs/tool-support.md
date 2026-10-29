@@ -391,15 +391,21 @@ feed the desktop, while CLI cases keep their saved-input policy.
 Standard owner fields suppress fallback even when empty, external or unresolved.
 The [3.0 media override rule](https://spec.openapis.org/oas/v3.0.4.html#media-type-object)
 also applies in 3.1; 3.2 uses the same BusyAPI choice-precedence policy.
-Fixed references and `allOf` offer separate authored candidates, without merging
-payloads or generating defaults. The chosen value still uses whole-schema
-request conformance. Modern [`examples` array](https://json-schema.org/draft/2020-12/json-schema-validation#section-9.5)
+Fixed references and family-supported `allOf`, `anyOf` and `oneOf` offer separate
+authored candidates. Modern local `if`/`then`/`else` and `dependentSchemas` also
+contribute whole-instance choices. Branch names and physical sources are retained;
+repeated schema references retain their first discovered context. These are
+authored suggestions whose applicability has not been evaluated. Selecting one
+still uses whole-schema request conformance, without merging payloads or generating
+defaults. Modern [`examples` array](https://json-schema.org/draft/2020-12/json-schema-validation#section-9.5)
 strings stay schema-ready data; deprecated singular examples retain the existing
-non-JSON embedding policy. Conditional candidate discovery, unsupported dialects,
-indeterminate bindings and exhausted traversal show incomplete discovery.
-Properties and array items describe child values rather than the complete body.
+non-JSON embedding policy. Under [Core §10.2.2](https://json-schema.org/draft/2020-12/json-schema-core#section-10.2.2),
+`if` contributes candidates, `then`/`else` require a local `if`, and a boolean
+predicate excludes its unreachable branch. Child-instance and negated-schema
+samples do not supply choices for the containing body. Unsupported dialects,
+indeterminate bindings and traversal/provenance limits show incomplete discovery.
 The focused CPU matrix covers all published declarations in both formats;
-eight native widget variants are analyzed only. See the
+sixteen native widget variants are analyzed only. See the
 [verification record](implementation/native-openapi-support.md) for current scope.
 
 Native JSON mocks distinguish schema-origin choices from explicit media

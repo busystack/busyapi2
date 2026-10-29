@@ -29,7 +29,7 @@ for(const version of versions)for(const format of ['yaml','json'])test(`${versio
   const packet=input(version,format,modern(version)?{examples:[value]}:{example:value}),before=packet.resources[0].text;
   const checked=analyse(packet);assert.equal(checked.complete,true);assert.deepEqual(checked.findings,[]);
   const plan=requestOperation(packet),media=body(plan),example=media.example;
-  assert.equal(plan.representationRevisions.schemaExamples,'1');assert.equal(media.examples.length,1);
+  assert.equal(plan.representationRevisions.schemaExamples,'2');assert.equal(media.examples.length,1);
   assert.equal(example.raw,exact(value));assert.equal(example.origin,'schema');assert.equal(example.representation,'json');assert.equal(example.level,'media');
   const owner=version==='2.0'?'/paths/~1data/post/parameters/0/schema':'/paths/~1data/post/requestBody/content/application~1json/schema';
   assert.equal(example.source.resource,packet.root);assert.equal(example.source.pointer,owner+(modern(version)?'/examples/0':'/example'));assert.equal(example.source.generation,7);
@@ -70,8 +70,8 @@ for(const version of versions)for(const format of ['yaml','json'])test(`${versio
  const base=version==='2.0'?'/definitions/':'/components/schemas/',packet=input(version,format,{$ref:'#'+base+'Recursive'}),doc=document(version,{$ref:'#'+base+'Recursive'});
  const definitions={Recursive:{allOf:[{$ref:'#'+base+'Recursive'},{example:false},{example:{n:'EXACT'}}],properties:{child:{example:'Child'}},...version!=='2.0'?{oneOf:[{example:'Branch'}]}:{}}};
  if(version==='2.0')doc.definitions=definitions;else doc.components={schemas:definitions};packet.resources[0].text=render(doc,format);
- const media=body(requestOperation(packet));assert.deepEqual(media.examples.map(e=>e.raw),['false','{"n":9007199254740993.00}']);assert.equal(media.schemaExamples.complete,version==='2.0');
- if(version!=='2.0')assert.equal(media.schemaExamples.issues[0].code,'request.schema-examples.conditional');
+ const media=body(requestOperation(packet));assert.deepEqual(media.examples.map(e=>e.raw),['false','{"n":9007199254740993.00}',...(version==='2.0'?[]:['"Branch"'])]);assert.equal(media.schemaExamples.complete,true);
+ assert.deepEqual(media.schemaExamples.issues,[]);
 });
 for(const version of versions.filter(modern))for(const format of ['yaml','json'])test(`${version} ${format} modern array strings remain data while legacy escaped examples keep their representation`,()=>{
  const packet=input(version,format,{type:'string',examples:['a%20b',''],example:'c%20d'},'application/x-www-form-urlencoded');
