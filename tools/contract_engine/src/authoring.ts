@@ -1,4 +1,5 @@
 import {schemaDefinitionKeywords} from './schema_definitions';
+import {schemaTypeChoices} from './schema_type_choices';
 import {xmlRequiresExplicitName} from './xml_semantics';
 import Ajv2020 from 'ajv/dist/2020';
 import {structuralSchema, structuralDefinition, structuralReference} from './structural_schema';
@@ -62,7 +63,9 @@ export function removableField(kind: string, family: string, value: any, name: s
  * distinction between reusable definitions and Reference Object usage sites. */
 export function fieldsForScope(graph: ReferenceGraph, scope: GraphScope, value: any, contextName = segments(scope.pointer).at(-1) ?? ''): any[] {
     const fields=fieldsFor(scope.kind, scope.family, value, contextName, graph.allowsReference(scope));
-    return xmlRequiresExplicitName(graph,scope)?fields.map(field=>field.name==='name'?{...field,required:true}:field):fields;
+    const typeChoices=scope.kind==='schema'?schemaTypeChoices(graph,scope):undefined;
+    const described=fields.map(field=>field.name==='type'&&typeChoices?{...field,schemaTypeChoices:typeChoices}:field);
+    return xmlRequiresExplicitName(graph,scope)?described.map(field=>field.name==='name'?{...field,required:true}:field):described;
 }
 export function fieldsFor(kind: string, family: string, value: any = {}, contextName = '', referenceAllowed = supportsReference(kind,family)): any[] {
     const standard = structuralSchema(family);

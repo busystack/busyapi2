@@ -1,4 +1,5 @@
 import {swaggerServerContextRevision,swaggerServerRelationships} from './swagger_servers';
+import {schemaTypeChoices,sameSchemaTypeChoices,allowedSchemaType} from './schema_type_choices';
 import {discriminatorContextRevision} from './discriminator_semantics';
 import {multipartProjectionRevision} from './schema_reference_projection';
 import { createHash } from 'node:crypto';
@@ -435,6 +436,23 @@ export function propose(input: any) {
     if (input.target.expected !== undefined && resource.text.slice(...captured.range) !== input.target.expected)
         throw new SourceError('edit.stale', 'Captured source text changed');
     for (const action of input.actions) {
+        if(Object.hasOwn(action,'schemaTypeChoices')){
+            const pointer=typeof action.pointer==='string'?action.pointer:'';
+            const parts=segments(pointer),name=parts.pop();
+            const ownerPointer=parts.length?'/'+parts.map(escape).join('/'):'';
+            const source={resource:resource.id,pointer:ownerPointer,range:doc.nodes.get(ownerPointer)?.range??captured.range};
+            const graph=createGraph({...input,resources:input.resources.map((entry:Resource)=>entry.id===resource.id?{...entry,text:doc.text}:entry)}).graph;
+            const scope=graph.scopes.get(resource.id+'#'+ownerPointer);
+            if(name!=='type'||scope?.kind!=='schema'||!['set','remove'].includes(action.kind))
+                throw new SourceError('edit.schema-type.stale','The captured schema type field is unavailable',source.range,undefined,source);
+            const choices=schemaTypeChoices(graph,scope);
+            if(!sameSchemaTypeChoices(action.schemaTypeChoices,choices))
+                throw new SourceError('edit.schema-type.stale','The specification, schema dialect or shared type context changed',source.range,undefined,source);
+            if(!choices.supported)
+                throw new SourceError('edit.schema-type.unsupported','This schema dialect has no supported type editor',source.range,'unsupported',source);
+            if((action.kind==='set'&&!Object.hasOwn(action,'value'))||!allowedSchemaType(action.kind==='remove'?undefined:action.value,choices))
+                throw new SourceError('edit.schema-type.value','Choose a type or union permitted by this captured schema context',source.range,'specification',source);
+        }
         if (action.kind === 'set' && segments(action.pointer).length === 3 && segments(action.pointer)[0] === 'paths') {
           const parts=segments(action.pointer), pathPointer='/paths/'+escape(parts[1]);
           const pathItem=doc.nodes.get(pathPointer);

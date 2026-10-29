@@ -1,5 +1,6 @@
 import { children, isReferenceObject, referenceKinds, supportsReference } from './contexts';
 import { SourceDocument, SourceError, escape, limits } from './document';
+import {swaggerFileChoiceTargets} from './swagger_file';
 import {resolveIri} from '@hyperjump/uri';
 import {specificationDeclaration, defaultSchemaDialect, modernFamily, restrictedSchemaDialect, swaggerSchemaDialect, isNativeFamily, capabilitiesFor, Specification,declaredSchemaDialect} from './specification';
 
@@ -125,6 +126,13 @@ export class ReferenceGraph {
     readonly scopes = new Map<string, GraphScope>();
     private readonly roleScopes = new Map<string, GraphScope>();
     private readonly overlappingScopes = new Set<string>();
+    private fileTypeChoices:ReadonlySet<string>|undefined;
+    /** Reference discovery finishes in the constructor. Reuse one transitive
+     * consumer proof across this capture's authoring and Reference fields.
+     * Changed roots, declarations and resources create separate graphs. */
+    swaggerFileTypeChoices():ReadonlySet<string> {
+        return this.fileTypeChoices??=swaggerFileChoiceTargets(this);
+    }
     /** Keep the physical authoring context while retaining explicitly reached
      * schema interpretations of the same JSON value (Core 8.2.3.1). */
     scopeAs(resource:string,pointer:string,kind:string):GraphScope|undefined {

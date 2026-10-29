@@ -3237,12 +3237,31 @@ class BusyProject {
       );
     }
     await engine.start();
-    final snap = AnalysisSnapshot(
-      root: root,
-      resources: [b.snapshot()],
-      boundaries: approvedContexts,
-      engineIdentity: engine.assetIdentity,
+    final contextBound = actions.any(
+      (action) => action.containsKey('schemaTypeChoices'),
     );
+    final AnalysisSnapshot snap;
+    final int? contextRevision;
+    if (contextBound) {
+      final captured = await _objectSnapshot(
+        root,
+        b.id,
+        cancelled: current == null ? null : () => !current(),
+      );
+      snap = captured.$1;
+      contextRevision = captured.$2;
+      if (b.generation != session.generation) {
+        throw CoreFailure('draft.stale', 'The type editor source changed');
+      }
+    } else {
+      snap = AnalysisSnapshot(
+        root: root,
+        resources: [b.snapshot()],
+        boundaries: approvedContexts,
+        engineIdentity: engine.assetIdentity,
+      );
+      contextRevision = null;
+    }
     final result = await engine.request('propose', {
       ...snap.toJson(),
       'target': session.target(),
@@ -3250,7 +3269,8 @@ class BusyProject {
     });
     if ((current != null && !current()) ||
         result['snapshot'] != snap.identity ||
-        !snap.current(store)) {
+        !snap.current(store) ||
+        contextRevision != null && contextRevision != _resourceRevision) {
       throw CoreFailure(
         'proposal.stale',
         'Source changed while preparing the edit',

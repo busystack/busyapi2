@@ -208,7 +208,8 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
   Widget objectField(Map<String, dynamic> item, Map<String, dynamic> field) {
     final key = field['name'] as String, present = field['present'] == true;
     final title = label(key), type = field['type'];
-    if (key == 'type' && item['kind'] == 'schema' && type == 'any') {
+    if (key == 'type' && item['kind'] == 'schema') {
+      final choices = SchemaTypeChoices.fromJson(field['schemaTypeChoices']);
       if (present && !field.containsKey('raw')) {
         return BusyApiActionRow(
           title: title,
@@ -221,62 +222,68 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
       final authored = field['raw'] == null
           ? null
           : jsonDecode(field['raw'] as String);
-      const types = [
-        'object',
-        'array',
-        'string',
-        'number',
-        'integer',
-        'boolean',
-        'null',
-      ];
       final selected = authored is String
-          ? [authored]
+          ? [if (choices.unionTypes.contains(authored)) authored]
           : authored is List && authored.every((v) => v is String)
           ? authored.cast<String>()
           : <String>[];
-      final scalar = authored is String && types.contains(authored)
+      final scalar =
+          authored is String && choices.scalarTypes.contains(authored)
           ? authored
-          : present
+          : authored is List
           ? '@union'
+          : present
+          ? '@authored'
           : '@absent';
       return Column(
         children: [
           BusyApiComboRow<String>(
             title: title,
-            values: ['@absent', ...types, if (scalar == '@union') '@union'],
+            values: [
+              '@absent',
+              ...choices.scalarTypes,
+              if (scalar == '@union' || scalar == '@authored') scalar,
+            ],
             selected: scalar,
             labelFor: (v) => v == '@absent'
                 ? context.l10n.absentValue
                 : v == '@union'
                 ? context.l10n.schemaTypeUnion
+                : v == '@authored'
+                ? field['raw'] as String
                 : v,
-            subtitle: context.l10n.schemaTypePreservesConstraints,
-            enabled: c.scopeSafe(item),
-            onSelected: (v) => run(
-              () => _changeSchemaTypes(
-                context,
-                c,
-                item,
-                field,
-                v == '@absent' ? null : v,
-              ),
+            subtitle: choices.supported
+                ? context.l10n.schemaTypePreservesConstraints
+                : context.l10n.sourceUnknownDialectHelp,
+            enabled: choices.supported && c.scopeSafe(item),
+            onSelected: (v) {
+              if (v != '@absent' && !choices.scalarTypes.contains(v)) return;
+              run(
+                () => _changeSchemaTypes(
+                  context,
+                  c,
+                  item,
+                  field,
+                  v == '@absent' ? null : v,
+                ),
+              );
+            },
+          ),
+          if (choices.unionTypes.isNotEmpty)
+            BusyApiActionRow(
+              title: context.l10n.schemaTypeUnion,
+              subtitle: selected.join(' | '),
+              onTap: () => setState(() {
+                typeUnionExpanded = !typeUnionExpanded;
+                remember();
+              }),
             ),
-          ),
-          BusyApiActionRow(
-            title: context.l10n.schemaTypeUnion,
-            subtitle: selected.join(' | '),
-            onTap: () => setState(() {
-              typeUnionExpanded = !typeUnionExpanded;
-              remember();
-            }),
-          ),
-          if (typeUnionExpanded)
-            for (final name in types)
+          if (typeUnionExpanded && choices.unionTypes.isNotEmpty)
+            for (final name in {...choices.unionTypes, ...selected})
               BusyApiSwitchRow(
                 title: context.l10n.specificationField(name),
                 value: selected.contains(name),
-                enabled: c.scopeSafe(item),
+                enabled: choices.supported && c.scopeSafe(item),
                 onChanged: (enabled) => run(() {
                   final changed = [
                     ...selected.where((t) => t != name),
@@ -1093,10 +1100,36 @@ Future<void> _changeSchemaTypes(
   Map<String, dynamic> field,
   Object? next,
 ) async {
+  final capturedChoices = SchemaTypeChoices.fromJson(
+    field['schemaTypeChoices'],
+  );
   final prepared = await _prepareObjectAction(context, c, item);
   if (prepared == null || !context.mounted) return;
   item = prepared;
+  final currentField = (item['fields'] as List? ?? [])
+      .cast<Map<String, dynamic>>()
+      .where((f) => f['name'] == 'type')
+      .firstOrNull;
+  if (currentField == null ||
+      !capturedChoices.equivalentTo(
+        SchemaTypeChoices.fromJson(currentField['schemaTypeChoices']),
+      )) {
+    throw CoreFailure('edit.schema-type.stale', context.l10n.objectActionStale);
+  }
   field = _refreshedObjectField(item, field);
+  if (!capturedChoices.supported) {
+    throw CoreFailure(
+      'edit.schema-type.unsupported',
+      context.l10n.sourceUnknownDialectHelp,
+    );
+  }
+  if (!capturedChoices.allows(next)) {
+    throw CoreFailure(
+      'edit.schema-type.value',
+      context.l10n.schemaKeywordInvalid,
+      kind: CoreFailureKind.specification,
+    );
+  }
   final raw = field['raw'] as String?;
   if (raw == null && next == null) return;
   final previous = raw == null ? null : jsonDecode(raw);
@@ -1125,18 +1158,36 @@ Future<void> _changeSchemaTypes(
       target: item,
       kind: 'object.type',
       arguments: {
-        'field': {'name': 'type', 'type': 'any'},
+        'field': {
+          'name': 'type',
+          'type': field['type'],
+          'schemaTypeChoices': field['schemaTypeChoices'],
+        },
         'next': next,
       },
       onApply: (_) => c.mutate(item, [
         next == null
-            ? {'kind': 'remove', 'pointer': pointer}
-            : {'kind': 'set', 'pointer': pointer, 'value': next},
+            ? {
+                'kind': 'remove',
+                'pointer': pointer,
+                'schemaTypeChoices': field['schemaTypeChoices'],
+              }
+            : {
+                'kind': 'set',
+                'pointer': pointer,
+                'value': next,
+                'schemaTypeChoices': field['schemaTypeChoices'],
+              },
       ]),
     );
   } else {
     await c.mutate(item, [
-      {'kind': 'set', 'pointer': pointer, 'value': next},
+      {
+        'kind': 'set',
+        'pointer': pointer,
+        'value': next,
+        'schemaTypeChoices': field['schemaTypeChoices'],
+      },
     ]);
   }
 }

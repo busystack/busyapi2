@@ -4,7 +4,6 @@ import { escape, segments, SourceDocument, SourceError } from './document';
 import { GraphReference, supportedSchemaDialect } from './reference_graph';
 import { referenceValue, securityBindings, securitySelectionScope } from './reference_choices';
 import {isNativeFamily} from './specification';
-import {swaggerFileChoiceTargets} from './swagger_file';
 const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '2.0' ? '2.0' : family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: family === '2.0' ? 'swagger' : 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
 function located(input: any, doc: SourceDocument, pointer: string, extra: any = {}) {
     const resource = (input.resources as Resource[]).find(r => r.id === doc.id)!;
@@ -102,8 +101,7 @@ export function assistSource(input: any) {
     if (!keyNode && field && node.kind !== 'object' && node.kind !== 'array') {
         let values = field.options ?? (field.type === 'boolean' ? [true, false] : []);
         if (parentScope.kind === 'schema' && name === 'type') {
-            const file = family === '2.0' && swaggerFileChoiceTargets(graph).has(parentScope.resource+'#'+parentScope.pointer);
-            values = ['object', 'array', 'string', 'number', 'integer', 'boolean', ...(family === '3.0' ? [] : ['null']), ...(file ? ['file'] : [])];
+            values = field.schemaTypeChoices?.scalarTypes ?? [];
         }
         if (['$ref','$dynamicRef'].includes(name) && graph.references.some(r => r.resource === doc.id && r.pointer === parentPointer && r.keyword === name)) {
             const expectedKind = parentScope.kind;
@@ -164,13 +162,14 @@ export function assistSource(input: any) {
             result.completions.push({label:candidate.name,type:candidate.type,standard:standard(family,context.kind),...(candidate.target?{target:candidate.target}:{}),edits:[{buffer:doc.id,generation:resource.generation,start:range[0],end:range[1],expected,replacement}],selection:[range[0]+replacement.length,range[0]+replacement.length]});
             continue;
         }
-        const choices = candidate.options ?? (candidate.type === 'boolean' ? [true, false] : [candidate.type === 'string' ? '' : candidate.type === 'array' ? [] : candidate.type === 'object' || candidate.type === 'schema' ? {} : candidate.type === 'number' || candidate.type === 'integer' ? 0 : null]);
+        const options = candidate.schemaTypeChoices?.scalarTypes ?? candidate.options;
+        const choices = options ?? (candidate.type === 'boolean' ? [true, false] : [candidate.type === 'string' ? '' : candidate.type === 'array' ? [] : candidate.type === 'object' || candidate.type === 'schema' ? {} : candidate.type === 'number' || candidate.type === 'integer' ? 0 : null]);
         for (const value of choices) {
             const insert = keyInsertion(doc, container, caret, candidate.name, value);
             if (!insert)
                 continue;
             const replacement = insert;
-            result.completions.push({ label: candidate.name + (candidate.options || candidate.type === 'boolean' ? ' = ' + JSON.stringify(value) : ''), type: candidate.type, standard: standard(family, context.kind), ...(candidate.target?{target:candidate.target}:{}), edits: [{ buffer: doc.id, generation: resource.generation, start: caret, end: caret, expected: '', replacement }], selection: [caret + replacement.length, caret + replacement.length] });
+            result.completions.push({ label: candidate.name + (options || candidate.type === 'boolean' ? ' = ' + JSON.stringify(value) : ''), type: candidate.type, standard: standard(family, context.kind), ...(candidate.target?{target:candidate.target}:{}), edits: [{ buffer: doc.id, generation: resource.generation, start: caret, end: caret, expected: '', replacement }], selection: [caret + replacement.length, caret + replacement.length] });
         }
     }
     return result;
@@ -207,14 +206,15 @@ function incompleteKeyCompletions(doc:SourceDocument, graph:any, family:string, 
     const completions:any[]=[];
     for(const field of fieldsForScope(graph,context,container.value)) {
         if(!field.name.startsWith(prefix)||Object.hasOwn(container.value,field.name)||field.prohibited||field.blockedBy?.length)continue;
-        const values=field.options??(field.type==='boolean'?[true,false]:[field.type==='string'?'':field.type==='array'?[]:['object','schema'].includes(field.type)?{}:['number','integer'].includes(field.type)?0:null]);
+        const options=field.schemaTypeChoices?.scalarTypes??field.options;
+        const values=options??(field.type==='boolean'?[true,false]:[field.type==='string'?'':field.type==='array'?[]:['object','schema'].includes(field.type)?{}:['number','integer'].includes(field.type)?0:null]);
         for(const value of values) {
             const replacement=(doc.format==='json'?JSON.stringify(field.name):field.name)+': '+JSON.stringify(value)+(doc.format==='json'&&/^\s*"/.test(doc.text.slice(end))?',':'');
             const text=doc.text.slice(0,start)+replacement+doc.text.slice(end);
             let repaired:SourceDocument;try{repaired=new SourceDocument(text,doc.id,true);}catch{continue;}
             const pointer=container.pointer+'/'+escape(field.name);
             if(!repaired.syntaxSafe(container.pointer)||!repaired.nodes.has(pointer))continue;
-            completions.push({label:field.name+(field.options||field.type==='boolean'?' = '+JSON.stringify(value):''),type:field.type,standard:standard(family,context.kind),edits:[{buffer:doc.id,generation,start,end,expected:doc.text.slice(start,end),replacement}],selection:[start+replacement.length,start+replacement.length]});
+            completions.push({label:field.name+(options||field.type==='boolean'?' = '+JSON.stringify(value):''),type:field.type,standard:standard(family,context.kind),edits:[{buffer:doc.id,generation,start,end,expected:doc.text.slice(start,end),replacement}],selection:[start+replacement.length,start+replacement.length]});
         }
     }
     return completions;
