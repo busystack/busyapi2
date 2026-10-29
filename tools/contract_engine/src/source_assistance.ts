@@ -5,7 +5,7 @@ import { GraphReference, supportedSchemaDialect } from './reference_graph';
 import { referenceValue, securityBindings, securitySelectionScope } from './reference_choices';
 import {isNativeFamily} from './specification';
 import {swaggerFileChoiceTargets} from './swagger_file';
-const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '2.0' ? '2.0' : family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
+const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '2.0' ? '2.0' : family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: family === '2.0' ? 'swagger' : 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
 function located(input: any, doc: SourceDocument, pointer: string, extra: any = {}) {
     const resource = (input.resources as Resource[]).find(r => r.id === doc.id)!;
     return { root: input.root, resource: doc.id, pointer, generation: resource.generation, identity: resource.identity, ...doc.dataLocation(pointer), ...extra };
