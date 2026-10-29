@@ -161,6 +161,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_mock_responses.cjs"
 "$node_bin" "$engine_dir/test_mock_header_compositions.cjs"
 "$node_bin" "$engine_dir/test_mock_schema_samples.cjs"
+"$node_bin" "$engine_dir/test_mock_media_example_precedence.cjs"
 "$node_bin" "$engine_dir/test_mock_schema_sample_lifecycle.cjs"
 "$node_bin" "$engine_dir/test_mock_schema_shape_lifecycle.cjs"
 "$node_bin" "$engine_dir/test_mock_sample_negotiation.cjs"

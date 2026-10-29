@@ -4,7 +4,7 @@ import {SourceError,type Node} from './document';
 import {record} from './engine_worker_client';
 import {supportedSchemaDialect,type ReferenceGraph,type GraphTarget} from './reference_graph';
 import {modernFamily} from './specification';
-import {nativeMedia,selectNativeMedia,schemaLocation,type SchemaLocation,type SourceLocation,type NativeRuntimeInstance,type NativeRuntimeCheck} from './mock_projection';
+import {capturedMockResponseMedia,schemaLocation,type SchemaLocation,type SourceLocation,type NativeRuntimeInstance,type NativeRuntimeCheck} from './mock_projection';
 import {MockSchemaShapes} from './mock_schema_shapes';
 
 export const mockSampleProducer=Object.freeze({name:'busyapi-native-schema-samples',version:'2'});
@@ -122,20 +122,13 @@ export class MockSchemaSamples {
 
     async response(plan:unknown,status:string,actual:string,dynamic:boolean,signal:AbortSignal):Promise<string|undefined> {
         if(signal.aborted)throw new SourceError('cancelled','Mock schema sample selection was cancelled');
-        if(!record(plan)||!record(plan.operation)||!Array.isArray(plan.responses))
-            throw new SourceError('mock.validation.protocol','The captured response sample projection is malformed');
-        const responses=plan.responses.filter(record);
-        const declaration=responses.find(value=>value.status===status);
-        if(!declaration)return;
-        const media=selectNativeMedia(nativeMedia(declaration.content),actual);
-        if(!media)return;
-        const rawMedia=Array.isArray(declaration.content)
-            ?declaration.content.find(value=>record(value)&&value.mediaType===media.mediaType):undefined;
-        if(!record(rawMedia)||!Array.isArray(rawMedia.examples))
-            throw new SourceError('mock.validation.protocol','The captured media examples are malformed');
+        const rawMedia=capturedMockResponseMedia(plan,status,actual);
+        if(!rawMedia)return;
         // Static media examples override schema suggestions. Explicit dynamic
         // generation asks for constrained candidates instead of authored data.
-        if(!dynamic&&rawMedia.examples.length)return;
+        // Schema-origin choices still require this owner's exact-value proof;
+        // they are not authored Media Type overrides for the Prism adapter.
+        if(!dynamic&&rawMedia.examples.some(example=>example.origin!=='schema'))return;
         const schema=schemaLocation(rawMedia.schema);
         if(!schema)return;
         const scope=schemaContext(this.graph,schema.resource,schema.pointer);

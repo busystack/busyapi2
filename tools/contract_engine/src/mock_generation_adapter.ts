@@ -37,13 +37,13 @@ export function defaultSwaggerResponseMedia(document:Record<string,unknown>,oper
     })};
 }
 
-/** The pinned negotiator selects the response before native sample proof.
- * A request-owned generator view supplies that proved value to Prism; neither
+/** The pinned negotiator selects the response before native sample selection.
+ * A request-owned view supplies the captured example or proved value to Prism; neither
  * the authored schema nor the native validator receives this derived view. */
 export class MockGenerationAdapter {
     private readonly values=new WeakMap<IMediaTypeContent,string>();
 
-    constructor(private readonly native:Pick<MockNativeValidation,'generatedResponse'|'generationFailure'>) {}
+    constructor(private readonly native:Pick<MockNativeValidation,'authoredResponse'|'generatedResponse'|'generationFailure'>) {}
 
     async prepare(operation:IHttpOperation,configuration:Configuration,diagnostics:readonly Diagnostic[],logger:Logger,signal:AbortSignal):Promise<{operation:IHttpOperation;configuration:Configuration}> {
         const unchanged={operation,configuration};
@@ -61,7 +61,9 @@ export class MockGenerationAdapter {
         const essence=content.mediaType.split(';')[0].trim().toLowerCase();
         if(essence!=='application/json'&&!essence.endsWith('+json'))return unchanged;
         const dynamic=configuration.dynamic&&selected.bodyExample===undefined;
-        const raw=await this.native.generatedResponse(operation.path,operation.method,response.code,content.mediaType,dynamic,signal);
+        const authored=dynamic?undefined:this.native.authoredResponse(operation.path,operation.method,response.code,content.mediaType,
+            content.examples?.map(example=>example.key)??[],configuration.exampleKey,signal);
+        const raw=authored??await this.native.generatedResponse(operation.path,operation.method,response.code,content.mediaType,dynamic,signal);
         if(raw===undefined)return unchanged;
         const value:unknown=JSON.parse(raw);
         if(!generatorData(value))throw this.native.generationFailure(operation.path,operation.method,'mock.sample.projection','The captured sample cannot cross the bounded generator data boundary');

@@ -53,3 +53,19 @@ export function selectNativeMedia<T extends Pick<NativeMedia,'mediaType'>>(conte
         throw new SourceError('mock.content-type.ambiguous','Equally specific content declarations need an explicit interpretation',[0,0],'unsupported');
     return matches[0]?.media;
 }
+
+/** Recover the original native media declaration after the consumer selects
+ * a response and representation. Third-party schema samples are not examples
+ * authored on this declaration. */
+export function capturedMockResponseMedia(plan:unknown,status:string,actual:string):Record<string,any>|undefined {
+    if(!record(plan)||!record(plan.operation)||!Array.isArray(plan.responses))
+        throw new SourceError('mock.validation.protocol','The captured response sample projection is malformed');
+    const declaration=plan.responses.filter(record).find(value=>value.status===status);
+    if(!declaration)return;
+    const media=selectNativeMedia(nativeMedia(declaration.content),actual);
+    if(!media)return;
+    const raw=Array.isArray(declaration.content)?declaration.content.find(value=>record(value)&&value.mediaType===media.mediaType):undefined;
+    if(!record(raw)||!Array.isArray(raw.examples)||raw.examples.some(value=>!record(value)))
+        throw new SourceError('mock.validation.protocol','The captured media examples are malformed');
+    return raw;
+}

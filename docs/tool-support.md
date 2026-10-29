@@ -402,6 +402,16 @@ The focused CPU matrix covers all published declarations in both formats;
 eight native widget variants are analyzed only. See the
 [verification record](implementation/native-openapi-support.md) for current scope.
 
+Native JSON mocks distinguish schema-origin choices from explicit media
+examples. Schema suggestions keep the existing whole-schema proof and exact
+source bytes; explicit media examples retain precedence and named preferences.
+The pinned consumer's ordering among real named examples is preserved. Its
+synthetic schema default cannot shadow a media example or round the authored
+numeric lexeme. These are derived generator inputs; the original schema and
+received response validation remain authoritative. Shared working buffers and
+source-file preservation are covered in the focused verification record; current
+assembled and native acceptance remain separate.
+
 Raw `text/plain` request bodies honor explicit `ISO-8859-1` and `latin1`
 charsets with the SDK's strict one-byte encoder. Unrepresentable characters are
 refused before dispatch, including in preview. Concrete media selected from a

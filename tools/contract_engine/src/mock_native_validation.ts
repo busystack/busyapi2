@@ -1,5 +1,6 @@
 import {createGraph,type Resource} from './engine';
 import {requestOperation} from './execution';
+import {authoredMockResponseExample} from './mock_response_examples';
 import {SourceError,limits} from './document';
 import {EngineWorkerClient,record} from './engine_worker_client';
 import {mediaTypes} from './media_types';
@@ -157,6 +158,11 @@ export class MockNativeValidation {
 
     generatedResponse(path:string,method:string,status:string,actual:string,dynamic:boolean,signal:AbortSignal):Promise<string|undefined> {
         return this.samples.response(this.plan(path,method).description,status,actual,dynamic,signal);
+    }
+
+    authoredResponse(path:string,method:string,status:string,actual:string,keys:readonly string[],preferred:string|undefined,signal:AbortSignal):string|undefined {
+        if(signal.aborted)throw new SourceError('cancelled','Mock example selection was cancelled');
+        return authoredMockResponseExample(this.plan(path,method).description,status,actual,keys,preferred);
     }
 
     generationFailure(path:string,method:string,code:string,message:string):SourceError {
