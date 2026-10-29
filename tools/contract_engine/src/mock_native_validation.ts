@@ -160,9 +160,9 @@ export class MockNativeValidation {
         return this.samples.response(this.plan(path,method).description,status,actual,dynamic,signal);
     }
 
-    authoredResponse(path:string,method:string,status:string,actual:string,keys:readonly string[],preferred:string|undefined,signal:AbortSignal):string|undefined {
+    authoredResponse(path:string,method:string,status:string,actual:string,keys:readonly string[],signal:AbortSignal):string|undefined {
         if(signal.aborted)throw new SourceError('cancelled','Mock example selection was cancelled');
-        return authoredMockResponseExample(this.plan(path,method).description,status,actual,keys,preferred);
+        return authoredMockResponseExample(this.plan(path,method).description,status,actual,keys);
     }
 
     generationFailure(path:string,method:string,code:string,message:string):SourceError {

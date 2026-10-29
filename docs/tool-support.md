@@ -404,7 +404,10 @@ eight native widget variants are analyzed only. See the
 
 Native JSON mocks distinguish schema-origin choices from explicit media
 examples. Schema suggestions keep the existing whole-schema proof and exact
-source bytes; explicit media examples retain precedence and named preferences.
+source bytes; explicit media examples retain precedence and the actual negotiated
+choice. Invalid requests can suppress a requested example preference under the
+pinned Prism policy; exact bytes follow the selected response rather than the
+raw request preference.
 The pinned consumer's ordering among real named examples is preserved. Its
 synthetic schema default cannot shadow a media example or round the authored
 numeric lexeme. These are derived generator inputs; the original schema and

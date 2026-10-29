@@ -61,8 +61,12 @@ export class MockGenerationAdapter {
         const essence=content.mediaType.split(';')[0].trim().toLowerCase();
         if(essence!=='application/json'&&!essence.endsWith('+json'))return unchanged;
         const dynamic=configuration.dynamic&&selected.bodyExample===undefined;
+        // Invalid-input negotiation can suppress the requested example key.
+        // Preserve its actual choice before skipping synthesized schema defaults.
+        const keys=content.examples?.map(example=>example.key)??[];
+        if(selected.bodyExample!==undefined)keys.unshift(selected.bodyExample.key);
         const authored=dynamic?undefined:this.native.authoredResponse(operation.path,operation.method,response.code,content.mediaType,
-            content.examples?.map(example=>example.key)??[],configuration.exampleKey,signal);
+            keys,signal);
         const raw=authored??await this.native.generatedResponse(operation.path,operation.method,response.code,content.mediaType,dynamic,signal);
         if(raw===undefined)return unchanged;
         const value:unknown=JSON.parse(raw);
