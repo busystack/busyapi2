@@ -101,11 +101,12 @@ async function evaluateRuntimeValues(runtime:unknown,owner:Owner,diagnostics?:{o
    const identity=createHash('sha256').update(JSON.stringify([owner.snapshot,index,supplied.subject,supplied.mediaType])).digest('hex');
    // A Swagger response file has no internal form data model (§6.4.12).
    // Its captured schema takes precedence over the media type's usual codec.
-   if(supplied.form&&!fileSchema){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph);decoded=form;}
-   else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,fileSchema?'file':octets?'octets':family==='2.0'||family==='3.0'?'legacy-octets':family==='3.1'||family==='3.2'?'binary':'unsupported',supplied.unicodeSerialization===true?supplied.textSerialization??'unicode':undefined);
-   // OAS 3.2 §4.19.2.3 requires a defined Unicode serialization. Opaque
-   // binary instances, including nested parts, cannot supply that proof.
-   if(supplied.unicodeSerialization===true&&((decoded.binaryInstances?.size??0)>0||form?.checks.some(check=>(check.binary?.size??0)>0)))
+   const textSerialization=supplied.unicodeSerialization===true?supplied.textSerialization??'unicode':undefined;
+   if(supplied.form&&!fileSchema){form=decodeRuntimeForm(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType!,supplied.mediaBase64===true,supplied.form,supplied.subject,owner.graph,textSerialization);decoded=form;}
+   else decoded=decodeRuntimeMedia(supplied.text,'urn:busyapi:runtime:'+identity,supplied.mediaType,supplied.mediaBase64,fileSchema?'file':octets?'octets':family==='2.0'||family==='3.0'?'legacy-octets':family==='3.1'||family==='3.2'?'binary':'unsupported',textSerialization);
+   // Strict form decoding proves each leaf's wire representation, including
+   // ASCII MIME transfer formats. Other opaque instances supply no Unicode proof.
+   if(supplied.unicodeSerialization===true&&(!form||textSerialization!=='unicode')&&((decoded.binaryInstances?.size??0)>0||form?.checks.some(check=>(check.binary?.size??0)>0)))
     throw new SourceError('runtime.media.unicode.unsupported','A serialized Unicode example contains an opaque binary representation; use an external serialized resource',[0,0],'unsupported');
   }catch(error){
    const limited=error instanceof SourceError&&error.code.startsWith('limit.');

@@ -4,8 +4,8 @@ import {FormSemantics,formLiteralType,type FormShape} from './form_semantics';
 import {MultipartEncoding,type MultipartSchemaStep,type MultipartTransfer} from './multipart_encoding';
 import {mediaTypes,mediaTypeChoice} from './media_types';
 import {mimeParts,mimeSingleton,mimePartDecodingType} from './mime_parts';
-import {decodeMultipartTransfer} from './multipart_transfer';
-import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind} from './runtime_media';
+import {decodeMultipartTransfer,multipartTextSerialization} from './multipart_transfer';
+import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind,type TextSerialization} from './runtime_media';
 import {mimeHeaders} from './mime_headers';
 import type {MimeHeaderFormDecoder} from './mime_header_content';
 import {prefixBinary,type BinaryLocations} from './runtime_binary';
@@ -18,7 +18,8 @@ const object=(value:unknown):value is ObjectValue=>value!==null&&typeof value===
 /** OAS 3.2 §§4.14.3/4.14.5/4.15.2: wire positions and nested encodings
  * project into exact CST instances. The original captured schemas, including
  * itemSchema, remain the only authority for their constraints. */
-export function decodeRuntimeMultipart(text:string,id:string,contentType:string,base64:boolean,target:RuntimeFormTarget,graph:ReferenceGraph,decodeHeaderForm:MimeHeaderFormDecoder):RuntimeFormData|undefined {
+export function decodeRuntimeMultipart(text:string,id:string,contentType:string,base64:boolean,target:RuntimeFormTarget,graph:ReferenceGraph,decodeHeaderForm:MimeHeaderFormDecoder,textSerialization?:TextSerialization):RuntimeFormData|undefined {
+    const unicode=textSerialization==='unicode'?'unicode':undefined;
     const owner=graph.docs.get(target.resource)?.dataNode(target.pointer),media=owner?.value;
     if(!object(media))throw new SourceError('runtime.form.owner','The captured multipart Media Type Object is unavailable',owner?.range??[0,0]);
     const forms=new FormSemantics(graph);
@@ -40,7 +41,7 @@ export function decodeRuntimeMultipart(text:string,id:string,contentType:string,
     const fail=(code:string,message:string,at:GraphTarget,unsupported=true):never=>transfers.failure(code,message,at,unsupported);
     const descend=(hint:Hint,step:MultipartSchemaStep):Hint=>({schema:hint.schema,path:[...hint.path,step],
         shape:'property' in step?hint.shape.properties?.[step.property]??{}:step.item===undefined?hint.shape.items??{}:hint.shape.prefixItems?.[step.item]??hint.shape.items??{}});
-    const decode=(bytes:Buffer,type:string,rule:ObjectValue,at:GraphTarget,values:Hint[],prefix:string,depth:number):{raw:string;binary:BinaryLocations;items?:SourceDocument[]}=>{
+    const decode=(bytes:Buffer,type:string,rule:ObjectValue,at:GraphTarget,values:Hint[],prefix:string,depth:number,serialization:TextSerialization|undefined):{raw:string;binary:BinaryLocations;items?:SourceDocument[]}=>{
         if(depth>8)fail('limit.runtime.multipart.depth','Nested multipart decoding exceeds eight levels',at);
         const concrete=mediaTypes(type,false)[0],form=concrete.subtype==='form-data';
         const array=!form||values[0]?.shape.types?.includes('array')===true;
@@ -83,18 +84,19 @@ export function decodeRuntimeMultipart(text:string,id:string,contentType:string,
             if(explicit!==undefined&&expected!==undefined&&explicit.toLowerCase()!==expected.toLowerCase())fail('runtime.form.transfer.undefined','The part header conflicts with its schema transfer encoding',transfer.source?{...transfer.source,kind:'schema'}:entryAt);
             if(actualType.type==='multipart'&&!['binary','7bit','8bit'].includes((explicit??expected??'binary').toLowerCase()))
                 fail('runtime.form.syntax','A multipart entity permits only binary, 7bit or 8bit transfer encoding',entryAt,false);
-            const payload=decodeMultipartTransfer(part.bytes,explicit??expected??'binary');
+            const transferEncoding=explicit??expected??'binary',payload=decodeMultipartTransfer(part.bytes,transferEncoding);
+            const partSerialization=multipartTextSerialization(part.bytes,transferEncoding,payload,serialization==='unicode');
             let raw:string;
             let partBinary:BinaryLocations=new Map();
             if(transfer.schemaEncoded){
-                if(runtimeMediaKind(actual)!=='opaque')decodeRuntimeMedia(payload.bytes.toString('base64'),id+'/encoded-media/'+serial++,decodingType,true);
+                if(partSerialization||runtimeMediaKind(actual)!=='opaque')decodeRuntimeMedia(payload.bytes.toString('base64'),id+'/encoded-media/'+serial++,decodingType,true,'unsupported',partSerialization);
                 raw=JSON.stringify(payload.encoded??decodeRuntimeMedia(payload.bytes.toString('base64'),id+'/encoded/'+serial++,'text/plain; charset=utf-8',true).document.root.value);
             }
             else if(mediaTypes(actual,false)[0].type==='multipart'){
-                const child=decode(payload.bytes,actual,encoding,entryAt,itemHints,partPrefix,depth+1);raw=child.raw;partBinary=child.binary;
+                const child=decode(payload.bytes,actual,encoding,entryAt,itemHints,partPrefix,depth+1,partSerialization);raw=child.raw;partBinary=child.binary;
             }
             else{
-                const decoded=decodeRuntimeMedia(payload.bytes.toString('base64'),id+'/part/'+serial++,decodingType,true,transfer.instanceEncoding==='octets'?'octets':'binary');
+                const decoded=decodeRuntimeMedia(payload.bytes.toString('base64'),id+'/part/'+serial++,decodingType,true,transfer.instanceEncoding==='octets'?'octets':'binary',partSerialization);
                 partBinary=decoded.binaryInstances?.get(decoded.document)??partBinary;
                 const value=decoded.document.dataJson(''),type=formLiteralType(field);
                 if(decoded.kind==='text'&&type!==undefined&&type!=='string'){
@@ -117,6 +119,6 @@ export function decodeRuntimeMultipart(text:string,id:string,contentType:string,
         });
         return {raw:'{'+fields.join(',')+'}',binary};
     };
-    const result=decode(runtimeMediaBytes(text,base64),contentType,media,{resource:target.resource,pointer:target.pointer,kind:'media'},whole?[whole]:[], '',0);
+    const result=decode(runtimeMediaBytes(text,base64),contentType,media,{resource:target.resource,pointer:target.pointer,kind:'media'},whole?[whole]:[], '',0,unicode);
     return {document:parse(result.raw,result.binary),items:result.items,binaryInstances,kind:result.items?'multipart-sequence':'multipart-form',checks,issues};
 }

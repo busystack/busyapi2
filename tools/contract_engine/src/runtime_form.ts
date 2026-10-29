@@ -3,9 +3,9 @@ import type {GraphTarget,ReferenceGraph} from './reference_graph';
 import {FormSemantics,formLiteralType,namedFileShapeSelection,type FormShape} from './form_semantics';
 import {ParameterSemantics} from './parameter_semantics';
 import {mediaTypeChoice,mediaTypes} from './media_types';
-import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind,type RuntimeMediaData} from './runtime_media';
+import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind,type RuntimeMediaData,type TextSerialization} from './runtime_media';
 import {MultipartEncoding} from './multipart_encoding';
-import {decodeMultipartTransfer} from './multipart_transfer';
+import {decodeMultipartTransfer,multipartTextSerialization} from './multipart_transfer';
 import {mimeParts,mimePartDecodingType,mimeSingleton as singleton} from './mime_parts';
 import {decodeRuntimeMultipart} from './runtime_multipart';
 import {mimeHeaders} from './mime_headers';
@@ -73,7 +73,8 @@ function parts(bytes:Buffer,contentType:string,allowGenericNamed:boolean):Part[]
 /** Contextual inversion of the canonical form projection, not a schema merger.
  * Scalar text is literal for strings and strict JSON for declared numeric,
  * boolean and null types. Content-based JSON keeps its CST numeric lexemes. */
-export function decodeRuntimeForm(text:string,id:string,contentType:string,base64:boolean,target:RuntimeFormTarget,subject:string,graph:ReferenceGraph):RuntimeFormData {
+export function decodeRuntimeForm(text:string,id:string,contentType:string,base64:boolean,target:RuntimeFormTarget,subject:string,graph:ReferenceGraph,textSerialization?:TextSerialization):RuntimeFormData {
+    const unicode=textSerialization==='unicode'?'unicode':undefined;
     const owner=graph.docs.get(target.resource),node=owner?.dataNode(target.pointer),scope=graph.scopes.get(target.resource+'#'+target.pointer);
     const failure=(code:string,message:string,at:Location=target,unsupported=true):never=>{
         const source=graph.docs.get(at.resource)?.dataNode(at.pointer),range:Range=source?.range??[0,0];
@@ -82,9 +83,11 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
     if(!owner||!node||!scope)failure('runtime.form.owner','The captured form owner is unavailable');
     if(Object.keys(target.fileShapes??{}).length&&(!namedFileShapeSelection(scope.family,contentType,false)||subject!=='request-body'))
         failure('runtime.form.file-shape','File value shapes require a captured named multipart request');
+    // MIME field lines already have their ASCII/UTF-8 framing proof. A
+    // Header.content model does not replace the part body's serialization.
     const decodeHeaderForm=(text:string,id:string,type:string,target:RuntimeFormTarget)=>decodeRuntimeForm(text,id,type,false,target,subject,graph);
     if(scope.family==='3.2'&&scope.kind==='media'&&mediaTypes(contentType,false)[0].type==='multipart'){
-        const decoded=decodeRuntimeMultipart(text,id,contentType,base64,target,graph,decodeHeaderForm);
+        const decoded=decodeRuntimeMultipart(text,id,contentType,base64,target,graph,decodeHeaderForm,unicode);
         if(decoded)return decoded;
     }
     const input=parts(runtimeMediaBytes(text,base64),contentType,scope.kind==='media'&&(scope.family==='3.0'||scope.family==='3.1')),multipart=mediaTypes(contentType,false)[0].type==='multipart';
@@ -107,14 +110,17 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
         issues.push({code,message,pointer:'/'+escape(name),severity,source:{...at,range}});
     };
     const scalar=(value:string,type?:string)=>type===undefined||type==='string'?JSON.stringify(value):document(value,'scalar').dataJson('');
-    const bytesText=(bytes:Buffer,mediaType='text/plain; charset=utf-8'):string=>{
-        const decoded=decodeRuntimeMedia(bytes.toString('base64'),id+'/text',mediaType,true);
+    const bytesText=(bytes:Buffer,mediaType:string,serialization:TextSerialization|undefined):string=>{
+        const decoded=decodeRuntimeMedia(bytes.toString('base64'),id+'/text',mediaType,true,'unsupported',serialization);
         if(decoded.kind!=='text')return failure('runtime.form.media.unsupported','This field requires a text decoder');
         const value=decoded.document.root.value;
         if(typeof value!=='string')throw new SourceError('runtime.form.protocol','A text decoder returned another data kind');
         return value;
     };
-    const unencoded=(part:Part)=>decodeMultipartTransfer(part.bytes,singleton(part.headers,'content-transfer-encoding')??'binary').bytes;
+    const payload=(part:Part)=>{
+        const encoding=singleton(part.headers,'content-transfer-encoding')??'binary',decoded=decodeMultipartTransfer(part.bytes,encoding);
+        return {...decoded,serialization:multipartTextSerialization(part.bytes,encoding,decoded,unicode!==undefined)};
+    };
     if(scope.family==='2.0'&&scope.kind==='operation'){
         const occurrences=graph.operations().filter(operation=>operation.source.resource===target.resource&&operation.source.pointer===target.pointer&&(target.occurrence===undefined||operation.occurrence===target.occurrence));
         if(occurrences.length!==1)failure('runtime.form.owner','Choose one captured operation occurrence for these form parameters');
@@ -137,10 +143,14 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             if(value.type==='file'){
                 if(!multipart)failure('runtime.form.file.unsupported','File parameters require a multipart representation',definition);
                 if(values.length!==1)return syntax('A file parameter occurs more than once');
-                unencoded(values[0]);checks.push({document:document('null','file/'+checks.length),prefix:'/'+escape(name),file:true});continue;
+                const value=payload(values[0]);
+                if(value.serialization)decodeRuntimeMedia(value.bytes.toString('base64'),id+'/file',mimePartDecodingType(singleton(values[0].headers,'content-type')??'application/octet-stream',true),true,'unsupported',value.serialization);
+                checks.push({document:document('null','file/'+checks.length),prefix:'/'+escape(name),file:true});continue;
             }
             if(value.allowEmptyValue!==true&&values.some(part=>part.bytes.length===0))issue('runtime.request.form.empty','This parameter does not allow an empty wire value',name,definition);
-            const tokens=values.map(part=>bytesText(unencoded(part),mimePartDecodingType(singleton(part.headers,'content-type')??'text/plain; charset=utf-8',mediaTypes(contentType,false)[0].subtype==='form-data')));
+            const tokens=values.map(part=>{
+                const value=payload(part);return bytesText(value.bytes,mimePartDecodingType(singleton(part.headers,'content-type')??'text/plain; charset=utf-8',mediaTypes(contentType,false)[0].subtype==='form-data'),value.serialization);
+            });
             const items=value.items;
             const raw=value.type==='array'&&value.collectionFormat==='multi'&&object(items)?'['+tokens.map(token=>flat(items,token)).join(',')+']':tokens.length===1?flat(value,tokens[0]):failure('runtime.form.scalar','A scalar or separated collection occurs more than once',definition,false);
             members.set(name,raw);checks.push({document:document(raw,'parameter/'+checks.length),schema:definition,prefix:'/'+escape(name)});
@@ -202,18 +212,22 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             const actual=singleton(part.headers,'content-transfer-encoding'),expected=transfer.encoding;
             if(actual!==undefined&&expected!==undefined&&actual.toLowerCase()!==expected.toLowerCase())
                 failure('runtime.form.transfer.undefined','The part header conflicts with its schema transfer encoding',transfer.source??schema);
-            const decoded=decodeMultipartTransfer(part.bytes,actual??expected??'binary'),bytes=decoded.bytes;
+            const transferEncoding=actual??expected??'binary',decoded=decodeMultipartTransfer(part.bytes,transferEncoding),bytes=decoded.bytes;
+            const serialization=multipartTextSerialization(part.bytes,transferEncoding,decoded,unicode!==undefined);
             if(transfer.schemaEncoded){
-                if(runtimeMediaKind(concrete)!=='opaque')decodeRuntimeMedia(bytes.toString('base64'),id+'/encoded-media',decodingType,true);
-                return JSON.stringify(decoded.encoded??bytesText(bytes));
+                if(serialization||runtimeMediaKind(concrete)!=='opaque')decodeRuntimeMedia(bytes.toString('base64'),id+'/encoded-media',decodingType,true,'unsupported',serialization);
+                return JSON.stringify(decoded.encoded??bytesText(bytes,'text/plain; charset=utf-8',serialization));
             }
-            if(transfer.instanceEncoding==='octets')return JSON.stringify(bytes.toString('latin1'));
+            if(transfer.instanceEncoding==='octets'){
+                if(serialization)decodeRuntimeMedia(bytes.toString('base64'),id+'/octet-media',decodingType,true,'octets',serialization);
+                return JSON.stringify(bytes.toString('latin1'));
+            }
             const essence=mediaTypes(concrete,false)[0],json=essence.subtype==='json'||essence.subtype.endsWith('+json');
-            if(json)return decodeRuntimeMedia(bytes.toString('base64'),id+'/json',concrete,true).document.dataJson('');
-            if(essence.type==='text'&&essence.subtype==='plain')return scalar(bytesText(bytes,decodingType),type);
-            if(scope.family==='3.0')return decodeRuntimeMedia(bytes.toString('base64'),id+'/octets',concrete,true,'legacy-octets').document.dataJson('');
+            if(json)return decodeRuntimeMedia(bytes.toString('base64'),id+'/json',concrete,true,'unsupported',serialization).document.dataJson('');
+            if(essence.type==='text'&&essence.subtype==='plain')return scalar(bytesText(bytes,decodingType,serialization),type);
+            if(scope.family==='3.0')return decodeRuntimeMedia(bytes.toString('base64'),id+'/octets',concrete,true,'legacy-octets',serialization).document.dataJson('');
             if(scope.family==='3.1'||scope.family==='3.2'){
-                const value=decodeRuntimeMedia(bytes.toString('base64'),id+'/binary',concrete,true,'binary');
+                const value=decodeRuntimeMedia(bytes.toString('base64'),id+'/binary',concrete,true,'binary',serialization);
                 const leaf=value.binaryInstances?.get(value.document)?.get('');
                 if(leaf!==undefined){binary.set(pointer,leaf);return value.document.dataJson('');}
             }
@@ -229,7 +243,9 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             if(styled(rule)){
                 const style=typeof rule.style==='string'?rule.style:'form',explode=typeof rule.explode==='boolean'?rule.explode:style==='form';
                 const separator=style==='spaceDelimited'?' ':style==='pipeDelimited'?'|':style==='tabDelimited'?'\t':',';
-                const read=(part:Part)=>bytesText(unencoded(part),multipart?mimePartDecodingType(singleton(part.headers,'content-type')??'text/plain',mediaTypes(contentType,false)[0].subtype==='form-data'):'text/plain; charset=utf-8');
+                const read=(part:Part)=>{
+                    const value=payload(part);return bytesText(value.bytes,multipart?mimePartDecodingType(singleton(part.headers,'content-type')??'text/plain',mediaTypes(contentType,false)[0].subtype==='form-data'):'text/plain; charset=utf-8',value.serialization);
+                };
                 for(const part of values)partHeaders(part,rule,name);
                 const split=(part:Part)=>part.encoded&&separator===','?part.encoded.toString('latin1').split(',').map(token=>utf8(unquote(Buffer.from(token,'latin1')))):read(part).split(separator);
                 if(type==='object'){
@@ -265,6 +281,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
             members.set(name,array?'['+raw.join(',')+']':raw[0]);
         }
     }
+    if(unicode&&multipart&&input.some(part=>!claimed.has(part)))failure('runtime.media.unicode.unsupported','An uninterpreted MIME field has no established Unicode serialization');
     const result=document('{'+[...members].map(([name,value])=>JSON.stringify(name)+':'+value).join(',')+'}','body');
     return {document:result,...(binary.size?{binaryInstances:new Map<SourceDocument,BinaryLocations>([[result,binary]])}:{}),kind:multipart?'multipart-form':'form-urlencoded',checks,issues};
 }

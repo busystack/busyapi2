@@ -92,6 +92,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_enum_alias_provenance.cjs"
 "$node_bin" "$engine_dir/test_runtime_media.cjs"
 "$node_bin" "$engine_dir/test_plain_text_charsets.cjs"
+"$node_bin" "$engine_dir/test_compound_unicode_examples.cjs"
 "$node_bin" "$engine_dir/test_binary_instances.cjs"
 "$node_bin" "$engine_dir/test_binary_media_selection.cjs"
 "$node_bin" "$engine_dir/test_swagger_binary_media.cjs"

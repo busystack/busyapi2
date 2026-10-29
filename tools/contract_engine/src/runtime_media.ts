@@ -61,6 +61,12 @@ export function decodeRuntimeMedia(text:string,id:string,contentType?:string,bas
  const type=contentType===undefined?undefined:mediaTypes(contentType,false);
  if(type&&type.length!==1)throw new SourceError('runtime.media.type','Runtime content requires one concrete media type');
  const kind=contentType===undefined?'json':runtimeMediaKind(contentType);
+ // OAS 3.2 §4.19.2.3 applies to each MIME leaf, including leaves decoded
+ // from captured bytes. An octet projection is not a Unicode serialization.
+ if(textSerialization==='unicode'){
+  if(kind==='opaque')throw new SourceError('runtime.media.unicode.unsupported','This media type has no established Unicode serialization; use an external serialized resource',[0,0],'unsupported');
+  if(kind==='text')plainTextCharset(type?.[0].parameters.get('charset'),true);
+ }
  let bytes:Buffer|undefined;
  if(base64)bytes=runtimeMediaBytes(text,true);
  const parse=(value:string,suffix='')=>{
@@ -69,6 +75,7 @@ export function decodeRuntimeMedia(text:string,id:string,contentType?:string,bas
   return doc;
  };
  if(opaque==='file'){
+  if(textSerialization==='unicode')decodeRuntimeMedia(text,id+'/file-media',contentType,base64,'unsupported',textSerialization);
   if(bytes===undefined)runtimeMediaBytes(text,false);
   return {document:parse('null'),kind:'file'};
  }
@@ -86,7 +93,6 @@ export function decodeRuntimeMedia(text:string,id:string,contentType?:string,bas
   const value=(bytes??Buffer.from(text,'utf8')).toString('latin1');
   return {document:parse(JSON.stringify(value)),kind:'octets'};
  }
- if(textSerialization&&kind==='text')validatePlainText(text,type?.[0].parameters.get('charset'),textSerialization==='unicode');
  try{if(bytes){
   const charset=kind==='text'?plainTextCharset(type?.[0].parameters.get('charset')):type?.[0].parameters.get('charset')??'utf-8';
   const utf8=charset==='utf-8'||charset==='utf8';
@@ -102,6 +108,7 @@ export function decodeRuntimeMedia(text:string,id:string,contentType?:string,bas
   if(error instanceof TypeError)throw new SourceError('runtime.media.encoding','The bytes do not use the required text encoding');
   throw error;
  }
+ if(textSerialization&&kind==='text')validatePlainText(text,type?.[0].parameters.get('charset'),textSerialization==='unicode');
  if(kind==='json')return {document:parse(text),kind};
  if(kind==='text')return {document:parse(JSON.stringify(text)),kind};
  const items:SourceDocument[]=[];

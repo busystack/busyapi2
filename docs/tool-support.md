@@ -380,6 +380,8 @@ empty multipart generation is refused before dispatch. MIME decoding requires
 an opening part and rejects reserved boundary prefixes, including nested boundary
 collisions. Explicit serialized entities retain their exact bytes for findings.
 
+OpenAPI 3.2 `serializedValue` eligibility follows each MIME body leaf, including nested parts. UTF-8, ASCII and the established MIME/form defaults use their own character-set rules. A known ASCII transfer representation, including Base64, quoted-printable or explicit 7bit, proves the wire serialization independently of the decoded media character set. Other non-Unicode or unsupported leaves remain incomplete; non-ASCII transfer padding has no native ASCII proof. Actual captured byte decoding retains Latin1 and binary support, and older embedded string examples retain their existing context. Whole-contract request conformance includes authored-example limitations; a valid byte payload does not erase an unsupported example in that capture. See [3.2 §4.19.2.3](https://spec.openapis.org/oas/v3.2.1.html#criteria-for-serializedvalue) and the [focused verification record](implementation/native-openapi-support.md).
+
 The request composer offers authored Schema Object examples when the media or
 parameter has no explicit `example` or `examples`. Swagger body parameters use
 their native `schema.example`; OpenAPI 3.0 uses its Schema Object `example`;

@@ -1,7 +1,20 @@
 import {SourceError} from './document';
+import type {TextSerialization} from './runtime_media';
 
 export type DecodedMultipartTransfer={bytes:Buffer;encoded?:string};
 const invalid=():never=>{throw new SourceError('runtime.multipart.encoding','The part does not use its declared MIME transfer encoding');};
+
+/** OAS 3.2 §4.19.2.3: a known ASCII transfer format establishes the wire
+ * serialization independently of the decoded media's character set. RFC 2045
+ * §§2.7, 6.7–6.8; other parts still need their media's Unicode proof. */
+export function multipartTextSerialization(bytes:Buffer,encoding:string,decoded:DecodedMultipartTransfer,requested:boolean):TextSerialization|undefined {
+    if(!requested)return;
+    if(decoded.encoded!==undefined||encoding.toLowerCase()==='7bit'){
+        if(bytes.some(byte=>byte>127))throw new SourceError('runtime.media.unicode.unsupported','This MIME transfer representation contains non-ASCII octets; use an external serialized resource',[0,0],'unsupported');
+        return;
+    }
+    return 'unicode';
+}
 
 /** Finite MIME representation decoding (RFC 2045 §§2,6; RFC 4648). The
  * caller retains the original bytes; this value is for instance evaluation. */

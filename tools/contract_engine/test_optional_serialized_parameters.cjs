@@ -113,4 +113,4 @@ for(const version of ['2.0','3.0.0','3.0.1','3.0.2','3.0.3','3.0.4','3.1.0','3.1
   assert.equal(input.resources[0].text,original);
  });
 }
-test('omission semantics have a new captured evaluator identity',()=>{assert.equal(schemaProducer.version,'1.18.0+41');assert(schemaProducer.configuration.includes('parameter-example-serialization-v2'));});
+test('omission semantics have a new captured evaluator identity',()=>{assert.equal(schemaProducer.version,'1.18.0+42');assert(schemaProducer.configuration.includes('parameter-example-serialization-v2'));});
