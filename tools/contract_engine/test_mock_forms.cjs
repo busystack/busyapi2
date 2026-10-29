@@ -30,7 +30,7 @@ for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const format of ['json'
  const source=serialized.replaceAll(format==='json'?'"__exact__"':'__exact__','9007199254740993.00'),input=mockStart(source,{},'file:///mock-fixture/api.'+format),original=JSON.stringify(input.capture),{port}=await startMock(t,input);
  for(const multipart of [false,true]){
   const send=async values=>{const {body,mediaType}=wire(values,multipart);return mockRequest(port,'/form',body,{mediaType});};
-  const positive=await send(fields(legacy));assert.equal(positive.status,204,positive.text);
+  const positive=await send(fields(legacy));assert.equal(positive.status,204,JSON.stringify({multipart,response:positive.text}));
   for(const values of [
    fields(legacy).map(([name,value])=>[name,name==='amount'?'9007199254740992':value]),
    fields(legacy).map(([name,value])=>[name,name==='flag'?'true':value]),

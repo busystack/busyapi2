@@ -196,7 +196,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
                 undeclared&&multipart?singleton(part.headers,'content-type')??'text/plain':field.defaultContentType??(undeclared||scope.family==='3.0'?'text/plain':'application/octet-stream');
             const concrete=multipart?singleton(part.headers,'content-type')??'text/plain':mediaTypeChoice(declared);
             if(multipart)mediaTypeChoice(declared,concrete);
-            const decodingType=multipart?mimePartDecodingType(concrete,mediaTypes(contentType,false)[0].subtype==='form-data'):concrete;
+            const decodingType=mimePartDecodingType(concrete,!multipart||mediaTypes(contentType,false)[0].subtype==='form-data');
             const transfer=multipart&&graph.scopes.has(schema.resource+'#'+schema.pointer)?transfers.schemaEncoding(schema,name,array,type!==undefined&&type!=='string'?'other':undefined,Object.hasOwn(selectedShapes,name)):{schemaEncoded:false};
             partHeaders(part,rule,name);
             const actual=singleton(part.headers,'content-transfer-encoding'),expected=transfer.encoding;

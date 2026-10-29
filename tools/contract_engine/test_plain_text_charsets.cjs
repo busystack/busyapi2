@@ -86,24 +86,24 @@ for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const format of ['yaml'
  for(const [name,mediaType,,,bytes]of cases){const response=await wire(proxy.port,'/'+name);assert.equal(response.status,200);assert.equal(response.headers['content-type'],mediaType);assert.deepEqual(response.bytes,bytes);assert.equal(response.headers['busyapi-response-validation-complete'],'true');const findings=JSON.parse(response.headers['sl-violations']??'[]');if(name==='bare')assert(findings.some(value=>value.code==='runtime.body.syntax'),JSON.stringify(findings));else assert.deepEqual(findings,[]);}
  assert.equal(JSON.stringify(input.capture),before);
 });
-test('plain-text evaluation has a revised captured identity',()=>{assert.equal(schemaProducer.version,'1.18.0+40');assert(schemaProducer.configuration.includes('runtime-media-v3'));});
+test('plain-text evaluation has a revised captured identity',()=>{assert.equal(schemaProducer.version,'1.18.0+41');assert(schemaProducer.configuration.includes('runtime-media-v3'));assert(schemaProducer.configuration.includes('form-context-v2'));});
 test('text serialization context is bounded and requires a Unicode string instance',async()=>{
  const root='file:///controlled/protocol.json',resources=[{id:root,text:JSON.stringify(api('3.2.1')),generation:1}];
  for(const extra of [{textSerialization:'other',unicodeSerialization:true},{textSerialization:true,unicodeSerialization:true},{textSerialization:'embedded'},{textSerialization:'unicode',unicodeSerialization:false},{textSerialization:'embedded',unicodeSerialization:true,mediaBase64:true}]){
   await assert.rejects(evaluateSchemas({root,snapshot:'protocol',resources,runtimeInstances:[{subject:'request-body',location:'text',text:'false',mediaType:'text/plain',...extra}]}),error=>error.code==='runtime.instance');
  }
 });
-for(const version of versions)for(const format of ['yaml','json'])test(`${version} ${format} form-data retains its explicit application charset policy`,async()=>{
+for(const version of versions)for(const format of ['yaml','json'])test(`${version} ${format} form fields retain their explicit UTF-8 context`,async()=>{
  const document=api(version),legacy=version==='2.0',root='file:///controlled/form-text.'+format;
- const schema={type:'object',properties:{value:{type:'string',enum:['雪😀']}}};
- document.paths['/parts']={post:{...(legacy?{consumes:['multipart/form-data'],parameters:[{in:'formData',name:'value',type:'string',enum:['雪😀']}]}:{requestBody:{content:{'multipart/form-data':{schema}}}}),responses:{204:{description:'None'}}}};
- const at='/paths/~1parts/post'+(legacy?'':'/requestBody/content/multipart~1form-data');
+ const schema={type:'object',properties:{value:{type:'string',enum:['雪😀']}}},types=['multipart/form-data','application/x-www-form-urlencoded'];
+ document.paths['/parts']={post:{...(legacy?{consumes:types,parameters:[{in:'formData',name:'value',type:'string',enum:['雪😀']}]}:{requestBody:{content:Object.fromEntries(types.map(type=>[type,{schema:structuredClone(schema)}]))}}),responses:{204:{description:'None'}}}};
  const resources=[{id:root,text:render(document,format),generation:5}],original=resources[0].text;
- for(const header of ['', 'Content-Type: text/plain\r\n']){
-  const wire='--Charset\r\nContent-Disposition: form-data; name="value"\r\n'+header+'\r\n雪😀\r\n--Charset--\r\n';
-  const result=await evaluateSchemas({root,snapshot:version+format,resources,runtimeInstances:[{subject:'request-body',location:'form',text:Buffer.from(wire).toString('base64'),mediaType:'multipart/form-data; boundary=Charset',mediaBase64:true,form:{resource:root,pointer:at},...(!legacy?{schema:{resource:root,pointer:at+'/schema'}}:{})}]});
+ const wires=[...['', 'Content-Type: text/plain\r\n'].map(header=>['multipart/form-data; boundary=Charset','--Charset\r\nContent-Disposition: form-data; name="value"\r\n'+header+'\r\n雪😀\r\n--Charset--\r\n']),['application/x-www-form-urlencoded','value='+encodeURIComponent('雪😀')]];
+ for(const [mediaType,wire]of wires){
+  const at='/paths/~1parts/post'+(legacy?'':'/requestBody/content/'+mediaType.split(';')[0].replaceAll('/','~1'));
+  const result=await evaluateSchemas({root,snapshot:version+format,resources,runtimeInstances:[{subject:'request-body',location:'form',text:Buffer.from(wire).toString('base64'),mediaType,mediaBase64:true,form:{resource:root,pointer:at},...(!legacy?{schema:{resource:root,pointer:at+'/schema'}}:{})}]});
   assert.equal(result.complete,true,JSON.stringify(result.runtimeFindings));assert(result.runtimeEvaluations.length>0);
-  assert(result.runtimeEvaluations.every(value=>value.valid===true),JSON.stringify(result.runtimeFindings));
+  assert(result.runtimeEvaluations.every(value=>value.valid===true),JSON.stringify({mediaType,findings:result.runtimeFindings}));
  }
  assert.equal(resources[0].text,original);
 });
