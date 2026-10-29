@@ -3709,7 +3709,7 @@ class _ResponseInspectorState extends State<_ResponseInspector> {
       final media = contentType == null ? null : ContentType.parse(contentType);
       final type = media?.mimeType ?? '';
       binary = !isInspectableTextMedia(contentType);
-      final charset = media?.charset?.toLowerCase() ?? 'utf-8';
+      final charset = response.textCharset ?? 'utf-8';
       if (!binary) {
         if (charset == 'utf-8' || charset == 'utf8') {
           final bytes = response.displayBytes;

@@ -176,7 +176,11 @@ void main() {
             expect(result.received.coverage['body'], 'selected-media-body');
             expect(
               (seen.last.$1, seen.last.$2, seen.last.$3),
-              ('POST', '/v1/data', 'text/plain'),
+              (
+                'POST',
+                '/v1/data',
+                text == '雪😀' ? 'text/plain; charset=utf-8' : 'text/plain',
+              ),
             );
             expect(seen.last.$4, utf8.encode(text));
             expect(await result.response.decodedBytes(), utf8.encode(text));

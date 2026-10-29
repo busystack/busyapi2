@@ -181,7 +181,9 @@ export async function evaluateSerializedExamples(graph:ReferenceGraph,evaluate:(
   for(const [index,example]of batch.entries()){
    try{
     const media=capture(example.owner),location=String(offset+index),direction=subject(example.owner);
-    const instance:NativeRuntimeInstance={subject:direction,location,text:example.text,mediaType:example.mediaType,unicodeSerialization:true};
+    // Earlier embedded strings permit charset transcoding (OAS 3.0 §4.7.19.1);
+    // only serializedValue carries 3.2 §4.19.2.3's Unicode eligibility rule.
+    const instance:NativeRuntimeInstance={subject:direction,location,text:example.text,mediaType:example.mediaType,unicodeSerialization:true,textSerialization:example.field==='serializedValue'?'unicode':'embedded'};
     if(runtimeFormMedia(example.mediaType)){
      instance.form=media.source;instance.schema=media.schema;instance.itemSchema=media.itemSchema;
     }else if(direction==='request-body'||direction==='response-body')instance.media=example.owner;

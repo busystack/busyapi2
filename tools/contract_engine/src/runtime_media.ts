@@ -1,7 +1,9 @@
 import {SourceDocument,SourceError} from './document';
 import {mediaTypes} from './media_types';
 import {runtimeBinaryMedia,type BinaryDocuments} from './runtime_binary';
+import {plainTextCharset,validatePlainText} from './text_encoding';
 
+export type TextSerialization='embedded'|'unicode';
 export type RuntimeMediaKind='json'|'text'|'json-lines'|'json-sequence'|'event-stream'|'opaque';
 export type RuntimeMediaData={document:SourceDocument;items?:SourceDocument[];binaryInstances?:BinaryDocuments;kind:RuntimeMediaKind|'binary'|'file'|'octets'|'form-urlencoded'|'multipart-form'|'multipart-sequence'};
 export type RuntimeMediaDescription=
@@ -55,7 +57,7 @@ export function runtimeMediaKind(contentType:string,ranges=false):RuntimeMediaKi
  return 'opaque';
 }
 
-export function decodeRuntimeMedia(text:string,id:string,contentType?:string,base64=false,opaque:'unsupported'|'octets'|'binary'|'legacy-octets'|'file'='unsupported'):RuntimeMediaData {
+export function decodeRuntimeMedia(text:string,id:string,contentType?:string,base64=false,opaque:'unsupported'|'octets'|'binary'|'legacy-octets'|'file'='unsupported',textSerialization?:TextSerialization):RuntimeMediaData {
  const type=contentType===undefined?undefined:mediaTypes(contentType,false);
  if(type&&type.length!==1)throw new SourceError('runtime.media.type','Runtime content requires one concrete media type');
  const kind=contentType===undefined?'json':runtimeMediaKind(contentType);
@@ -84,8 +86,9 @@ export function decodeRuntimeMedia(text:string,id:string,contentType?:string,bas
   const value=(bytes??Buffer.from(text,'utf8')).toString('latin1');
   return {document:parse(JSON.stringify(value)),kind:'octets'};
  }
+ if(textSerialization&&kind==='text')validatePlainText(text,type?.[0].parameters.get('charset'),textSerialization==='unicode');
  try{if(bytes){
-  const charset=type?.[0].parameters.get('charset')??'utf-8';
+  const charset=kind==='text'?plainTextCharset(type?.[0].parameters.get('charset')):type?.[0].parameters.get('charset')??'utf-8';
   const utf8=charset==='utf-8'||charset==='utf8';
   if(kind==='event-stream')text=new TextDecoder('utf-8',{ignoreBOM:true}).decode(bytes);
   else if(kind!=='text'&&!utf8&&charset!=='us-ascii')throw new SourceError('runtime.media.charset','This media type requires UTF-8');

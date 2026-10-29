@@ -14,6 +14,17 @@ enum RequestTextEncoding {
   final int? _maximumCodePoint;
   final String _label;
 
+  static String rawMediaType(String mediaType, String value) {
+    final type = ContentType.parse(mediaType);
+    // RFC 6657 §4: bare text/plain denotes ASCII. Declare the Unicode
+    // encoding selected by the composer without changing the intended bytes.
+    return type.mimeType == 'text/plain' &&
+            type.charset == null &&
+            value.runes.any((rune) => rune > 127)
+        ? '$mediaType; charset=utf-8'
+        : mediaType;
+  }
+
   static RequestTextEncoding forMedia(
     String mediaType, {
     bool rawBody = false,

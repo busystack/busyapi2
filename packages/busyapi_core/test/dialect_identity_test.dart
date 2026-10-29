@@ -150,7 +150,7 @@ void main() {
           expect(checked['snapshot'], isNot(initial['snapshot']));
           expect(
             checked['categories']['openapi']['schema']['producerVersion'],
-            '1.18.0+39',
+            '1.18.0+40',
           );
           final plan = await project.prepareRequest(
             root,

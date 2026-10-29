@@ -388,11 +388,23 @@ the shared Core guard; CLI cases send the same bytes. Parameter, form and MIME-p
 codecs retain their separate policies. The 50-case Core/CLI/HTTP matrix covers all
 published patches in both formats; eight new widget variants are analyzed only.
 
-Default-charset conformance remains incomplete: `text/plain` defaults to US-ASCII
-under [RFC 6657 §4](https://www.rfc-editor.org/rfc/rfc6657.txt), while existing
-omitted-charset paths still assume UTF-8. Response/example/mock paths need their
-separate conformance audit. This explicit-charset qualification establishes no
-interoperability guarantee for those unfinished paths.
+Bare `text/plain` uses US-ASCII under [RFC 6657 §4](https://www.rfc-editor.org/rfc/rfc6657.txt).
+Raw Unicode requests retain their UTF-8 bytes and declare `charset=utf-8` on the
+actual request; ASCII and empty bodies retain the original media type. Incoming
+non-ASCII octets without a charset receive complete, invalid-representation
+findings, with the original bytes retained. Generated plain-text mocks encode
+using the actual charset and declare UTF-8 when needed; proxies retain upstream
+headers and bytes. Native response inspection uses the same plain-text default.
+
+Earlier embedded examples permit declared-charset transcoding. OpenAPI 3.2
+`serializedValue` has a separate [Unicode eligibility rule](https://spec.openapis.org/oas/v3.2.1.html#criteria-for-serializedvalue):
+ASCII and UTF-8 plain-text examples are checked; ISO-8859-1 and unknown encodings
+remain incompletely evaluated for that field. Actual ISO-8859-1 bodies remain
+supported. Form-data retains BusyAPI's explicit UTF-8 application charset policy
+([RFC 7578 §5.1.2](https://www.rfc-editor.org/rfc/rfc7578.txt)); generic MIME and
+explicit per-part charsets retain their own rules. These results qualify plain
+text and the documented form default; compound serialization eligibility still
+requires separate qualification.
 
 Finite JSONL/NDJSON, JSON text sequences and server-sent events map to ordered
 arrays. In 3.2, `schema` checks the complete array and `itemSchema` checks each

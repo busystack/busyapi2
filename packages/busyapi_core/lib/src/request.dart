@@ -753,7 +753,12 @@ class ContractRequestBuilder {
               : PreparedRequestBody(
                   0,
                   () => const Stream.empty(),
-                  mediaType: draft.body.mediaType,
+                  mediaType: draft.body.kind == RequestBodyKind.raw
+                      ? RequestTextEncoding.rawMediaType(
+                          draft.body.mediaType!,
+                          draft.body.text ?? '',
+                        )
+                      : draft.body.mediaType,
                 ))
         : await _body(
             plan,
@@ -1783,9 +1788,13 @@ class ContractRequestBuilder {
       case RequestBodyKind.none:
         return null;
       case RequestBodyKind.raw:
+        final mediaType = RequestTextEncoding.rawMediaType(
+          body.mediaType!,
+          body.text ?? '',
+        );
         final bytes = Uint8List.fromList(
           RequestTextEncoding.forMedia(
-            body.mediaType!,
+            mediaType,
             rawBody: true,
           ).encode(body.text ?? ''),
         );
@@ -1793,7 +1802,7 @@ class ContractRequestBuilder {
         return PreparedRequestBody(
           bytes.length,
           () => Stream.value(bytes),
-          mediaType: body.mediaType,
+          mediaType: mediaType,
         );
       case RequestBodyKind.form:
         // Style values already contain the RFC6570 separators and escapes.
@@ -2388,6 +2397,16 @@ class ContractHttpResponse {
   final int decodedLength, receivedLength;
   final bool decodingComplete;
   bool? _exampleSupported;
+  String? get textCharset {
+    final header = headers
+        .where((header) => header.$1.toLowerCase() == 'content-type')
+        .firstOrNull;
+    if (header == null) return null;
+    final type = ContentType.parse(header.$2);
+    return type.charset?.toLowerCase() ??
+        (type.mimeType == 'text/plain' ? 'us-ascii' : null);
+  }
+
   bool get exampleEligible =>
       !_closed &&
       receiptComplete &&
@@ -2395,12 +2414,7 @@ class ContractHttpResponse {
       (_exampleSupported ??= _supportsExample());
   bool _supportsExample() {
     try {
-      final contentType = headers
-          .where((h) => h.$1.toLowerCase() == 'content-type')
-          .firstOrNull;
-      final charset = contentType == null
-          ? null
-          : ContentType.parse(contentType.$2).charset?.toLowerCase();
+      final charset = textCharset;
       if (charset == 'us-ascii') {
         return decodedLength == displayBytes.length &&
             !displayBytes.any((byte) => byte > 127);
@@ -4191,9 +4205,7 @@ class ContractRequestExecutor {
     String? charset;
     var validContentType = true;
     try {
-      charset = contentType == null
-          ? null
-          : ContentType.parse(contentType).charset?.toLowerCase();
+      charset = response.textCharset;
     } on Object {
       validContentType = false;
     }

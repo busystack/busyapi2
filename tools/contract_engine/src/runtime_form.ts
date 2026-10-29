@@ -140,7 +140,7 @@ export function decodeRuntimeForm(text:string,id:string,contentType:string,base6
                 unencoded(values[0]);checks.push({document:document('null','file/'+checks.length),prefix:'/'+escape(name),file:true});continue;
             }
             if(value.allowEmptyValue!==true&&values.some(part=>part.bytes.length===0))issue('runtime.request.form.empty','This parameter does not allow an empty wire value',name,definition);
-            const tokens=values.map(part=>bytesText(unencoded(part),singleton(part.headers,'content-type')??'text/plain; charset=utf-8'));
+            const tokens=values.map(part=>bytesText(unencoded(part),mimePartDecodingType(singleton(part.headers,'content-type')??'text/plain; charset=utf-8',mediaTypes(contentType,false)[0].subtype==='form-data')));
             const items=value.items;
             const raw=value.type==='array'&&value.collectionFormat==='multi'&&object(items)?'['+tokens.map(token=>flat(items,token)).join(',')+']':tokens.length===1?flat(value,tokens[0]):failure('runtime.form.scalar','A scalar or separated collection occurs more than once',definition,false);
             members.set(name,raw);checks.push({document:document(raw,'parameter/'+checks.length),schema:definition,prefix:'/'+escape(name)});

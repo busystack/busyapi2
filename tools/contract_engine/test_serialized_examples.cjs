@@ -35,7 +35,7 @@ for(const version of versions)for(const format of ['yaml','json'])test(`${versio
  const content={
   'application/x-www-form-urlencoded':{schema,examples:{Check:{serializedValue:'id=9007199254740993.00'}}},
   'application/jsonl':{schema:{type:'array',items:schema},itemSchema:schema,examples:{Check:{serializedValue:wire('9007199254740993')+'\n'+wire('9007199254740993.00')+'\n'}}},
-  'text/plain':{schema:{type:'string',const:'雪'},examples:{Check:{serializedValue:'雪'}}},
+  'text/plain; charset=utf-8':{schema:{type:'string',const:'雪'},examples:{Check:{serializedValue:'雪'}}},
  };
  const result=await check(version,format,content);assert.equal(result.complete,true,JSON.stringify(result.findings));assert.equal(result.serializedEvaluations.length,3);assert(result.serializedEvaluations.every(value=>value.valid),JSON.stringify(result));
 });
