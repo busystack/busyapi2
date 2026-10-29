@@ -404,9 +404,9 @@ supported. Form-data retains BusyAPI's explicit UTF-8 application charset policy
 ([RFC 7578 §5.1.2](https://www.rfc-editor.org/rfc/rfc7578.txt)); generic MIME and
 explicit per-part charsets retain their own rules. URL-encoded string fields
 retain UTF-8 after percent decoding ([URL Standard §5.1](https://url.spec.whatwg.org/#concept-urlencoded-parser));
-they do not inherit the standalone plain-text default. These results qualify plain
-text and the documented form default; compound serialization eligibility still
-requires separate qualification.
+they do not inherit the standalone plain-text default. Compound serialization eligibility has separate limitations; see the
+[support matrix](implementation/native-openapi-support.md) for coverage and
+verification status.
 
 Finite JSONL/NDJSON, JSON text sequences and server-sent events map to ordered
 arrays. In 3.2, `schema` checks the complete array and `itemSchema` checks each
