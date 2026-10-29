@@ -3081,6 +3081,15 @@ class _ParameterRow extends StatelessWidget {
                 ? null
                 : () => run.useExample({...parameter, 'example': example}),
           ),
+        if (parameter['schemaExamples'] is Map &&
+                (parameter['schemaExamples'] as Map)['complete'] == false ||
+            parameter['content'] is List &&
+                (parameter['content'] as List).whereType<Map>().any(
+                  (media) =>
+                      media['schemaExamples'] is Map &&
+                      (media['schemaExamples'] as Map)['complete'] == false,
+                ))
+          Text('${l.examples} · ${l.incomplete}'),
       ],
     );
   }
@@ -3307,6 +3316,10 @@ class _BodyEditor extends StatelessWidget {
                   ? null
                   : () => run.useBodyExample({...media, 'example': example}),
             ),
+        for (final media in content)
+          if (media['schemaExamples'] is Map &&
+              (media['schemaExamples'] as Map)['complete'] == false)
+            Text('${l.examples} · ${media['mediaType']} · ${l.incomplete}'),
       ],
     );
   }

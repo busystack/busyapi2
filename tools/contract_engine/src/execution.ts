@@ -16,6 +16,8 @@ import type {NativeRuntimeInstance} from './mock_projection';
 import {selectRequestMedia} from './request_media_selection';
 import {isNativeFamily} from './specification';
 import {exampleRepresentation,type ExampleValueField} from './example_representation';
+import {schemaExampleCandidates,schemaExamplesRevision} from './schema_examples';
+import {children} from './contexts';
 import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
 import {evaluateSchemas} from './schema_evaluation';
@@ -334,8 +336,9 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   };
   const raw=(resource:string,pointer:string)=>docs.get(resource)!.dataJson(pointer);
   const fieldRaw=(resource:string,pointer:string)=>docs.get(resource)!.dataJson(pointer,()=>undefined);
-  const example=(resource:string,pointer:string,value:any,level='parameter',selectedName?:string,mediaType?:string)=>{
-    const projected=(r:string,p:string,field:ExampleValueField,name?:string)=>{
+  type ExampleBinding={resource:string;pointer:string;value:any;level:string;mediaType?:string};
+  const projectExample=(binding:ExampleBinding,r:string,p:string,field:ExampleValueField,name?:string)=>{
+      const {resource,pointer,value,level,mediaType}=binding;
       const node=docs.get(r)!.dataNode(p)!,representation=exampleRepresentation(field,node.value,mediaType);
       let conversionError:string|undefined;
       const canonical=(node:any)=>docs.get(r)!.dataNode(node.pointer)!;
@@ -361,7 +364,9 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const compositeFields=node.kind==='object'&&[...node.children.values()].some(physical=>{const child=canonical(physical);return child.kind==='object'||child.kind==='array'&&[...child.children.values()].some(physical=>{const item=canonical(physical);return item.kind==='object'||item.kind==='array';});});
       return {name,level,source:location(r,p),raw:representation==='serialized'?node.value:raw(r,p),representation,compositeFields,
         text:typeof node.value==='string'?node.value:raw(r,p),dataKind:typeof node.value==='string'?'string':node.kind,fields,conversionError:level==='media'?conversionError:undefined};
-    };
+  };
+  const example=(resource:string,pointer:string,value:any,level='parameter',selectedName?:string,mediaType?:string)=>{
+    const projected=(r:string,p:string,field:ExampleValueField,name?:string)=>projectExample({resource,pointer,value,level,mediaType},r,p,field,name);
     const owner=docs.get(resource)!;
     if(!selectedName&&Object.hasOwn(value??{},'example'))return projected(resource,pointer+'/example','example');
     const examples=owner.dataNode(pointer+'/examples');
@@ -380,9 +385,29 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     ...(Object.hasOwn(value??{},'example')?[example(resource,pointer,value,level,undefined,mediaType)]:[]),
     ...[...(docs.get(resource)!.dataNode(pointer+'/examples')?.children.keys()??[])].map(name=>example(resource,pointer,value,level,name,mediaType)),
   ].filter(value=>value!==undefined);
-  const schema=(resource:string,pointer:string,value:any)=>Object.hasOwn(value??{},'schema')
-    ?{...location(resource,pointer+'/schema'),kind:'schema',unconstrained:supportedSchemaDialect(graph.scope(resource,pointer+'/schema'))&&annotationOnlySchema(value.schema)}
-    :undefined;
+  type ExampleOwnerKind='parameter'|'media'|'header';
+  const schemaFieldScope=(resource:string,pointer:string,value:any,kind:ExampleOwnerKind)=>{
+    const owner=graph.scopeAs(resource,pointer,kind);
+    // An independently referenced schema role at a non-standard field does
+    // not make that field part of the containing Parameter/Header grammar.
+    if(!owner||!children(value,kind,owner.family).some(([name,,childKind])=>name==='schema'&&childKind==='schema'))return;
+    return graph.scopeAs(resource,pointer+'/schema','schema');
+  };
+  const examplesWithSchema=(resource:string,pointer:string,value:any,level='parameter',mediaType?:string,ownerKind:ExampleOwnerKind=level==='media'?'media':'parameter')=>{
+    // Presence overrides fallback, including empty maps, external examples and
+    // unresolved Example Objects. Never replace an explicit choice silently.
+    if(graph.scope(resource,pointer).family!=='2.0'&&(Object.hasOwn(value??{},'example')||Object.hasOwn(value??{},'examples')))
+      return {examples:examples(resource,pointer,value,level,mediaType)};
+    if(!schemaFieldScope(resource,pointer,value,ownerKind))return {examples:[]};
+    const selected=schemaExampleCandidates(graph,{resource,pointer:pointer+'/schema',kind:'schema'});
+    return {examples:selected.values.map(source=>({...projectExample({resource,pointer,value,level,mediaType},source.resource,source.pointer,
+      source.field==='examples'?'dataValue':'example',source.name),origin:'schema'})),
+      schemaExamples:{complete:selected.complete,issues:selected.issues.map(issue=>({code:issue.code,message:issue.message,source:location(issue.resource,issue.pointer)}))}};
+  };
+  const schema=(resource:string,pointer:string,value:any,kind:ExampleOwnerKind='media')=>{
+    const scope=schemaFieldScope(resource,pointer,value,kind);
+    return scope?{...location(resource,pointer+'/schema'),kind:'schema',unconstrained:supportedSchemaDialect(scope)&&annotationOnlySchema(value.schema)}:undefined;
+  };
   const media=(resource:string,pointer:string,value:any)=>{
     if(!value||typeof value!=='object'||Array.isArray(value))return [];
     const entries:any[]=[];
@@ -393,9 +418,10 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const mediaFamily=graph.scope(selected.resource,selected.pointer).family;
       if(!isNativeFamily(mediaFamily))throw new SourceError('request.family.unsupported','The captured media owner has no supported specification family');
       const binding=formBinding(mediaFamily,name);
-      const projectedExamples=examples(selected.resource,selected.pointer,v,'media',name).map(e=>({...e,mediaType:name,
+      const selection=examplesWithSchema(selected.resource,selected.pointer,v,'media',name);
+      const projectedExamples=selection.examples.map(e=>({...e,mediaType:name,
         conversionError:binding!==undefined?e.conversionError:undefined}));
-      entries.push({mediaType:name,...runtimeMediaDescription(name),family:mediaFamily,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:mediaFamily==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,
+      entries.push({mediaType:name,...runtimeMediaDescription(name),family:mediaFamily,source:location(resource,at),definition:selected.source,schema:schema(selected.resource,selected.pointer,v),itemSchema:mediaFamily==='3.2'&&Object.hasOwn(v??{},'itemSchema')?{...location(selected.resource,selected.pointer+'/itemSchema'),kind:'schema'}:undefined,example:projectedExamples[0],examples:projectedExamples,schemaExamples:selection.schemaExamples,
         formBinding:binding,form:binding!==undefined?forms.media(mediaFamily,selected.resource,selected.pointer,name):undefined,
         prefixEncoding:v?.prefixEncoding,itemEncoding:v?.itemEncoding,encoding:v?.encoding&&typeof v.encoding==='object'?Object.fromEntries(Object.entries(v.encoding).slice(0,maximumItems)):undefined});
     }
@@ -408,11 +434,12 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
     const selected=follow(entry.definition,'parameter'),v=selected.node.value;
     const parameterFamily=graph.scope(selected.resource,selected.pointer).family;
     if(!isNativeFamily(parameterFamily))throw new SourceError('request.family.unsupported','The captured parameter owner has no supported specification family');
-    const content=v.content&&typeof v.content==='object'?media(selected.resource,selected.pointer+'/content',v.content):[];
+    const content=parameterFamily!=='2.0'&&v.content&&typeof v.content==='object'?media(selected.resource,selected.pointer+'/content',v.content):[];
+    const selection=examplesWithSchema(selected.resource,selected.pointer,v);
     return {name:entry.name,in:entry.location,family:parameterFamily,type:typeof v.schema?.type==='string'?v.schema.type:undefined,description:v.description,required:v.required===true||entry.location==='path',deprecated:v.deprecated===true,
       ...parameterStyle(parameterFamily,entry.location,v),
       allowReserved:v.allowReserved===true,allowEmptyValue:v.allowEmptyValue===true,source:location(entry.source.resource,entry.source.pointer),definition:selected.source,
-      schema:schema(selected.resource,selected.pointer,v),content,example:example(selected.resource,selected.pointer,v),examples:examples(selected.resource,selected.pointer,v),
+      schema:schema(selected.resource,selected.pointer,v,'parameter'),content,example:selection.examples[0],examples:selection.examples,schemaExamples:selection.schemaExamples,
       ...(parameterFamily==='2.0'&&entry.location!=='body'?swaggerFlat(v,selected.source):{})};
   };
   const pathView=graph.pathItem(context.pathItem);
@@ -480,7 +507,12 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
   if(family==='2.0'){
     const projected=parameters.visible.map(parameter),body=projected.find(p=>p.in==='body'),form=projected.filter(p=>p.in==='formData');
     const consumes=swaggerMedia(graph,input.resource,input.pointer,'consumes');
-    if(body)requestBody={required:body.required,source:body.source,definition:body.definition,content:consumes.map(mediaType=>({mediaType,...runtimeMediaDescription(mediaType),source:body.source,definition:body.definition,schema:body.schema,examples:[]}))};
+    if(body)requestBody={required:body.required,source:body.source,definition:body.definition,content:consumes.map(mediaType=>{
+      const value=docs.get(body.definition.resource)!.dataNode(body.definition.pointer)!.value;
+      const selection=examplesWithSchema(body.definition.resource,body.definition.pointer,value,'media',mediaType,'parameter');
+      const projectedExamples=selection.examples.map(e=>({...e,mediaType}));
+      return {mediaType,...runtimeMediaDescription(mediaType),family,source:body.source,definition:body.definition,schema:body.schema,example:projectedExamples[0],examples:projectedExamples,schemaExamples:selection.schemaExamples};
+    })};
     else if(form.length)requestBody={required:form.some(p=>p.required),source:location(input.resource,input.pointer),definition:location(input.resource,input.pointer),content:consumes.map(mediaType=>({mediaType,...runtimeMediaDescription(mediaType),source:location(input.resource,input.pointer),formBinding:formBinding(family,mediaType),swaggerForm:form,examples:[]}))};
   }
   const headerShape=headerShapes(graph);
@@ -496,12 +528,12 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const hp=selected.pointer+'/headers/'+escape(name),header=follow({resource:selected.resource,pointer:hp,kind:'header'},'header'),hv=header.node.value;
       const headerFamily=graph.scope(header.resource,header.pointer).family;
       if(!isNativeFamily(headerFamily))throw new SourceError('request.family.unsupported','The captured header owner has no supported specification family');
-      headers.push({name,family:headerFamily,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv),shape:headerShape({resource:header.resource,pointer:headerFamily==='2.0'?header.pointer:header.pointer+'/schema',kind:'schema'}),...(headerFamily==='2.0'?swaggerFlat(hv,header.source):{})});
+      headers.push({name,family:headerFamily,required:hv?.required===true,source:location(selected.resource,hp),definition:header.source,style:hv?.style??'simple',explode:hv?.explode===true,content:headerFamily==='2.0'?[]:media(header.resource,header.pointer+'/content',hv?.content),schema:schema(header.resource,header.pointer,hv,'header'),shape:headerShape({resource:header.resource,pointer:headerFamily==='2.0'?header.pointer:header.pointer+'/schema',kind:'schema'}),...(headerFamily==='2.0'?swaggerFlat(hv,header.source):{})});
     }
     responses.push({status,source:location(input.resource,at),definition:selected.source,description:v?.description,headers,bodyAllowed:responseAllowsContent(family,v),content:family==='2.0'?swaggerResponseContent(graph,selected.resource,selected.pointer,swaggerMedia(graph,input.resource,input.pointer,'produces'),location).map(item=>({...item,...runtimeMediaDescription(item.mediaType)})):media(selected.resource,selected.pointer+'/content',v?.content)});
   }
-  const identity=createHash('sha256').update(JSON.stringify([multipartProjectionRevision,input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
-  return {version:1,snapshot:input.snapshot,root:input.root,identity,family,representationRevisions:{multipart:multipartProjectionRevision},operation:{method,customMethod:context.customMethod===true,path:context.path,
+  const identity=createHash('sha256').update(JSON.stringify([multipartProjectionRevision,schemaExamplesRevision,input.snapshot,input.resource,input.pointer,context.occurrence])).digest('hex');
+  return {version:1,snapshot:input.snapshot,root:input.root,identity,family,representationRevisions:{multipart:multipartProjectionRevision,schemaExamples:schemaExamplesRevision},operation:{method,customMethod:context.customMethod===true,path:context.path,
     operationId:typeof node.value.operationId==='string'?node.value.operationId:undefined,summary:typeof node.value.summary==='string'?node.value.summary:undefined,
     source:location(input.resource,input.pointer),occurrence:context.occurrence,pathItem:location(context.pathItem.resource,context.pathItem.pointer)},
     servers,parameters:parameters.visible.filter(entry=>family!=='2.0'||!['body','formData'].includes(entry.location!)).map(parameter),security:{requirements,schemes:Object.fromEntries(schemes),anonymous:requirements.some(requirement=>requirement.schemes.length===0)||!securityField},requestBody,ignoredRequestBody,responses,responseStatusNamePolicy:responseStatusNamePolicy(family),

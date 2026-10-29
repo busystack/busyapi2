@@ -103,6 +103,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_serialized_parameter_examples.cjs"
 "$node_bin" "$engine_dir/test_optional_serialized_parameters.cjs"
 "$node_bin" "$engine_dir/test_literal_media_examples.cjs"
+"$node_bin" "$engine_dir/test_schema_example_inputs.cjs"
 "$node_bin" "$engine_dir/test_example_completeness.cjs"
 "$node_bin" "$engine_dir/test_generic_multipart.cjs"
 "$node_bin" "$engine_dir/test_runtime_alternatives.cjs"

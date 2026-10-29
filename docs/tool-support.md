@@ -380,6 +380,28 @@ empty multipart generation is refused before dispatch. MIME decoding requires
 an opening part and rejects reserved boundary prefixes, including nested boundary
 collisions. Explicit serialized entities retain their exact bytes for findings.
 
+The request composer offers authored Schema Object examples when the media or
+parameter has no explicit `example` or `examples`. Swagger body parameters use
+their native `schema.example`; OpenAPI 3.0 uses its Schema Object `example`;
+modern documents also offer each value from the schema `examples` array.
+Selecting a choice updates only the request draft. Exact values and physical
+source ownership survive references and YAML aliases; current unsaved resources
+feed the desktop, while CLI cases keep their saved-input policy.
+
+Standard owner fields suppress fallback even when empty, external or unresolved.
+The [3.0 media override rule](https://spec.openapis.org/oas/v3.0.4.html#media-type-object)
+also applies in 3.1; 3.2 uses the same BusyAPI choice-precedence policy.
+Fixed references and `allOf` offer separate authored candidates, without merging
+payloads or generating defaults. The chosen value still uses whole-schema
+request conformance. Modern [`examples` array](https://json-schema.org/draft/2020-12/json-schema-validation#section-9.5)
+strings stay schema-ready data; deprecated singular examples retain the existing
+non-JSON embedding policy. Conditional candidate discovery, unsupported dialects,
+indeterminate bindings and exhausted traversal show incomplete discovery.
+Properties and array items describe child values rather than the complete body.
+The focused CPU matrix covers all published declarations in both formats;
+eight native widget variants are analyzed only. See the
+[verification record](implementation/native-openapi-support.md) for current scope.
+
 Raw `text/plain` request bodies honor explicit `ISO-8859-1` and `latin1`
 charsets with the SDK's strict one-byte encoder. Unrepresentable characters are
 refused before dispatch, including in preview. Concrete media selected from a
