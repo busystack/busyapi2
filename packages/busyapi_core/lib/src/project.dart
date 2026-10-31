@@ -3279,6 +3279,34 @@ class BusyProject {
         'Source changed while preparing the edit',
       );
     }
+    if (contextBound) {
+      final inputs = {
+        for (final input in snap.allInputs)
+          if (input['bundled'] != true) input['id'] as String,
+      };
+      // Watcher delivery is not a publication barrier. Reuse the anchored disk
+      // refresh used by reviewed refactorings, including unopened context inputs.
+      await _resourceBatch(inputs, (id) async {
+        if (_closed || (current != null && !current())) {
+          throw CoreFailure('proposal.stale', 'The schema edit was retired');
+        }
+        final input = await buffer(id);
+        if (_closed || (current != null && !current())) {
+          throw CoreFailure('proposal.stale', 'The schema edit was retired');
+        }
+        await refreshDisk(input);
+      });
+      if (_closed ||
+          (current != null && !current()) ||
+          !snap.current(store) ||
+          contextRevision != _resourceRevision ||
+          inputs.any((id) => store.get(id).externalConflict)) {
+        throw CoreFailure(
+          'proposal.stale',
+          'A schema context file changed after capture; no edit was applied',
+        );
+      }
+    }
     store.apply([
       for (final e in result['edits'] as List)
         TextEdit.fromJson(Map<String, dynamic>.from(e as Map)),

@@ -20,7 +20,11 @@ field forms and type choices. Field metadata also binds the keyword; equal
 shape lists cannot transfer a pending action across contexts or fields. Core
 decodes the same context, and native refresh compares it before opening the
 existing reviewed editor. Sequential proposal actions recheck the current graph.
-Unknown dialects supply no assumed forms.
+Unknown dialects supply no assumed forms. Before applying a metadata-bound
+schema edit, Core refreshes all captured nonbundled inputs through the existing
+anchored disk reader, then rechecks generations, identities, approvals, conflicts
+and cancellation. Watcher delivery cannot authorize a stale proposal; dirty
+working buffers retain their content when an external conflict blocks it.
 `swagger_schema_artifact.ts` binds the pinned Swagger artifact for both
 structural and schema-meta validation. It removes only the tuple-items minimum
 absent from the referenced Draft 4 text, preserving other array and flat-object

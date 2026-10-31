@@ -520,4 +520,141 @@ void main() {
       );
     }
   }
+
+  for (final format in ['yaml', 'json']) {
+    for (final scenario in [
+      'root-disk',
+      'target-disk',
+      'dirty-root-conflict',
+      'unopened-context',
+    ]) {
+      for (final metadata in ['schemaValueForms', 'schemaTypeChoices']) {
+        test(
+          '$format $scenario $metadata cannot publish before disk refresh',
+          () async {
+            final directory = await Directory.systemTemp.createTemp('bvd-');
+            addTearDown(() => directory.delete(recursive: true));
+            final file = File('${directory.path}/api.$format');
+            final shared = File('${directory.path}/shared.$format');
+            final contextFile = File('${directory.path}/context.$format');
+            final unopened = scenario == 'unopened-context';
+            final rootSource = _source(
+              '3.1.2',
+              format,
+              shared: unopened
+                  ? 'context.$format#/components/schemas/Record'
+                  : 'shared.$format#/Shared',
+            );
+            final contextSource = _source(
+              '3.1.2',
+              format,
+              shared: 'shared.$format#/Shared',
+            );
+            final sharedSource = format == 'yaml'
+                ? '# Preserve shared\r\nShared: {}\r\n'
+                : '{"Shared":{}}\r\n';
+            await file.writeAsString(rootSource);
+            await shared.writeAsString(sharedSource);
+            if (unopened) await contextFile.writeAsString(contextSource);
+            final engine = EngineProcess(
+              executable: runtimeNode,
+              helper: runtimeHelper,
+            );
+            addTearDown(engine.close);
+            final project = await BusyProject.open(file.path, engine);
+            addTearDown(project.close);
+            final root = file.uri.toString(),
+                buffer = await project.buffer(shared.uri.toString());
+            final rootBuffer = await project.buffer(root);
+            final page = await project.inspectObject(
+              root,
+              buffer.id,
+              '/Shared',
+            );
+            final keyword = metadata == 'schemaValueForms' ? 'items' : 'type';
+            final field = (page['fields'] as List).cast<Map>().singleWhere(
+              (field) => field['name'] == keyword,
+            );
+            final session = _session(page, buffer);
+            if (unopened)
+              expect(
+                project.store.buffers.containsKey(contextFile.uri.toString()),
+                false,
+              );
+            if (scenario == 'dirty-root-conflict') {
+              project.store.replace(
+                root,
+                rootBuffer.text.replaceFirst('business', 'unsaved-version'),
+              );
+            }
+            final workingRoot = rootBuffer.text;
+            final externalRoot = rootSource.replaceFirst('3.1.2', '3.0.4');
+            final externalShared = sharedSource.replaceFirst(
+              '{}',
+              '{"description":"External 雪😀"}',
+            );
+            final externalContext = contextSource.replaceFirst(
+              '3.1.2',
+              '3.2.1',
+            );
+            if (scenario == 'target-disk') {
+              await shared.writeAsString(externalShared);
+            } else if (unopened) {
+              await contextFile.writeAsString(externalContext);
+            } else {
+              await file.writeAsString(externalRoot);
+            }
+            // Deliberately omit refreshResources: watcher ordering cannot
+            // authorize an edit against the former disk contents.
+            await expectLater(
+              project.proposeAndApply(root, session, [
+                {
+                  'kind': metadata == 'schemaValueForms' ? 'setData' : 'set',
+                  'pointer': '/Shared/$keyword',
+                  if (metadata == 'schemaValueForms')
+                    'raw': 'false'
+                  else
+                    'value': 'array',
+                  metadata: field[metadata],
+                },
+              ]),
+              throwsA(
+                isA<CoreFailure>().having(
+                  (error) => error.code,
+                  'code',
+                  'proposal.stale',
+                ),
+              ),
+            );
+            expect(
+              buffer.text,
+              scenario == 'target-disk' ? externalShared : sharedSource,
+            );
+            expect(buffer.text, isNot(contains('items')));
+            expect(buffer.text, isNot(contains('type')));
+            expect(
+              rootBuffer.text,
+              scenario == 'root-disk' ? externalRoot : workingRoot,
+            );
+            expect(
+              rootBuffer.externalConflict,
+              scenario == 'dirty-root-conflict',
+            );
+            expect(
+              await file.readAsString(),
+              ['target-disk', 'unopened-context'].contains(scenario)
+                  ? rootSource
+                  : externalRoot,
+            );
+            expect(
+              await shared.readAsString(),
+              scenario == 'target-disk' ? externalShared : sharedSource,
+            );
+            if (unopened)
+              expect(await contextFile.readAsString(), externalContext);
+          },
+        );
+      }
+    }
+  }
 }
