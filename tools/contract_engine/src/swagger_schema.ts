@@ -1,7 +1,7 @@
 import {flatSchemaContext} from './schema_context';
 import {registerSchema} from '@hyperjump/json-schema/draft-04';
 import {defineVocabulary,loadDialect} from '@hyperjump/json-schema/experimental';
-import schema20 from '../schemas/oas20.json';
+import {swaggerSchemaArtifact as schema20} from './swagger_schema_artifact';
 import {swaggerSchemaDialect} from './specification';
 import type {GraphScope,ReferenceGraph} from './reference_graph';
 import {swaggerDiscriminatorKeyword} from './swagger_discriminator';

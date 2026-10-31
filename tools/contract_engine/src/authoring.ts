@@ -1,4 +1,5 @@
 import {schemaDefinitionKeywords} from './schema_definitions';
+import {schemaValueForms} from './schema_value_forms';
 import {xmlRequiresExplicitName} from './xml_semantics';
 import Ajv2020 from 'ajv/dist/2020';
 import {structuralSchema, structuralDefinition, structuralReference} from './structural_schema';
@@ -9,6 +10,7 @@ import {isReferenceObject,referenceKinds,supportsReference} from './contexts';
 
 // This shared description supplies native fields, Source assistance and help.
 // Structural artifacts describe field shapes, not complete OAS semantics.
+export const authoringFieldRevision = '1';
 const evaluator = new Ajv2020({strict: false, validateFormats: false});
 const conditions = new Map<any, any>();
 const names: Record<string, string> = {security: 'security-scheme', media: 'media-type', callback: 'callbacks', 'path-item': 'path-item', 'request-body': 'request-body'};
@@ -62,7 +64,12 @@ export function removableField(kind: string, family: string, value: any, name: s
  * distinction between reusable definitions and Reference Object usage sites. */
 export function fieldsForScope(graph: ReferenceGraph, scope: GraphScope, value: any, contextName = segments(scope.pointer).at(-1) ?? ''): any[] {
     const fields=fieldsFor(scope.kind, scope.family, value, contextName, graph.allowsReference(scope));
-    return xmlRequiresExplicitName(graph,scope)?fields.map(field=>field.name==='name'?{...field,required:true}:field):fields;
+    const explicitName = xmlRequiresExplicitName(graph,scope);
+    return fields.map(field => {
+        const forms = schemaValueForms(scope, field);
+        return {...field, ...(forms ? {schemaValueForms: forms} : {}),
+            ...(explicitName && field.name === 'name' ? {required: true} : {})};
+    });
 }
 export function fieldsFor(kind: string, family: string, value: any = {}, contextName = '', referenceAllowed = supportsReference(kind,family)): any[] {
     const standard = structuralSchema(family);

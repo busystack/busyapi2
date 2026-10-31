@@ -28,10 +28,12 @@ import {discriminatorRelationships} from './authoring_relationships';
 import {restrictedSchemaDialect,swaggerSchemaDialect,modernFamily,defaultSchemaDialect} from './specification';
 import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,swaggerMetaIdentity,SchemaEvaluationScope} from './swagger_schema';
 import {swaggerFileContexts} from './swagger_file';
+import {swaggerSchemaRulesRevision} from './swagger_schema_artifact';
 import {evaluateSerializedExamples} from './serialized_examples';
 import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+42',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+43',configuration:[
+ `swagger-schema-rules-v${swaggerSchemaRulesRevision}`,
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
  'oas31-2024-11-10','oas32-2026-02-26','oas32-2025-09-17','format-annotation',

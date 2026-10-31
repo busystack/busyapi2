@@ -1,6 +1,7 @@
 library;
 
 export 'src/model.dart';
+export 'src/schema_value_forms.dart';
 export 'src/storage.dart';
 export 'src/engine_process.dart';
 export 'src/project.dart';

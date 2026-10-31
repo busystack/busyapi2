@@ -1,6 +1,6 @@
 import Ajv2020 from 'ajv/dist/2020';
 import schema30 from '../schemas/oas30.json';
-import schema20 from '../schemas/oas20.json';
+import {swaggerSchemaArtifact as schema20} from './swagger_schema_artifact';
 import draft04 from '../schemas/draft04.json';
 import schema31 from '../schemas/oas31.json';
 import schema32 from '../schemas/oas32.json';

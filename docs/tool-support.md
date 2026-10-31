@@ -12,6 +12,14 @@ the same captured graph. Swagger/Redoc, Prism, generation and comparison
 qualification remain separate. The evolving [family/workflow matrix](implementation/native-openapi-support.md)
 records actual coverage and outstanding native and packaged checks.
 
+Design's schema-value forms distinguish object-only OpenAPI 3.0 `items`/`not`
+from boolean-capable `additionalProperties`. Swagger Schema `items` also accepts
+arrays of Schema Objects, including an empty tuple; flat Parameter/Header/Items
+definitions keep their narrower rules. Modern forms respect the selected
+supported schema dialect. A changed containing context can invalidate a pending
+field action while retaining its draft. These shape checks accompany the shared
+structural and schema validators; accepting a form does not certify the entire API.
+
 References retain the declared family of each complete OpenAPI document. A
 `$ref` substitution crossing between Swagger 2.0 or OpenAPI 3.0 and another declared family
 reports `reference.family.unsupported`; dependent evaluation and bundling remain

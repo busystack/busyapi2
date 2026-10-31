@@ -37,7 +37,7 @@ part 'migration.dart';
 
 // Semantic revisions are part of captured evaluator ownership, alongside the
 // wire protocol and snapshot identity.
-const _schemaProducerVersion = '1.18.0+42';
+const _schemaProducerVersion = '1.18.0+43';
 
 // Keep native-isolate IO wakeups bounded without serializing every resource.
 // Each batch finishes (including failures) before access can be released.
@@ -3237,12 +3237,20 @@ class BusyProject {
       );
     }
     await engine.start();
-    final snap = AnalysisSnapshot(
-      root: root,
-      resources: [b.snapshot()],
-      boundaries: approvedContexts,
-      engineIdentity: engine.assetIdentity,
+    final semanticField = actions.any(
+      (action) => action.containsKey('schemaValueForms'),
     );
+    final (snap, resourceRevision) = semanticField
+        ? await _objectSnapshot(root, b.id)
+        : (
+            AnalysisSnapshot(
+              root: root,
+              resources: [b.snapshot()],
+              boundaries: approvedContexts,
+              engineIdentity: engine.assetIdentity,
+            ),
+            _resourceRevision,
+          );
     final result = await engine.request('propose', {
       ...snap.toJson(),
       'target': session.target(),
@@ -3250,6 +3258,7 @@ class BusyProject {
     });
     if ((current != null && !current()) ||
         result['snapshot'] != snap.identity ||
+        semanticField && resourceRevision != _resourceRevision ||
         !snap.current(store)) {
       throw CoreFailure(
         'proposal.stale',
