@@ -1337,6 +1337,9 @@ Future<void> _editObjectValue(
   item = prepared;
   field = _refreshedObjectField(item, field);
   final name = field['name'] as String;
+  final schemaForms = field['type'] == 'schema'
+      ? SchemaValueForms.fromJson(field['schemaValueForms'])
+      : null;
   final nativeString =
       field['nativeString'] == true ||
       field['type'] == 'string' && field['dataType'] == 'string';
@@ -1393,23 +1396,31 @@ Future<void> _editObjectValue(
       'field': {
         'name': name,
         'type': field['type'],
+        if (schemaForms != null) 'schemaValueForms': field['schemaValueForms'],
         'nativeString': nativeString,
       },
     },
     validate: nativeString
         ? null
-        : (values) =>
-              _dataHasType(
-                values['value'] as String,
-                field['type'] as String? ?? 'any',
-              )
-              ? null
-              : l.dataTypeRequired(field['type'] as String),
+        : (values) {
+            final raw = values['value'] as String;
+            if (schemaForms != null) {
+              if (!schemaForms.supported) return l.schemaDialectIncomplete;
+              return schemaForms.accepts(raw)
+                  ? null
+                  : l.dataTypeRequired(schemaForms.jsonTypes.join(' | '));
+            }
+            return _dataHasType(raw, field['type'] as String? ?? 'any')
+                ? null
+                : l.dataTypeRequired(field['type'] as String);
+          },
     onApply: (result) => c.mutate(item, [
       result['remove'] == true
           ? {
               'kind': 'remove',
               'pointer': '${item['pointer']}/${pointerEscape(name)}',
+              if (schemaForms != null)
+                'schemaValueForms': field['schemaValueForms'],
             }
           : {
               'kind': nativeString ? 'set' : 'setData',
@@ -1418,6 +1429,8 @@ Future<void> _editObjectValue(
                 'value': result['value']
               else
                 'raw': result['value'],
+              if (schemaForms != null)
+                'schemaValueForms': field['schemaValueForms'],
             },
     ]),
   );
@@ -1440,8 +1453,6 @@ bool _dataHasType(String raw, String type) {
       return value is bool;
     case 'null':
       return value == null;
-    case 'schema':
-      return value is Map || value is bool;
     case 'number':
       return value is num;
     case 'integer':
@@ -2112,6 +2123,12 @@ Map<String, dynamic> _refreshedObjectField(
       .cast<Map<String, dynamic>>()
       .where((f) => f['name'] == field['name'])
       .firstOrNull;
+  if (field.containsKey('schemaValueForms') && fixed == null) {
+    throw CoreFailure(
+      'draft.stale',
+      'The captured schema field is unavailable in the current specification context',
+    );
+  }
   return {
     ...field,
     ...?fixed,

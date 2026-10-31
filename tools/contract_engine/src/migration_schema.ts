@@ -122,7 +122,10 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
             }
         }
         if(from==='2.0'&&to==='3.0'){
-            if(Array.isArray(value.items))issue(field('items'),'migration.schema.tuple','OpenAPI 3.0 cannot express Swagger positional tuple schemas','target-representation');
+            if(Array.isArray(value.items)){
+                if(value.items.length===0)source.set(pointer+'/items',{});
+                else issue(field('items'),'migration.schema.tuple','OpenAPI 3.0 cannot express Swagger positional tuple schemas','target-representation');
+            }
             if(Array.isArray(value.type)||value.type==='null')typeComposition(Array.isArray(value.type)?value.type:['null']);
             if(typeof value.discriminator==='string')issue(field('discriminator'),'migration.discriminator.dispatch','Swagger named-model dispatch needs a specialized composition graph in 3.0; changing only the discriminator field is not faithful','implementation');
             if(value.readOnly===true)issue(field('readOnly'),'migration.schema.read-only','Swagger request exclusion needs a direction-specific schema mapping before conversion to 3.0','implementation');

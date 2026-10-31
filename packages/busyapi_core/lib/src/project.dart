@@ -3239,7 +3239,9 @@ class BusyProject {
     }
     await engine.start();
     final contextBound = actions.any(
-      (action) => action.containsKey('schemaTypeChoices'),
+      (action) =>
+          action.containsKey('schemaTypeChoices') ||
+          action.containsKey('schemaValueForms'),
     );
     final AnalysisSnapshot snap;
     final int? contextRevision;
@@ -3252,7 +3254,7 @@ class BusyProject {
       snap = captured.$1;
       contextRevision = captured.$2;
       if (b.generation != session.generation) {
-        throw CoreFailure('draft.stale', 'The type editor source changed');
+        throw CoreFailure('draft.stale', 'The schema editor source changed');
       }
     } else {
       snap = AnalysisSnapshot(

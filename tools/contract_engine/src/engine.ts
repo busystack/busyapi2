@@ -1,11 +1,14 @@
 import {swaggerServerContextRevision,swaggerServerRelationships} from './swagger_servers';
 import {schemaTypeChoices,sameSchemaTypeChoices,allowedSchemaType} from './schema_type_choices';
+import {swaggerSchemaRulesRevision} from './swagger_schema_artifact';
 import {discriminatorContextRevision} from './discriminator_semantics';
 import {multipartProjectionRevision} from './schema_reference_projection';
 import { createHash } from 'node:crypto';
 import { children, referenceKinds, standardOperationMethods } from './contexts';
 import { ReferenceGraph, supportedSchemaDialect, referenceMarkdownContext, schemaRoleContextRevision } from './reference_graph';
-import { fieldsFor, fieldsForScope, removableField, allowsExtensions, componentFamily, componentLocation } from './authoring';
+import { fieldsFor, fieldsForScope, removableField, allowsExtensions, componentFamily, componentLocation, authoringFieldRevision } from './authoring';
+import {sameSchemaValueForms, allowsSchemaValue} from './schema_value_forms';
+import type {SchemaValueForms} from './schema_value_forms';
 import { SourceDocument, SourceError, RawJsonValue, escape, segments, limits } from './document';
 import {structuralEvaluator as ajv, structuralValidators as validators, structuralRevisions, structuralSchema} from './structural_schema';
 import {specificationDeclaration, isNativeFamily, modernFamily, capabilitiesFor, dialectUriRevision} from './specification';
@@ -25,7 +28,7 @@ import {xmlContextRevision,xmlRelationships} from './xml_semantics';
 import {collectionMemberNamePolicy,componentNamePolicy,reusableDefinitionPointer,responseStatusIssues,responseStatusNamePolicy,schemaDefinitionNamePolicy} from './member_names';
 export const engineVersion = '0.1.0';
 export const protocol = 1;
-const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, markdownContextRules: '2', xmlContextRules:xmlContextRevision, documentUriRules:documentUriRevision, dialectUriRules:dialectUriRevision, restrictedSchemaRules:restrictedSchemaRevision, serverRules:serverContextRevision, swaggerServerRules:swaggerServerContextRevision, multipartRules:multipartProjectionRevision, discriminatorRules:discriminatorContextRevision, schemaRoleRules:schemaRoleContextRevision };
+const versions = { engine: engineVersion, yaml: '2.9.0', ajv: '8.20.0', node: process.versions.node, openapiSchemas: structuralRevisions, authoringFieldRules:authoringFieldRevision, swaggerSchemaRules:swaggerSchemaRulesRevision, markdownContextRules: '2', xmlContextRules:xmlContextRevision, documentUriRules:documentUriRevision, dialectUriRules:dialectUriRevision, restrictedSchemaRules:restrictedSchemaRevision, serverRules:serverContextRevision, swaggerServerRules:swaggerServerContextRevision, multipartRules:multipartProjectionRevision, discriminatorRules:discriminatorContextRevision, schemaRoleRules:schemaRoleContextRevision };
 export type Resource = {
     id: string;
     text: string;
@@ -453,6 +456,21 @@ export function propose(input: any) {
             if((action.kind==='set'&&!Object.hasOwn(action,'value'))||!allowedSchemaType(action.kind==='remove'?undefined:action.value,choices))
                 throw new SourceError('edit.schema-type.value','Choose a type or union permitted by this captured schema context',source.range,'specification',source);
         }
+        let fieldForms: SchemaValueForms | undefined;
+        if (Object.hasOwn(action, 'schemaValueForms')) {
+            if (!['setData', 'createData', 'remove'].includes(action.kind) || typeof action.pointer !== 'string')
+                throw new SourceError('edit.action', 'Schema field value forms require a captured data edit');
+            const parts = segments(action.pointer), name = parts.pop();
+            const parentPointer = parts.length ? '/' + parts.map(escape).join('/') : '';
+            const {graph} = createGraph({...input, resources: input.resources.map((item: Resource) => item.id === doc.id ? {...item, text: doc.text} : item)});
+            const scope = graph.scopes.get(doc.id + '#' + parentPointer);
+            const field = scope && fieldsForScope(graph, scope, doc.node(parentPointer).value).find(field => field.name === name);
+            fieldForms = field?.schemaValueForms;
+            if (!fieldForms || !sameSchemaValueForms(action.schemaValueForms, fieldForms))
+                throw new SourceError('edit.stale', 'The captured schema field value forms changed; reopen the field before applying');
+            if (!fieldForms.supported && action.kind !== 'remove')
+                throw new SourceError('edit.schema.dialect.unsupported', 'Schema field value forms are unavailable for the declared schema dialect', doc.node(parentPointer).range, 'unsupported');
+        }
         if (action.kind === 'set' && segments(action.pointer).length === 3 && segments(action.pointer)[0] === 'paths') {
           const parts=segments(action.pointer), pathPointer='/paths/'+escape(parts[1]);
           const pathItem=doc.nodes.get(pathPointer);
@@ -615,6 +633,8 @@ export function propose(input: any) {
         }
         else throw new SourceError('edit.action', 'Unknown source action');
         doc = new SourceDocument(text, resource.id, true);
+        if (fieldForms && action.kind !== 'remove' && !allowsSchemaValue(fieldForms, doc.node(action.pointer)))
+            throw new SourceError('edit.schema.value', 'This value does not have a permitted form for the captured schema field');
     }
     const original = resource.text, changed = doc.text;
     if (original === changed)

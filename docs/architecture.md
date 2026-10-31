@@ -10,6 +10,16 @@ Ordinary declaration edits invalidate captured semantics and never migrate files
 The [implementation record](implementation/native-openapi-support.md) tracks
 family-specific coverage and qualification, including work still incomplete.
 
+`schema_value_forms.ts` supplies native field shape choices from the canonical
+occurrence's family and selected dialect. Core decodes that typed metadata; it
+does not choose schema semantics. Metadata-bound field proposals capture the
+existing complete object snapshot and recheck its field forms in the engine
+before publishing a CST edit. Unknown dialects supply no assumed forms.
+`swagger_schema_artifact.ts` binds the pinned Swagger artifact for both
+structural and schema-meta validation. It removes only the tuple-items minimum
+absent from the referenced Draft 4 text, preserving other array and flat-object
+restrictions without modifying the vendored schema.
+
 ## Explicit acquisition and CI reports
 
 `ProjectImporter` owns a bounded immutable acquisition and a held output-parent capability. Local reads and directory enumeration use `ProjectAccess`; URL dependencies are requested only from the existing canonical graph and require exact-URL approval. Credential-free GET acquisition uses the native HTTP transport's overall deadline/cancellation owner and verifies every redirect before connecting. Original bytes and retrieval mappings remain separate from derived bundles. Clone uses the trusted Git runner with isolated configuration, no hooks/filters/submodules or dependency installation. `ProjectImportPlan` reviews a captured file set and publishes only to a new directory through `AtomicDirectoryWriter`; source, foreign destinations and cancelled stages remain intact. Before a URL-import plan becomes publishable, its generated manifest passes the same bounded key/mapping reader used on reopen, including the root mapping, URI/path normalization and manifest byte limit. A complete acquired graph alone does not certify a readable project. Opening is separate from publication. The small native controller binds completion to its original workspace/navigation owner and disposes/cancels independently of the workspace's canonical buffers.
