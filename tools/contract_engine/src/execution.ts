@@ -1,4 +1,5 @@
 import {multipartProjectionRevision} from './schema_reference_projection';
+import {embeddedMimeTextBytes,embeddedMimeTextRevision} from './embedded_mime_text';
 import {createHash} from 'node:crypto';
 
 import {createGraph, propose, Resource} from './engine';
@@ -21,7 +22,7 @@ import {children} from './contexts';
 import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
 import {evaluateSchemas} from './schema_evaluation';
-import {runtimeMediaDescription,runtimeFormMedia} from './runtime_media';
+import {runtimeMediaDescription,runtimeFormMedia,runtimeMediaBytes} from './runtime_media';
 import {capturedMimeHeaderContent} from './mime_header_content';
 import {multipartHeaderValues,type MultipartHeaderLine} from './multipart_header_values';
 import {MultipartFileShapes} from './multipart_file_shapes';
@@ -30,6 +31,33 @@ import {annotationOnlySchema} from './schema_boundaries';
 import {serverContextProblem,serverContextError,serverVariableValues,serverHttpFragmentPolicy} from './server_semantics';
 
 const maximumItems = 2048;
+type MimeTextProblem=Readonly<{code:'runtime.form.syntax'|'runtime.mime-text.transfer';message:string}>;
+export type MimeTextBytesResult=Readonly<{
+  version:1;revision:typeof embeddedMimeTextRevision;snapshot:string;mediaType:string;
+  input:string;byteLength:number;base64:string;
+}&({mode:'encoded'}|{mode:'literal-invalid';problem:MimeTextProblem})>;
+
+/** Execution data is materialized by the same MIME owner used for authored
+ * example evaluation and mock responses. This is not contract validation. */
+export function requestMimeTextBytes(input:unknown):MimeTextBytesResult {
+  if(!input||typeof input!=='object'||Array.isArray(input))
+    throw new SourceError('request.mime-text.input','Expected captured MIME text, media type and snapshot identity');
+  const {text,mediaType,snapshot}=input as Record<string,unknown>;
+  if(typeof text!=='string'||typeof mediaType!=='string'||typeof snapshot!=='string')
+    throw new SourceError('request.mime-text.input','Expected captured MIME text, media type and snapshot identity');
+  let bytes:Buffer,problem:MimeTextProblem|undefined;
+  try{bytes=embeddedMimeTextBytes(text,mediaType);}
+  catch(error){
+    // Raw requests may intentionally carry malformed wire data. Preserve that
+    // literal UTF-8 input and report its framing failure; never treat it as a
+    // successful materialization or extend this policy to unsupported codecs.
+    if(!(error instanceof SourceError)||error.code!=='runtime.form.syntax'&&error.code!=='runtime.mime-text.transfer')throw error;
+    bytes=runtimeMediaBytes(text,false);problem={code:error.code,message:error.message};
+  }
+  const result={version:1 as const,revision:embeddedMimeTextRevision,snapshot,mediaType,
+    input:createHash('sha256').update(text).digest('hex'),byteLength:bytes.length,base64:bytes.toString('base64')};
+  return problem?{...result,mode:'literal-invalid',problem}:{...result,mode:'encoded'};
+}
 
 /** Transport scalars from the existing strict JSON CST. Numeric leaves are
  * wire lexemes, never rounded JS (or Dart) machine-number projections. */

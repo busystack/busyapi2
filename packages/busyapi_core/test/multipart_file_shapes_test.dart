@@ -496,7 +496,7 @@ void main() {
                     await response.drain<void>();
                     expect(response.statusCode, 204);
                     expect(response.headers.value('sl-violations'), isNull);
-                    expect(mock.nativeValidation.version, '1.18.0+42');
+                    expect(mock.nativeValidation.version, '1.18.0+44');
                     project.store.replace(
                       buffer.id,
                       buffer.text.replaceFirst(

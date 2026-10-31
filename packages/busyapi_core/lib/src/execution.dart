@@ -632,6 +632,26 @@ class OperationRequestPlan {
     return Map.unmodifiable(parsed);
   }
 
+  Future<MimeTextMaterialization> mimeTextBytes(
+    String text,
+    String mediaType, {
+    required String requestId,
+    RunCancellation? cancellation,
+  }) async {
+    final result = await _formProjection(
+      'requestMimeTextBytes',
+      {...snapshot.toJson(), 'text': text, 'mediaType': mediaType},
+      requestId,
+      cancellation,
+    );
+    return MimeTextMaterialization.fromJson(
+      result,
+      snapshot: snapshot.identity,
+      text: text,
+      mediaType: mediaType,
+    );
+  }
+
   Future<Map<String, dynamic>> _formProjection(
     String method,
     Map<String, Object?> params,

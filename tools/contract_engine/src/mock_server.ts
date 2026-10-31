@@ -22,6 +22,7 @@ import {exactProxyResponse} from './mock_exact_proxy';
 import {MockGenerationAdapter,defaultSwaggerResponseMedia} from './mock_generation_adapter';
 import {mediaTypes} from './media_types';
 import {encodePlainText} from './text_encoding';
+import {embeddedMimeTextBytes} from './embedded_mime_text';
 
 const maximumInput = 64 * 1024 * 1024;
 const maximumRequestBody = 10 * 1024 * 1024;
@@ -492,14 +493,18 @@ async function main(): Promise<void> {
           mediaType && (mediaType === 'application/json' || mediaType.endsWith('+json'))
             ? JSON.stringify(result.output.body)
             : typeof result.output.body === 'string' ? result.output.body : JSON.stringify(result.output.body));
-        if(!input.upstream&&mediaType==='text/plain'&&typeof payload==='string'){
+        let encodedText=false;
+        if(!input.upstream&&typeof payload==='string'&&(mediaType==='text/plain'||mediaType?.startsWith('multipart/'))){
           try {
-            const contentType=String(reply.getHeader('content-type')),
-             encoding=encodePlainText(payload,contentType,mediaTypes(contentType,false)[0].parameters.get('charset'));
-            payload=encoding.bytes;
-            const name=Object.keys(result.output.headers??{}).find(name=>name.toLowerCase()==='content-type')??'content-type';
-            (result.output.headers??={})[name]=encoding.contentType;
-            reply.setHeader(name,encoding.contentType);
+            const contentType=String(reply.getHeader('content-type'));
+            if(mediaType==='text/plain'){
+              const encoding=encodePlainText(payload,contentType,mediaTypes(contentType,false)[0].parameters.get('charset'));
+              payload=encoding.bytes;
+              const name=Object.keys(result.output.headers??{}).find(name=>name.toLowerCase()==='content-type')??'content-type';
+              (result.output.headers??={})[name]=encoding.contentType;
+              reply.setHeader(name,encoding.contentType);
+            }else payload=embeddedMimeTextBytes(payload,contentType);
+            encodedText=true;
           }catch(error){
             if(error instanceof SourceError&&selected._tag==='Right'){
               const source=native.operationSource(selected.right.path,selected.right.method);
@@ -508,7 +513,7 @@ async function main(): Promise<void> {
             throw error;
           }
         }
-        if((rawResponses.has(result.output)||!input.upstream&&mediaType==='text/plain')&&payload!==undefined)
+        if((rawResponses.has(result.output)||encodedText)&&payload!==undefined)
           for(const name of Object.keys(result.output.headers??{}))if(name.toLowerCase()==='content-length') {
             const length=String(Buffer.byteLength(payload));
             result.output.headers![name]=length;reply.setHeader(name,length);

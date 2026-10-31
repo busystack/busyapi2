@@ -6,6 +6,7 @@ import {mediaTypeChoice,mediaTypes} from './media_types';
 import {decodeRuntimeMedia,runtimeMediaBytes,runtimeMediaKind,type RuntimeMediaData,type TextSerialization} from './runtime_media';
 import {MultipartEncoding} from './multipart_encoding';
 import {decodeMultipartTransfer,multipartTextSerialization} from './multipart_transfer';
+import {embeddedMimeTextBytes} from './embedded_mime_text';
 import {mimeParts,mimePartDecodingType,mimeSingleton as singleton} from './mime_parts';
 import {decodeRuntimeMultipart} from './runtime_multipart';
 import {mimeHeaders} from './mime_headers';
@@ -74,6 +75,9 @@ function parts(bytes:Buffer,contentType:string,allowGenericNamed:boolean):Part[]
  * Scalar text is literal for strings and strict JSON for declared numeric,
  * boolean and null types. Content-based JSON keeps its CST numeric lexemes. */
 export function decodeRuntimeForm(text:string,id:string,contentType:string,base64:boolean,target:RuntimeFormTarget,subject:string,graph:ReferenceGraph,textSerialization?:TextSerialization):RuntimeFormData {
+    if(!base64&&textSerialization==='embedded'&&mediaTypes(contentType,false)[0].type==='multipart'){
+        text=embeddedMimeTextBytes(text,contentType).toString('base64');base64=true;
+    }
     const unicode=textSerialization==='unicode'?'unicode':undefined;
     const owner=graph.docs.get(target.resource),node=owner?.dataNode(target.pointer),scope=graph.scopes.get(target.resource+'#'+target.pointer);
     const failure=(code:string,message:string,at:Location=target,unsupported=true):never=>{

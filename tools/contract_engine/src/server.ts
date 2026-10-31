@@ -18,7 +18,7 @@ import { referenceChoices } from './reference_choices';
 import { planReference } from './reference_selection';
 import { WorkerDispatcher } from './worker_dispatcher';
 import {planDiagnosticFix} from './diagnostic_fixes';
-import {planResponseExample,requestOperation,requestParameterValues,requestFormDataValues,requestFormMediaTypes,requestMultipartEncoding,executionCaseValues,inspectExecutionJson,planExecutionEnvironment,semanticDiffCoverage} from './execution';
+import {planResponseExample,requestOperation,requestParameterValues,requestFormDataValues,requestFormMediaTypes,requestMultipartEncoding,requestMimeTextBytes,executionCaseValues,inspectExecutionJson,planExecutionEnvironment,semanticDiffCoverage} from './execution';
 import {discoverPolicy} from './governance_configuration';
 import {inspectPolicyCode} from './policy_code';
 import {PolicyProcessWorker} from './policy_process_worker';
@@ -50,6 +50,7 @@ if (!isMainThread) {
             methods.planMigration = planMigration;
             methods.requestParameterValues = requestParameterValues;
             methods.requestFormDataValues = requestFormDataValues;
+            methods.requestMimeTextBytes = requestMimeTextBytes;
             methods.requestFormMediaTypes = requestFormMediaTypes;
             methods.requestMultipartEncoding = requestMultipartEncoding;
             methods.executionCaseValues = executionCaseValues;

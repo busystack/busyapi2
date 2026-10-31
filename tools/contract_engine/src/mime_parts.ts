@@ -1,7 +1,9 @@
 import {SourceError} from './document';
 import {mediaTypes} from './media_types';
 
-export type MimePart={bytes:Buffer;headers:ReadonlyMap<string,string[]>};
+/** Body spans are byte offsets in this supplied MIME buffer, not contract
+ * source offsets or decoded character locations. */
+export type MimePart={bytes:Buffer;headers:ReadonlyMap<string,string[]>;bodyRange:readonly [number,number]};
 const syntax=(message:string):never=>{throw new SourceError('runtime.form.syntax',message);};
 
 export function mimeSingleton(headers:ReadonlyMap<string,string[]>,name:string):string|undefined {
@@ -73,7 +75,7 @@ export function mimeParts(bytes:Buffer,contentType:string):MimePart[] {
             if(colon<1||!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(originalName)||/[\x00-\x08\x0a-\x1f\x7f]/.test(value))return syntax('A multipart header is malformed');
             const values=headers.get(name)??[];values.push(value.slice(colon+1).replace(/^[ \t]+|[ \t]+$/g,''));headers.set(name,values);
         }
-        result.push({bytes:bytes.subarray(bodyStart,end),headers});
+        result.push({bytes:bytes.subarray(bodyStart,end),headers,bodyRange:[bodyStart,end]});
         if(result.length>2048)throw new SourceError('limit.runtime.form','A multipart body exceeds 2048 parts');
         current=next;
     }

@@ -21,12 +21,17 @@ export function validatePlainText(text:string,charset:string|undefined,unicodeSe
  if(bytes.toString('utf8')!==text)throw new SourceError('runtime.media.encoding','The text contains an unpaired Unicode surrogate');
 }
 
-/** Encode generated logical text; forwarded or already captured bytes never
- * enter this path. An explicit UTF-8 parameter preserves Unicode intent. */
+/** Honor an existing text declaration without rewriting its charset. */
+export function declaredPlainTextBytes(text:string,charset:string|undefined):Buffer {
+ const encoding=plainTextCharset(charset);
+ validatePlainText(text,charset);
+ return Buffer.from(text,encoding==='iso-8859-1'?'latin1':encoding==='us-ascii'?'ascii':'utf8');
+}
+
+/** Generated standalone text may make its Unicode intent explicit. Captured
+ * bytes and forwarded bodies never enter this encoding path. */
 export function encodePlainText(text:string,contentType:string,charset:string|undefined):{bytes:Buffer;contentType:string} {
  const selected=charset===undefined&&/[^\x00-\x7f]/.test(text)?'utf-8':charset;
- const encoding=plainTextCharset(selected);
- validatePlainText(text,selected);
- const bytes=Buffer.from(text,encoding==='iso-8859-1'?'latin1':encoding==='us-ascii'?'ascii':'utf8');
+ const bytes=declaredPlainTextBytes(text,selected);
  return {bytes,contentType:charset===undefined&&selected==='utf-8'?contentType+'; charset=utf-8':contentType};
 }

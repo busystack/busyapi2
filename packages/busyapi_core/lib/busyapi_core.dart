@@ -2,6 +2,7 @@ library;
 
 export 'src/model.dart';
 export 'src/schema_type_choices.dart';
+export 'src/mime_text_materialization.dart';
 export 'src/storage.dart';
 export 'src/engine_process.dart';
 export 'src/project.dart';

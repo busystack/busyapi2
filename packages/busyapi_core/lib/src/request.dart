@@ -18,6 +18,7 @@ import 'multipart_encoding.dart';
 import 'multipart_transfer.dart';
 import 'request_form_values.dart';
 import 'request_text_encoding.dart';
+import 'mime_text_materialization.dart';
 import 'project.dart';
 import 'atomic_file_writer.dart';
 import 'storage.dart';
@@ -262,6 +263,7 @@ class PreparedRequestBody {
     this.release,
     this.formInstance,
     this.formParameters,
+    this.mimeTextProblem,
     Map<String, MultipartFileShape> fileShapes = const {},
   }) : fileShapes = Map.unmodifiable(fileShapes);
   final int length;
@@ -269,6 +271,7 @@ class PreparedRequestBody {
   final String? mediaType;
   final String? formInstance;
   final List<RuntimeSchemaInstance>? formParameters;
+  final MimeTextPreparationProblem? mimeTextProblem;
   final Map<String, MultipartFileShape> fileShapes;
   final Future<void> Function()? release;
   Future<void>? _closing;
@@ -1792,17 +1795,38 @@ class ContractRequestBuilder {
           body.mediaType!,
           body.text ?? '',
         );
-        final bytes = Uint8List.fromList(
-          RequestTextEncoding.forMedia(
+        final Uint8List bytes;
+        MimeTextPreparationProblem? preparationProblem;
+        if (mediaType
+            .split(';')
+            .first
+            .trim()
+            .toLowerCase()
+            .startsWith('multipart/')) {
+          final materialized = await plan.mimeTextBytes(
+            body.text ?? '',
             mediaType,
-            rawBody: true,
-          ).encode(body.text ?? ''),
-        );
+            requestId: 'mime-text-${_runIdentity()}',
+            cancellation: cancellation,
+          );
+          checkOwner();
+          cancellation?.throwIfCancelled();
+          bytes = materialized.bytes;
+          preparationProblem = materialized.problem;
+        } else {
+          bytes = Uint8List.fromList(
+            RequestTextEncoding.forMedia(
+              mediaType,
+              rawBody: true,
+            ).encode(body.text ?? ''),
+          );
+        }
         _uploadLimit(bytes.length);
         return PreparedRequestBody(
           bytes.length,
           () => Stream.value(bytes),
           mediaType: mediaType,
+          mimeTextProblem: preparationProblem,
         );
       case RequestBodyKind.form:
         // Style values already contain the RFC6570 separators and escapes.
@@ -3721,6 +3745,12 @@ class ContractRequestExecutor {
     final instances = <RuntimeSchemaInstance>[];
     final findings = <Map<String, Object?>>[];
     var checksComplete = true;
+    if (preparedBody?.mimeTextProblem case final problem?) {
+      findings.add({
+        ..._finding(problem.code, 'error', problem.message, location: 'body'),
+        'subject': 'request-body',
+      });
+    }
     for (final parameter in (plan.result['parameters'] as List).cast<Map>()) {
       final location = parameter['in'] as String,
           name = parameter['name'] as String,
