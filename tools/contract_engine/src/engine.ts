@@ -463,13 +463,14 @@ export function propose(input: any) {
             const parts = segments(action.pointer), name = parts.pop();
             const parentPointer = parts.length ? '/' + parts.map(escape).join('/') : '';
             const {graph} = createGraph({...input, resources: input.resources.map((item: Resource) => item.id === doc.id ? {...item, text: doc.text} : item)});
+            const source = {resource: doc.id, pointer: parentPointer, range: doc.nodes.get(parentPointer)?.range ?? captured.range};
             const scope = graph.scopes.get(doc.id + '#' + parentPointer);
             const field = scope && fieldsForScope(graph, scope, doc.node(parentPointer).value).find(field => field.name === name);
             fieldForms = field?.schemaValueForms;
             if (!fieldForms || !sameSchemaValueForms(action.schemaValueForms, fieldForms))
-                throw new SourceError('edit.stale', 'The captured schema field value forms changed; reopen the field before applying');
+                throw new SourceError('edit.stale', 'The specification, schema dialect or captured field context changed; reopen the field before applying', source.range, undefined, source);
             if (!fieldForms.supported && action.kind !== 'remove')
-                throw new SourceError('edit.schema.dialect.unsupported', 'Schema field value forms are unavailable for the declared schema dialect', doc.node(parentPointer).range, 'unsupported');
+                throw new SourceError('edit.schema.dialect.unsupported', 'Schema field value forms are unavailable for the declared schema dialect', source.range, 'unsupported', source);
         }
         if (action.kind === 'set' && segments(action.pointer).length === 3 && segments(action.pointer)[0] === 'paths') {
           const parts=segments(action.pointer), pathPointer='/paths/'+escape(parts[1]);
@@ -634,7 +635,7 @@ export function propose(input: any) {
         else throw new SourceError('edit.action', 'Unknown source action');
         doc = new SourceDocument(text, resource.id, true);
         if (fieldForms && action.kind !== 'remove' && !allowsSchemaValue(fieldForms, doc.node(action.pointer)))
-            throw new SourceError('edit.schema.value', 'This value does not have a permitted form for the captured schema field');
+            throw new SourceError('edit.schema.value', 'This value does not have a permitted form for the captured schema field', doc.node(action.pointer).range, 'specification', {resource: doc.id, pointer: action.pointer, range: doc.node(action.pointer).range});
     }
     const original = resource.text, changed = doc.text;
     if (original === changed)

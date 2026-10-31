@@ -14,7 +14,13 @@ family-specific coverage and qualification, including work still incomplete.
 occurrence's family and selected dialect. Core decodes that typed metadata; it
 does not choose schema semantics. Metadata-bound field proposals capture the
 existing complete object snapshot and recheck its field forms in the engine
-before publishing a CST edit. Unknown dialects supply no assumed forms.
+before publishing a CST edit. `schema_authoring_context.ts` owns the occurrence,
+root/resource declarations, family, selected dialect and base identity shared by
+field forms and type choices. Field metadata also binds the keyword; equal
+shape lists cannot transfer a pending action across contexts or fields. Core
+decodes the same context, and native refresh compares it before opening the
+existing reviewed editor. Sequential proposal actions recheck the current graph.
+Unknown dialects supply no assumed forms.
 `swagger_schema_artifact.ts` binds the pinned Swagger artifact for both
 structural and schema-meta validation. It removes only the tuple-items minimum
 absent from the referenced Draft 4 text, preserving other array and flat-object

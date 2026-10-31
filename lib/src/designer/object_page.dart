@@ -2123,7 +2123,12 @@ Map<String, dynamic> _refreshedObjectField(
       .cast<Map<String, dynamic>>()
       .where((f) => f['name'] == field['name'])
       .firstOrNull;
-  if (field.containsKey('schemaValueForms') && fixed == null) {
+  if (field.containsKey('schemaValueForms') &&
+      (fixed == null ||
+          !fixed.containsKey('schemaValueForms') ||
+          !SchemaValueForms.fromJson(field['schemaValueForms']).equivalentTo(
+            SchemaValueForms.fromJson(fixed['schemaValueForms']),
+          ))) {
     throw CoreFailure(
       'draft.stale',
       'The captured schema field is unavailable in the current specification context',

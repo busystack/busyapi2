@@ -1,13 +1,19 @@
 import 'dart:convert';
 
 import 'model.dart';
+import 'schema_authoring_context.dart';
 
 enum SchemaValueForm { object, boolean, objectArray }
 
 /// Shape metadata from the captured engine field. This presentation check does
 /// not evaluate a schema or choose an OpenAPI family or schema dialect.
 class SchemaValueForms {
-  const SchemaValueForms._(this.supported, this.forms);
+  const SchemaValueForms._(
+    this.context,
+    this.field,
+    this.supported,
+    this.forms,
+  );
 
   factory SchemaValueForms.fromJson(Object? value) {
     CoreFailure invalid() => CoreFailure(
@@ -15,11 +21,14 @@ class SchemaValueForms {
       'The engine returned invalid schema field value forms',
     );
     if (value case {
-      'version': 1,
+      'version': 2,
+      'context': final context,
+      'field': String field,
       'supported': bool supported,
       'forms': List raw,
     }) {
-      if (raw.length > 3 ||
+      if (field.isEmpty ||
+          raw.length > 3 ||
           raw.toSet().length != raw.length ||
           supported != raw.isNotEmpty) {
         throw invalid();
@@ -33,13 +42,33 @@ class SchemaValueForms {
           _ => throw invalid(),
         });
       }
-      return SchemaValueForms._(supported, List.unmodifiable(forms));
+      return SchemaValueForms._(
+        schemaAuthoringContextFromJson(context, invalid: invalid),
+        field,
+        supported,
+        List.unmodifiable(forms),
+      );
     }
     throw invalid();
   }
 
+  final SchemaAuthoringContext context;
+  final String field;
   final bool supported;
   final List<SchemaValueForm> forms;
+
+  bool equivalentTo(SchemaValueForms other) {
+    if (context != other.context ||
+        field != other.field ||
+        supported != other.supported ||
+        forms.length != other.forms.length) {
+      return false;
+    }
+    for (var index = 0; index < forms.length; index++) {
+      if (forms[index] != other.forms[index]) return false;
+    }
+    return true;
+  }
 
   List<String> get jsonTypes => List.unmodifiable([
     for (final form in forms)

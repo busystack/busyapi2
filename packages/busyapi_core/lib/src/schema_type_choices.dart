@@ -1,16 +1,7 @@
 import 'model.dart';
+import 'schema_authoring_context.dart';
 
-typedef SchemaTypeContext = ({
-  String root,
-  String? rootVersion,
-  String resource,
-  String? resourceVersion,
-  String pointer,
-  String family,
-  String? dialect,
-  String base,
-  String resourcePointer,
-});
+typedef SchemaTypeContext = SchemaAuthoringContext;
 
 /// Captured authoring capabilities; the engine owns normative type selection.
 class SchemaTypeChoices {
@@ -29,17 +20,7 @@ class SchemaTypeChoices {
     if (value case {
       'revision': '1',
       'supported': bool supported,
-      'context': {
-        'root': String root,
-        'rootVersion': String? rootVersion,
-        'resource': String resource,
-        'resourceVersion': String? resourceVersion,
-        'pointer': String pointer,
-        'family': String family,
-        'dialect': String? dialect,
-        'base': String base,
-        'resourcePointer': String resourcePointer,
-      },
+      'context': final context,
       'scalarTypes': List scalars,
       'unionTypes': List unions,
     }) {
@@ -73,17 +54,7 @@ class SchemaTypeChoices {
       }
       return SchemaTypeChoices._(
         supported,
-        (
-          root: root,
-          rootVersion: rootVersion,
-          resource: resource,
-          resourceVersion: resourceVersion,
-          pointer: pointer,
-          family: family,
-          dialect: dialect,
-          base: base,
-          resourcePointer: resourcePointer,
-        ),
+        schemaAuthoringContextFromJson(context, invalid: invalid),
         scalarTypes,
         unionTypes,
       );

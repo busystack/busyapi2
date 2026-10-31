@@ -1,13 +1,10 @@
 import type {GraphScope,ReferenceGraph} from './reference_graph';
 import {supportedSchemaDialect} from './reference_graph';
+import {schemaAuthoringContext,sameSchemaAuthoringContext,type SchemaAuthoringContext} from './schema_authoring_context';
 
 type JsonType='object'|'array'|'string'|'number'|'integer'|'boolean'|'null';
-type SchemaTypeContext=Readonly<{
-    root:string;rootVersion:string|null;resource:string;resourceVersion:string|null;pointer:string;
-    family:string;dialect:string|null;base:string;resourcePointer:string;
-}>;
 export type SchemaTypeChoices=Readonly<{
-    revision:'1';supported:boolean;context:SchemaTypeContext;
+    revision:'1';supported:boolean;context:SchemaAuthoringContext;
     scalarTypes:readonly (JsonType|'file')[];unionTypes:readonly JsonType[];
 }>;
 
@@ -20,10 +17,7 @@ export function schemaTypeChoices(graph:ReferenceGraph,scope:GraphScope):SchemaT
     const file=supported&&scope.family==='2.0'&&graph.swaggerFileTypeChoices().has(scope.resource+'#'+scope.pointer);
     return {
         revision:'1',supported,
-        context:{root:graph.root,rootVersion:graph.specifications.get(graph.root)?.declaredVersion??null,
-            resource:scope.resource,resourceVersion:graph.specifications.get(scope.resource)?.declaredVersion??null,
-            pointer:scope.pointer,family:scope.family,dialect:scope.dialect,
-            base:scope.base,resourcePointer:scope.resourcePointer},
+        context:schemaAuthoringContext(graph,scope),
         scalarTypes:[...types,...(file?['file' as const]:[])],
         unionTypes:scope.family==='3.0'?[]:types,
     };
@@ -33,8 +27,7 @@ export function sameSchemaTypeChoices(expected:unknown,current:SchemaTypeChoices
     if(!expected||typeof expected!=='object'||Array.isArray(expected))return false;
     const value=expected as Record<string,unknown>,context=value.context;
     if(value.revision!==current.revision||value.supported!==current.supported||!context||typeof context!=='object'||Array.isArray(context))return false;
-    for(const key of Object.keys(current.context) as (keyof SchemaTypeContext)[])
-        if((context as Record<string,unknown>)[key]!==current.context[key])return false;
+    if(!sameSchemaAuthoringContext(context,current.context))return false;
     for(const key of ['scalarTypes','unionTypes'] as const){
         const supplied=value[key];
         if(!Array.isArray(supplied)||supplied.length!==current[key].length||supplied.some((entry,index)=>entry!==current[key][index]))return false;

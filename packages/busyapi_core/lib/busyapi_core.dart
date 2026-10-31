@@ -1,6 +1,7 @@
 library;
 
 export 'src/model.dart';
+export 'src/schema_authoring_context.dart' show SchemaAuthoringContext;
 export 'src/schema_type_choices.dart';
 export 'src/mime_text_materialization.dart';
 export 'src/schema_value_forms.dart';

@@ -17,7 +17,9 @@ from boolean-capable `additionalProperties`. Swagger Schema `items` also accepts
 arrays of Schema Objects, including an empty tuple; flat Parameter/Header/Items
 definitions keep their narrower rules. Modern forms respect the selected
 supported schema dialect. A changed containing context can invalidate a pending
-field action while retaining its draft. These shape checks accompany the shared
+field action while retaining its draft, including a patch-version or dialect
+change that leaves the available shapes unchanged. Reopen the field to review
+its current context. These shape checks accompany the shared
 structural and schema validators; accepting a form does not certify the entire API.
 
 References retain the declared family of each complete OpenAPI document. A

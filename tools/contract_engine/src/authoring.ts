@@ -11,7 +11,7 @@ import {isReferenceObject,referenceKinds,supportsReference} from './contexts';
 
 // This shared description supplies native fields, Source assistance and help.
 // Structural artifacts describe field shapes, not complete OAS semantics.
-export const authoringFieldRevision = '1';
+export const authoringFieldRevision = '2';
 const evaluator = new Ajv2020({strict: false, validateFormats: false});
 const conditions = new Map<any, any>();
 const names: Record<string, string> = {security: 'security-scheme', media: 'media-type', callback: 'callbacks', 'path-item': 'path-item', 'request-body': 'request-body'};
@@ -68,7 +68,7 @@ export function fieldsForScope(graph: ReferenceGraph, scope: GraphScope, value: 
     const typeChoices=scope.kind==='schema'?schemaTypeChoices(graph,scope):undefined;
     const explicitName = xmlRequiresExplicitName(graph,scope);
     return fields.map(field => {
-        const forms = schemaValueForms(scope, field);
+        const forms = schemaValueForms(graph, scope, field);
         return {...field, ...(forms ? {schemaValueForms: forms} : {}),
             ...(field.name === 'type' && typeChoices ? {schemaTypeChoices: typeChoices} : {}),
             ...(explicitName && field.name === 'name' ? {required: true} : {})};
