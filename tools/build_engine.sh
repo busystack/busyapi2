@@ -116,6 +116,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_header_compositions.cjs"
 "$node_bin" "$engine_dir/test_large_schema_evaluation.cjs"
 "$node_bin" "$engine_dir/test_native30.cjs"
+"$node_bin" "$engine_dir/test_restricted_required_proof.cjs"
 "$node_bin" --disable-proto=throw "$engine_dir/test_structural_component_names.cjs"
 "$node_bin" "$engine_dir/test_native20.cjs"
 "$node_bin" "$engine_dir/test_swagger_servers.cjs"
