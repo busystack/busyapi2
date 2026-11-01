@@ -81,7 +81,7 @@ Directional regressions are in `test_migration_direction.cjs` and
 `test_migration_access.cjs` through `planMigration` and native schema evaluation.
 Core access and derived-resource regressions cover captured ownership,
 publication, cancellation, stale inputs and package/CLI reopen; the widget review
-regression retains the existing controls. These additions have not been executed.
+regression uses the existing controls and localized fallback selection. These additions have not been executed.
 Their authorities are Swagger 2.0 §6.4.18, OpenAPI 3.0.4 §§4.7.24–4.7.25 and
 OpenAPI 3.2.1 §4.30.
 

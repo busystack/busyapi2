@@ -1149,6 +1149,7 @@
   "migrationDiscardAnnotation": "Discard the inactive schema annotation in the copy",
   "migrationOmitIgnoredBody": "Omit the ignored request-body declaration from the copy",
   "migrationInterpretTermsUri": "Use this Terms of Service text as a URI in the copy",
+  "migrationUseSchemaDefault": "Use this schema as the discriminator fallback in the copy",
   "migrationKeepUnresolved": "Leave this decision unresolved",
   "migrationOutputExists": "Choose a new migration directory. Existing output is preserved.",
   "migrationPublished": "The migrated copy was created. Original documents are preserved."

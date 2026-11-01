@@ -16,16 +16,17 @@ import '../packages/busyapi_core/test/test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final (from, target, flag, required, blocked) in [
+  for (final (from, target, flag, required, blocked, fallback) in [
     for (final (from, target) in [('3.0.4', '3.2.1'), ('3.2.1', '3.0.4')])
       for (final flag in ['readOnly', 'writeOnly'])
         for (final required in [false, true])
-          (from, target, flag, required, false),
+          (from, target, flag, required, false, false),
     for (final from in ['3.0.4', '3.1.2', '3.2.1'])
-      (from, '2.0', 'readOnly', false, true),
+      (from, '2.0', 'readOnly', false, true, false),
+    ('3.0.4', '3.2.1', 'readOnly', true, false, true),
   ]) {
     testWidgets(
-      '$from → $target $flag required=$required reviews access semantics before creating a copy',
+      '$from → $target $flag required=$required fallback=$fallback reviews access semantics before creating a copy',
       (tester) async {
         tester.view.physicalSize = const Size(1400, 1200);
         tester.view.devicePixelRatio = 1;
@@ -33,6 +34,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         final messenger =
             TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        var menuChoice = target;
         messenger.setMockMethodCallHandler(
           const MethodChannel('yaru_window'),
           (call) async => call.method == 'state'
@@ -49,7 +51,7 @@ void main() {
             if (call.method != 'show') return null;
             final entries = (call.arguments as Map)['entries'] as List;
             final index = entries.indexWhere(
-              (entry) => entry['label'] == target,
+              (entry) => entry['label'] == menuChoice,
             );
             expect(index, greaterThanOrEqualTo(0));
             return index;
@@ -72,16 +74,29 @@ void main() {
             '# Keep comments 雪\r\n${jsonEncode({
               'openapi': from,
               'info': {'title': 'Original 雪', 'version': 'api-version'},
-              'paths': {},
+              'paths': {
+                if (fallback) '/value': {
+                  'post': {
+                    'requestBody': {
+                      'content': {
+                        'application/json': {'schema': {r'$ref': '#/components/schemas/Model'}},
+                      },
+                    },
+                    'responses': {'204': {'description': 'No content'}},
+                  },
+                },
+              },
               'components': {
                 'schemas': {
                   'Model': {
                     'type': 'object',
+                    if (fallback) 'discriminator': {'propertyName': 'value'},
                     if (required) 'required': ['value'],
                     'properties': {
                       'value': {'type': 'string', flag: true},
                     },
                   },
+                  if (fallback) 'Child': {'allOf': [{r'$ref': '#/components/schemas/Model'}]},
                 },
               },
               'x-exact': 'EXACT',
@@ -170,6 +185,23 @@ void main() {
                 'Create migrated copy',
               ),
               path = '${temp.path}/busyapi-migrated';
+          if (fallback) {
+            final choice = find.byWidgetPredicate(
+              (widget) => widget is BusyApiComboRow<String> &&
+                  widget.title == 'migration.discriminator.default',
+            );
+            await ready(() => choice.evaluate().isNotEmpty);
+            expect(tester.widget<BusyApiDialogButton>(publish).onPressed, isNull);
+            expect(Directory(path).existsSync(), false);
+            final localizations = AppLocalizations.of(tester.element(choice))!;
+            menuChoice = localizations.migrationUseSchemaDefault;
+            await tester.ensureVisible(choice);
+            await tester.tap(choice);
+            await tester.pumpAndSettle();
+            expect(find.text(localizations.migrationUseSchemaDefault), findsOneWidget);
+            expect(find.text('use-schema-as-default'), findsNothing);
+            await tester.runAsync(() => tester.tap(review));
+          }
           if (blocked) {
             await ready(
               () => find
