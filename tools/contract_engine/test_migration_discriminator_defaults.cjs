@@ -6,7 +6,7 @@ const {analyse,createGraph}=require('./dist/model.cjs');
 const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
 const {SourceDocument}=require('./dist/document.cjs');
 
-function fixture(version,format,composition){
+function fixture(version,format,composition,required=false){
     const root='file:///fallback/api.'+format;
     const mapped=['Cat','cat','OtherOne','OtherTwo'];
     const fallback=(field,schema)=>({type:'object',required:[field],properties:{
@@ -18,6 +18,11 @@ function fixture(version,format,composition){
         OtherOne:fallback('value',{type:'integer',minimum:'EXACT'}),
         OtherTwo:fallback('note',{type:'string'}),
     };
+    if(required){
+        schemas.Parent.required=['kind'];
+        schemas.Parent.properties={kind:{type:'string'}};
+        schemas.Parent.example={kind:'future',value:'EXACT'};
+    }
     if(composition==='allOf'){
         schemas.Parent.properties={kind:{type:'string'}};
         for(const name of ['Cat','OtherOne','OtherTwo'])schemas[name]={allOf:[{$ref:'#/components/schemas/Parent'},schemas[name]]};
@@ -41,7 +46,49 @@ async function evaluate(input,schema){
     return result.runtimeEvaluations.map(value=>value.valid);
 }
 
-for(const version of ['3.0.4','3.1.2'])for(const format of ['yaml','json'])for(const composition of ['oneOf','anyOf','allOf'])
+for(const format of ['yaml','json'])for(const composition of ['oneOf','anyOf','allOf'])
+test(`3.0.4 ${format} ${composition} optional discriminator stays an invalid source and cannot request fallback migration`,async()=>{
+    const input=fixture('3.0.4',format,composition),original=input.resources[0].text;
+    const result=analyse(input);
+    assert.equal(result.complete,true);assert.equal(result.status,'invalid');
+    const findings=result.findings.filter(finding=>finding.code==='discriminator.required');
+    assert.equal(findings.length,1,JSON.stringify(result.findings));
+    const [finding]=findings;
+    assert.equal(finding.resource,input.root);assert.equal(finding.pointer,'/components/schemas/Parent/discriminator/propertyName');
+    assert.equal(finding.severity,'error');assert(finding.range[1]>finding.range[0]);
+    const review=await planMigration(input);
+    assert.equal(review.status,'blocked');assert.equal(review.complete,false);
+    assert(review.problems.some(problem=>problem.code==='migration.validation.discriminator.required'&&problem.reason==='source-incomplete'),JSON.stringify(review.problems));
+    assert(!review.problems.some(problem=>problem.code==='migration.discriminator.default'));
+    assert.deepEqual(review.acceptedDecisions,[]);assert.deepEqual(review.outputs,[]);assert.deepEqual(review.changes,[]);
+    assert.equal(input.resources[0].text,original);
+});
+
+for(const format of ['yaml','json'])for(const composition of ['oneOf','anyOf','allOf'])
+test(`3.0.4 ${format} ${composition} required discriminator upgrades without inventing an optional fallback decision`,async()=>{
+    const input=fixture('3.0.4',format,composition,true),original=input.resources[0].text;
+    const sourceAnalysis=analyse(input);assert.equal(sourceAnalysis.status,'complete',JSON.stringify(sourceAnalysis.findings));
+    const before=await evaluate(input,{resource:input.root,pointer:'/components/schemas/Parent'});
+    const review=await planMigration(input);
+    assert.equal(review.status,'faithfully-convertible',JSON.stringify(review.problems));assert.equal(review.complete,true);
+    assert.deepEqual(review.problems,[]);assert.deepEqual(review.acceptedDecisions,[]);
+    const output=delivered(review),{graph}=createGraph(output);
+    const targetAnalysis=analyse(output);assert.equal(targetAnalysis.status,'complete',JSON.stringify(targetAnalysis.findings));
+    assert(!graph.references.some(reference=>reference.keyword==='defaultMapping'));
+    const doc=new SourceDocument(output.resources[0].text,output.root);
+    assert.equal(doc.dataNode('/openapi').value,'3.2.1');
+    assert.equal(doc.dataJson('/components/schemas/Parent/required'),'["kind"]');
+    assert.equal(doc.dataNode('/components/schemas/Parent/discriminator/defaultMapping'),undefined);
+    const mapping=graph.references.find(reference=>reference.connection==='discriminator'&&reference.keyword==='cat');
+    assert.equal(mapping?.resolution,'resolved');assert.equal(mapping.targetResource,output.root);assert.equal(mapping.targetPointer,'/components/schemas/Cat');
+    assert.deepEqual(await evaluate(output,{resource:output.root,pointer:'/components/schemas/Parent'}),before);
+    assert.deepEqual(await evaluate(output,{resource:mapping.targetResource,pointer:mapping.targetPointer}),
+        await evaluate(input,{resource:input.root,pointer:'/components/schemas/Cat'}));
+    assert.equal(doc.dataJson('/x-literal'),new SourceDocument(original,input.root).dataJson('/x-literal'));
+    assert.equal(input.resources[0].text,original);
+});
+
+for(const version of ['3.1.2'])for(const format of ['yaml','json'])for(const composition of ['oneOf','anyOf','allOf'])
 test(`${version} ${format} ${composition} offers only eligible proved alternatives and honors each selected target`,async()=>{
     const input=fixture(version,format,composition),original=input.resources[0].text;
     const before=await evaluate(input,{resource:input.root,pointer:'/components/schemas/Parent'});

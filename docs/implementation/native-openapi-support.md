@@ -113,6 +113,15 @@ and regressions are implemented but unverified. The discriminator producer
 regression now checks `discriminator-models-v2` and production mock rejection of
 obsolete `swagger-discriminator-models-v1` proofs; those tests have not run.
 
+Fallback migration fixtures distinguish the families' discriminator rules.
+The optional-property 3.0.4 cases remain negative validation/publication tests;
+valid 3.0.4 upgrades keep the property required and add no fallback decision.
+Positive optional fallback reviews use 3.1.2, whose absent-property selection
+behavior is undefined until the user chooses the 3.2 fallback. Engine and Core
+cases cover YAML/JSON and oneOf/anyOf/allOf, selected target identity and behavior,
+unchanged originals, stale decisions and publication refusal. Production 3.0
+validation is unchanged. These corrected and added regressions have not run.
+
 Native `defaultMapping` checks distinguish ineligible targets from unavailable
 inheritance context. Metadata errors do not change JSON Schema instance
 validation. The existing Design reference picker and Source completions use the
