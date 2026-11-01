@@ -181,6 +181,7 @@ class WorkspaceController extends ChangeNotifier {
             r'$ref',
             r'$dynamicRef',
             'operationRef',
+            'defaultMapping',
           ].contains(referenceField) &&
           item['nodeKind'] == 'object' &&
           at == '$ownerPointer/$referenceField') {

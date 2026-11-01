@@ -1,7 +1,7 @@
 import {type GraphTarget,type ReferenceGraph} from './reference_graph';
 import {projectSchemaReference,type SchemaReferenceProjection} from './schema_reference_projection';
 
-export const discriminatorContextRevision='1';
+export const discriminatorContextRevision='2';
 export const discriminatorLocation=(target:Pick<GraphTarget,'resource'|'pointer'>):string=>JSON.stringify([target.resource,target.pointer]);
 
 /** Composition needs a guaranteed captured allOf connection. A dynamic choice

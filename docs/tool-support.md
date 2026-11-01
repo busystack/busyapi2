@@ -72,6 +72,12 @@ Typed reference choices and Source completions use this same context check.
 An `operationRef` link identifies its target operation and keeps its separate
 reference rules.
 
+OpenAPI 3.2 discriminator `defaultMapping` targets must belong to the schema's
+adjacent alternatives or inherit the parent through `allOf`. Design's existing
+reference picker and Source completions use the canonical composition check.
+An unresolved inheritance context stays incomplete; an unrelated target is a
+specification error. Discriminator metadata never replaces schema validation.
+
 Terms of service retain their family meaning: Swagger 2.0 accepts text, while
 3.x requires a URI reference. Contact, license, external documentation and
 serialized-example URI fields receive source-located syntax diagnostics; values

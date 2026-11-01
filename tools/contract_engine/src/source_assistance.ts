@@ -2,7 +2,7 @@ import { analyse, createGraph, Resource } from './engine';
 import { fieldsForScope } from './authoring';
 import { escape, segments, SourceDocument, SourceError } from './document';
 import { GraphReference, supportedSchemaDialect } from './reference_graph';
-import { referenceValue, securityBindings, securitySelectionScope } from './reference_choices';
+import { referenceValue, securityBindings, securitySelectionScope, discriminatorBindings } from './reference_choices';
 import {isNativeFamily} from './specification';
 const standard = (family: string, kind: string) => `https://spec.openapis.org/oas/v${family === '2.0' ? '2.0' : family === '3.0' ? '3.0.4' : family === '3.1' ? '3.1.2' : '3.2.1'}.html#${({ root: family === '2.0' ? 'swagger' : 'openapi', media: 'media-type', security: 'security-scheme' } as any)[kind] ?? kind}-object`;
 function located(input: any, doc: SourceDocument, pointer: string, extra: any = {}) {
@@ -103,7 +103,11 @@ export function assistSource(input: any) {
         if (parentScope.kind === 'schema' && name === 'type') {
             values = field.schemaTypeChoices?.scalarTypes ?? [];
         }
-        if (['$ref','$dynamicRef'].includes(name) && graph.references.some(r => r.resource === doc.id && r.pointer === parentPointer && r.keyword === name)) {
+        if(name==='defaultMapping'&&parentScope.kind==='discriminator'&&parentScope.family==='3.2'){
+            for(const {target,value}of discriminatorBindings(graph,parentScope).entries)
+                addValue(value,segments(target.pointer).at(-1)??target.base,located(input,docs.get(target.resource)!,target.pointer));
+        }
+        else if (['$ref','$dynamicRef'].includes(name) && graph.references.some(r => r.resource === doc.id && r.pointer === parentPointer && r.keyword === name)) {
             const expectedKind = parentScope.kind;
             const compatible = (kind: string) => expectedKind === 'schema' ? kind === 'schema' : kind === expectedKind;
             const suggestions: any[] = [];

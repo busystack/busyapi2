@@ -5,9 +5,48 @@ import {escape,segments,SourceError} from './document';
 import {GraphReference,GraphScope,ReferenceGraph,implicitNameReference,resolveUri,supportedSchemaDialect,pointerFragment as fragment} from './reference_graph';
 import {capabilitiesFor,isNativeFamily} from './specification';
 import {securityRequirementDefinition,securityRequirementValuesAllowed} from './security_requirements';
+import {DiscriminatorAlternativeSelection} from './discriminator_alternatives';
 
 const bounded=(value:string)=>Array.from(value).slice(0,240).join('');
 const same=(a:{resource:string;pointer:string},b:{resource:string;pointer:string})=>a.resource===b.resource&&a.pointer===b.pointer;
+
+export function discriminatorSelectionParent(graph:ReferenceGraph,source:GraphScope):GraphScope|undefined {
+ if(source.kind!=='discriminator'||source.family!=='3.2')return;
+ const parent=graph.scopeAs(source.resource,source.pointer.slice(0,-'/discriminator'.length),'schema');
+ return parent&&supportedSchemaDialect(parent)?parent:undefined;
+}
+
+/** Default mappings are named/URI connections to composition alternatives,
+ * not Schema Object references. Keep the existing spelling when it is valid;
+ * prove new spellings in the actual entry namespace before offering them. */
+export function discriminatorBindings(graph:ReferenceGraph,source:GraphScope):{
+ complete:boolean;entries:readonly {target:GraphScope;value:string}[];
+} {
+ const parent=discriminatorSelectionParent(graph,source);
+ if(!parent)return {complete:false,entries:[]};
+ const selection=new DiscriminatorAlternativeSelection(graph),discovered=selection.discover(parent);
+ const current=graph.references.find(reference=>same(reference,source)&&reference.connection==='discriminator'&&reference.keyword==='defaultMapping');
+ const targets=new Map(discovered.alternatives.map(target=>[JSON.stringify([target.resource,target.pointer]),target]));
+ if(current?.resolution==='resolved'){
+  const target=graph.scopeAs(current.targetResource!,current.targetPointer!,'schema');
+  if(target&&selection.contains(parent,target).state==='eligible')targets.set(JSON.stringify([target.resource,target.pointer]),target);
+ }
+ const entries:{target:GraphScope;value:string}[]=[];
+ for(const target of targets.values()){
+  const name=segments(target.pointer).at(-1);
+  const spellings:string[]=[];
+  if(current?.resolution==='resolved'&&current.targetResource===target.resource&&current.targetPointer===target.pointer)spellings.push(current.value);
+  if(target.resource===graph.root&&target.pointer==='/components/schemas/'+escape(name??''))spellings.push(name!);
+  const uri=referenceValue(graph,{...source,kind:'schema'},target);
+  if(uri!==undefined)spellings.push(uri);
+  for(const value of spellings){
+   const proof=graph.resolveConnection({...source,kind:'schema',connection:'discriminator',keyword:'defaultMapping',value});
+   if(proof.resolution!=='resolved'||proof.targetResource!==target.resource||proof.targetPointer!==target.pointer)continue;
+   entries.push({target,value});break;
+  }
+ }
+ return {complete:discovered.problems.length===0,entries};
+}
 
 /** Address construction is not resolution. Every proposed spelling must be
  * proved by the canonical graph, including embedded ids and retrieval aliases.
@@ -130,15 +169,18 @@ export function referenceChoices(input:any) {
  const {docs,graph}=createGraph(input),doc=docs.get(input.resource),scope=graph.scopes.get(input.resource+'#'+input.pointer);
  const keyword=input.keyword??'$ref';
  const security=keyword==='security'&&scope?securitySelectionScope(graph,scope):undefined;
- if(!doc||!scope||!['$ref','$dynamicRef','operationRef','security'].includes(keyword)||
+ const discriminator=keyword==='defaultMapping'&&scope?discriminatorSelectionParent(graph,scope):undefined;
+ if(!doc||!scope||!['$ref','$dynamicRef','operationRef','security','defaultMapping'].includes(keyword)||keyword==='defaultMapping'&&!discriminator||
    (keyword==='security'?!security:doc.node(input.pointer).kind!=='object'||!fieldsForScope(graph,scope,doc.node(input.pointer).value).some(field=>field.name===keyword&&!field.prohibited&&!field.blockedBy?.length))||
    input.bindingForm!==undefined&&(!security||!['name','uri'].includes(input.bindingForm)))
   throw new SourceError('reference.choice.context','This field is not a reference selector in the selected object context');
- const expectedKind=security?'security':keyword==='operationRef'?'operation':scope.kind;
+ const expectedKind=security?'security':discriminator?'schema':keyword==='operationRef'?'operation':scope.kind;
  const current=security?security.current:graph.references.find(ref=>ref.resource===doc.id&&ref.pointer===input.pointer&&ref.keyword===keyword);
  const query=input.query.toLocaleLowerCase('en-US'),all:any[]=[],resources=new Map((input.resources as Resource[]).map(resource=>[resource.id,resource]));
+ const defaults=discriminator?discriminatorBindings(graph,scope):undefined;
  function* candidates():Generator<{target:GraphScope;value?:string;bindingForm?:SecurityBindingForm}>{
   if(security)yield*securityBindings(graph,security,{bindingForm:input.bindingForm,query:input.query});
+  else if(defaults)yield*defaults.entries;
   else for(const target of graph.scopes.values())yield {target};
  }
  for(const candidate of candidates()) {
@@ -166,6 +208,6 @@ export function referenceChoices(input:any) {
  const offset=Math.min(Math.max(0,Number.isInteger(input.offset)?input.offset:0),Math.max(0,(Math.ceil(all.length/50)-1)*50));
  const resource=resources.get(doc.id)!;
  return {version:1,snapshot:input.snapshot,root:input.root,resource:doc.id,pointer:input.pointer,generation:resource.generation,keyword,kind:scope.kind,targetKind:expectedKind,...(input.bindingForm?{bindingForm:input.bindingForm}:{}),
-  range:doc.node(input.pointer).range,complete:!graph.issues.length&&[...docs.values()].every(doc=>!doc.issues.length),count:all.length,offset,entries:all.slice(offset,offset+50),
+  range:doc.node(input.pointer).range,complete:defaults?.complete!==false&&!graph.issues.length&&[...docs.values()].every(doc=>!doc.issues.length),count:all.length,offset,entries:all.slice(offset,offset+50),
   current:current?{value:current.value,resolution:current.resolution,targetResource:current.targetResource,targetPointer:current.targetPointer,dynamic:current.dynamic}:null};
 }

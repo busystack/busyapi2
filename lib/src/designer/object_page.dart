@@ -174,7 +174,12 @@ class _NativeObjectPageState extends State<_NativeObjectPage> {
     String key,
     Widget input,
   ) {
-    if (!const [r'$ref', r'$dynamicRef', 'operationRef'].contains(key)) {
+    if (!const [
+      r'$ref',
+      r'$dynamicRef',
+      'operationRef',
+      'defaultMapping',
+    ].contains(key)) {
       return input;
     }
     return Column(

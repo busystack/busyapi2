@@ -42,6 +42,7 @@ source inspection or a successful build is not runtime acceptance.
 | Modern required-property lowering | Migration required-presence owner | Scoped modern-to-3.0 presence assertions retain constraints | Implemented but unverified |
 | Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants | Implemented but unverified; aliased/literal and cross-entry ownership remain incomplete |
 | Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback choices bind eligible composition alternatives and exact instance witnesses | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
+| Native 3.2 discriminator fallbacks | Canonical composition selector, authoring diagnostics and reference choices | Existing fallback targets checked against adjacent alternatives/allOf descendants; Design selection and Source completion share captured targets | Implemented but unverified |
 | Swagger discriminator migration | Shared named-model owner and migration specialization | Compatible captured namespaces mapped; shared ownership cases remain | Implemented but unverified |
 | Document identity downgrade | Migration URI owner, canonical graph and CST | `$self` lowering captures document URI fields, nested schema identities and reference bases; API URL context remains separate | Implemented but unverified; independent schema/literal ownership remains incomplete |
 | Changed-base Markdown | Shared destination-span proof, migration and maintenance owners | Unshared rendered occurrences mapped without rewriting code or prose | Implemented but unverified |
@@ -110,6 +111,17 @@ numbers, stale choices, cancellation and malformed review metadata. These change
 and regressions are implemented but unverified. The discriminator producer
 regression now checks `discriminator-models-v2` and production mock rejection of
 obsolete `swagger-discriminator-models-v1` proofs; those tests have not run.
+
+Native `defaultMapping` checks distinguish ineligible targets from unavailable
+inheritance context. Metadata errors do not change JSON Schema instance
+validation. The existing Design reference picker and Source completions use the
+same composition selector, with per-root checks before a reviewed edit.
+`test_discriminator_alternatives.cjs` and Core selection regressions cover
+aliases, reference siblings, external/escaped targets, dynamic contexts,
+unsupported dialects, exact source preservation, Undo/Redo, cancellation, stale
+captures and cold reopen. These regressions have not run. Three older valid
+controls used unrelated fallback schemas; they now use listed alternatives or
+actual allOf descendants, as required by the normative Discriminator Object.
 
 Flutter 3.47.5/Dart 3.13.4 and the existing framework/engine revisions are
 unchanged. `tools/flutter_sdk.lock.json` pins the

@@ -69,10 +69,12 @@ for(const json of [false,true])test(`F15 canonical proof follows required refere
  assert(checked.findings.some(f=>f.code==='discriminator.default-mapping.required'));
  assert.equal(checked.runtimeEvaluations[0].valid,true);assert.equal(checked.runtimeEvaluations[0].complete,true);
  assert.deepEqual(checked.evaluations.map(e=>e.valid),[true]);
- const value={components:{schemas:{Other:{type:'object'},Model:{type:'object',oneOf:[{required:['a']},{required:['b']}],discriminator:{propertyName:'kind',defaultMapping:'Other'},examples:[{a:true}]}}}};
+ const value={components:{schemas:{Other:{type:'object',required:['a'],properties:{a:{type:'boolean'}}},Model:{type:'object',oneOf:[{$ref:'#/components/schemas/Other'},{required:['b']}],discriminator:{propertyName:'kind',defaultMapping:'Other'},examples:[{a:true}]}}}};
  const valid=fixture('3.2.1',value,json);
  assert.equal(analyse(valid).references.find(r=>r.keyword==='defaultMapping').resolution,'resolved');
- assert.equal((await evaluateSchemas(valid)).complete,true);
+ const evaluated=await evaluateSchemas(valid);
+ assert.equal(evaluated.complete,true);
+ assert(!evaluated.findings.some(finding=>finding.code.startsWith('discriminator.default-mapping.')),JSON.stringify(evaluated.findings));
 });
 test('F15 absence of a local required keyword is not an optionality proof',async()=>{
  const input=fixture('3.2.1',{components:{schemas:{Model:{type:'object',minProperties:1,additionalProperties:false,properties:{kind:{type:'string'}},allOf:[true],discriminator:{propertyName:'kind'}}}}});

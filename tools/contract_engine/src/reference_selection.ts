@@ -2,7 +2,8 @@ import {createHash} from 'node:crypto';
 import {createGraph,propose,Resource} from './engine';
 import {fieldsForScope} from './authoring';
 import {escape,segments,SourceError} from './document';
-import {referenceValue,securityBindings,securitySelectionScope} from './reference_choices';
+import {referenceValue,securityBindings,securitySelectionScope,discriminatorBindings,discriminatorSelectionParent} from './reference_choices';
+import {DiscriminatorAlternativeSelection} from './discriminator_alternatives';
 import {resolveUri} from './reference_graph';
 
 const same=(a:any,b:any)=>a?.resource===b?.resource&&a?.pointer===b?.pointer;
@@ -37,7 +38,7 @@ export function coldGraph(root:string,resources:Resource[]) {
  * from the immutable resources already approved by the native owner. */
 export function planReference(input:any) {
  const resources=input.resources as Resource[],target=input.target,choice=input.choice,keyword=input.keyword;
- if(!Array.isArray(resources)||!Array.isArray(input.contexts)||!input.contexts.length||input.contexts.length>128||!['$ref','$dynamicRef','operationRef','security'].includes(keyword))
+ if(!Array.isArray(resources)||!Array.isArray(input.contexts)||!input.contexts.length||input.contexts.length>128||!['$ref','$dynamicRef','operationRef','security','defaultMapping'].includes(keyword))
   throw new SourceError('reference.choice.context','Choose a source occurrence and a typed target');
  const source=resources.find(r=>r.id===target?.resource),destination=resources.find(r=>r.id===choice?.resource);
  if(!source||!destination||source.generation!==target.generation||destination.generation!==choice.generation)
@@ -50,8 +51,9 @@ export function planReference(input:any) {
  const selected=graphs.find(g=>g.context.root===target.root),scope=selected?.graph.scopes.get(source.id+'#'+target.pointer),to=selected?.graph.scopes.get(destination.id+'#'+choice.pointer);
  const doc=selected?.docs.get(source.id),node=doc?.nodes.get(target.pointer),toDoc=selected?.docs.get(destination.id),toNode=toDoc?.nodes.get(choice.pointer);
  const security=keyword==='security'&&scope?securitySelectionScope(selected.graph,scope):undefined;
+ const discriminator=keyword==='defaultMapping'&&scope?discriminatorSelectionParent(selected.graph,scope):undefined;
  if(!scope||!to||!node||!toNode||node.shared||same(scope,to)&&scope.kind!=='schema'||
-  to.kind!==(keyword==='security'?'security':keyword==='operationRef'?'operation':scope.kind)||!doc!.syntaxSafe(target.pointer)||!toDoc!.syntaxSafe(choice.pointer)||
+  keyword==='defaultMapping'&&!discriminator||to.kind!==(keyword==='security'?'security':discriminator?'schema':keyword==='operationRef'?'operation':scope.kind)||!doc!.syntaxSafe(target.pointer)||!toDoc!.syntaxSafe(choice.pointer)||
   (keyword==='security'?!security:node.kind!=='object'||!fieldsForScope(selected.graph,scope,node.value).some(f=>f.name===keyword&&!f.prohibited&&!f.blockedBy?.length)))
   throw new SourceError('reference.choice.context','The selected source and target do not have compatible, unambiguous ownership');
  for(const [captured,actual,resource]of [[target,node,source],[choice,toNode,destination]] as const)
@@ -67,7 +69,9 @@ export function planReference(input:any) {
  if(security&&!['name','uri'].includes(choice.bindingForm))throw new SourceError('reference.choice.context','Choose a captured security binding form');
  const binding=security?securityBindings(selected.graph,security,{bindingForm:choice.bindingForm}).find(candidate=>same(candidate.target,to)&&candidate.value===choice.value):undefined;
  if(security&&!binding)throw new SourceError('reference.choice.context','The selected security binding is not a current unambiguous choice');
- const value=security?binding!.value:resolvedTo(old,to)?old!.value:referenceValue(selected.graph,scope,to,keyword);
+ const fallback=discriminator?discriminatorBindings(selected.graph,scope).entries.find(candidate=>same(candidate.target,to)):undefined;
+ if(discriminator&&!fallback)throw new SourceError('reference.choice.context','The selected fallback is not an eligible captured composition alternative');
+ const value=security?binding!.value:fallback?fallback.value:resolvedTo(old,to)?old!.value:referenceValue(selected.graph,scope,to,keyword);
  if(value===undefined)throw new SourceError('reference.choice.address','No unambiguous approved reference address can represent this target');
  const noop=security?security.mode==='replacement'&&old?.value===value:resolvedTo(old,to);
  const actions=security?security.mode==='alternative'?[{kind:'append',pointer:scope.pointer,value:{[value]:[]}}]:security.mode==='combined'?
@@ -102,6 +106,13 @@ export function planReference(input:any) {
   const next=after!.graph.references.find(r=>r.resource===scope.resource&&r.pointer===nextPointer&&r.keyword===nextKeyword);
   if(!resolvedTo(next,to)||after!.graph.scopes.get(to.resource+'#'+to.pointer)?.kind!==to.kind)
    throw new SourceError('refactor.context.ambiguous','The selected reference does not resolve to the same typed definition in every owning root');
+  if(discriminator){
+   const afterSource=after!.graph.scopes.get(source.id+'#'+scope.pointer);
+   const parent=afterSource&&discriminatorSelectionParent(after!.graph,afterSource);
+   const alternative=after!.graph.scopeAs(to.resource,to.pointer,'schema');
+   if(!parent||!alternative||new DiscriminatorAlternativeSelection(after!.graph).contains(parent,alternative).state!=='eligible')
+    throw new SourceError('refactor.context.ambiguous','This fallback is not an eligible composition alternative in every owning root');
+  }
   if(result.edits.length) {
    const admitted=resources.filter(r=>ids.has(r.id)),beforeCold=coldGraph(context.root,admitted);
    const afterCold=coldGraph(context.root,admitted.map(r=>r.id===source.id?{...r,text}:r));

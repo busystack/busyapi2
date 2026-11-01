@@ -11,6 +11,10 @@ export type DiscriminatorAlternatives=Readonly<{
     alternatives:readonly GraphScope[];
     problems:readonly DiscriminatorAlternativeProblem[];
 }>;
+export type DiscriminatorAlternativeMembership=Readonly<{
+    state:'eligible'|'ineligible'|'incomplete';
+    problems:readonly DiscriminatorAlternativeProblem[];
+}>;
 const identity=(scope:GraphScope)=>JSON.stringify([scope.resource,scope.pointer]);
 
 /** OAS 3.2.1 Discriminator Object: fallback targets belong to the adjacent
@@ -70,8 +74,12 @@ export class DiscriminatorAlternativeSelection {
             scope=target;
         }
     }
-    private inherits(scope:GraphScope,parent:GraphScope,seen:ReadonlySet<string>,problems:DiscriminatorAlternativeProblem[]):boolean {
+    private inherits(scope:GraphScope,parent:GraphScope,seen:ReadonlySet<string>,problems:DiscriminatorAlternativeProblem[],reportUnknown=false):boolean {
         if(!this.spend(scope,problems))return false;
+        if(!supportedSchemaDialect(scope)){
+            if(reportUnknown)problems.push({scope,code:'discriminator.alternative.dialect',message:'Inheritance depends on an unsupported captured schema dialect'});
+            return false;
+        }
         const key=identity(scope);
         if(key===identity(parent))return true;
         if(seen.has(key))return false;
@@ -82,16 +90,53 @@ export class DiscriminatorAlternativeSelection {
         const next=new Set(seen).add(key);
         for(const reference of this.references.get(key)??[]){
             const projection=projectSchemaReference(reference);
-            if(projection.state!=='fixed')continue;
+            if(projection.state!=='fixed'){
+                if(projection.state==='dynamic'&&projection.candidates.length&&projection.candidates.every(candidate=>{
+                    const target=this.graph.scopeAs(candidate.resource,candidate.pointer,'schema');
+                    return target!==undefined&&this.inherits(target,parent,next,problems,reportUnknown);
+                }))return true;
+                if(reportUnknown)problems.push({scope:reference,code:'discriminator.alternative.reference',message:'Inheritance does not have one proved captured parent across its reference contexts'});
+                continue;
+            }
             const target=this.graph.scopeAs(projection.target.resource,projection.target.pointer,'schema');
-            if(target&&this.inherits(target,parent,next,problems))return true;
+            if(target&&this.inherits(target,parent,next,problems,reportUnknown))return true;
         }
         const list=this.graph.docs.get(scope.resource)!.dataNode(scope.pointer+'/allOf');
         if(list?.kind==='array')for(const index of list.children.keys()){
             const child=this.graph.scopeAs(scope.resource,scope.pointer+'/allOf/'+index,'schema');
-            if(child&&this.inherits(child,parent,next,problems))return true;
+            if(child&&this.inherits(child,parent,next,problems,reportUnknown))return true;
         }
         return false;
+    }
+    contains(parent:GraphScope,selected:GraphScope):DiscriminatorAlternativeMembership {
+        const problems:DiscriminatorAlternativeProblem[]=[];
+        if(!supportedSchemaDialect(parent))return {state:'incomplete',problems:[{
+            scope:parent,code:'discriminator.alternative.dialect',message:'Discriminator composition requires the selected supported schema dialect',
+        }]};
+        const target=this.target(selected,parent,problems);
+        if(!target)return {state:problems.some(problem=>problem.code==='discriminator.alternative.circular')?'ineligible':'incomplete',problems};
+        const doc=this.graph.docs.get(parent.resource)!,value=doc.dataNode(parent.pointer)?.value;
+        const adjacent=['oneOf','anyOf'].filter(keyword=>Array.isArray(value?.[keyword]));
+        if(adjacent.length>1)return {state:'incomplete',problems:[{
+            scope:parent,code:'discriminator.alternative.composition',message:'Simultaneous adjacent oneOf and anyOf discriminator selection is not defined by OpenAPI',
+        }]};
+        if(adjacent.length){
+            const keyword=adjacent[0];
+            for(const index of doc.dataNode(parent.pointer+'/'+keyword)!.children.keys()){
+                const member=this.graph.scopeAs(parent.resource,parent.pointer+'/'+keyword+'/'+index,'schema');
+                if(!member)continue;
+                if(identity(member)===identity(target))return {state:'eligible',problems:[]};
+                const resolved=this.target(member,parent,problems);
+                if(resolved&&identity(resolved)===identity(target))return {state:'eligible',problems:[]};
+            }
+        }else{
+            const list=this.graph.docs.get(target.resource)!.dataNode(target.pointer+'/allOf');
+            if(list?.kind==='array')for(const index of list.children.keys()){
+                const branch=this.graph.scopeAs(target.resource,target.pointer+'/allOf/'+index,'schema');
+                if(branch&&this.inherits(branch,parent,new Set(),problems,true))return {state:'eligible',problems:[]};
+            }
+        }
+        return {state:problems.some(problem=>problem.code!=='discriminator.alternative.circular')?'incomplete':'ineligible',problems};
     }
     discover(parent:GraphScope):DiscriminatorAlternatives {
         const problems:DiscriminatorAlternativeProblem[]=[],alternatives=new Map<string,GraphScope>();

@@ -29,7 +29,11 @@ function packet(version,format,mode){
  }
  // Controls retain each family's own discriminator rules.
  if(swagger){subject.required=[name];subject.properties={[name]:{type:'string'}};}
- if(version.startsWith('3.2.')){subject.discriminator.defaultMapping='Fallback';schemas.Fallback={type:'object'};}
+ if(version.startsWith('3.2.')){
+  const adjacent=['anyOf','oneOf'].find(keyword=>Array.isArray(subject[keyword]));
+  subject.discriminator.defaultMapping=adjacent?base+'Subject/'+adjacent+'/1':'Fallback';
+  schemas.Fallback={allOf:[{$ref:base+'Subject'}]};
+ }
  const value={...(swagger?{swagger:version}:{openapi:version}),info:{title:'Keep native proof',version:'business'},paths:{},...(swagger?{definitions:schemas}:{components:{schemas}}),'x-number':'EXACT','x-payload':{$ref:'literal.json',discriminator:{propertyName:'decoy'}}};
  const text=(format==='yaml'?'# Keep original CRLF\r\n'+YAML.stringify(value).replaceAll('\n','\r\n'):JSON.stringify(value)+'\r\n').replaceAll('"EXACT"','9007199254740993.00').replaceAll('EXACT','9007199254740993.00');
  const root='file:///controlled/proof.'+format;

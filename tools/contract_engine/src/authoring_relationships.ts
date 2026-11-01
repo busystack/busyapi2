@@ -1,4 +1,5 @@
 import {discriminatorLocation,discriminatorParents} from './discriminator_semantics';
+import {DiscriminatorAlternativeSelection} from './discriminator_alternatives';
 import {escape} from './document';
 import {GraphTarget,ReferenceGraph} from './reference_graph';
 
@@ -11,10 +12,28 @@ export function discriminatorRelationships(graph:ReferenceGraph):AuthoringIssue[
  const candidates=graph.scopesFor('schema').filter(scope=>scope.kind==='schema'&&scope.family!=='2.0'&&graph.docs.get(scope.resource)?.dataNode(scope.pointer)?.value?.discriminator);
  if(!candidates.length)return [];
  const parents=discriminatorParents(graph);
+ const alternatives=new DiscriminatorAlternativeSelection(graph);
+ const defaults=new Map(graph.references.filter(reference=>reference.connection==='discriminator'&&reference.keyword==='defaultMapping')
+  .map(reference=>[JSON.stringify([reference.resource,reference.pointer]),reference]));
  const issues:AuthoringIssue[]=[];
  for(const scope of candidates) {
   const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value;
   if(!value?.discriminator||!doc.dataSyntaxSafe(scope.pointer))continue;
+  if(scope.family==='3.2'&&typeof value.discriminator.defaultMapping==='string'){
+   const reference=defaults.get(JSON.stringify([scope.resource,scope.pointer+'/discriminator']));
+   const target=reference?.resolution==='resolved'?graph.scopeAs(reference.targetResource!,reference.targetPointer!,'schema'):undefined;
+   if(target){
+    const membership=alternatives.contains(scope,target);
+    if(membership.state!=='eligible'){
+     const incomplete=membership.state==='incomplete';
+     issues.push({...scope,pointer:scope.pointer+'/discriminator/defaultMapping',
+      code:incomplete?'discriminator.default-mapping.incomplete':'discriminator.default-mapping.alternative',
+      message:incomplete?'The captured schema contexts cannot prove that this defaultMapping selects an eligible composition alternative':
+       'defaultMapping must select an adjacent oneOf/anyOf alternative or an allOf descendant, and cannot select its containing discriminator schema',
+      ...(incomplete?{incomplete:true,severity:'warning'}:{})});
+    }
+   }
+  }
   if(['oneOf','anyOf','allOf'].some(name=>Array.isArray(value[name])&&value[name].length>0)||parents.established.has(discriminatorLocation(scope)))continue;
   const incomplete=parents.incomplete||parents.possible.has(discriminatorLocation(scope));
   issues.push({...scope,pointer:scope.pointer+'/discriminator',code:incomplete?'discriminator.composition.incomplete':'discriminator.composition',message:incomplete?'The captured references cannot establish whether this schema has an allOf child; no complete discriminator composition result is claimed':'A discriminator requires adjacent composition or a parent schema referenced by a child through allOf',...(incomplete?{incomplete:true,severity:'warning'}:{})});

@@ -11,7 +11,7 @@ function packet(version,format,kind,state='required',name='kind'){
  if(['static-anchor','external-anchor'].includes(kind))base.$anchor='base';
  if(['one-anchor','external-dynamic'].includes(kind))base.$dynamicAnchor='base';
  const reference={[kind==='reference'?'$ref':'$dynamicRef']:(external?'base.'+format:'')+(kind==='external-root'?'':kind.includes('anchor')||kind==='external-dynamic'?'#base':'#/components/schemas/Base')};
- const document={openapi:version,info:{title:'Keep 雪',version:'unrelated-api-version'},paths:{},components:{schemas:{...(external?{}:{Base:base}),Subject:{allOf:[reference],discriminator:{propertyName:name,...(state==='default'?{defaultMapping:'Fallback'}:{})}},Fallback:{type:'object'}}},'x-number':'EXACT','x-payload':{$dynamicRef:'missing.yaml',discriminator:{propertyName:'decoy'},allOf:[{$ref:'missing.json'}]}};
+ const document={openapi:version,info:{title:'Keep 雪',version:'unrelated-api-version'},paths:{},components:{schemas:{...(external?{}:{Base:base}),Subject:{allOf:[reference],discriminator:{propertyName:name,...(state==='default'?{defaultMapping:'Fallback'}:{})}},Fallback:state==='default'?{allOf:[{$ref:'#/components/schemas/Subject'}]}:{type:'object'}}},'x-number':'EXACT','x-payload':{$dynamicRef:'missing.yaml',discriminator:{propertyName:'decoy'},allOf:[{$ref:'missing.json'}]}};
  const encode=value=>(format==='yaml'?'# Keep CRLF and exact literals\r\n'+YAML.stringify(value).replaceAll('\n','\r\n'):JSON.stringify(value)).replace('"EXACT"','9007199254740993.00').replace('EXACT','9007199254740993.00');
  return captured({root,resources:[{id:root,text:encode(document),generation:3},...(external?[{id:remote,text:encode(base),generation:4}]:[])]});
 }
