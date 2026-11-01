@@ -1,0 +1,93 @@
+{
+  "openapi": "3.2.1",
+  "info": {
+    "title": "Compatibility fixture",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/things": {
+      "get": {
+        "operationId": "listThings",
+        "summary": "Compatibility operation sentinel",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "name": "fixture",
+                  "$ref": "payload data"
+                }
+              }
+            }
+          }
+        }
+      },
+      "query": {
+        "operationId": "queryThings",
+        "summary": "QUERY sentinel",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      },
+      "additionalOperations": {
+        "COPY": {
+          "operationId": "copyThings",
+          "summary": "COPY sentinel",
+          "responses": {
+            "200": {
+              "description": "Success"
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Boolean": true,
+      "Composed": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "Escaped": {
+        "$ref": "schema.json#/a~1b"
+      }
+    }
+  }
+}

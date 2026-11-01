@@ -1,0 +1,41 @@
+# Copy into your project and supply an already prepared BusyAPI artifact on
+# this Linux runner. This example does not install tools or call a hosted API.
+name: API contract
+on:
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Immutable Git commit to compare against
+        required: true
+        type: string
+jobs:
+  contract:
+    runs-on: self-hosted
+    env:
+      BUSYAPI_BIN: /opt/busyapi/busyapi
+      API_BASELINE: ${{ inputs.baseline }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check authored contract
+        run: '"$BUSYAPI_BIN" check contracts --root public --sarif check.sarif --json'
+      - name: Apply configured policy
+        run: '"$BUSYAPI_BIN" lint contracts --root public --sarif lint.sarif --json'
+      - name: Review explicit baseline
+        run: '"$BUSYAPI_BIN" diff contracts --root public --base "$API_BASELINE" --json'
+      # Configure this case/environment to use YOUR controlled loopback target.
+      # Nothing sweeps all operations or treats GET as inherently harmless.
+      - name: Run selected controlled case
+        run: '"$BUSYAPI_BIN" test contracts --root public --case controlled-health --environment local --junit contract-tests.xml --json'
+      - name: Retain ordinary reports even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-reports
+          path: |
+            *.sarif
+            contract-tests.xml
+          if-no-files-found: warn
+# Optional provider code-scanning upload can be added separately. SARIF files
+# and CLI exit statuses remain useful without a code-scanning subscription.

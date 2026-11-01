@@ -1,0 +1,6 @@
+# Unified patches require a space marker on empty context lines. Check actual
+# patched source with git diff --check in the isolated builder instead.
+tools/flutter_engine/linux-input-ordering.patch whitespace=-blank-at-eol
+# Original licence texts/source-comment excerpts are digest-bound upstream
+# bytes, including their trailing blank lines. Do not normalize them on checkout.
+tools/licenses/dart-runtime/* -text whitespace=-blank-at-eof

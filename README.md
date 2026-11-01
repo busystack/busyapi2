@@ -2,7 +2,7 @@
 
 BusyAPI is a workspace for authoring, inspecting, validating, and working with OpenAPI contracts. YAML and JSON files remain the canonical source. **Design**, **Source**, and **Reference** work from the same current document buffers; edits are published to disk only when saved.
 
-BusyAPI supports **OpenAPI 3.1.x and 3.2.x**. **OpenAPI 3.0.x is not supported**; documents are not silently upgraded or converted. For detailed compatibility limits, see [Tool support](docs/tool-support.md).
+BusyAPI provides native editing for **Swagger 2.0 and OpenAPI 3.0.x, 3.1.x and 3.2.x**. Documents retain their declared family and are not silently upgraded or converted. See [Tool support](docs/tool-support.md) and the [current verification matrix](docs/implementation/native-openapi-support.md) for workflow qualification and remaining work.
 
 ## Features
 
@@ -11,10 +11,12 @@ BusyAPI supports **OpenAPI 3.1.x and 3.2.x**. **OpenAPI 3.0.x is not supported**
 - **Design:** Native editors for operations, parameters, request and response bodies, security, servers, schemas, examples, components, callbacks, and webhooks. Large values open in focused editors; edits preserve unaffected source formatting and data.
 - **Source:** YAML/JSON editing with syntax highlighting, completion, field help, folding, search, definition and usage navigation, diagnostics, and reviewed quick fixes. Available fixes are specific and limited; they do not invent missing contract content.
 - **Reference:** Read-only, source-linked API and schema reference, including effective operation inheritance, definitions, uses, and physical source ownership. Reference does not send requests.
+- **Migration:** [Review a specification conversion](docs/migration.md) and create a separate copy through the desktop or `busyapi migrate`. Unsupported mappings are reported before publication; see the verification matrix for current coverage.
 - **Search:** Document and project text search with reviewed replacement, plus semantic search across configured roots. Searches include unsaved buffers and report incomplete indexes.
 
 ### Projects and document integrity
 
+- In **Create Project**, choose **Project** to include `busyapi.yaml`, or **Contract only** to create a standard OpenAPI file. Choose the specification version and YAML or JSON format. Creation preserves existing API and project files; use a destination without an existing manifest for a contract-only file.
 - Open an individual YAML/JSON contract with **Open File…**, or open a folder containing `busyapi.yaml` with **Open Folder…**. Existing contracts can be opened without creating a manifest; a standalone file has its own containing-directory dependency scope.
 - Work with multiple named roots and shared resources. Local dependencies stay within approved contexts; additional directories and URI-to-file mappings require explicit configuration or session approval. Remote references are not automatically fetched.
 - Stage new files, file moves and deletions, component extraction/inlining/renaming, definition moves, property changes, and operation/path relocation through impact reviews. Related source and reference changes form undoable transactions; filesystem changes are published on Save.
@@ -31,7 +33,7 @@ BusyAPI supports **OpenAPI 3.1.x and 3.2.x**. **OpenAPI 3.0.x is not supported**
 ### API execution, testing, and Git
 
 - **Try:** Prepare and send requests for a selected operation, including parameters, headers, authentication (API key, Basic, bearer, OAuth 2), request bodies, custom CAs/mTLS, and response inspection. Requests are sent only when explicitly started. Saving a redacted response as an example is a separate reviewed source edit.
-- **Contract tests:** Run explicitly selected declarative cases with environments and assertions. Results distinguish executed and untested operations; a subset is not presented as full API coverage.
+- **Contract tests:** Run explicitly selected declarative cases with environments and assertions. Reports distinguish preparation refusals, dispatched requests and untested operations; a subset is not presented as full API coverage.
 - **Mock:** Start a local Prism-backed mock, or explicitly start a validation proxy against a configured upstream target. Ordinary mock requests are not forwarded upstream.
 - **Git:** Inspect changes and history, stage/unstage, commit, manage branches, and explicitly fetch, pull, or push. Source buffers, disk working tree, and index remain distinct. BusyAPI does not automatically stash, reset, force-push, or execute repository hooks.
 - **Semantic diff:** Compare an explicit Git revision or merge base using the bundled `oasdiff` tooling while retaining the source diff and coverage limitations.
@@ -71,6 +73,10 @@ The Linux bundle includes `busyapi-desktop` and the independent compiled `busyap
 busyapi init ./my-api --title 'My API' --api-version 1.0.0 --openapi 3.2.1 --format yaml
 busyapi check ./my-api --json
 busyapi lint ./my-api --ruleset spectral:oas --json
+
+# Create a contract without a project manifest.
+busyapi init ./standalone-api --title 'My API' --api-version 1.0.0 --openapi 3.0.4 --standalone
+busyapi check ./standalone-api/openapi.yaml --json
 
 # Work with project resources and publish derived outputs.
 busyapi import ./incoming/openapi.yaml --kind file --output ./imported-api --json
@@ -164,7 +170,9 @@ python3 -m unittest tools.test_contract_assets tools.test_package_linux
 python3 tools/artifact_smoke.py build/linux/x64/release/bundle
 ```
 
-Native interaction, WebKit integration, strict-Snap packaging, and paint/input performance need separate platform qualification. Headless tests and CLI smoke checks do not establish those results.## Documentation
+Native interaction, WebKit integration, strict-Snap packaging, and paint/input performance need separate platform qualification. Headless tests and CLI smoke checks do not establish those results.
+
+## Documentation
 
 - [Architecture and security boundaries](docs/architecture.md)
 - [Tool support and compatibility](docs/tool-support.md)

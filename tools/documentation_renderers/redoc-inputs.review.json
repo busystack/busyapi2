@@ -1,0 +1,345 @@
+{
+  "version": 1,
+  "preset": "redoc",
+  "package": "redoc",
+  "packageVersion": "3.0.1",
+  "scope": "Exact external esbuild input closure. Published Redoc embedded packages are separately bound to redoc-embedded.review.json.",
+  "packages": [
+    {
+      "location": "node_modules/@emotion/is-prop-valid",
+      "name": "@emotion/is-prop-valid",
+      "version": "1.4.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/@emotion/is-prop-valid/-/is-prop-valid-1.4.0.tgz",
+      "integrity": "sha512-QgD4fyscGcbbKwJmqNvUMSE02OsHUa+lAWKdEUIJKgqe5IwRSKd7+KhibEWdaKwgjLj0DRSHA9biAIqGBk05lw==",
+      "packageJsonSha256": "438d9cb8913c89b66aa209a63f6f6401e080df4444a09c1f2b97d08953d422ad",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "6e8d23763cf7cb707ad8f6677aa502ebeca1dda447e6d6e57f6549c1625b9c4a"
+        }
+      ],
+      "inputs": {
+        "dist/emotion-is-prop-valid.esm.js": "d75aeba893f8d6f8dd138901fb6b8f9f98fd84b2756275b19445dd81fe30a410"
+      }
+    },
+    {
+      "location": "node_modules/@emotion/memoize",
+      "name": "@emotion/memoize",
+      "version": "0.9.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/@emotion/memoize/-/memoize-0.9.0.tgz",
+      "integrity": "sha512-30FAj7/EoJ5mwVPOWhAyCX+FPfMDrVecJAM+Iw9NRoSl4BBAQeqj4cApHHUXOVvIPgLVDsCFoz/hGD+5QQD1GQ==",
+      "packageJsonSha256": "4cf8cf244fa4a980497617451e97faf1eb80f335f211dce87b997572d4f227e3",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "6e8d23763cf7cb707ad8f6677aa502ebeca1dda447e6d6e57f6549c1625b9c4a"
+        }
+      ],
+      "inputs": {
+        "dist/emotion-memoize.esm.js": "971f6ab5d52ef4abf2ef771faa1990de9b01784659e023259ab43d9f5793f7a8"
+      }
+    },
+    {
+      "location": "node_modules/@remix-run/route-pattern",
+      "name": "@remix-run/route-pattern",
+      "version": "0.22.1",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/@remix-run/route-pattern/-/route-pattern-0.22.1.tgz",
+      "integrity": "sha512-czdGJWh09Lapvcqt7Vb09KlrU2PhRJ8xQaI+AItTuD9aDJ5MAgxnS38lnys6Ll+6RJEqPiaUqTwIQhVLwFvv+w==",
+      "packageJsonSha256": "2669cc57b781960e90ad56876e8b6594e3eed030a3252c13904185b8d3c54dd3",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "d6baf87f30d13d2d7770c18c858e7a31fa7ceede4bc9469a50f03dbafe455cb4"
+        }
+      ],
+      "inputs": {
+        "dist/lib/match.js": "c5c7dc4422a7eabc136b43ffa050302703353c8d8de7bc11b8b725bcc649d5f7",
+        "dist/lib/match/decode.js": "757277b83541b90d1a7192e55c603d341db90afb24ee31c2c61eb40a739d64b7",
+        "dist/lib/match/punycode.js": "e5e7fcc6697263ca644fb14acabc0ade955089726243b2e8661ddfc3c236ec52",
+        "dist/lib/match/regexp.js": "80afba7f9f23e4563ebf987fdcc4a00c7d609296a8ebbd33eecf1f66ec26d138",
+        "dist/lib/match/trie.js": "6407432e09956f04bf2b11b86a881fd00b1ab3159bd23d5bd7d9e62265625154",
+        "dist/lib/match/variant.js": "ce40270fcfceaa2b6926678ad64c27d91da1c9ca8512c690203f344eaf124af2",
+        "dist/lib/route-pattern.js": "b35c54d59a2d606a262cbdf4c28af5eafac69e063e884d957e9e9a30da8c75a1",
+        "dist/lib/route-pattern/parse.js": "37fbcbd608c8305c664b1d8cc163691a4be41695d0a5c9ddc6aeed6d89ffc203",
+        "dist/lib/route-pattern/serialize.js": "6c301fd562456f6a519461b536d5ba20b51521c704a442dc29caa9c7cb785d75",
+        "dist/lib/route-pattern/split.js": "3747c32893df74fe84027403700ff8194bcb2d11122495f7575e7cf7add999b2",
+        "dist/lib/specificity.js": "0c207e72d3e4ec95d710766ed713d3c4ccdbb8c65ec1f6aabaa603454fce72b0",
+        "dist/lib/unreachable.js": "b864f0975a38cb4e7272c23c8a0b351cf5a7e983bcdc264f608b83ae7e930ac7",
+        "dist/match.js": "7acfafd6f78213d454ff928553af524a62e86092a00e42cda39d9650b7df01c1",
+        "dist/specificity.js": "a60b0d3168c8df7fb8698b73df53b79fc370933f03fd5ae97ccab800b50aea1f"
+      },
+      "embeddedSources": [
+        {
+          "name": "punycode.js",
+          "version": "9e1b2cda98d215d3a73fcbfe93c62e021f4ba768",
+          "source": "https://github.com/mathiasbynens/punycode.js/blob/9e1b2cda98d215d3a73fcbfe93c62e021f4ba768/punycode.js",
+          "license": "MIT",
+          "purpose": "Hostname decoding adapted by the upstream route-pattern package",
+          "distribution": "Adapted source in the verified compiled dist/lib/match/punycode.js input",
+          "modifications": "Upstream router adaptation; BusyAPI does not modify the dependency",
+          "obligations": "Retain the original Mathias Bynens copyright, MIT permission and disclaimer.",
+          "requiredNotices": [
+            {
+              "file": "licenses/punycode-9e1b2cda-MIT.txt",
+              "sha256": "483acb265f182907d1caf6cff9c16c96f31325ed23792832cc5d8b12d5f88c8a",
+              "source": "https://raw.githubusercontent.com/mathiasbynens/punycode.js/9e1b2cda98d215d3a73fcbfe93c62e021f4ba768/LICENSE-MIT.txt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "location": "node_modules/cookie-es",
+      "name": "cookie-es",
+      "version": "3.1.1",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/cookie-es/-/cookie-es-3.1.1.tgz",
+      "integrity": "sha512-UaXxwISYJPTr9hwQxMFYZ7kNhSXboMXP+Z3TRX6f1/NyaGPfuNUZOWP1pUEb75B2HjfklIYLVRfWiFZJyC6Npg==",
+      "packageJsonSha256": "35bb5b0275f6c3d72817179357ce65f535e8dfda1b2cb9d1f721bb148a8b7f87",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "f57270b85c3922414c061e36b93f7c74420b8facf5ccf729202d5ff5b7cd7608"
+        }
+      ],
+      "inputs": {
+        "dist/index.mjs": "ba6fda673b091316ed003b65c86ca7e9f99be826857e8883e134d2fea0922f8e"
+      }
+    },
+    {
+      "location": "node_modules/react-dom",
+      "name": "react-dom",
+      "version": "19.3.1",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/react-dom/-/react-dom-19.3.1.tgz",
+      "integrity": "sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ==",
+      "packageJsonSha256": "89d54f11575c9b0f7819962d9d72a31970dfb4d103f07e8b1d1b37e6d1fc3258",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+        }
+      ],
+      "inputs": {
+        "cjs/react-dom-client.production.js": "a319b413b7a19ee34422d9a12a8e7afd003c07846716d278ba1a0898e8cb6251",
+        "cjs/react-dom.production.js": "7a05d7f7bb2b02aae84018a88d4815a2181eef48d2cb8172d403eaa2b131eefd",
+        "client.js": "00e348ab3d6bc2eef908345d0bc4e008c95bcfecec060dfda5c4967953761396",
+        "index.js": "ba1a3e33489f868371561777607e3ee5091df0f7ea3f1a10f789d6b86e4c1505"
+      }
+    },
+    {
+      "location": "node_modules/react-router",
+      "name": "react-router",
+      "version": "8.4.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/react-router/-/react-router-8.4.0.tgz",
+      "integrity": "sha512-JtydAkBvU9UTEe5qNC+POhu+ZBNM7rlKY2IegwXc7Idj7xfRG16x5RZrw3mju+XlqBxfvb2ky9P3jUp9WyWC1g==",
+      "packageJsonSha256": "41a544b0e3d42034cbef64e7003ce7a7543d863d323c7b4e762a3debd61b90a0",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE.md",
+          "sha256": "77c9ee6a9c5d5782fb0c50b50d101189116314c14f7df0a1b0d385fc96a7ba49"
+        }
+      ],
+      "inputs": {
+        "dist/production/index.js": "2a95a0c3bcd7c873d6bc57836b8300939d4247afd92dc258096901146b71b2c1",
+        "dist/production/lib/actions.js": "20d93c59d78ce1b5b7ae8141cc55f1c7f8c5d525f74fac44773717698ac535cf",
+        "dist/production/lib/components.js": "cbacca4ef1b85405b6dfd3c3f034deac3d7f86388dfcc911002502d4a78ecc7f",
+        "dist/production/lib/context.js": "1201bff0bc517bae2414465962d0c3fab61c4585292e210a38519136a5fcffbb",
+        "dist/production/lib/dom/dom.js": "82afb6691107df571c082b2cbe82c8e94652a258e75c21091838cc9ba60afc0b",
+        "dist/production/lib/dom/lib.js": "3fa62403d02a7d3bc03c2f5f086600d9738a643900de16691b57837610df8612",
+        "dist/production/lib/dom/server.js": "e4f2e62ca5f39dd496a432505c49e9e5eea5ebe665e91aa32f9760b711c4af65",
+        "dist/production/lib/dom/ssr/components.js": "c558f81af80558a31e44516bfc8c903b7b2630e9954017f4fc4cac061a500fd0",
+        "dist/production/lib/dom/ssr/data.js": "f7bf7344e5c8869713f573a60fa9acf8593ca77089a5525cb717e93be404ef10",
+        "dist/production/lib/dom/ssr/errorBoundaries.js": "2b5d5466a751b1a0c6627e956bb9973696f27adccbc936244121291d025ddb42",
+        "dist/production/lib/dom/ssr/fallback.js": "74cfc95228406395cfb36cbe5a1de34efeb4d3905d65de5b69a82a79b15a7f60",
+        "dist/production/lib/dom/ssr/fog-of-war.js": "eb9a6c534f1fb499f2e1a689e948fa9c882815525bc429e861dea024d2b22a30",
+        "dist/production/lib/dom/ssr/hydration.js": "6bfe96fa2cbc0b5ac11ae9f731586381cb5dd82cdf26f12688343e88508ba9b3",
+        "dist/production/lib/dom/ssr/invariant.js": "d846e7b6c05e0c68d080186d8c6780c0e687d19c0e3c61d82abf2f230e231bbd",
+        "dist/production/lib/dom/ssr/links.js": "5429fb40b03e9d6b2820b282f70642320366e83af1d2c1398169165f03c7282b",
+        "dist/production/lib/dom/ssr/markup.js": "4ac916d31eb31cc46ab6a5691661acc3a9b9d7caa93da65d6d6a34737bf6053a",
+        "dist/production/lib/dom/ssr/routeModules.js": "45f3a613573facb68627108934dc0d7dab433f1f4e999328df8eabda1a591412",
+        "dist/production/lib/dom/ssr/routes-test-stub.js": "95b39566ac9e026bf729ab418700f725f648d1148438457a4e1b18f4f793c5c5",
+        "dist/production/lib/dom/ssr/routes.js": "a61893177d6a9f78b5681baae6d2170b6fa13a2d7171be6f7ad5a137180a14f0",
+        "dist/production/lib/dom/ssr/server.js": "70e44566b70b2587fbd401ce5b99c885a2fed8521dfeb82a2eaf78e7fdcadc76",
+        "dist/production/lib/dom/ssr/single-fetch.js": "b48e0bfc41893af7473d0296cccde5419b652e97f1786ccfca8dea2cacfdc141",
+        "dist/production/lib/errors.js": "5f601b5f35fdc5e1eedff573f9da330654e969d923a7703bc749d05a559896c6",
+        "dist/production/lib/hooks.js": "815f4e1a09bdb3f26b52907f27dfe33b81193149863c1cfcfe6d5f5e60e05798",
+        "dist/production/lib/href.js": "53e3a6dc6894f6a610c5a55e2e0bda62a19f3f7bcf53d43e1457d3621b3d91de",
+        "dist/production/lib/router/history.js": "efc267dc2d2358a23de4a6fdb1150ca14d9043598e78690d02d677b9501d37be",
+        "dist/production/lib/router/instrumentation.js": "80f3af8400627f5f86f0e5b8bb3b89350282c742ef8f8b42c02714433aff375c",
+        "dist/production/lib/router/matcher-route-pattern.js": "8aa07ee5aff98be54923288114594e41739c25149890cf1d95dbd9217e4b72c5",
+        "dist/production/lib/router/matcher-route-pattern.preload.js": "454607f8223e273111ea4ccf3fc47c9d0c0c7894df4731449aa5db6e1ebfc397",
+        "dist/production/lib/router/matcher.js": "9a85e139a46887825d1532681b28c3a1a9dd01602cb62a843fb7fa66f99b5ed9",
+        "dist/production/lib/router/navigation.js": "6ad020ee7fafba468d8a24ddbd11014337f85898ba36393f6f0dd29f6bfe96bc",
+        "dist/production/lib/router/router.js": "c57a8a443062a135280d8534797cf22bea1f999731eec4aafe6e1c4cf356ed83",
+        "dist/production/lib/router/url.js": "493e1c3475d74a528af0c1aaae7574e841fe21019fb9e801dc8fe60f212570c7",
+        "dist/production/lib/router/utils.js": "188e22b3a20905eed95a93af09ff50c87b858cc80f4172bcbd22a93f39634acb",
+        "dist/production/lib/rsc/errorBoundaries.js": "cddb98861748b5b4710cf50d5f5703ea98bede71d204b78d14734bf985ca6aab",
+        "dist/production/lib/rsc/html-stream/server.js": "840e7469f3d89d670499504e3fcfbb2e0a91e1b99efbb8d0422bc902a87f28eb",
+        "dist/production/lib/rsc/route-modules.js": "cb3ee960e9d55942c674f0a044e0540204835a3e23c2cb9912f16a62f1d12ac0",
+        "dist/production/lib/rsc/server.ssr.js": "84ca565ccfd44878134d61f3a1eb2fe48c312a39b61d7b98bb9d9b3ae4943b3c",
+        "dist/production/lib/server-runtime/cookies.js": "182b69213699935b456309b464e90895b2e812bd56e37200441cd0de865a7125",
+        "dist/production/lib/server-runtime/crypto.js": "22615f4fe67a9e42fa4f778abd357588e5922cfad2fcbf83674f840f051fa98f",
+        "dist/production/lib/server-runtime/data.js": "caa5f7a2a8474c98c2641f88cc0de955f345dcdcc8cf8b90ad6c884869d3783f",
+        "dist/production/lib/server-runtime/dev.js": "995dde76d809459240c89d74f76b2588e7774a13b1f5bbb324b04ff35d6671c0",
+        "dist/production/lib/server-runtime/entry.js": "b6739bf3d9cb9991a4f1e0d73e80585e55176b483f8096ce7b303d3313dc4f24",
+        "dist/production/lib/server-runtime/errors.js": "b76d8473d4275471a4b4fc6cb3cb9b25f4258cf3f82eb5c2c856fb9e5dec9819",
+        "dist/production/lib/server-runtime/headers.js": "9b351c698239c10e6da9a05ffaff11d5bbc9fab095231d9d3fac72cbfea93da6",
+        "dist/production/lib/server-runtime/invariant.js": "e17b32feca4cc063040564d1af811f85358722ddeec5635a143277ca2dcd6ffa",
+        "dist/production/lib/server-runtime/mode.js": "dfe24b887d546d0fecf614289f53aca397770d3dfdab109c77e7a452a3d61ea0",
+        "dist/production/lib/server-runtime/routeMatching.js": "901fa2e6727b95cf440fdad9d6f84bae08eba0f8a675cbc96b48f9f917914f07",
+        "dist/production/lib/server-runtime/routes.js": "67e0e020df2767bcb6c451c48f8ca83efa077de71c2ad89992bc8d274d123ffc",
+        "dist/production/lib/server-runtime/server.js": "841e51183ad7fe9e91e4504b4535052c2a6c98c0e0a6c82ebe6561ee1cb32c51",
+        "dist/production/lib/server-runtime/serverHandoff.js": "524f1fa22711b16dc8e116b6f1b626c7e9e08f21e4b5e33b3c02191a415f3590",
+        "dist/production/lib/server-runtime/sessions.js": "43e80bf874d66ccb9573a45f09248e2ed7dc3cadcb466217e98224dde2ca9315",
+        "dist/production/lib/server-runtime/sessions/cookieStorage.js": "a890f04f8741d787129d335a2a9f6692fa423d628521294eadc83d387bc6b411",
+        "dist/production/lib/server-runtime/sessions/memoryStorage.js": "a6db8e433c9a089c300c25e44b1da4187c9031a922bf83233695d585ebed3404",
+        "dist/production/lib/server-runtime/single-fetch.js": "7c8fd5b9e48c5024df46b411e6cd1e73bc496446e3b7375f4ecc225129beb41b",
+        "dist/production/lib/server-runtime/urls.js": "f86c6a1565b5352e9d111f1289c04d2155156922a8000a3929d9a321e3fb153b",
+        "dist/production/lib/server-runtime/warnings.js": "d6b5cb2534ee71db6b5334334773541d21f4486025e926b9fea58c1a6f9e3bf0",
+        "dist/production/vendor/turbo-stream-v2/flatten.js": "f6424ddb16ab4936ef53daf7d8f7a6e6338a95e808a61e4f4ba8f0739732a8ca",
+        "dist/production/vendor/turbo-stream-v2/turbo-stream.js": "f4fb5803ad893a0db00c1d2ada6cbd8b6aa955f685f791a48e35fcaa33028d87",
+        "dist/production/vendor/turbo-stream-v2/unflatten.js": "cf46873190afb1c6d1a76178c52076f031f02c1197817b5646be7b81942c5c8e",
+        "dist/production/vendor/turbo-stream-v2/utils.js": "0967e4a704347495026ee5487259b097089edd540f5eb05c46f95843c7de295c"
+      }
+    },
+    {
+      "location": "node_modules/react",
+      "name": "react",
+      "version": "19.3.1",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/react/-/react-19.3.1.tgz",
+      "integrity": "sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw==",
+      "packageJsonSha256": "9cc9c3de5441a2eea7f41f52f3f2a15a4fc51f90c0b72741f0d7638643a85e67",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+        }
+      ],
+      "inputs": {
+        "cjs/react-jsx-runtime.production.js": "1e46f15002696985e80c61d47aaa30dabb03c954270a690f5f7dfbbacfa9002b",
+        "cjs/react.production.js": "0b5529981841afa1b58c76ba85c29bb681ff5f07cd8cde6a10b967d3915b8e1c",
+        "index.js": "60caffdecbdc5db3bc4ec4e83df9488345ccb271d07533b9210bf5750918d97e",
+        "jsx-runtime.js": "b392951a77d0a2e6a6bd017e49d768481ae5b63c4109c6c31f622cf7b2433edc"
+      }
+    },
+    {
+      "location": "node_modules/redoc",
+      "name": "redoc",
+      "version": "3.0.1",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/redoc/-/redoc-3.0.1.tgz",
+      "integrity": "sha512-KDfoKaYW19LCl4YStgBnwlaNjYEFfs5zCNt1s1WZ2YM5u8d26Yuzd2l43fZO851ZsgIMe/D640fDJkD8eaRQKQ==",
+      "packageJsonSha256": "c30ba2e3ca5d862154f561766aed9b246579f18e3e3198bc5f31293ab41508aa",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "02c01d2ca84c2e845a48602cbb51c82b4fa25120b30b7e85045d940db50d15eb"
+        }
+      ],
+      "inputs": {
+        "bundles/redoc.js": "09470eddd0727b75e52d8a393bc742f44a2704364f79b557890a42c0bfd36449"
+      }
+    },
+    {
+      "location": "node_modules/scheduler",
+      "name": "scheduler",
+      "version": "0.28.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/scheduler/-/scheduler-0.28.0.tgz",
+      "integrity": "sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==",
+      "packageJsonSha256": "06290718f22bcd93f29eaa1ac8d2ec9a7592ba4fec12bf1230e7cdd9a871b324",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+        }
+      ],
+      "inputs": {
+        "cjs/scheduler.production.js": "679adff761d31e9426604f80c0e99be44a3e6f4c6834b0218ecf0312a67c171f",
+        "index.js": "145965504d60007bc25486ab930b0367867dcd5d579ccd343c148d69349a7cfb"
+      }
+    },
+    {
+      "location": "node_modules/styled-components",
+      "name": "styled-components",
+      "version": "6.6.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/styled-components/-/styled-components-6.6.0.tgz",
+      "integrity": "sha512-drKKsqvDBxVRn4ySU67iQ5nQBuo/1xyYeBfdhDde112PkqrS3+95KPnpDs5hFRcmrW+q6+gbyywYYYR14oWFtw==",
+      "packageJsonSha256": "08438b443373d47f8a95333be1e0777ad7e95ecc352af8b42245c38c362f8ca4",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "5b893305a717230e5b0024ff5ca3eec1dc05ba600c9b140730488d97ce56f1e6"
+        }
+      ],
+      "inputs": {
+        "dist/styled-components.browser.esm.js": "88864e4fa44e817d32ac8ffa9ddaeb7e2de71b828e7f5ef499e0312c1a37d8e7"
+      }
+    },
+    {
+      "location": "node_modules/stylis",
+      "name": "stylis",
+      "version": "4.3.6",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/stylis/-/stylis-4.3.6.tgz",
+      "integrity": "sha512-yQ3rwFWRfwNUY7H5vpU0wfdkNSnvnJinhF9830Swlaxl03zsOjCfmX0ugac+3LtK0lYSgwL/KXc8oYL3mG4YFQ==",
+      "packageJsonSha256": "1ca3ef82e7b50ef3adc255bc4bbc1ffde298c11674ad9b581835b63ddbedf645",
+      "purpose": "Local read-only Redoc CE rendering; React/router/styling integration",
+      "distribution": "compiled documentation asset input",
+      "obligations": "Retain original MIT copyright, permission and disclaimer.",
+      "requiredNotices": [
+        {
+          "file": "LICENSE",
+          "sha256": "88c579c6ee44b41137a21321190d177982e5b17d4fa1b83a4a2e3ea325a8fc9a"
+        }
+      ],
+      "inputs": {
+        "index.js": "0208ae0a4e8a393c6c8d391075bd6b4aaa55ce53640ba16729296171d070b12a",
+        "src/Enum.js": "3ae600445e6402e3e42c8456fd6bac63ffce00f9a59f7e41d870e84e61e98488",
+        "src/Middleware.js": "82b6642c2718337b9be58a396e1b745e340a7400f208ebfb884609c49d96ab8e",
+        "src/Parser.js": "787df8295d00b59f1d36e23814b4e21f30d002214c32f0671f060dea165d5e8c",
+        "src/Prefixer.js": "15c1a880f1129fe67c574e1ba7213ce5cc7092c63f9c161419d265f0bc111dd0",
+        "src/Serializer.js": "938f255405780b39632077771a780a016b738005148cb223be8240380ea3b8d0",
+        "src/Tokenizer.js": "5f52e7e40f3d905d2121b50fc9d6897f6019fece001e549cdb1bd053b5ff55b0",
+        "src/Utility.js": "729ac3436b9812fcf59c0c4e1bf690aaf2fc631d5ab0b0b1c8fe8c5d066badef"
+      }
+    }
+  ]
+}

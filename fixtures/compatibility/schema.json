@@ -1,0 +1,17 @@
+{
+  "Thing": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Schema property sentinel"
+      },
+      "self": {
+        "$ref": "#/Thing"
+      }
+    }
+  },
+  "a/b": {
+    "type": "string"
+  }
+}

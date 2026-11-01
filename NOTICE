@@ -1,0 +1,50 @@
+BusyAPI
+Copyright 2026 BusyStack
+
+Includes adapted BusyMark Linux shell, design controls, theme, native appearance/menu integration, line index, and atomic publication helpers.
+BusyMark copyright 2026 BusyStack, Apache License 2.0.
+Source: https://github.com/busystack/busymark
+BusyMark name and logo are identifying marks of BusyStack and are not used as BusyAPI branding.
+
+BusyAPI's native Linux rendering stack uses the FreeType Project under its
+FreeType License (FTL) alternative. Its original copyright, permission and
+disclaimer notices accompany the Flutter engine and native-library notices.
+This software is based in part on the work of the Independent JPEG Group.
+The original libjpeg-turbo IJG, BSD and zlib notices are retained with the
+engine third-party notices. These acknowledgements grant no endorsement or
+trademark rights and do not replace the original component licence terms.
+
+The packaged contract runtime includes yaml 2.9.0 (ISC), Ajv 8.20.0 (MIT),
+jsonc-parser 3.3.1 (MIT), @hyperjump/json-schema 1.18.0 (MIT) and
+@hyperjump/browser 1.6.0 (MIT), with their locked runtime dependencies.
+Original license notices and a version/digest index are installed under
+share/licenses/busyapi-engine. No project rules or executable custom functions
+are included or authorized by these runtime dependencies.
+
+Includes OpenAPI Initiative informational schema artifacts, copyright OpenAPI
+Initiative contributors, licensed under Apache License 2.0. Dated sources and
+the 3.0 artifact digest are recorded in tools/contract_engine/schemas/README.md.
+
+Governance integrates Spectral core 1.24.0, functions 1.11.0, formats 1.9.0 and
+the OAS preset from rulesets 1.23.0 (Apache-2.0). Vendor source is unmodified;
+BusyAPI supplies canonical parsed inputs, graph provenance and scoped adapter
+functions. Required original notices accompany the helper.
+
+Semantic review distributes the unmodified oasdiff 1.33.0 Linux amd64 release
+binary (Apache-2.0), invoked offline over derived snapshots with external
+retrieval disabled. Its original license, exact binary/release digests, source
+location and Go build-module inventory accompany the packaged tool. Final
+assembled public-distribution clearance remains a Milestone 4 activity.
+
+The transitive tr46 0.0.3 URL dependency includes Unicode 8.0.0 IDNA data,
+Copyright (c) 1991-2015 Unicode, Inc. Its upstream text-to-JSON conversion and
+BusyAPI's bundling are identified in UNICODE-IDNA-LICENSE, installed alongside
+the package notices. No Unicode trademark or endorsement right is claimed.
+
+Display-only CommonMark includes unmodified Dart markdown 7.3.1
+(BSD-3-Clause), Copyright 2012 the Dart project authors. The headless Dart
+dependency closure and original notices are installed under
+share/licenses/busyapi-dart. The generated HTML character-reference table
+includes WHATWG data under its BSD-3-Clause source-code incorporation grant;
+its copyright and full license accompany that distribution. Native Markdown
+presentation geometry adapts BusyMark's document controls as identified above.

@@ -1,0 +1,21 @@
+{
+  "name": "busyapi-m2-documentation-probes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.15.0"
+  },
+  "dependencies": {
+    "@apidevtools/json-schema-ref-parser": "16.0.5",
+    "@hyperjump/browser": "1.6.0",
+    "@hyperjump/json-schema": "1.18.0",
+    "@redocly/cli": "2.64.0",
+    "@redocly/openapi-core": "2.64.0",
+    "@stoplight/spectral-cli": "6.17.0",
+    "playwright": "1.58.2",
+    "redoc": "3.0.1",
+    "swagger-client": "3.38.2",
+    "swagger-ui-dist": "5.33.2"
+  }
+}

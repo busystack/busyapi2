@@ -1,0 +1,25 @@
+{
+  "openapi": "3.2.1",
+  "info": {
+    "title": "Advanced incomplete sentinel",
+    "version": "1"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "Dynamic": {
+        "$id": "https://example.invalid/schema",
+        "$schema": "https://example.invalid/dialect",
+        "$dynamicAnchor": "node",
+        "properties": {
+          "child": {
+            "$dynamicRef": "#node"
+          }
+        }
+      },
+      "Escaped": {
+        "$ref": "schema.json#/a~1b"
+      }
+    }
+  }
+}

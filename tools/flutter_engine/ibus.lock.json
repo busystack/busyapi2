@@ -1,0 +1,33 @@
+{
+  "version": "1.5.29",
+  "bridgeAbi": 1,
+  "sourceUrl": "https://github.com/ibus/ibus/releases/download/1.5.29/ibus-1.5.29.tar.gz",
+  "sourceSha256": "4a457f10e29da0623e96cbbaca89cc529145587141f8e64c305f17dc875d5e6e",
+  "patch": "ibus-async-completion.patch",
+  "patchSha256": "7cf1eaae99ac58b4ed515b235297701425d54f4634762d42be8d120c100ea852",
+  "patchedSourceSha256": "bb1bba8f23df40596dc8200bc7128ec46e23fe0a25e02bc7deab3035b71854e4",
+  "configure": [
+    "--prefix=/busyapi-private-ibus",
+    "--disable-gtk2",
+    "--disable-gtk4",
+    "--disable-xim",
+    "--disable-wayland",
+    "--disable-ui",
+    "--disable-engine",
+    "--disable-setup",
+    "--disable-python2",
+    "--disable-python-library",
+    "--disable-dconf",
+    "--disable-libnotify",
+    "--disable-emoji-dict",
+    "--disable-unicode-dict",
+    "--disable-systemd-services",
+    "--disable-schemas-compile",
+    "--enable-introspection=no",
+    "--enable-vala=no",
+    "--disable-gtk-doc",
+    "--disable-tests",
+    "--disable-nls",
+    "--with-python=/usr/bin/python3"
+  ]
+}

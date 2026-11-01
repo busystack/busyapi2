@@ -1,0 +1,2983 @@
+{
+  "version": 1,
+  "preset": "swagger",
+  "package": "swagger-ui",
+  "packageVersion": "5.33.2",
+  "scope": "Exact supported browser-module imported closure, with actual output-presence counts. Published module embedded inputs have a separate review.",
+  "packages": [
+    {
+      "location": "node_modules/@babel/runtime",
+      "name": "@babel/runtime",
+      "version": "7.29.10",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@babel/runtime/-/runtime-7.29.10.tgz",
+      "integrity": "sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==",
+      "packageJsonSha256": "c770ba825368b8421666fe5ffe841d55dc0ebc703415422c31ba7f048a32d14a",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 3350,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@babel/runtime/LICENSE",
+          "sha256": "117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76"
+        }
+      ],
+      "inputCount": 13,
+      "inputIdentity": "07b0bde5d6c48f75db1b6067820f95707ccc19d279c9829879ac9495739197cc"
+    },
+    {
+      "location": "node_modules/@babel/runtime-corejs3",
+      "name": "@babel/runtime-corejs3",
+      "version": "7.29.10",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@babel/runtime-corejs3/-/runtime-corejs3-7.29.10.tgz",
+      "integrity": "sha512-R4FKrg4Vy0hB7PfAxf9LOorEPd5/36SCIXPXAvjlQaQmPvtrjwoDXV15jsSm2ecsqBW1Iewwb7mEnG83xIEApg==",
+      "packageJsonSha256": "126e71656ad9065e1209653dab4d4c10c00e072c51992c4f0aa0334445a6bebc",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 983,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@babel/runtime-corejs3/LICENSE",
+          "sha256": "117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76"
+        }
+      ],
+      "inputCount": 3,
+      "inputIdentity": "f224d41f3b907726f0646458577fe61247cf167c7a9d6d0fb706bb253f8ea3cf"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ast",
+      "name": "@swagger-api/apidom-ast",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ast/-/apidom-ast-1.11.6.tgz",
+      "integrity": "sha512-HzudlOOzs17o2lDnDfcOFT5STKq4ckOYAK6jOaN5udDRA9luDm0axRuc3sHlImHDaOHFN+Yf+rp0zUpT+2Dsiw==",
+      "packageJsonSha256": "fefc0e04fa8a1290fc3756464f75c922bbc85b88598b8ac30eb94c96815557a4",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 16665,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ast/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ast/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ast/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ast/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ast/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "graphql-js adapted visitor",
+          "version": "embedded-in-apidom-ast-1.11.6",
+          "license": "MIT",
+          "source": "https://registry.npmjs.org/@swagger-api/apidom-ast/-/apidom-ast-1.11.6.tgz#src/traversal/visitor.mjs",
+          "sourceFile": "src/traversal/visitor.mjs",
+          "sourceSha256": "86ac0292bc22f969fe408b113781c48b1cbbd11cb9ca57412585c6a8b611dec6",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "package",
+              "file": "node_modules/@swagger-api/apidom-ast/LICENSES/MIT.txt",
+              "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+            }
+          ],
+          "copyrightNotice": "node_modules/@swagger-api/apidom-ast/NOTICE"
+        }
+      ],
+      "inputCount": 55,
+      "inputIdentity": "52603ada9b00aea21d8fca4bb369c356cce49657808d05fedd997988395cfd6b"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-core",
+      "name": "@swagger-api/apidom-core",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-core/-/apidom-core-1.11.6.tgz",
+      "integrity": "sha512-OdHzm974FpfYuO0L+W5B5x+byBMjs9gWuQy37LZYjIe4K8X8IHsN00KAgODLSKgccGlnWi4QBBs8WfHNgRWqGA==",
+      "packageJsonSha256": "60a0fe2764d4de6a5c66dec91e74155a6f723cb345b882596251dd16e2269d97",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 37882,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-core/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-core/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-core/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-core/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-core/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "deepmerge adapted algorithms",
+          "version": "embedded-in-apidom-core-1.11.6",
+          "license": "MIT",
+          "source": "https://registry.npmjs.org/@swagger-api/apidom-core/-/apidom-core-1.11.6.tgz#src/merge/deepmerge.mjs",
+          "sourceFile": "src/merge/deepmerge.mjs",
+          "sourceSha256": "977c4e8131d7c6727dbbcda9dce2c4a3b1e20d4f18f4837bcf0a2cc0f971577d",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "package",
+              "file": "node_modules/@swagger-api/apidom-core/LICENSES/MIT.txt",
+              "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+            }
+          ],
+          "copyrightNotice": "node_modules/@swagger-api/apidom-core/NOTICE",
+          "modifications": "Upstream ApiDOM modifications are Apache-2.0 as declared in NOTICE"
+        }
+      ],
+      "inputCount": 45,
+      "inputIdentity": "d56721ed2c05db5c0bd0e7ed122d688d4584497d5a9ba5ddac401b62c7c1514f"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-error",
+      "name": "@swagger-api/apidom-error",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-error/-/apidom-error-1.11.6.tgz",
+      "integrity": "sha512-q44Zh9Ro0qDH/GLiFvGfe9tISSOSmq6ktrwmjuADVHwpAB//SfvhihIE9LwqNXYEZJTA4ExnFuxy01jiql++HQ==",
+      "packageJsonSha256": "75fbfce88ccdfde2d812bb21802340a51ae1ad444f400fb1fc31e55805aaff1c",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2674,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-error/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-error/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-error/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-error/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-error/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 6,
+      "inputIdentity": "f1c73153340b6cfc5d00503791939e2c459aae4c7df7929a3426e55216cab561"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-json-pointer",
+      "name": "@swagger-api/apidom-json-pointer",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-json-pointer/-/apidom-json-pointer-1.11.6.tgz",
+      "integrity": "sha512-sqRsfWsTEy+NQp5Ea3xwsGlPRYnXVLcf2WXCCrexcD2OrTOxhlZ6rCZQyc2trrUwAptna/Px/czVO+TjofXf4g==",
+      "packageJsonSha256": "1827575cb49355b3c448f4e0401b93033d19d980c2706bbdc3aca3f742e3e1e5",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "build-input-omitted-from-output",
+      "bytesInOutput": 0,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-json-pointer/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-json-pointer/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-json-pointer/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-json-pointer/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-json-pointer/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "adbbfa9aa16a8a671fb39f1702bde128a089401e9d28249fa12a3e779df2c6af"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ns-json-schema-2019-09",
+      "name": "@swagger-api/apidom-ns-json-schema-2019-09",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ns-json-schema-2019-09/-/apidom-ns-json-schema-2019-09-1.11.6.tgz",
+      "integrity": "sha512-XZmo85MS8Y5bYzrxmYbbqvXOghWZt4tInhE26c5nGbKyCx5CbsLlhzcp0wMzkb5k22BnUmlwmniVFrnveYnOGQ==",
+      "packageJsonSha256": "a8c64c505c5975864db72e545e71f2e485730f621f1b497035d43ec699def426",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 20715,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2019-09/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2019-09/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2019-09/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2019-09/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2019-09/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 25,
+      "inputIdentity": "c16c764e8fc70e6f56850822393e34086c813c87ed0cbb771040ff64fa80ae10"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ns-json-schema-2020-12",
+      "name": "@swagger-api/apidom-ns-json-schema-2020-12",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ns-json-schema-2020-12/-/apidom-ns-json-schema-2020-12-1.11.6.tgz",
+      "integrity": "sha512-WU6Vw8aa0TLs1COGHjCFS2gz6MkQzSNZYFejs7EtZOnlAkgG3TN8H55BHVoif1QGBlrhTQ6o6RxCdk5bI1WneQ==",
+      "packageJsonSha256": "1301d93806b2be0614eeb20992ccaf6a986bbfbf532386c0fc741b9f0dc2a1e9",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 9764,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2020-12/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2020-12/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2020-12/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2020-12/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-2020-12/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 15,
+      "inputIdentity": "b35922951e3c944b6a3fc6672c575e27c01fbddb5602e23cbefa93e0855e3b1f"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ns-json-schema-draft-4",
+      "name": "@swagger-api/apidom-ns-json-schema-draft-4",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ns-json-schema-draft-4/-/apidom-ns-json-schema-draft-4-1.11.6.tgz",
+      "integrity": "sha512-kiYyTkUCsHBKS2EFTQgI0bF0yKjOlt+QMiPzsXKzHZ7+XqMmEeRBFn5wSfTF3h9aJ5JMgtmku4j3TtdlxEUvUA==",
+      "packageJsonSha256": "e46aef4098fbe0fbc4de12781cdb84b87e873398cb3965ea47b714ea9be668e0",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 34886,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-4/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-4/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-4/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-4/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-4/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 41,
+      "inputIdentity": "31135a6f260118844ea5b3c3a1765ee524fa5f206591abbaf69790ff5c877e42"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ns-json-schema-draft-6",
+      "name": "@swagger-api/apidom-ns-json-schema-draft-6",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ns-json-schema-draft-6/-/apidom-ns-json-schema-draft-6-1.11.6.tgz",
+      "integrity": "sha512-vTlvnkmQ0UP0NeiPD8h6Kls2So8tNVruANah1n9BskJLUpvTVJV820HFDw88/+ocXUglAEg8aKENcPo0AWsrkw==",
+      "packageJsonSha256": "9a9365f4fd9ea0a7e6cb1c924236cd0de82d9e79214f575dbcd90319e7990bae",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 10859,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-6/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-6/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-6/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-6/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-6/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 16,
+      "inputIdentity": "76649ef5fe8e0deddc1ba73fbbc1204c4b9951c32a84d0579646516cb6753cc0"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ns-json-schema-draft-7",
+      "name": "@swagger-api/apidom-ns-json-schema-draft-7",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ns-json-schema-draft-7/-/apidom-ns-json-schema-draft-7-1.11.6.tgz",
+      "integrity": "sha512-kddXboLPDceL0302icmJvltcg/LzwGPaK1W/35PiHbs0lCtgRg5bz8F0tzGbPa1zk6n2o5BSS8+YU0J6vGKf3g==",
+      "packageJsonSha256": "a612de7218e119653fb5b1ea7f655b8d321dc1fc905439542e64218e13854c6e",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 13107,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-7/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-7/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-7/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-7/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-json-schema-draft-7/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 14,
+      "inputIdentity": "5b422f8fdd5bb4b8a32c59bf9ecfb5cf989b6d72f8a9b3b1885e12070e300f2c"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ns-openapi-3-0",
+      "name": "@swagger-api/apidom-ns-openapi-3-0",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ns-openapi-3-0/-/apidom-ns-openapi-3-0-1.11.6.tgz",
+      "integrity": "sha512-RGngR9Daer9PtkPevSKgBqWZdXxCbDyjudadq0CImqFfjYd8OWhya20haKbPGpJuHDz7Rwmu2m92+0wZFjCcew==",
+      "packageJsonSha256": "1f8e36f6c0491486a48aa2f4aabb42d872f5439144d4e182a0b3688604b30c28",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 135319,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-0/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-0/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-0/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-0/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-0/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 172,
+      "inputIdentity": "f29becb6ed43613ea295541c4213c1ff58f3f88520c382e1c47ca00cafb2d046"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ns-openapi-3-1",
+      "name": "@swagger-api/apidom-ns-openapi-3-1",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ns-openapi-3-1/-/apidom-ns-openapi-3-1-1.11.6.tgz",
+      "integrity": "sha512-mZe+3NgDxTjUmitxxgvlmLyK9mWSNkQajqA26j9JxcFdEvN/lcp/EsjxMX5kST4E0Qm4tQKD0i1QnJmjBSaHWw==",
+      "packageJsonSha256": "d8a8cde7c5ea7c5a9b4c61bb679679fbbd9eb1d24ef165e9917eb8fe7dd5bada",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 84665,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-1/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-1/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-1/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-1/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-1/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 94,
+      "inputIdentity": "255978dcc154e48297433d4e58e575a54ff523390a43fe27e32f7e2d61bbba64"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-ns-openapi-3-2",
+      "name": "@swagger-api/apidom-ns-openapi-3-2",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-ns-openapi-3-2/-/apidom-ns-openapi-3-2-1.11.6.tgz",
+      "integrity": "sha512-TBDgIDAZodphp/1DS+mTilPLfTS84e/IXGEoRCE/MFrLKa4GZFY7bx8hXQmgGJfDWwxsNcQk5Q/X+SCi+WQg0g==",
+      "packageJsonSha256": "c6fe6a10803072bf21432d6b3ff9169c9efcdc4d05f65573ef8cfb64fb0664ea",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 93031,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-2/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-2/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-2/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-2/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-ns-openapi-3-2/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "inputCount": 99,
+      "inputIdentity": "05ff557695bb595970651db294fa7f83f6e3045ef31f3af05b9c3d7f3bb7aa03"
+    },
+    {
+      "location": "node_modules/@swagger-api/apidom-reference",
+      "name": "@swagger-api/apidom-reference",
+      "version": "1.11.6",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swagger-api/apidom-reference/-/apidom-reference-1.11.6.tgz",
+      "integrity": "sha512-wAU/b6fBw0zS2KLvbiwY13apXbXO43N+CnlnHvGuOf4WjV+msdcb31OPUAehMENsC1BUcrf/vroQj+lJqz77dA==",
+      "packageJsonSha256": "cf4481985ce2c23e5922d1cee9c5f321aac4c98af3b605f77e1bae174770b185",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 134973,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-reference/LICENSES/AFL-3.0.txt",
+          "sha256": "baf137ab182d54ef1667beed905476028eaa44ce44d1a69ad650fd659acf7b49"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-reference/LICENSES/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-reference/LICENSES/BSD-3-Clause.txt",
+          "sha256": "f4bd35ed2f04c3e143a494ac8aec2eb7c0e1db5168d42ae6d119bd12e4375855"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-reference/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swagger-api/apidom-reference/NOTICE",
+          "sha256": "ee38de4e235531ed2323fcc349244ab4a8ec50329358c41dbfa6dbe347cde883"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "json-schema-ref-parser adapted URL utility",
+          "version": "embedded-in-apidom-reference-1.11.6",
+          "license": "MIT",
+          "source": "https://registry.npmjs.org/@swagger-api/apidom-reference/-/apidom-reference-1.11.6.tgz#src/util/url.mjs",
+          "sourceFile": "src/util/url.mjs",
+          "sourceSha256": "b248c976de15bc855ad4d27af30704c0deb4c64250e972054534bf49d0e8f8d5",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "package",
+              "file": "node_modules/@swagger-api/apidom-reference/LICENSES/MIT.txt",
+              "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0"
+            }
+          ],
+          "copyrightNotice": "node_modules/@swagger-api/apidom-reference/NOTICE"
+        }
+      ],
+      "inputCount": 53,
+      "inputIdentity": "f950ea375059cda37650111bc84451c9abc441645728c74fcdef55bbdf60b17c"
+    },
+    {
+      "location": "node_modules/@swaggerexpert/cookie",
+      "name": "@swaggerexpert/cookie",
+      "version": "2.0.2",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swaggerexpert/cookie/-/cookie-2.0.2.tgz",
+      "integrity": "sha512-DPI8YJ0Vznk4CT+ekn3rcFNq1uQwvUHZhH6WvTSPD0YKBIlMS9ur2RYKghXuxxOiqOam/i4lHJH4xTIiTgs3Mg==",
+      "packageJsonSha256": "c578cb2c22977dabe10cca588e720024d7377e7233d5849597be0edb6be13048",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 25032,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swaggerexpert/cookie/LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swaggerexpert/cookie/NOTICE",
+          "sha256": "ec989721b241d16171ef660e23cfb05fa360730cb99b169e3ab4b7f1650757b8"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "apg-js generated grammar source",
+          "version": "4.4.0",
+          "license": "BSD-2-Clause",
+          "source": "https://registry.npmjs.org/@swaggerexpert/cookie/-/cookie-2.0.2.tgz#es/grammar.mjs",
+          "sourceFile": "es/grammar.mjs",
+          "sourceSha256": "5175db35109f7cea0324c90df8e4fe263e02328ed64a101d1458224653577431",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/apg-js-4.4.0-generated-BSD-2-Clause.txt",
+              "sha256": "39f56d2c7e3fbf66786dd0b41a7c8970c3ff70f8c5f7f729473404c5ee2f036f"
+            }
+          ]
+        }
+      ],
+      "inputCount": 26,
+      "inputIdentity": "3c219dbf9417221625f5fac35016d5c0561f7225f687f4cc56c451e930c1c8e7"
+    },
+    {
+      "location": "node_modules/@swaggerexpert/json-pointer",
+      "name": "@swaggerexpert/json-pointer",
+      "version": "2.10.2",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/@swaggerexpert/json-pointer/-/json-pointer-2.10.2.tgz",
+      "integrity": "sha512-qMx1nOrzoB+PF+pzb26Q4Tc2sOlrx9Ba2UBNX9hB31Omrq+QoZ2Gly0KLrQWw4Of1AQ4J9lnD+XOdwOdcdXqqw==",
+      "packageJsonSha256": "3e2865a6775f046a68e43ecd4e0b3fb97edb2fba5d1cc70ebf20c4de2f6d4eb0",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 23704,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@swaggerexpert/json-pointer/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/@swaggerexpert/json-pointer/NOTICE",
+          "sha256": "8d5903d70f7495d58f81431ff9068ce4f6513d2401bd34a5f1352fe0ce6489d7"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "apg-js generated grammar source",
+          "version": "4.4.0",
+          "license": "BSD-2-Clause",
+          "source": "https://registry.npmjs.org/@swaggerexpert/json-pointer/-/json-pointer-2.10.2.tgz#es/grammar.mjs",
+          "sourceFile": "es/grammar.mjs",
+          "sourceSha256": "a70b11c9714b7de2acc0111e683510d04339e3d0d10310e72e58a9139580872c",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/apg-js-4.4.0-generated-BSD-2-Clause.txt",
+              "sha256": "39f56d2c7e3fbf66786dd0b41a7c8970c3ff70f8c5f7f729473404c5ee2f036f"
+            }
+          ]
+        },
+        {
+          "name": "IETF RFC 6901 ABNF code components",
+          "version": "RFC6901-2013",
+          "license": "BSD-3-Clause",
+          "source": "https://registry.npmjs.org/@swaggerexpert/json-pointer/-/json-pointer-2.10.2.tgz#es/grammar.mjs",
+          "sourceFile": "es/grammar.mjs",
+          "sourceSha256": "a70b11c9714b7de2acc0111e683510d04339e3d0d10310e72e58a9139580872c",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/rfc6901-code-BSD-3-Clause.txt",
+              "sha256": "454be5093465020975b165d46a37febab378d603f389dc755b29fc4a6ed19f68"
+            }
+          ],
+          "originalSource": "https://www.rfc-editor.org/info/rfc6901/",
+          "licenseSource": "https://trustee.ietf.org/documents/trust-legal-provisions/tlp-5/",
+          "upstreamNoticeDeclaration": "BSD-2-Clause",
+          "interpretation": "The IETF Trust explicitly corrects the older Simplified naming: its text has always contained the three Revised BSD conditions. Retain the original package NOTICE unchanged and supply the full authoritative IETF terms, including no endorsement."
+        }
+      ],
+      "inputCount": 34,
+      "inputIdentity": "6f0fc136d53b71e4d79af8600814e9f8c3e5aacace1c3df9d073579f74c871c1"
+    },
+    {
+      "location": "node_modules/@tanstack/react-virtual",
+      "name": "@tanstack/react-virtual",
+      "version": "3.14.10",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@tanstack/react-virtual/-/react-virtual-3.14.10.tgz",
+      "integrity": "sha512-SRyoUbdFMRHuYXMijV5H4ZarQWpXkj3iANq8OFre+pybeVap8ZJjZ3Nz9bVjx4d8PfobVUQUdKyyyHYk3E+djw==",
+      "packageJsonSha256": "31cb20984bfe37520cf8926d16136cb3d6bd5e4d959ccb69999c840523039d25",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 4893,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@tanstack/react-virtual/LICENSE",
+          "sha256": "a405ee70c632bb938acb7ac5f210e814409b3760ea9d2329d8ed8ffcfd11a0e7"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "d08522e15fe7fa8a3b55a633b22dd65c727d6134fa1d31f66ff83cc81b8dfba8"
+    },
+    {
+      "location": "node_modules/@tanstack/virtual-core",
+      "name": "@tanstack/virtual-core",
+      "version": "3.17.8",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/@tanstack/virtual-core/-/virtual-core-3.17.8.tgz",
+      "integrity": "sha512-BfEvehNpOT75r5Ksc5xW6NZuXujTfb7nlSEyVu4XHG3gdxNg1KqXruWbDewXOUaUYIo4oRbSfkjIajz4MAT8tA==",
+      "packageJsonSha256": "fbae301342385d66db721db46f080153498cd15c942b067f5c68fba397ce1870",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 51139,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/@tanstack/virtual-core/LICENSE",
+          "sha256": "a405ee70c632bb938acb7ac5f210e814409b3760ea9d2329d8ed8ffcfd11a0e7"
+        }
+      ],
+      "inputCount": 3,
+      "inputIdentity": "90b16e69c9a9c7bad2f39a2e11336b53efe8b1dc4d06ef9ac11341491ca56d9e"
+    },
+    {
+      "location": "node_modules/apg-lite",
+      "name": "apg-lite",
+      "version": "1.0.5",
+      "license": "BSD-2-Clause",
+      "declaredLicense": "BSD-2-Clause",
+      "source": "https://registry.npmjs.org/apg-lite/-/apg-lite-1.0.5.tgz",
+      "integrity": "sha512-SlI+nLMQDzCZfS39ihzjGp3JNBQfJXyMi6cg9tkLOCPVErgFsUIAEdO9IezR7kbP5Xd0ozcPNQBkf9TO5cHgWw==",
+      "packageJsonSha256": "7f9bbb01ec41c9f2f010e62bccdb08b6b5a914f86aad3277264b2a6cae645551",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 33115,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/apg-lite/LICENSE.md",
+          "sha256": "938faf1041e53387b3ad738f8ba7de976495c4894469f050030e5bc372aabbde"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "aca647262d7f82b06e29df5c24324924763b4d76a13d0e88c8bd5738b8b5add3"
+    },
+    {
+      "location": "node_modules/autolinker",
+      "name": "autolinker",
+      "version": "3.16.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/autolinker/-/autolinker-3.16.2.tgz",
+      "integrity": "sha512-JiYl7j2Z19F9NdTmirENSUUIIL/9MytEWtmzhfmsKPCp9E+G35Y0UNCMoM9tFigxT59qSc8Ml2dlZXOCVTYwuA==",
+      "packageJsonSha256": "b0559bdb7a2bb826eec79a8736b5bceea27432f62d0d5865d8f8d6d129b2ff34",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 86567,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/autolinker/LICENSE",
+          "sha256": "a75c69d29e268b13a47b3948afff8aff69475129f9058e3c951a585eb77150aa"
+        }
+      ],
+      "inputCount": 27,
+      "inputIdentity": "4946633f5ce65bf41e1af5580598104345f7c1f1f993587ab8ffcf79c4f0b327"
+    },
+    {
+      "location": "node_modules/available-typed-arrays",
+      "name": "available-typed-arrays",
+      "version": "1.0.7",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/available-typed-arrays/-/available-typed-arrays-1.0.7.tgz",
+      "integrity": "sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==",
+      "packageJsonSha256": "ffce2bbb0b85b9a20bcc674e4c78307ead42af0299e1d28a9dfb249566e0a319",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 626,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/available-typed-arrays/LICENSE",
+          "sha256": "6d0917530cf3b3dca12c1ab7798e4d38ad0a6798ecc1bd27849a3048ba91d265"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "11ea4f6eccea816860c822dde6bfd55f16883e4f966b92174432b8024631117e"
+    },
+    {
+      "location": "node_modules/base64-js",
+      "name": "base64-js",
+      "version": "1.5.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz",
+      "integrity": "sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==",
+      "packageJsonSha256": "9758f3ab8c45e07bb9a368e32f9a8b3729623bbf47cbbb205b32d674ab2a91f0",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 3946,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/base64-js/LICENSE",
+          "sha256": "5b37224c080cdcc97c871ada971c224e9926370fe74f11b539aa1cf9f3b1aca1"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "2ec3f387ec5a698ab45134932f5920fd46a6949ddb8312e814a4a99aa9ade9dc"
+    },
+    {
+      "location": "node_modules/buffer",
+      "name": "buffer",
+      "version": "6.0.3",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/buffer/-/buffer-6.0.3.tgz",
+      "integrity": "sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==",
+      "packageJsonSha256": "5b105ac0abbf5985cbe62ad28a34032d85c7ef623e0eb01f39441b0feb419004",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 60641,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/buffer/LICENSE",
+          "sha256": "06bafa45fdad2579ba0e43b0c9b2c6290287c99c4203c300254a462b38a307f6"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "6b3a28663274a4bc12ee1bd76a33c595424acb8958996496411eb137dfe67a0f"
+    },
+    {
+      "location": "node_modules/call-bind",
+      "name": "call-bind",
+      "version": "1.0.9",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/call-bind/-/call-bind-1.0.9.tgz",
+      "integrity": "sha512-a/hy+pNsFUTR+Iz8TCJvXudKVLAnz/DyeSUo10I5yvFDQJBFU2s9uqQpoSrJlroHUKoKqzg+epxyP9lqFdzfBQ==",
+      "packageJsonSha256": "c11be8b7f9bbe367c27d42fba734b8226c0b15e1e5e1c2d842822d9791f053c7",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 880,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/call-bind/LICENSE",
+          "sha256": "39c5ec504cf6bd5cd782a7c695828e09189df79f5d94840e4f08feb97b9fd416"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "14d72a3104f4ce2bf6f89c4aed5ba158d5aac56a9e969c2a72ce3e3efadedd06"
+    },
+    {
+      "location": "node_modules/call-bind-apply-helpers",
+      "name": "call-bind-apply-helpers",
+      "version": "1.0.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz",
+      "integrity": "sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==",
+      "packageJsonSha256": "59639b628c6846f674857c6a613fd47e2e4d2a24036cdf0f7a62ac634f4c8a5f",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2223,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/call-bind-apply-helpers/LICENSE",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292"
+        }
+      ],
+      "inputCount": 6,
+      "inputIdentity": "16ebfe74b9388aba9f543d1a4cf84ec076173de4c3c6d3f729f28f557ce5abb6"
+    },
+    {
+      "location": "node_modules/call-bound",
+      "name": "call-bound",
+      "version": "1.0.4",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/call-bound/-/call-bound-1.0.4.tgz",
+      "integrity": "sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==",
+      "packageJsonSha256": "dcc8abb3c4ad3774234272149020cb36d7b1a3d377a419454d1e7adb368dd9c3",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 823,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/call-bound/LICENSE",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "76f3de9dd4431a9976485b9b31e07a5502bbfa4da3274613e2288caf9df96268"
+    },
+    {
+      "location": "node_modules/classnames",
+      "name": "classnames",
+      "version": "2.5.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/classnames/-/classnames-2.5.1.tgz",
+      "integrity": "sha512-saHYOzhIQs6wy2sVxTM6bUDsQO4F50V9RQ22qBpEdCW+I+/Wmke2HOl6lS6dTpdxVhb88/I6+Hs+438c3lfUow==",
+      "packageJsonSha256": "d3164167a241350c19ddeaa3d19c8cc3e0044db1e78ef369d17177f0eae793f4",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1888,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/classnames/LICENSE",
+          "sha256": "0c1c24dcc129cb0c02ee9803cfa7a50061c236a3b59b36a714c27f3ade66d7be"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "c1488c577d3641042b4ab48ba66bfbdfb80fcf6abc770c28ba868fcb0f670145"
+    },
+    {
+      "location": "node_modules/copy-to-clipboard",
+      "name": "copy-to-clipboard",
+      "version": "3.3.3",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/copy-to-clipboard/-/copy-to-clipboard-3.3.3.tgz",
+      "integrity": "sha512-2KV8NhB5JqC3ky0r9PMCAZKbUHSwtEo4CwCs0KXgruG43gX5PMqDEBbVU4OUzw2MuAWUfsuFmWvEKG5QRfSnJA==",
+      "packageJsonSha256": "9e8dc89bbc0d36fd6f8ff441d267f742844ad549a12ffdfbc83cc5e38d01c358",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 3805,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/copy-to-clipboard/LICENSE",
+          "sha256": "771e50e27b24269923639e8e0cc650e7187ffeab5726f6a6f47d9ea83865089d"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "7261b9e42c74f0d75613455c2bed2067a73be8e57aae05b22a119784bd1a6a61"
+    },
+    {
+      "location": "node_modules/core-js-pure",
+      "name": "core-js-pure",
+      "version": "3.50.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/core-js-pure/-/core-js-pure-3.50.0.tgz",
+      "integrity": "sha512-6GP3Pxz4IKyWjAfa747vIu/jilB5z29JWROLqH/b+pXVcpgh6tM06ZIBwSuglgVqzDYURhOK6oEzTrG0bCHitA==",
+      "packageJsonSha256": "cb3ab6ba5da1a333b8f8e7f6a10279b5bbe0a923a66b95aee5598a38a3c0d6d0",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 108242,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/core-js-pure/LICENSE",
+          "sha256": "b87653fff2d44426ab5cd4723cee3b1364dc8d35a0acdf098c54689543123bf8"
+        }
+      ],
+      "inputCount": 143,
+      "inputIdentity": "36656c7c483401c40cd89fa15df28cc018dec23108c999f1f12827751200ef37"
+    },
+    {
+      "location": "node_modules/css.escape",
+      "name": "css.escape",
+      "version": "1.5.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/css.escape/-/css.escape-1.5.1.tgz",
+      "integrity": "sha512-YUifsXXuknHlUsmlgyY0PKzgPOr7/FjCePfHNt0jxm83wHZi44VDMQ7/fGNkjY3/jV1MC+1CmZbaHzugyeRtpg==",
+      "packageJsonSha256": "77766896bc04668e5777b54038a30ba198cc1eb317c1675e29781d67499e6055",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2700,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/css.escape/LICENSE-MIT.txt",
+          "sha256": "483acb265f182907d1caf6cff9c16c96f31325ed23792832cc5d8b12d5f88c8a"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "661e587dd5d8fb3234b6e25ce830209596332c3ef62377b7854a1850a2029e20"
+    },
+    {
+      "location": "node_modules/deepmerge",
+      "name": "deepmerge",
+      "version": "4.3.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/deepmerge/-/deepmerge-4.3.1.tgz",
+      "integrity": "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==",
+      "packageJsonSha256": "f56978e7a6da1a3c6edee41abb54f98584a2fa2680458c48db820ae772fef0c9",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 4343,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/deepmerge/license.txt",
+          "sha256": "6cfc4687cb2f2d86f4a77e6b526290d3878e5e512f3fec2f4cb36a9cb36f798b"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "ade8f2b4f328e483121208aec73d1f4629157790ce375d2966a03bcc6f75697f"
+    },
+    {
+      "location": "node_modules/define-data-property",
+      "name": "define-data-property",
+      "version": "1.1.4",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/define-data-property/-/define-data-property-1.1.4.tgz",
+      "integrity": "sha512-rBMvIzlpA8v6E+SJZoo++HAYqsLrkg7MSfIinMPFhmkorw7X+dOXVJQs+QT69zGkzMyfDnIMN2Wid1+NbL3T+A==",
+      "packageJsonSha256": "bde7f1465b344a24da2b10d2ee99f87edf8e0ecd177c28370b60ad9595de730e",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2528,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/define-data-property/LICENSE",
+          "sha256": "b41d08bc3624d8c436fc80237d73ebb361985a67f4504bbcd703e5ca2b27254c"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "9b6754288c34700c2ecd463f45c38a5c5a2b3996859666575c3c1ddb8179ac92"
+    },
+    {
+      "location": "node_modules/dompurify",
+      "name": "dompurify",
+      "version": "3.4.17",
+      "license": "Apache-2.0",
+      "declaredLicense": "(MPL-2.0 OR Apache-2.0)",
+      "source": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz",
+      "integrity": "sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==",
+      "packageJsonSha256": "e6235e2a233d3f5550e2be3bf826a39f4ff5180a710779c1e16dcdf4b9eb20b9",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 73403,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/dompurify/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/dompurify/LICENSE-MPL",
+          "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "regenerator-runtime",
+          "version": "embedded-in-dompurify-3.4.17",
+          "license": "MIT",
+          "source": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz#dist/purify.es.mjs",
+          "sourceFile": "dist/purify.es.mjs",
+          "sourceSha256": "60c5d5ccbb466de3de3ba863461a92bf134f8c156cef7992da43e0f659bc5cbd",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/regenerator-runtime-MIT.txt",
+              "sha256": "f2736860380e47cf3d42eb0206f131da19f19a794f0fa277505b26146052aa9b"
+            }
+          ]
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "9444aa799aedb892ec95ba2e2f9e4878c74d7684624710c694a63ec69c27d5de"
+    },
+    {
+      "location": "node_modules/drange",
+      "name": "drange",
+      "version": "1.1.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/drange/-/drange-1.1.1.tgz",
+      "integrity": "sha512-pYxfDYpued//QpnLIm4Avk7rsNtAtQkUES2cwAYSvD/wd2pKD71gN2Ebj3e7klzXwjocvE8c5vx/1fxwpqmSxA==",
+      "packageJsonSha256": "4d886ce941b3b589e63d2bd326b190a3043a96e1f28c6c30699317a154eb6450",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 5357,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/drange/LICENSE",
+          "sha256": "05ff177fbd1f816df52d583de62e1a5ca8887766bee91156eae7879253a45c7b"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "f11451d13fd1e56038c64b479a2aa11b1e4013ee076f8fc7e967734e4d22614e"
+    },
+    {
+      "location": "node_modules/dunder-proto",
+      "name": "dunder-proto",
+      "version": "1.0.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz",
+      "integrity": "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==",
+      "packageJsonSha256": "24df71008e4225c858f389dd2728b76cf66b752256d42a38ed7930aacae7fe2b",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1116,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/dunder-proto/LICENSE",
+          "sha256": "2b770a704c15de238c3f622b01b0044ddd60b49ee30608ea6991ebf19db7a7a1"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "10b2c62cb0fee59af74b2db33e9ef91f58994996cdca2f8e2b45199cdd853465"
+    },
+    {
+      "location": "node_modules/es-define-property",
+      "name": "es-define-property",
+      "version": "1.0.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.1.tgz",
+      "integrity": "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==",
+      "packageJsonSha256": "3a2cb30dae30a96705dcd9aa2d5fb190cf8200f27badccfa5a81a4374e5708b4",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 453,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/es-define-property/LICENSE",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "f41eb0583c2111a8c55612d39bc19d6c2e40b55edc34ab1697ca0e4b07d89e55"
+    },
+    {
+      "location": "node_modules/es-errors",
+      "name": "es-errors",
+      "version": "1.3.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz",
+      "integrity": "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==",
+      "packageJsonSha256": "1a0a0bcccc76b915cb64073317312840cf6363e9144b96f406d0059774dd5278",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1369,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/es-errors/LICENSE",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292"
+        }
+      ],
+      "inputCount": 7,
+      "inputIdentity": "400051be96e80455b99f39baea01a6dd37c58201af5de9f78780c41238c519e0"
+    },
+    {
+      "location": "node_modules/es-object-atoms",
+      "name": "es-object-atoms",
+      "version": "1.1.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.2.tgz",
+      "integrity": "sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==",
+      "packageJsonSha256": "e4b7882975d10c68457945c883e1060d0b058af5b1216215c872263f42e12fc9",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 209,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/es-object-atoms/LICENSE",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "a463f89c38b2003b7da03ab24828ebd95624fb70f159664cb0e2fb1cdbfb8940"
+    },
+    {
+      "location": "node_modules/fast-json-patch",
+      "name": "fast-json-patch",
+      "version": "3.1.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/fast-json-patch/-/fast-json-patch-3.1.1.tgz",
+      "integrity": "sha512-vf6IHUX2SBcA+5/+4883dsIjpBTqmfBjmYiWK1savxQmFk4JfBMLa7ynTYOs1Rolp/T1betJxHiGD3g1Mn8lUQ==",
+      "packageJsonSha256": "701f69559dc2fd44404ef833cfea9c11e57313792399980657903a113faf2571",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 23563,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/fast-json-patch/LICENSE.txt",
+          "sha256": "26593d78926902a82eb9bc7e40d1811fc381055f23516b92fe48ca8399bf02df"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "fast-deep-equal adapted equality",
+          "version": "embedded-in-fast-json-patch-3.1.1",
+          "license": "MIT",
+          "source": "https://registry.npmjs.org/fast-json-patch/-/fast-json-patch-3.1.1.tgz#module/core.mjs",
+          "sourceFile": "module/core.mjs",
+          "sourceSha256": "2f88bcc5132f1ac1a13dc4531b0abf22a621a13d1399dc00cfdfee3c5dfee8f8",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/fast-deep-equal-in-fast-json-patch-MIT.txt",
+              "sha256": "6a18b95c2ae1ea77b35f56f9cd7ae5d6b585c65d29d3026e75dcebcdd4f93006"
+            }
+          ]
+        }
+      ],
+      "inputCount": 4,
+      "inputIdentity": "d87ba418e62077dfc562f1c582e9f6359fcd2d01c73b2c41bbbf2fa2d43cf9ab"
+    },
+    {
+      "location": "node_modules/fault",
+      "name": "fault",
+      "version": "1.0.4",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/fault/-/fault-1.0.4.tgz",
+      "integrity": "sha512-CJ0HCB5tL5fYTEA7ToAq5+kTwd++Borf1/bifxd9iT70QcXr4MRrO3Llf8Ifs70q+SJcGHFtnIE/Nw6giCtECA==",
+      "packageJsonSha256": "b03001b121376de8bd33930027bb7960b9a73afebec53e15253c7dc896c00245",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 888,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/fault/license",
+          "sha256": "63cb98b3f6abfb3c3592c16f88253c1bdc834087bf52671e8ce5609e4eb693cf"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "da707b50470fee51dcb8a57fe262d6c34d75c8cc3b191fb07fc4f13bc4017e9a"
+    },
+    {
+      "location": "node_modules/for-each",
+      "name": "for-each",
+      "version": "0.3.5",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/for-each/-/for-each-0.3.5.tgz",
+      "integrity": "sha512-dKx12eRCVIzqCxFGplyFKJMPvLEWgmNtUrpTiJIR5u97zEhRG8ySrtboPHZXx7daLxQVrl643cTzbab2tkQjxg==",
+      "packageJsonSha256": "789a488ade1ea7535497f7c86fded54281c4e7ff861fe8e0e667772a00680711",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2092,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/for-each/LICENSE",
+          "sha256": "d07913d776eef217a95d7ee3ee83577fc3c365b9c870f5a3411f785b81090614"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "1761e4da8dc70f8bcac72048f24cbea5057c2baa70fb64fc89cff23987569e60"
+    },
+    {
+      "location": "node_modules/format",
+      "name": "format",
+      "version": "0.2.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/format/-/format-0.2.2.tgz",
+      "integrity": "sha512-wzsgA6WOq+09wrU1tsJ09udeR/YZRaeArL9e1wPbFg3GG2yDnC2ldKpxs4xunpFF9DgqCqOIra3bc1HWrJ37Ww==",
+      "packageJsonSha256": "0754698e3180d26da07fa0ca1fbfce331c0e1652db512aee35b443204bdec553",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 3429,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "reviewed",
+          "file": "licenses/format-0.2.2-MIT.txt",
+          "sha256": "2c725bf02123975c1a609189a1afc3fc99d2cf9b1e770761628675aea11555af"
+        }
+      ],
+      "declarationEvidence": {
+        "source": "https://registry.npmjs.org/format/-/format-0.2.2.tgz#package.json",
+        "field": "licenses[0].type",
+        "readme": "Readme.md",
+        "readmeSha256": "e078ab4217332db9ac446cdf23e932eabd21d6db7c239a6495df4d3802251f20",
+        "interpretation": "Consistent exact published metadata and README declaration; separate BusyAPI notice supplies standard terms and original copyright without modifying upstream files"
+      },
+      "inputCount": 1,
+      "inputIdentity": "7ae3d07c95962c988cf8c627f04bd951970637b0a9baa8b3130c44246a262038"
+    },
+    {
+      "location": "node_modules/function-bind",
+      "name": "function-bind",
+      "version": "1.1.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz",
+      "integrity": "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==",
+      "packageJsonSha256": "edb1c4faf4148e6e3d74ed8dbac1a1dc359a647ff4207aad4851396dc7a3559a",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2721,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/function-bind/LICENSE",
+          "sha256": "773e131a7684726005a7e4688a80b4620033bc08499bc1404dd1a1eb3bca725e"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "4cc2ef497dec61ecbaf8febb1e7f3c94da2acf49b4d22ca5ae5b9fb72a8f7c00"
+    },
+    {
+      "location": "node_modules/get-intrinsic",
+      "name": "get-intrinsic",
+      "version": "1.3.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz",
+      "integrity": "sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==",
+      "packageJsonSha256": "45b14763baacc59b0fd7b39e3ad983d5d2aaf7f5ed682f2fce9edb469826c999",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 15780,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/get-intrinsic/LICENSE",
+          "sha256": "39c5ec504cf6bd5cd782a7c695828e09189df79f5d94840e4f08feb97b9fd416"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "lodash adapted stringToPath",
+          "version": "4.17.15",
+          "license": "MIT",
+          "source": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz#index.js",
+          "sourceFile": "index.js",
+          "sourceSha256": "c3bc7278af37cede0da2db32724fa0b89a07c44205c44c4f5db0e4d8d497d49c",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/lodash-4.17.15-MIT.txt",
+              "sha256": "f71e8ed126b46346494aad5486874cd8f0aafe95092ed67d2e3cb6110f939abc"
+            }
+          ],
+          "originalSource": "https://github.com/lodash/lodash/blob/4.17.15/dist/lodash.js#L6735-L6744",
+          "licenseSource": "https://github.com/lodash/lodash/blob/4.17.15/LICENSE"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "647779b225892dabadd9251e2c798e1c2cf933dbf017fb8ab8a0066bc9ab77e0"
+    },
+    {
+      "location": "node_modules/get-proto",
+      "name": "get-proto",
+      "version": "1.0.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/get-proto/-/get-proto-1.0.1.tgz",
+      "integrity": "sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==",
+      "packageJsonSha256": "73839e012ac7134a632c9d9fc6bdb700ac9ab5553cce39eb789ba2b65663e734",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1347,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/get-proto/LICENSE",
+          "sha256": "be46ce1e3b0479af9ce82d22b465a6d7d2ff084fca0aaf3d54172da2b5eb5781"
+        }
+      ],
+      "inputCount": 3,
+      "inputIdentity": "db2f1418b0436596faabce7fed5e9c4d34cde6e7af7be6ca1793a2dd2f751702"
+    },
+    {
+      "location": "node_modules/gopd",
+      "name": "gopd",
+      "version": "1.2.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz",
+      "integrity": "sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==",
+      "packageJsonSha256": "33ace32dc861f6da9d1fd9d0a44c66e8c6ff3b13358d070683c1c2978ff5f19f",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 560,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/gopd/LICENSE",
+          "sha256": "d90bf0a089da4cf43d644ed240a0b3825dcdb705e64e38371d56995a4cc9e4c5"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "cd7cb668162e428889aa69be43a4978f6b2391b08599d9c3d3a205521a6bab98"
+    },
+    {
+      "location": "node_modules/has-property-descriptors",
+      "name": "has-property-descriptors",
+      "version": "1.0.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/has-property-descriptors/-/has-property-descriptors-1.0.2.tgz",
+      "integrity": "sha512-55JNKuIW+vq4Ke1BjOTjM2YctQIvCT7GFzHwmfZPGo5wnrgkid0YQtnAleFSqumZm4az3n2BS+erby5ipJdgrg==",
+      "packageJsonSha256": "59a91e2cf32e4303d248708999a9ec3afd8e3649a87ba7abcf2177dc1984e3d5",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 727,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/has-property-descriptors/LICENSE",
+          "sha256": "0f0ca96f50793990031ebc488a38f7292ff70bce8ab6a8e5eeda674abc32ccdf"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "1c2ee7ec0d2a0e690d894f48925804642ba7f22170349f235ba7053e84958dd1"
+    },
+    {
+      "location": "node_modules/has-symbols",
+      "name": "has-symbols",
+      "version": "1.1.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.1.0.tgz",
+      "integrity": "sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==",
+      "packageJsonSha256": "5190268c0e3308d7446d1f7c036238f329f786938453e6017cb90980b3612e7a",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2529,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/has-symbols/LICENSE",
+          "sha256": "206c1adcf206dc0031b11232f5b054ec5f1662407ab1ca415247921cab2068ab"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "b85ce9bdab72ba9aac811504ebdc2be7ba95f58c3cec55cafc4edb2877033fb0"
+    },
+    {
+      "location": "node_modules/has-tostringtag",
+      "name": "has-tostringtag",
+      "version": "1.0.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/has-tostringtag/-/has-tostringtag-1.0.2.tgz",
+      "integrity": "sha512-NqADB8VjPFLM2V0VvHUewwwsw0ZWBaIdgo+ieHtK3hasLz4qeCRjYcqfB6AQrBggRKppKF8L52/VqdVsO47Dlw==",
+      "packageJsonSha256": "30ab773c52021a6b800ea48f251abeeb1f6e378300f819204dfbb38d6e43f3ad",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 327,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/has-tostringtag/LICENSE",
+          "sha256": "e2560e002e13281578c75c850061d9255c33d16d732939e8c2db64c2506642fa"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "891ce0649bf453bbaec0a8f8179bed953b526aaa7c3837e428f89e4081c512a2"
+    },
+    {
+      "location": "node_modules/hasown",
+      "name": "hasown",
+      "version": "2.0.4",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/hasown/-/hasown-2.0.4.tgz",
+      "integrity": "sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==",
+      "packageJsonSha256": "40b750c55a8bacf2c5ac316f5299dd44d48acc101c189a00cd59d39376b5eb89",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 348,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/hasown/LICENSE",
+          "sha256": "bf9b0d665be2a689851eea667ca9f42066ea1d903b38349c51e6a44b2577680a"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "17f65f0cac630f806e78d50e2a5da98aa4b8d11028e186fb54bc980e1b416373"
+    },
+    {
+      "location": "node_modules/highlight.js",
+      "name": "highlight.js",
+      "version": "10.7.3",
+      "license": "BSD-3-Clause",
+      "declaredLicense": "BSD-3-Clause",
+      "source": "https://registry.npmjs.org/highlight.js/-/highlight.js-10.7.3.tgz",
+      "integrity": "sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==",
+      "packageJsonSha256": "4f657beb931cb9613e5173414855b2a01e698696c0661d21973bfbbd50e184cf",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 100095,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/highlight.js/LICENSE",
+          "sha256": "6c081431591d9df696c82dc598fe1423765b8a299b200ed00b281afd0f64c490"
+        }
+      ],
+      "inputCount": 8,
+      "inputIdentity": "98cbfcf123dca915240b20ea4f6d7ce5caa7dc0690c9fb442c9aade305c5226c"
+    },
+    {
+      "location": "node_modules/ieee754",
+      "name": "ieee754",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause",
+      "declaredLicense": "BSD-3-Clause",
+      "source": "https://registry.npmjs.org/ieee754/-/ieee754-1.2.1.tgz",
+      "integrity": "sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==",
+      "packageJsonSha256": "a8004b9c8dffe2e1b01a058ecf968a5d50beabcabc43cc98c655184ba6afc050",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2755,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/ieee754/LICENSE",
+          "sha256": "18d45466ba3253deae04667e267a91ea8de8548f18c1125264d1c9db28194cc1"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "63cf09e24d0ae9e2ff803f120c5565aeebacbb72d61fa10afff6380f120e5cc7"
+    },
+    {
+      "location": "node_modules/immutable",
+      "name": "immutable",
+      "version": "5.1.9",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/immutable/-/immutable-5.1.9.tgz",
+      "integrity": "sha512-m8nVez3rwrgmWxtLMt1ZYXB2Lv7OKYn/disyxAlSDYAlKSlFoPPfIAmAM/M5xqL4m4C/wAPw7S2/CNaUii1Hxg==",
+      "packageJsonSha256": "662ad133db0b86e4a4f780f01dcd04d850e6ca54780f96b37b518316fc682abf",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 195207,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/immutable/LICENSE",
+          "sha256": "784fd7232e106901065a329b285ff9ba9ad98ff08ac1932b45b53a0b954974c5"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "a8246737d2bf00b3a0dcc318fbd931e4a7570e9003707bed04b09aefc2144637"
+    },
+    {
+      "location": "node_modules/is-callable",
+      "name": "is-callable",
+      "version": "1.2.7",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/is-callable/-/is-callable-1.2.7.tgz",
+      "integrity": "sha512-1BC0BVFhS/p0qtw6enp8e+8OD0UrK0oFLztSjNzhcKA3WDuJxxAPXzPuPtKkjEY9UUoEWlX/8fgKeu2S8i9JTA==",
+      "packageJsonSha256": "0d0981565f03ca488d263c94d038717ec4face8b129b8ff18e792dabae2af755",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 3797,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/is-callable/LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "030b720223610f16dac662fa8c25f701fd7daf23155aed07163267c5d09a9422"
+    },
+    {
+      "location": "node_modules/is-typed-array",
+      "name": "is-typed-array",
+      "version": "1.1.15",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/is-typed-array/-/is-typed-array-1.1.15.tgz",
+      "integrity": "sha512-p3EcsicXjit7SaskXHs1hA91QxgTw46Fv6EFKKGS5DRFLD8yKnohjF3hxoju94b/OcMZoQukzpPpBE9uLVKzgQ==",
+      "packageJsonSha256": "51dcf15ccc424ce76b36bef2ef64df7a53e75294cbddf08b4f7e639133145cc5",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 337,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/is-typed-array/LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "9f486a35d98ac0ab1788ba66ea2a2f180eaaeeb8acc59ad7566bbcfedeb18f6f"
+    },
+    {
+      "location": "node_modules/isarray",
+      "name": "isarray",
+      "version": "2.0.5",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/isarray/-/isarray-2.0.5.tgz",
+      "integrity": "sha512-xHjhDr3cNBK0BzdUJSPXZntQUx/mwMS5Rw4A7lPJ90XGAO6ISP/ePDNuo0vhqOZU+UD5JoodwCAAoZQd3FeAKw==",
+      "packageJsonSha256": "b0802c09bce6bf067d3e5f52390ea26972e11c88bb6ae38991316ac83ca14127",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 298,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/isarray/LICENSE",
+          "sha256": "68f12f6e2c33688699249c01d8f9623c534da20aa71989c57b061b7bc1676d14"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "18ed921d0ec7e99d2e37ea811d9a5ab2df3215d312de8f1a80162acc17ba494f"
+    },
+    {
+      "location": "node_modules/js-file-download",
+      "name": "js-file-download",
+      "version": "0.4.12",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/js-file-download/-/js-file-download-0.4.12.tgz",
+      "integrity": "sha512-rML+NkoD08p5Dllpjo0ffy4jRHeY6Zsapvr/W86N7E0yuzAO6qa5X9+xog6zQNlH102J7IXljNY2FtS6Lj3ucg==",
+      "packageJsonSha256": "b229e28e85d1b84738ffddd821e277fc11fdca63d07195224b1e1de1e84b1078",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1222,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/js-file-download/LICENSE",
+          "sha256": "9271227902f16883abe8474c66283ff0e4cc7445021d39bc44cf53f5ba9251d3"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "a12b173e278a107bd088877b4fb72c0d0201f193443cfaddba937e5832410f09"
+    },
+    {
+      "location": "node_modules/js-yaml",
+      "name": "js-yaml",
+      "version": "4.3.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.2.tgz",
+      "integrity": "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==",
+      "packageJsonSha256": "3eeb05aa0ceb4c3686e44c9b5d9b88f914b099ba9a7426b36947e65c6373d9a5",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 111334,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/js-yaml/LICENSE",
+          "sha256": "a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "8d25d23062f71d550b55d06d35264dc2126b6e3b1dda96d871279030100ce390"
+    },
+    {
+      "location": "node_modules/lodash",
+      "name": "lodash",
+      "version": "4.18.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz",
+      "integrity": "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==",
+      "packageJsonSha256": "5ef0a453b679125b155af19e1477f93b577ea826a57e1545f77608d326966e6a",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 210484,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/lodash/LICENSE",
+          "sha256": "f71e8ed126b46346494aad5486874cd8f0aafe95092ed67d2e3cb6110f939abc"
+        }
+      ],
+      "inputCount": 275,
+      "inputIdentity": "c6f76a91e876c6d177a6752ac489c1ae5393daee6daf2054a87569293de584ab"
+    },
+    {
+      "location": "node_modules/lodash.debounce",
+      "name": "lodash.debounce",
+      "version": "4.0.8",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/lodash.debounce/-/lodash.debounce-4.0.8.tgz",
+      "integrity": "sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==",
+      "packageJsonSha256": "3b74ac4711eaeb57cc7d6c5fcfdaff114d20fb23cc4a7e39c25f8f7a9afc1151",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 5145,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/lodash.debounce/LICENSE",
+          "sha256": "ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "836f95e91ee7a48d605a501e802d76cf83652a46fb4948bd0cc5e96eba5fa859"
+    },
+    {
+      "location": "node_modules/lowlight",
+      "name": "lowlight",
+      "version": "1.20.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/lowlight/-/lowlight-1.20.0.tgz",
+      "integrity": "sha512-8Ktj+prEb1RoCPkEOrPMYUN/nCggB7qAWe3a7OpMjWQkh3l2RD5wKRQ+o8Q8YuI9RG/xs95waaI/E6ym/7NsTw==",
+      "packageJsonSha256": "7190b9b852cb41f6cef8c3f10bfeec73f3f13a5fa41f57227f48c496ce2c6db0",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 5360,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/lowlight/license",
+          "sha256": "ca4662cb5d1b738fbe5350c0d5485ba11773b4b7208974082ae6e129a52d631d"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "c13d32e4d77dc9ae33ef523afc38557a1bd219245997e82342c0643ea346cdc7"
+    },
+    {
+      "location": "node_modules/math-intrinsics",
+      "name": "math-intrinsics",
+      "version": "1.1.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz",
+      "integrity": "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==",
+      "packageJsonSha256": "39d74aa5a354153130706286dd60a2d8409ce0c8f66546eff2edcac0afff17e1",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1833,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/math-intrinsics/LICENSE",
+          "sha256": "2b770a704c15de238c3f622b01b0044ddd60b49ee30608ea6991ebf19db7a7a1"
+        }
+      ],
+      "inputCount": 8,
+      "inputIdentity": "7aa528f2b31ae83a3fc9f85283d822f9354745c9ffe2c51bcd7e8dcb7f45b3bf"
+    },
+    {
+      "location": "node_modules/minim",
+      "name": "minim",
+      "version": "0.23.8",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/minim/-/minim-0.23.8.tgz",
+      "integrity": "sha512-bjdr2xW1dBCMsMGGsUeqM4eFI60m94+szhxWys+B1ztIt6gWSfeGBdSVCIawezeHYLYn0j6zrsXdQS/JllBzww==",
+      "packageJsonSha256": "c187c649d883bee9fce121a8ae941e6affd51f424279fac9521d217ff1cf721c",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 66924,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/minim/LICENSE",
+          "sha256": "7646e55e4b487bed8093757faad0db79c42dbd76df8cadceab1fff0381ae1a24"
+        }
+      ],
+      "inputCount": 18,
+      "inputIdentity": "ec84d019f31154533309acd08bd3a4be540d55fb2e1e5d32fee7df2de6aa27ad"
+    },
+    {
+      "location": "node_modules/neotraverse",
+      "name": "neotraverse",
+      "version": "1.0.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/neotraverse/-/neotraverse-1.0.1.tgz",
+      "integrity": "sha512-WmmLty1YWwJl9yZi77v2dVIV6X2kuYV8YYBI/G3LWGKdGHmHUvL1z7FW0iDvEvGAwNEoc5x1tOOOyDnf5jJw/w==",
+      "packageJsonSha256": "f7beca3b4c70fb4742d669f6bbcdf5e514e337c3fe092362d485a9ff9315c9f8",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 11843,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/neotraverse/LICENSE",
+          "sha256": "017e1e9a337389396cc413add3f105bc1ab902a17e772a99446c6b844c68ca54"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "2d058a03a15bca777d0a191baa010deb82a36b4d60d7f96c737430634559cf7a"
+    },
+    {
+      "location": "node_modules/openapi-path-templating",
+      "name": "openapi-path-templating",
+      "version": "2.2.1",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/openapi-path-templating/-/openapi-path-templating-2.2.1.tgz",
+      "integrity": "sha512-eN14VrDvl/YyGxxrkGOHkVkWEoPyhyeydOUrbvjoz8K5eIGgELASwN1eqFOJ2CTQMGCy2EntOK1KdtJ8ZMekcg==",
+      "packageJsonSha256": "b6ee452e05715439fd1fa6b653339f8e85ab1e3415e4160f0d3e95f258d4050b",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 12883,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/openapi-path-templating/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/openapi-path-templating/NOTICE",
+          "sha256": "118b3f56d6d4b2a1a113db4a3f0a16d1c9a3fa8dc150b6e45daae1fb97e42292"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "apg-js generated grammar source",
+          "version": "4.4.0",
+          "license": "BSD-2-Clause",
+          "source": "https://registry.npmjs.org/openapi-path-templating/-/openapi-path-templating-2.2.1.tgz#es/path-templating.mjs",
+          "sourceFile": "es/path-templating.mjs",
+          "sourceSha256": "5dc084ffa8d26cc2b0b195c54cb5a01279aa4e4569d96d91699e011275a60005",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/apg-js-4.4.0-generated-BSD-2-Clause.txt",
+              "sha256": "39f56d2c7e3fbf66786dd0b41a7c8970c3ff70f8c5f7f729473404c5ee2f036f"
+            }
+          ]
+        }
+      ],
+      "inputCount": 16,
+      "inputIdentity": "1f4aeb2582bdf650c3241d9284d1e47c234b9181933f9b84f046ebd88ff83a14"
+    },
+    {
+      "location": "node_modules/openapi-server-url-templating",
+      "name": "openapi-server-url-templating",
+      "version": "1.3.0",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/openapi-server-url-templating/-/openapi-server-url-templating-1.3.0.tgz",
+      "integrity": "sha512-DPlCms3KKEbjVQb0spV6Awfn6UWNheuG/+folQPzh/wUaKwuqvj8zt5gagD7qoyxtE03cIiKPgLFS3Q8Bz00uQ==",
+      "packageJsonSha256": "f6de9fbb6bd109ee907d22cf2dcdce84ac9a5b4088640a7d37de86ad35b8e22c",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 13066,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/openapi-server-url-templating/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/openapi-server-url-templating/NOTICE",
+          "sha256": "f71fcdfa9ef951b808183f636ca54fe3aa042d0f053f389e1c04fc222c922550"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "apg-js generated grammar source",
+          "version": "4.4.0",
+          "license": "BSD-2-Clause",
+          "source": "https://registry.npmjs.org/openapi-server-url-templating/-/openapi-server-url-templating-1.3.0.tgz#es/server-url-templating.mjs",
+          "sourceFile": "es/server-url-templating.mjs",
+          "sourceSha256": "10c659c3cc163016d9cf420802a57be1c218c830bf83299a9c4984dcad423f0c",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/apg-js-4.4.0-generated-BSD-2-Clause.txt",
+              "sha256": "39f56d2c7e3fbf66786dd0b41a7c8970c3ff70f8c5f7f729473404c5ee2f036f"
+            }
+          ]
+        }
+      ],
+      "inputCount": 9,
+      "inputIdentity": "070aec4d20ada92015d65e1732abc5a93261c566dd6ad702a6efe62333653ba3"
+    },
+    {
+      "location": "node_modules/possible-typed-array-names",
+      "name": "possible-typed-array-names",
+      "version": "1.1.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/possible-typed-array-names/-/possible-typed-array-names-1.1.0.tgz",
+      "integrity": "sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==",
+      "packageJsonSha256": "0ff73753495cfff4556a5f8b7847ba1c06530341986e642a8637c6db74d87894",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 518,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/possible-typed-array-names/LICENSE",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "dd7a3f52ebaeeb1eb869f37b942d6ad43459d8a348aca9330eddd2f0859dcc0b"
+    },
+    {
+      "location": "node_modules/prop-types",
+      "name": "prop-types",
+      "version": "15.8.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/prop-types/-/prop-types-15.8.1.tgz",
+      "integrity": "sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==",
+      "packageJsonSha256": "96aa387585c686397a80616d6a563759576e9b9fac1f80d57874aa4ee4730a2c",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2516,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/prop-types/LICENSE",
+          "sha256": "f657f99d3fb9647db92628e96007aabb46e5f04f33e49999075aab8e250ca7ce"
+        }
+      ],
+      "inputCount": 3,
+      "inputIdentity": "563b22baf753994ff01e56d515bce37a52ccf44c9cfe8bd09d4c361e06a0840b"
+    },
+    {
+      "location": "node_modules/querystringify",
+      "name": "querystringify",
+      "version": "2.2.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/querystringify/-/querystringify-2.2.0.tgz",
+      "integrity": "sha512-FIqgj2EUvTa7R50u0rGsyTftzjYmv/a3hO345bZNrqabNqjtgiDMgmo4mkUjd+nzU5oF3dClKqFIPUKybUyqoQ==",
+      "packageJsonSha256": "52a9fb122bf39ca64b3724f8d419273b0500918a186333a3a0c0f2db28f05073",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1644,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/querystringify/LICENSE",
+          "sha256": "3b2a6a268aa815dec121d614245e03b5c68db1f044d5b525e36db7d5dc7fb9c3"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "d0cf5278ca29efce28c6c36de6c18541a78785ca7507cdcb5ea4ebddf337cc1d"
+    },
+    {
+      "location": "node_modules/ramda",
+      "name": "ramda",
+      "version": "0.30.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/ramda/-/ramda-0.30.1.tgz",
+      "integrity": "sha512-tEF5I22zJnuclswcZMc8bDIrwRHRzf+NqVEmqg50ShAZMP7MWeR/RGDthfM/p+BlqvF2fXAzpn8i+SJcYD3alw==",
+      "packageJsonSha256": "65b1738fa2a061bf15b252df71c390de44733f0f7f68ee64b4c6fff486674254",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 57083,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/ramda/LICENSE.txt",
+          "sha256": "62fba31dc0582fb6ee413403e47f2de319a4f14140ebd71be094c1f8c7a839ff"
+        }
+      ],
+      "inputCount": 356,
+      "inputIdentity": "58f2c78b1d161a89c0734c7f9bd797053b980d621e1918ef918f2e4563e7c140"
+    },
+    {
+      "location": "node_modules/ramda-adjunct",
+      "name": "ramda-adjunct",
+      "version": "5.1.0",
+      "license": "BSD-3-Clause",
+      "declaredLicense": "BSD-3-Clause",
+      "source": "https://registry.npmjs.org/ramda-adjunct/-/ramda-adjunct-5.1.0.tgz",
+      "integrity": "sha512-8qCpl2vZBXEJyNbi4zqcgdfHtcdsWjOGbiNSEnEBrM6Y0OKOT8UxJbIVGm1TIcjaSu2MxaWcgtsNlKlCk7o7qg==",
+      "packageJsonSha256": "0b1357340d7cd44fb8b760397ca042c1a4303c7b4b2804a17686d5f0e1d4a450",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 8190,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/ramda-adjunct/LICENSE.md",
+          "sha256": "42e071758a8ea21dbb8ca30b5e6cbc095a379f5391740a543461211e52a6f29e"
+        }
+      ],
+      "embeddedSources": [
+        {
+          "name": "ramda adapted isArrayLike",
+          "version": "embedded-in-ramda-adjunct-5.1.0",
+          "license": "MIT",
+          "source": "https://registry.npmjs.org/ramda-adjunct/-/ramda-adjunct-5.1.0.tgz#es/isArrayLike.js",
+          "sourceFile": "es/isArrayLike.js",
+          "sourceSha256": "72e67392e5739c13af376f43b9f9e23b4df6842c5232273c465e66e84574ed03",
+          "purpose": "Original source attribution embedded in the selected renderer dependency",
+          "distribution": "embedded-source; no unprovided upstream package version is asserted",
+          "obligations": "Retain original copyright/declarations, applicable license conditions, permission and disclaimer; no endorsement/trademark grant",
+          "requiredNotices": [
+            {
+              "origin": "reviewed",
+              "file": "licenses/ramda-in-ramda-adjunct-MIT.txt",
+              "sha256": "de0e3d8dfbf6f2185f523221eaf41698ea920885e483cd58fd40713fecb09f8e"
+            }
+          ]
+        }
+      ],
+      "inputCount": 237,
+      "inputIdentity": "fd4e69c71bf1e75e3281382f825283fb7d28bc84523a6c7df1fba14ff04bcc1e"
+    },
+    {
+      "location": "node_modules/randexp",
+      "name": "randexp",
+      "version": "0.5.3",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/randexp/-/randexp-0.5.3.tgz",
+      "integrity": "sha512-U+5l2KrcMNOUPYvazA3h5ekF80FHTUG+87SEAmHZmolh1M+i/WyTCxVzmi+tidIa1tM4BSe8g2Y/D3loWDjj+w==",
+      "packageJsonSha256": "9b55d442a5bf4135a6441315c6e806ef37f18c573b976e9ceeb7287e8eb8ce13",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 7217,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/randexp/LICENSE",
+          "sha256": "bfc2c678db20d806b3787956f607a1509da5fca45b4d40a97c671cbee737159d"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "6fb351b13b8b3b12d0a52f706153f1e8683bc581c1ece583fd4bb8dcb8bc4008"
+    },
+    {
+      "location": "node_modules/react",
+      "name": "react",
+      "version": "18.3.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/react/-/react-18.3.1.tgz",
+      "integrity": "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==",
+      "packageJsonSha256": "d4e68a5c96babb20cad1daafea8b78822eae45b341552cf5418d06a5304fa64c",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 11119,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/react/LICENSE",
+          "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "6681ebaf6f64550a5717bd3b2cbc0b320b8813830f0876623fe49bfe6e4ffd9d"
+    },
+    {
+      "location": "node_modules/react-copy-to-clipboard",
+      "name": "react-copy-to-clipboard",
+      "version": "5.1.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/react-copy-to-clipboard/-/react-copy-to-clipboard-5.1.1.tgz",
+      "integrity": "sha512-s+HrzLyJBxrpGTYXF15dTgMjAJpEPZT/Yp6NytAtZMRngejxt6Pt5WrfFxLAcsqUDU6sY1Jz6tyHwIicE1U2Xg==",
+      "packageJsonSha256": "227b57221252aeb80ded2dc9c301db1d7f44c0dcab0e171aaa4eddea90514d24",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 8310,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/react-copy-to-clipboard/LICENSE",
+          "sha256": "3aed483b88cdd6bbc77036e0a846d75b07913a894488a10fce8025d556a00454"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "60839b9a66249485e0651219c336b653a0bd66a92fd8214c4a69c827da00ead5"
+    },
+    {
+      "location": "node_modules/react-debounce-input",
+      "name": "react-debounce-input",
+      "version": "3.3.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/react-debounce-input/-/react-debounce-input-3.3.0.tgz",
+      "integrity": "sha512-VEqkvs8JvY/IIZvh71Z0TC+mdbxERvYF33RcebnodlsUZ8RSgyKe2VWaHXv4+/8aoOgXLxWrdsYs2hDhcwbUgA==",
+      "packageJsonSha256": "b243f8c93f576303b22bcf54b507704c0e2f6ac9e283e13f874502452cb8b64d",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 14465,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/react-debounce-input/LICENSE",
+          "sha256": "3aed483b88cdd6bbc77036e0a846d75b07913a894488a10fce8025d556a00454"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "693434396331318694b667cc07fd0ee327faf3e8ee9f3c98d3761de4802ae97e"
+    },
+    {
+      "location": "node_modules/react-dom",
+      "name": "react-dom",
+      "version": "18.3.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz",
+      "integrity": "sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==",
+      "packageJsonSha256": "d2f29e31bd48b833e48cd7bbf41f192e8ee4ff8da249fdbe10d4ac4114b8b12e",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 246988,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/react-dom/LICENSE",
+          "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+        }
+      ],
+      "inputCount": 3,
+      "inputIdentity": "4a7203a34e51438e6c0034ac89c41c6222edaea7e4281e54e02619cf0c6b1b17"
+    },
+    {
+      "location": "node_modules/react-immutable-proptypes",
+      "name": "react-immutable-proptypes",
+      "version": "2.2.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/react-immutable-proptypes/-/react-immutable-proptypes-2.2.0.tgz",
+      "integrity": "sha512-Vf4gBsePlwdGvSZoLSBfd4HAP93HDauMY4fDjXhreg/vg6F3Fj/MXDNyTbltPC/xZKmZc+cjLu3598DdYK6sgQ==",
+      "packageJsonSha256": "b8eb7a452bebbcb672023b5149eb5aa759f9f3e3f9648636b91b58256026b5d0",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 5844,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/react-immutable-proptypes/LICENSE",
+          "sha256": "edf59b1fa686311bc0899f61846040e05db9a10e9b3a236fc8de840e021aa6a7"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "c978a720d1b1c2e0ab364cd7a7393a5cfeb30d4f391f3362c064c43dbd316a48"
+    },
+    {
+      "location": "node_modules/react-immutable-pure-component",
+      "name": "react-immutable-pure-component",
+      "version": "2.2.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/react-immutable-pure-component/-/react-immutable-pure-component-2.2.2.tgz",
+      "integrity": "sha512-vkgoMJUDqHZfXXnjVlG3keCxSO/U6WeDQ5/Sl0GK2cH8TOxEzQ5jXqDXHEL/jqk6fsNxV05oH5kD7VNMUE2k+A==",
+      "packageJsonSha256": "37851ad65bbfae181f257fb3e7076d543e98f9f28802cce987773e79062542e0",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 6401,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/react-immutable-pure-component/LICENSE",
+          "sha256": "60f8da81670d522f53606b2805d31b95c065b9e8dabe99cb60edfe491f2fb954"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "3093ae2b5107cdc6cd81d2693c7d1759d18561c1dd661b54c87f74392fc58726"
+    },
+    {
+      "location": "node_modules/react-redux",
+      "name": "react-redux",
+      "version": "9.3.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/react-redux/-/react-redux-9.3.0.tgz",
+      "integrity": "sha512-KQopgqFo/p/fgmAs5qz6p5RWaNAzq40WAu7fJIXnQpYxFPbJYtsJPWvGeF2rOBaY/kEuV77AVsX8TsQzKm+A/g==",
+      "packageJsonSha256": "d18b20b272ab6d55d7327b1bd40905006042496b49ac1ae9c6db4ea7d83224cc",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 30019,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/react-redux/LICENSE.md",
+          "sha256": "f2da73c752c6b87624755edacf927cbd915fa76555d383e74494bad4a5155ab3"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "1c97b3136a03c42baa7b1123a308639909b87ac6bf19098ad2bfe956b0bd155e"
+    },
+    {
+      "location": "node_modules/react-syntax-highlighter",
+      "name": "react-syntax-highlighter",
+      "version": "16.1.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/react-syntax-highlighter/-/react-syntax-highlighter-16.1.2.tgz",
+      "integrity": "sha512-4dM0+mYtfnhgwYWAvFx56fgyjIYk2yFopfiICFvMDhRfeSGRNd+ngFALdPD9q7llyGAmiE6pzOSOwI8Lf9ca1w==",
+      "packageJsonSha256": "46893b25ce83d9bd227a3f5207d156e867cc8550c05d4bd559d01538f9687ede",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 42393,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/react-syntax-highlighter/LICENSE",
+          "sha256": "a74e9029bdf2e92141bc711a6b17fa77b90c10eeec51193c83279cc69848f5bf"
+        }
+      ],
+      "inputCount": 18,
+      "inputIdentity": "bf562fcc9b84754ad4c3191e6f1b09fccae07347f8552ae578a3ec3078514f95"
+    },
+    {
+      "location": "node_modules/redux",
+      "name": "redux",
+      "version": "5.0.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/redux/-/redux-5.0.1.tgz",
+      "integrity": "sha512-M9/ELqF6fy8FwmkpnF0S3YKOqMyoWJ4+CS5Efg2ct3oY9daQvd/Pc71FpGZsVsbl3Cpb+IIcjBDUnnyBdQbq4w==",
+      "packageJsonSha256": "90578eb24fb0205ed82405282ecb69322a95b11d1e3ce6a7a6fd9e9fd9ce9aca",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 9613,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/redux/LICENSE.md",
+          "sha256": "f2da73c752c6b87624755edacf927cbd915fa76555d383e74494bad4a5155ab3"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "a93d3c45153759d32230d83cd22594c3a0dc14d3845dc3281ae246f35390ac0c"
+    },
+    {
+      "location": "node_modules/remarkable",
+      "name": "remarkable",
+      "version": "2.0.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/remarkable/-/remarkable-2.0.1.tgz",
+      "integrity": "sha512-YJyMcOH5lrR+kZdmB0aJJ4+93bEojRZ1HGDn9Eagu6ibg7aVZhc3OWbbShRid+Q5eAfsEqWxpe+g5W5nYNfNiA==",
+      "packageJsonSha256": "2b6749eb56c04e7a8a63c08e2608f4459d27edbe09d8c88cb9c2e1f707c2af83",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 111570,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/remarkable/LICENSE",
+          "sha256": "1cabe5f706e86a0767d2d894bcd3a8e836760fbad8d29e850f4d65e160186949"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "1fdec83adf60c032d504d866660d6bc583eb661810beba8709c75f95059d726a"
+    },
+    {
+      "location": "node_modules/repeat-string",
+      "name": "repeat-string",
+      "version": "1.6.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/repeat-string/-/repeat-string-1.6.1.tgz",
+      "integrity": "sha512-PV0dzCYDNfRi1jCDbJzpW7jNNDRuCOG/jI5ctQcGKt/clZD+YcPS3yIlWuTJMmESC8aevCFmWJy5wjAFgNqN6w==",
+      "packageJsonSha256": "dd718b676965bc48a769b675dd6f96a619d7e5786a059700cc3f87ab49bbb109",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 939,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/repeat-string/LICENSE",
+          "sha256": "3672fb6ef1c214578dfee689643516c2685f61ab08d130517ca8ea24f383a840"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "46b0a5bcdd5feaa2032f5a80d8b5386226fcf78121ab807413dd9ddfe06ade7e"
+    },
+    {
+      "location": "node_modules/requires-port",
+      "name": "requires-port",
+      "version": "1.0.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/requires-port/-/requires-port-1.0.0.tgz",
+      "integrity": "sha512-KigOCHcocU3XODJxsu8i/j8T9tzT4adHiecwORRQ0ZZFcp7ahwXuRU1m+yuO90C5ZUyGeGfocHDI14M3L3yDAQ==",
+      "packageJsonSha256": "537ddc6900b1f1996989cc61a3e170d918bed0ab5cc77a49245bcc59361e8f47",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 720,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/requires-port/LICENSE",
+          "sha256": "3b2a6a268aa815dec121d614245e03b5c68db1f044d5b525e36db7d5dc7fb9c3"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "1ee07cb4c21703175bfdcc3e1e60bc62589dcef3527dca3b8720822dfba1a299"
+    },
+    {
+      "location": "node_modules/reselect",
+      "name": "reselect",
+      "version": "5.3.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/reselect/-/reselect-5.3.0.tgz",
+      "integrity": "sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg==",
+      "packageJsonSha256": "4acd31021184fa22a08d705568fb7d6e83dec694eba09026cf4fd3fb33d6cde2",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 10093,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/reselect/LICENSE",
+          "sha256": "e98047a5dee068b33f82e8c4b7a63037b5108c93393198efd4097753004af5dd"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "1d454ecdc5b6211d999b3f545aff5d7fc6c1600f83e4041575d0c69b2193eacd"
+    },
+    {
+      "location": "node_modules/ret",
+      "name": "ret",
+      "version": "0.2.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/ret/-/ret-0.2.2.tgz",
+      "integrity": "sha512-M0b3YWQs7R3Z917WRQy1HHA7Ba7D8hvZg6UE5mLykJxQVE2ju0IXbGlaHPPlkY+WN7wFP+wUMXmBFA0aV6vYGQ==",
+      "packageJsonSha256": "0ebd61414346f53f5dfc895ccc55eadcea3070651a6314d57cd6db5717bbcd8d",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 12004,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/ret/LICENSE",
+          "sha256": "bfc2c678db20d806b3787956f607a1509da5fca45b4d40a97c671cbee737159d"
+        }
+      ],
+      "inputCount": 5,
+      "inputIdentity": "fd98dbcf55f07ab9ab303a0946f598e8e17f78bc47cfb70726b0ef1f321d7722"
+    },
+    {
+      "location": "node_modules/safe-buffer",
+      "name": "safe-buffer",
+      "version": "5.2.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
+      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
+      "packageJsonSha256": "e4018fdbfe625433371f48274fee26f520bbe865e0d8c85bf3aa07424134b90c",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1892,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/safe-buffer/LICENSE",
+          "sha256": "c7cc929b57080f4b9d0c6cf57669f0463fc5b39906344dfc8d3bc43426b30eac"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "11e3f19252e2a13114062f707c4db0c276f00d7906f1168e0dbeed1a11bec9c0"
+    },
+    {
+      "location": "node_modules/scheduler",
+      "name": "scheduler",
+      "version": "0.23.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/scheduler/-/scheduler-0.23.2.tgz",
+      "integrity": "sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==",
+      "packageJsonSha256": "0893643a24576d727174e639586b8833a53f2a7b4a2199a719b9cfcebe9bae88",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 7972,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/scheduler/LICENSE",
+          "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "8394d63fdbdfb2220c24ae35e22385ffce2e465d2d616af447b72155f71c5942"
+    },
+    {
+      "location": "node_modules/serialize-error",
+      "name": "serialize-error",
+      "version": "8.1.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/serialize-error/-/serialize-error-8.1.0.tgz",
+      "integrity": "sha512-3NnuWfM6vBYoy5gZFvHiYsVbafvI9vZv/+jlIigFn4oP4zjNPK3LhcY0xSCgeb1a5L8jO71Mit9LlNoi2UfDDQ==",
+      "packageJsonSha256": "f655cdd20d879cc83b05da96998ed90f715347dca0778c4ec391a52d497cdcbb",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 3981,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/serialize-error/license",
+          "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "e86ac243af0fa3a8d27c4eb945d6af6248ae052c0bc37ddc1ee5c226b2d9b5bd"
+    },
+    {
+      "location": "node_modules/set-function-length",
+      "name": "set-function-length",
+      "version": "1.2.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/set-function-length/-/set-function-length-1.2.2.tgz",
+      "integrity": "sha512-pgRc4hJ4/sNjWCSS9AmnS40x3bNMDTknHgL5UaMBTMyJnU90EgWh1Rz+MC9eFu4BuN/UwZjKQuY/1v3rM7HMfg==",
+      "packageJsonSha256": "2c81bab7f7a60d625164bd840d863548e3f9d4d1aa976b9d2966e5e1e36132a7",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1819,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/set-function-length/LICENSE",
+          "sha256": "bf9b0d665be2a689851eea667ca9f42066ea1d903b38349c51e6a44b2577680a"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "fdd97410d93f9ff829eccef915f1b93387e2bddc2eed75ef23d1ea8adcd6ff27"
+    },
+    {
+      "location": "node_modules/short-unique-id",
+      "name": "short-unique-id",
+      "version": "5.3.2",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/short-unique-id/-/short-unique-id-5.3.2.tgz",
+      "integrity": "sha512-KRT/hufMSxXKEDSQujfVE0Faa/kZ51ihUcZQAcmP04t00DvPj7Ox5anHke1sJYUtzSuiT/Y5uyzg/W7bBEGhCg==",
+      "packageJsonSha256": "cab26399f98f65ea33323ff72ecd3c3a3c4a876844a31f670688e36fb1536281",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 17195,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "reviewed",
+          "file": "licenses/short-unique-id-5.3.2-Apache-2.0.txt",
+          "sha256": "0cf3957c46e86111a54209443428be8e81e6b5e311ba4cc8cd820a90798c7555"
+        }
+      ],
+      "declarationEvidence": {
+        "source": "https://registry.npmjs.org/short-unique-id/-/short-unique-id-5.3.2.tgz#package.json",
+        "field": "license",
+        "readme": "README.md",
+        "readmeSha256": "9e6a55e69276c8f915ff99eede4fe08d7af1a10749babede61a5b9c6f588e87e",
+        "interpretation": "Consistent exact published metadata and README declaration; separate BusyAPI notice supplies standard terms and original copyright without modifying upstream files"
+      },
+      "inputCount": 1,
+      "inputIdentity": "fd7331cc415580fe2aa300d4a24e87a1d4ac115f1080d22fb4989744512aeba3"
+    },
+    {
+      "location": "node_modules/swagger-client",
+      "name": "swagger-client",
+      "version": "3.38.2",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/swagger-client/-/swagger-client-3.38.2.tgz",
+      "integrity": "sha512-MrMYADBRg7nY5Y+CY9E76/Zm2LSghhln4wNNU6jGn3bNZ76BRQ3hQRyCHCyJK9tVgTDUmYCcYgYWrwGruL1mIw==",
+      "packageJsonSha256": "0f413a3874f633945f045658e6d8a5519b31a4dd77522c14cf16b2092c294376",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 195713,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/swagger-client/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/swagger-client/NOTICE",
+          "sha256": "423f2aa502ad9ae3b84456b7db7f98eb27d5ae3cb2f7672452afe6f2f4a50b94"
+        }
+      ],
+      "inputCount": 79,
+      "inputIdentity": "f4b0a285eb15edb708fee80d2c6250cf991d3ffe165d25eff9f711343abdf3d8"
+    },
+    {
+      "location": "node_modules/swagger-ui",
+      "name": "swagger-ui",
+      "version": "5.33.2",
+      "license": "Apache-2.0",
+      "declaredLicense": "Apache-2.0",
+      "source": "https://registry.npmjs.org/swagger-ui/-/swagger-ui-5.33.2.tgz",
+      "integrity": "sha512-U47CPlVqtD4JgEdXWFsRH/BtisOkA4SGOPomAksA9wSBO9gq3CCPpWP6s1vpTTCmIlWTLqHjbE9/6UbRcxBNyQ==",
+      "packageJsonSha256": "c97677041cecf28eb489efa36b1a622d0d9bcba06c47adadacf66cd0658402f9",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 649610,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/swagger-ui/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "origin": "package",
+          "file": "node_modules/swagger-ui/NOTICE",
+          "sha256": "0d20d1adef18aee3f40dd258172155521ce702ac445cb5f7b7d60ed32dad2fb2"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "5dbfdb9e62ca71df051770824aa458014165b042d5ee7f39562018854db081be"
+    },
+    {
+      "location": "node_modules/to-buffer",
+      "name": "to-buffer",
+      "version": "1.2.2",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/to-buffer/-/to-buffer-1.2.2.tgz",
+      "integrity": "sha512-db0E3UJjcFhpDhAF4tLo03oli3pwl3dbnzXOUIlRKrp+ldk/VUxzpWYZENsw2SZiuBjHAk7DfB0VU7NKdpb6sw==",
+      "packageJsonSha256": "b9a28e593c952536fd850edc56098bf40679a21e7d1aa6e64a762921af663ef7",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2541,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/to-buffer/LICENSE",
+          "sha256": "6a134e51aa31496c15a741592fc5d782b2dbf8d8b6b8524e15c8520ae0cd6374"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "dcbf42d01a3375ccb66f2187f4484de5c480f37e261da14df99fd07a0ab86645"
+    },
+    {
+      "location": "node_modules/toggle-selection",
+      "name": "toggle-selection",
+      "version": "1.0.6",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/toggle-selection/-/toggle-selection-1.0.6.tgz",
+      "integrity": "sha512-BiZS+C1OS8g/q2RRbJmy59xpyghNBqrr6k5L/uKBGRsTfxmu3ffiRnd8mlGPUVayg8pvfi5urfnu8TU7DVOkLQ==",
+      "packageJsonSha256": "fbde858ede9465c03e5270332090684350327e360760d185b2ed4fc3aff73f15",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1129,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "reviewed",
+          "file": "licenses/redoc-embedded/copy-to-clipboard-3.3.3-LICENSE.txt",
+          "sha256": "771e50e27b24269923639e8e0cc650e7187ffeab5726f6a6f47d9ea83865089d"
+        }
+      ],
+      "noticeSource": "https://github.com/sudodoki/toggle-selection/blob/538dc4e9de40b8aee41f1e9066a4c5de3f4adc0a/LICENSE",
+      "inputCount": 1,
+      "inputIdentity": "f80470528106f06f71c0db73a1a7eaf191bdc234a2e4e33c4458af3674cfffad"
+    },
+    {
+      "location": "node_modules/ts-mixer",
+      "name": "ts-mixer",
+      "version": "6.0.4",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/ts-mixer/-/ts-mixer-6.0.4.tgz",
+      "integrity": "sha512-ufKpbmrugz5Aou4wcr5Wc1UUFWOLhq+Fm6qa6P0w0K5Qw2yhaUoiWszhCVuNQyNwrlGiscHOmqYoAox1PtvgjA==",
+      "packageJsonSha256": "8e5a46b47273692fa64bcb6ff247291ff04a3fe76996d3cf22915fcb91458f81",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 10673,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/ts-mixer/LICENSE",
+          "sha256": "76259fd03cdfcdfff2eee620d78c57c6a6e2fceb80ca91887e061cbad8f97951"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "30b6bc408c061450265af46dc9606dd751c54b2897bf6472a995c3a0854a8a9d"
+    },
+    {
+      "location": "node_modules/tslib",
+      "name": "tslib",
+      "version": "2.8.1",
+      "license": "0BSD",
+      "declaredLicense": "0BSD",
+      "source": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz",
+      "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==",
+      "packageJsonSha256": "f02b4851df316f29bdfcd404aa1eb41e4e216b5859015f81fcd3e91caf8be931",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 1050,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/tslib/LICENSE.txt",
+          "sha256": "210b19e543130388c68654b7497e967119ce17145f66ab7d85688fbd70f08751"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "9cbf5fea65e90898b5c8ba2a06fa5ca996ad4bb2ec2d1352d72a67e79e22ddb7"
+    },
+    {
+      "location": "node_modules/typed-array-buffer",
+      "name": "typed-array-buffer",
+      "version": "1.0.3",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/typed-array-buffer/-/typed-array-buffer-1.0.3.tgz",
+      "integrity": "sha512-nAYYwfY3qnzX30IkA6AQZjVbtK6duGontcQm1WSG1MD94YLqK0515GNApXkoxKOWMusVssAHWLh9SeaoefYFGw==",
+      "packageJsonSha256": "f0f933ad37d3be61efcb8c4fe64088cd97a4bc86038d5bc19f33df1e995bac56",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 603,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/typed-array-buffer/LICENSE",
+          "sha256": "b41d08bc3624d8c436fc80237d73ebb361985a67f4504bbcd703e5ca2b27254c"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "5762c1cba7774d342f583d201c0fe9a7a876df8752f55de6682ad9ad33ba2cd0"
+    },
+    {
+      "location": "node_modules/unraw",
+      "name": "unraw",
+      "version": "3.0.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/unraw/-/unraw-3.0.0.tgz",
+      "integrity": "sha512-08/DA66UF65OlpUDIQtbJyrqTR0jTAlJ+jsnkQ4jxR7+K5g5YG1APZKQSMCE1vqqmD+2pv6+IdEjmopFatacvg==",
+      "packageJsonSha256": "5cba0be8a5b58550bab17e95d8746822c897c49b8fd4801f8a721bbbd4f6cfe2",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "build-input-omitted-from-output",
+      "bytesInOutput": 0,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/unraw/license.md",
+          "sha256": "cefb5a30e36c5a6dc926cfb5c8cc636964f6c8fe0be563c2c004e1e7a2507083"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "c915d182d02825a312f2a24d8d64bfc2f1b8d233c7b3ad700d2fbcce71b23861"
+    },
+    {
+      "location": "node_modules/url-parse",
+      "name": "url-parse",
+      "version": "1.5.10",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/url-parse/-/url-parse-1.5.10.tgz",
+      "integrity": "sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==",
+      "packageJsonSha256": "c3047872ef776e7eff8a0440e8c7c70d8d8c6dae4f5d09dc651a83820734a746",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 12330,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/url-parse/LICENSE",
+          "sha256": "3b2a6a268aa815dec121d614245e03b5c68db1f044d5b525e36db7d5dc7fb9c3"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "ed00938c648da1d2bbbc65fa8aaf3c863657a0df37c14c3f40b9a4356ca368e6"
+    },
+    {
+      "location": "node_modules/use-sync-external-store",
+      "name": "use-sync-external-store",
+      "version": "1.7.0",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/use-sync-external-store/-/use-sync-external-store-1.7.0.tgz",
+      "integrity": "sha512-6L+EeigHMQhdaIPNIFUKwfWJSwWFQ8gJbJ2DLOs5sDIegTwR9fRxvnM3uciHKjIZhFz+KAv2emhWMRvDmMcY8A==",
+      "packageJsonSha256": "ba3694aec166f2f53612c4978bc85fb31dd4eee75a2eccc1ad1a1cc49c9428d2",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 3274,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/use-sync-external-store/LICENSE",
+          "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+        }
+      ],
+      "inputCount": 2,
+      "inputIdentity": "f0bec8abc1c342c82a5e6f0b8b7cf9514ee073308242d08415d300cfb329c164"
+    },
+    {
+      "location": "node_modules/which-typed-array",
+      "name": "which-typed-array",
+      "version": "1.1.24",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/which-typed-array/-/which-typed-array-1.1.24.tgz",
+      "integrity": "sha512-wk4Mf4pR5mRP7eYuuTBCIQ9d0ud2Fv2jRLQpfgnRjbOxAFHmjKFValgTpitVKzJJS8ajnYQV2Du1SZ8j6b/EUQ==",
+      "packageJsonSha256": "e175b4177a92cd5f7ae31bc7954edd57369dd059d6faf5f1100f1ab962c6ef01",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 4063,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/which-typed-array/LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "58fccb7532d79a3a107ea05cc0fb279c1bcf48f8735e82a56e0978d24003b921"
+    },
+    {
+      "location": "node_modules/xml-but-prettier",
+      "name": "xml-but-prettier",
+      "version": "1.0.1",
+      "license": "MIT",
+      "declaredLicense": "MIT",
+      "source": "https://registry.npmjs.org/xml-but-prettier/-/xml-but-prettier-1.0.1.tgz",
+      "integrity": "sha512-C2CJaadHrZTqESlH03WOyw0oZTtoy2uEg6dSDF6YRg+9GnYNub53RRemLpnvtbHDFelxMx4LajiFsYeR6XJHgQ==",
+      "packageJsonSha256": "dd76ebf68100acadcf8bbb782e4af71d4261c0a516c11022820aa9a46aa13369",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 2676,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/xml-but-prettier/LICENSE",
+          "sha256": "8a1a2aa0e90d61f0bfcbd9bac4787d971fa9ba699df1d1dedefb249367a3b5f4"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "603a8614a90262a6e2877a4fa7385ddf67b1eb471bf7dd86f059457b7cc6668a"
+    },
+    {
+      "location": "node_modules/zenscroll",
+      "name": "zenscroll",
+      "version": "4.0.2",
+      "license": "Unlicense",
+      "declaredLicense": "Unlicense",
+      "source": "https://registry.npmjs.org/zenscroll/-/zenscroll-4.0.2.tgz",
+      "integrity": "sha512-jEA1znR7b4C/NnaycInCU6h/d15ZzCd1jmsruqOKnZP6WXQSMH3W2GL+OXbkruslU4h+Tzuos0HdswzRUk/Vgg==",
+      "packageJsonSha256": "0e112d1558c86584ac9c6ca040f326385b5f9f1b7778ac32ead0958b176199ca",
+      "purpose": "Local read-only Swagger UI presentation and its required UI/resolver utility closure; canonical authoring and validation remain independent",
+      "distribution": "bundled-documentation-code",
+      "bytesInOutput": 9490,
+      "obligations": "Retain original license/copyright/permission/disclaimer and applicable NOTICE/embedded-source terms; no vendor endorsement/trademark grant",
+      "requiredNotices": [
+        {
+          "origin": "package",
+          "file": "node_modules/zenscroll/LICENSE",
+          "sha256": "60d2c28d19d2bdf7bbaa59829e7a595234265e8111a01ccb74d25d6c4d2d013a"
+        }
+      ],
+      "inputCount": 1,
+      "inputIdentity": "834aa988fe9e898a85ad099677f517f86566cbb80ae8c4845d8aa58f262c97f6"
+    }
+  ],
+  "inputIdentityEncoding": "sha256 of JSON-encoded UTF-16-lexically-sorted [package-relative filename, exact source-byte sha256] tuples"
+}

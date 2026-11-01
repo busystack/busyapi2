@@ -1,0 +1,1767 @@
+{
+  "version": 1,
+  "scope": "Reviewed original installed Flutter/Linux compiler and native-plugin inputs; source sets are conservative, not AOT symbol reachability.",
+  "sdk": {
+    "frameworkVersion": "3.47.5",
+    "frameworkRevision": "6a19cca56475dbfba1478ee68d7bd0c2ef891da1",
+    "engineRevision": "af7e796e161ae0bb1ff0758c71a7105418bd9ded",
+    "engineContentHash": "ab598368592da0064197e2bc15c7f5b0a2c6bb1f",
+    "engineNoticeSha256": "3c0040023a5789bf56d6bf41fd44f08b21758523d41f128fb7dd6beb398d1191",
+    "engineNotice": "flutter-sdk/ENGINE-THIRD-PARTY-NOTICES",
+    "engineNoticeScope": "Original selected SDK aggregate; actual corrected-engine/native-library licence choices require their separate distribution review."
+  },
+  "packages": [
+    {
+      "name": "animated_vector",
+      "version": "0.2.2",
+      "source": "https://pub.dev/packages/animated_vector/versions/0.2.2",
+      "archiveSha256": "f1beb10e6fcfd8bd15abb788e20345def786d1c7391d7c1426bb2a1f2adf2132",
+      "pubspecSha256": "42e6ab3678a88a06b0fa77143927e602851e04d5ae2e4f8f1b82c072096730f3",
+      "notices": [
+        {
+          "file": "animated_vector/LICENSE",
+          "sha256": "85274b98938da3f9de3ca722ed3c1d1e452612c13f5bb41b88c1e55cfa0ce103"
+        }
+      ],
+      "sourceSha256": "9b5045aa5c368d7c9610d3a4814fcbb981dfe324849acd6a3cfa9524d451f481",
+      "sourceFiles": 14,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Yaru native control animation and its supplied annotations.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "animated_vector_annotations",
+      "version": "0.2.2",
+      "source": "https://pub.dev/packages/animated_vector_annotations/versions/0.2.2",
+      "archiveSha256": "07c1ea603a2096f7eb6f1c2b8f16c3c330c680843ea78b7782a3217c3c53f979",
+      "pubspecSha256": "2848ca97f580ed27aa3265f447439faf054c178f4494a94faa7fcec31bcbc9eb",
+      "notices": [
+        {
+          "file": "animated_vector_annotations/LICENSE",
+          "sha256": "85274b98938da3f9de3ca722ed3c1d1e452612c13f5bb41b88c1e55cfa0ce103"
+        }
+      ],
+      "sourceSha256": "156a35a6907eb98218f1593f9789f6af9dab71f4437509e98d034a830f0f3c87",
+      "sourceFiles": 2,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Yaru native control animation and its supplied annotations.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "archive",
+      "version": "4.0.9",
+      "source": "https://pub.dev/packages/archive/versions/4.0.9",
+      "archiveSha256": "a96e8b390886ee8abb49b7bd3ac8df6f451c621619f52a26e815fdcf568959ff",
+      "pubspecSha256": "7bcacd1814660078632bf70ef853ee1ec9d0777e7ffa16d3ab0b8204f12bde11",
+      "notices": [
+        {
+          "file": "archive/LICENSE",
+          "sha256": "32f97d332eae7453ec4079858e6f1d74be85beeb6d3881068b47d02a379cccea"
+        },
+        {
+          "file": "archive/LICENSE-other.md",
+          "sha256": "ebe5a199af245d7e3e761673fbf3db341427060407e50713861ab24bb2cb1552"
+        }
+      ],
+      "sourceSha256": "bdc72f53a35ae24dbff63f2f5177dd77169aa0771312011f998963b3dfb47a92",
+      "sourceFiles": 87,
+      "linuxNativePlugin": false,
+      "license": "MIT AND BSD-3-Clause AND bzip2-1.0.6",
+      "purpose": "Transitive vector/SVG image and codec support; original third-party codec notices retained.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original main and LICENSE-other.md codec grants/copyrights/disclaimers, including zlib.js/JZLib/bzip2/PointyCastle attribution. Respect no-endorsement, origin and altered-source conditions. No BusyAPI codec modification."
+    },
+    {
+      "name": "assorted_layout_widgets",
+      "version": "11.0.0",
+      "source": "https://pub.dev/packages/assorted_layout_widgets/versions/11.0.0",
+      "archiveSha256": "86c6942f569f7f70bfb03b9cb0ada9bf5aee72264aaefdb0e2be0fbee70cfb06",
+      "pubspecSha256": "63299c450796afa30ba95dacf1ea2494ab7896719da948c170c5409f9a887ed4",
+      "notices": [
+        {
+          "file": "assorted_layout_widgets/LICENSE",
+          "sha256": "d30189f2f4fde9d7c26d2e3985490ec65ba50f80138bb7988efc2136c96cc704"
+        }
+      ],
+      "sourceSha256": "9d1a20b045cd867c08839b106f291737847799922d580fd1780c621a191113cb",
+      "sourceFiles": 26,
+      "linuxNativePlugin": false,
+      "license": "BSD-2-Clause",
+      "purpose": "Compact Yaru layout primitives.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation."
+    },
+    {
+      "name": "async",
+      "version": "2.13.1",
+      "source": "https://pub.dev/packages/async/versions/2.13.1",
+      "archiveSha256": "e2eb0491ba5ddb6177742d2da23904574082139b07c1e33b8503b9f46f3e1a37",
+      "pubspecSha256": "e3e95b194e5b58db0e6a2649c4ad4957a92027d64a38cfa0de53a225601c030c",
+      "notices": [
+        {
+          "file": "async/LICENSE",
+          "sha256": "ff15faa32a2e638107b7789592b14426162a75ba620044ee2340a20ec6ce5e73"
+        }
+      ],
+      "sourceSha256": "e5a1e419cbffddaf9532c98025a7101ad41575c02c94d7ecf06c56a21ce8e16f",
+      "sourceFiles": 45,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "boolean_selector",
+      "version": "2.1.2",
+      "source": "https://pub.dev/packages/boolean_selector/versions/2.1.2",
+      "archiveSha256": "8aab1771e1243a5063b8b0ff68042d67334e3feab9e95b9490f9a6ebf73b42ea",
+      "pubspecSha256": "694e93a3e5cb9bea0868a4873f8ea9dd3856e00e3629ee7488cbbec42c41bc5c",
+      "notices": [
+        {
+          "file": "boolean_selector/LICENSE",
+          "sha256": "b71519245009a3b8f126196a5408ec031e216e8e0d985085958c6543f82a8a2a"
+        }
+      ],
+      "sourceSha256": "6fbdd48bbc16d11becb2c80789fbaa41478abb762bc0de5d8b2f18fb61ff45e5",
+      "sourceFiles": 13,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "characters",
+      "version": "1.4.1",
+      "source": "https://pub.dev/packages/characters/versions/1.4.1",
+      "archiveSha256": "faf38497bda5ead2a8c7615f4f7939df04333478bf32e4173fcb06d428b5716b",
+      "pubspecSha256": "5cca9e9296ee6f219922c5e9049b71559b46ac45095b10de9afc57da2c12f951",
+      "notices": [
+        {
+          "file": "characters/LICENSE",
+          "sha256": "0371d1da6a57fb791db29d29b95333429205f51f3cb2eb3a0c12d91838a38744"
+        }
+      ],
+      "sourceSha256": "a3d5875b5cb70f22de99dfc9aae68138eb6d8948b9685103bf64e3443fcdd3a0",
+      "sourceFiles": 7,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Unicode grapheme boundaries for full-document native text editing; original Unicode dataset notice retained.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "clock",
+      "version": "1.1.2",
+      "source": "https://pub.dev/packages/clock/versions/1.1.2",
+      "archiveSha256": "fddb70d9b5277016c77a80201021d40a2247104d9f4aa7bab7157b7e3f05b84b",
+      "pubspecSha256": "0089e7447cd2f74865403d69b5fab16fefa54fa3a04b9453a3c23c114752e35e",
+      "notices": [
+        {
+          "file": "clock/LICENSE",
+          "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+        }
+      ],
+      "sourceSha256": "ec107430b544b35c055ce2ccdf89419af2eb2c2d69629445ba919163fa8bbdd4",
+      "sourceFiles": 5,
+      "linuxNativePlugin": false,
+      "license": "Apache-2.0",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain Apache 2.0 text and applicable original attribution/NOTICE material; mark modifications if made. Patent/trademark conditions remain applicable; no BusyAPI vendor modification."
+    },
+    {
+      "name": "collection",
+      "version": "1.19.1",
+      "source": "https://pub.dev/packages/collection/versions/1.19.1",
+      "archiveSha256": "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76",
+      "pubspecSha256": "0558412e31aacf6a97e6b226e0f9f6b10ab5ae95c57a8a562ff579ee1609f913",
+      "notices": [
+        {
+          "file": "collection/LICENSE",
+          "sha256": "ff15faa32a2e638107b7789592b14426162a75ba620044ee2340a20ec6ce5e73"
+        }
+      ],
+      "sourceSha256": "09422187057401735858ccb14f0faea4de2e58182ace420db5e71a2cf0493b89",
+      "sourceFiles": 29,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "coverage",
+      "version": "1.15.1",
+      "source": "https://pub.dev/packages/coverage/versions/1.15.1",
+      "archiveSha256": "956a3de0725ca232ad353565a8290d3357592bf4250f6f298a185e2d949c5d3d",
+      "pubspecSha256": "c96a11349eec1c79db538913ff338036346d082a798cbc57d810ff7059d19142",
+      "notices": [
+        {
+          "file": "coverage/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "c14f9f817cb84be2c5fead6763eaf6ec57a746ec20602bb446d80d1f3cc930b0",
+      "sourceFiles": 11,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "cross_file",
+      "version": "0.3.5+4",
+      "source": "https://pub.dev/packages/cross_file/versions/0.3.5+4",
+      "archiveSha256": "92c9c43c383bfa1c32079d3bc492d55d6d4318044b7b47edaff8971cbb555c51",
+      "pubspecSha256": "c67405695cbb6a9524fa66dc999ccc51790e4e28a4642c63eaf567ff086c03e4",
+      "notices": [
+        {
+          "file": "cross_file/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "81e4cfb1e20222b1b57f8006ba64fb3becd1cc44851fe6e95267a2eabb559646",
+      "sourceFiles": 7,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "crypto",
+      "version": "3.0.7",
+      "source": "https://pub.dev/packages/crypto/versions/3.0.7",
+      "archiveSha256": "c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf",
+      "pubspecSha256": "7e80694c991709360b161f4af801646902127f120b864286dbc413e4f667f712",
+      "notices": [
+        {
+          "file": "crypto/LICENSE",
+          "sha256": "ad6a71997da90924b2cfb1fb47ec46537f70faf469efe016168794ae45ed6888"
+        }
+      ],
+      "sourceSha256": "dac3cdba21dce6a4d9f55190a58e20a35dbbba7a40076e9c6163a63c8ff5baa7",
+      "sourceFiles": 13,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Deterministic resource, snapshot and publication identities.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "dbus",
+      "version": "0.7.13",
+      "source": "https://pub.dev/packages/dbus/versions/0.7.13",
+      "archiveSha256": "792974a4007974fbc5c1b5433eb2330a9db3e368c3f906253af4c007d0f49a91",
+      "pubspecSha256": "6ab51039b47c1509efd19d09e3730f79dc9e5c03d5966cefd2dd87193a064851",
+      "notices": [
+        {
+          "file": "dbus/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+        }
+      ],
+      "sourceSha256": "093c2c38ee41deb0e68ecbb43fd89a10495bf2d67b86aa059d61137bf355e3f2",
+      "sourceFiles": 38,
+      "linuxNativePlugin": false,
+      "license": "MPL-2.0",
+      "purpose": "Linux desktop theme/settings and native integration; no desktop component is modified.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    },
+    {
+      "name": "fake_async",
+      "version": "1.3.3",
+      "source": "https://pub.dev/packages/fake_async/versions/1.3.3",
+      "archiveSha256": "5368f224a74523e8d2e7399ea1638b37aecfca824a3cc4dfdf77bf1fa905ac44",
+      "pubspecSha256": "e327702810254b2950d552c0cc5d0174fcd287a9b70ff4aa55d9fb5dd477e655",
+      "notices": [
+        {
+          "file": "fake_async/LICENSE",
+          "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+        }
+      ],
+      "sourceSha256": "32b4dfbf159153f55160982e15de230470e2cdc331e1f4e219f5bccc48884ebc",
+      "sourceFiles": 1,
+      "linuxNativePlugin": false,
+      "license": "Apache-2.0",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain Apache 2.0 text and applicable original attribution/NOTICE material; mark modifications if made. Patent/trademark conditions remain applicable; no BusyAPI vendor modification."
+    },
+    {
+      "name": "ffi",
+      "version": "2.2.0",
+      "source": "https://pub.dev/packages/ffi/versions/2.2.0",
+      "archiveSha256": "6d7fd89431262d8f3125e81b50d3847a091d846eafcd4fdb88dd06f36d705a45",
+      "pubspecSha256": "00eb29c9e0d66e1696dd41772e157c8ec4bcc6454ee7ab426128ec270722587b",
+      "notices": [
+        {
+          "file": "ffi/LICENSE",
+          "sha256": "0371d1da6a57fb791db29d29b95333429205f51f3cb2eb3a0c12d91838a38744"
+        }
+      ],
+      "sourceSha256": "4ddf86a2b73b9cfa2120d25e58d607e0e0dd935daeb37379a261f81d7683b18e",
+      "sourceFiles": 5,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Native Linux publication/platform bindings.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "file",
+      "version": "7.0.1",
+      "source": "https://pub.dev/packages/file/versions/7.0.1",
+      "archiveSha256": "a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4",
+      "pubspecSha256": "2431ce26b72e9f4000cda857183316cf98fcdc5f1c6143ef97ca54a333500d82",
+      "notices": [
+        {
+          "file": "file/LICENSE",
+          "sha256": "f6df86b1412172537273e8e80ee2fb8a66aa7307ce0b39ea5ddab47ca41b8c49"
+        }
+      ],
+      "sourceSha256": "3cfb1c5af92facd357934a84ec3ed9b93827df34cb4303a6235fc96920a2346f",
+      "sourceFiles": 49,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "file_selector",
+      "version": "1.1.0",
+      "source": "https://pub.dev/packages/file_selector/versions/1.1.0",
+      "archiveSha256": "bd15e43e9268db636b53eeaca9f56324d1622af30e5c34d6e267649758c84d9a",
+      "pubspecSha256": "f2305c65dad23783db55cf2d8bb7e1307ce610101056936694106d1bf4e3564f",
+      "notices": [
+        {
+          "file": "file_selector/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "dcc6603153120c8f08940cce31d22a386575b5776e2d5344466a05ad8507a0dd",
+      "sourceFiles": 1,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "file_selector_android",
+      "version": "0.5.2+8",
+      "source": "https://pub.dev/packages/file_selector_android/versions/0.5.2+8",
+      "archiveSha256": "6a26687fa65cbc28a5345c7ae6f227e89f0b47740978a4c475b1a625da7a331b",
+      "pubspecSha256": "ea23744087b9925c47d91c67ece965659a75a9dc7b041490e6368ab6798daf75",
+      "notices": [
+        {
+          "file": "file_selector_android/LICENSE",
+          "sha256": "8e139d4c7faa5e7a76752e743a745113f46e658071733bfae4914a04da12ae0e"
+        }
+      ],
+      "sourceSha256": "18b70324779ab764acbeb934cf5e159b2c715a6994dc4c44733d1d16cfa60f91",
+      "sourceFiles": 4,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause AND Apache-2.0",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain the original combined BSD/aFileChooser Apache 2.0 notice and copyright. Only imported Dart wrapper source is in the Linux compiler input set; no Android native implementation is distributed."
+    },
+    {
+      "name": "file_selector_ios",
+      "version": "0.5.3+5",
+      "source": "https://pub.dev/packages/file_selector_ios/versions/0.5.3+5",
+      "archiveSha256": "e2ecf2885c121691ce13b60db3508f53c01f869fb6e8dc5c1cfa771e4c46aeca",
+      "pubspecSha256": "ddb066b91c83c331f28040c81a7b51cacabf6a2169188d67781023904cb1c287",
+      "notices": [
+        {
+          "file": "file_selector_ios/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "5216a17cdafcea53ed19fe6a0f16f9b58bb612a174ccd4dfabee8b41d2487da2",
+      "sourceFiles": 2,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "file_selector_linux",
+      "version": "0.9.4",
+      "source": "https://pub.dev/packages/file_selector_linux/versions/0.9.4",
+      "archiveSha256": "2567f398e06ac72dcf2e98a0c95df2a9edd03c2c2e0cacd4780f20cdf56263a0",
+      "pubspecSha256": "0b50a443f4c686a27474da253e90676d8d76d8a89494870b498b6e945bd06f87",
+      "notices": [
+        {
+          "file": "file_selector_linux/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "1eea11759690d73c6c8a8dc3b7878749264a00030463f3e280d100c0e8014004",
+      "sourceFiles": 10,
+      "linuxNativePlugin": true,
+      "license": "BSD-3-Clause",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Imported Dart sources where selected and linked Linux native Flutter plugin; ordinary compiled assets only, no package scripts or development executables.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "file_selector_macos",
+      "version": "0.9.5",
+      "source": "https://pub.dev/packages/file_selector_macos/versions/0.9.5",
+      "archiveSha256": "5e0bbe9c312416f1787a68259ea1505b52f258c587f12920422671807c4d618a",
+      "pubspecSha256": "82d67a3ec2e3d40dac71c0c787fa6564dee78de3feb7132df2e303d74085569e",
+      "notices": [
+        {
+          "file": "file_selector_macos/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "dc392231d0dbe049cad4bb6c83aad4630d296f88beb972dbceb5446fdb255edf",
+      "sourceFiles": 2,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "file_selector_platform_interface",
+      "version": "2.7.0",
+      "source": "https://pub.dev/packages/file_selector_platform_interface/versions/2.7.0",
+      "archiveSha256": "35e0bd61ebcdb91a3505813b055b09b79dfdc7d0aee9c09a7ba59ae4bb13dc85",
+      "pubspecSha256": "70d2fd4c078b4b94ecf4ab89ae04a5f56d7907b0ced8067e4b2dc791e6fd0973",
+      "notices": [
+        {
+          "file": "file_selector_platform_interface/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "c536f5216edc11953ead0021b179af627aac456831c48ad642a19c56aefe35ce",
+      "sourceFiles": 8,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "file_selector_windows",
+      "version": "0.9.3+5",
+      "source": "https://pub.dev/packages/file_selector_windows/versions/0.9.3+5",
+      "archiveSha256": "62197474ae75893a62df75939c777763d39c2bc5f73ce5b88497208bc269abfd",
+      "pubspecSha256": "c8c00ff3bd9dac143b3db91b896fa830614454196493b65cc46ef97bd5f304ae",
+      "notices": [
+        {
+          "file": "file_selector_windows/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "7e074f35b915b3960967babc07f5acf44735f2e02e04cbf16f6936f6941263a2",
+      "sourceFiles": 2,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "fixnum",
+      "version": "1.1.1",
+      "source": "https://pub.dev/packages/fixnum/versions/1.1.1",
+      "archiveSha256": "b6dc7065e46c974bc7c5f143080a6764ec7a4be6da1285ececdc37be96de53be",
+      "pubspecSha256": "0e4778875281ea0265bb1b00aa809ff5ac9fbd089e2fa2a0f23750c304d4ee3c",
+      "notices": [
+        {
+          "file": "fixnum/LICENSE",
+          "sha256": "ff0b91d4f3c32b25cb6ec84985e8da89b0ba2a2b2f7eef353cda5e5423a20390"
+        }
+      ],
+      "sourceSha256": "6928b6d99a421f8df3e58d073ecaaed46c5fee0e3eb6b784190a20d2fb05d5f4",
+      "sourceFiles": 5,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "flutter",
+      "version": "3.47.5",
+      "source": "https://github.com/flutter/flutter/tree/6a19cca56475dbfba1478ee68d7bd0c2ef891da1/packages/flutter",
+      "pubspecSha256": "0b3422388c8001cfe2d3b82607902178342ab7f5014d03461d100b5fee027d0a",
+      "notices": [
+        {
+          "file": "flutter/LICENSE",
+          "sha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20"
+        }
+      ],
+      "sourceSha256": "c695db5e96044f7407d7da0f70e338e54795b6d18e88a6123f5f3e015f492df4",
+      "sourceFiles": 731,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Selected Flutter native widget/semantics/localization framework; corrected engine has a separate source/notice review.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "flutter_localizations",
+      "version": "3.47.5",
+      "source": "https://github.com/flutter/flutter/tree/6a19cca56475dbfba1478ee68d7bd0c2ef891da1/packages/flutter_localizations",
+      "pubspecSha256": "b2acbef033f4674f0b862daa4127146e6025566ee0045bc733cc8107756fb957",
+      "notices": [
+        {
+          "file": "flutter_localizations/FLUTTER-LICENSE",
+          "sha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+          "inheritedFrom": "Flutter SDK LICENSE"
+        }
+      ],
+      "sourceSha256": "6446002d3ca65488c13641bb9513d55b60ff73962fabe911af1b50814c8dea20",
+      "sourceFiles": 357,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Selected Flutter native widget/semantics/localization framework; corrected engine has a separate source/notice review.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "flutter_riverpod",
+      "version": "3.3.2",
+      "source": "https://pub.dev/packages/flutter_riverpod/versions/3.3.2",
+      "archiveSha256": "9255e1e3ad6e38906a1b4f8287678f95f378744c5b46b1985588543f3f19046e",
+      "pubspecSha256": "8442835aa739e9dca243d62b00fd8ecb5e4ecd40f610e38bd826d9df8cb2ebcb",
+      "notices": [
+        {
+          "file": "flutter_riverpod/LICENSE",
+          "sha256": "757d9c09a9a2a701144328c0fd596234ea287ff62952b39cd22f9ad4caed1171"
+        }
+      ],
+      "sourceSha256": "5676c3616a3b0f000d5bc6d89f359ad195191d8eb346ee63c6bd8cd1e6c202b4",
+      "sourceFiles": 12,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Native workspace state and ownership/lifecycle scheduling.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "flutter_svg",
+      "version": "2.3.0",
+      "source": "https://pub.dev/packages/flutter_svg/versions/2.3.0",
+      "archiveSha256": "35882981abcbfb8c15b286f0cd690ff25bac12d95eff3e25ee207f37d4c42e7f",
+      "pubspecSha256": "33a173c336ef0b28387bb5b35236e7472ce0f4cff990ef37d948755be4bc4e97",
+      "notices": [
+        {
+          "file": "flutter_svg/LICENSE",
+          "sha256": "dc54ae36c905edfbf3c6678ee34d8da5989d7ccc7b993857a9d89db06a67eb18"
+        }
+      ],
+      "sourceSha256": "b9137d563c2fe74452a32f911362e477b4f64689f734381a42b104251e471d01",
+      "sourceFiles": 10,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Local SVG/vector asset parsing and rendering support; no remote assets are authorized.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "flutter_test",
+      "version": "3.47.5",
+      "source": "https://github.com/flutter/flutter/tree/6a19cca56475dbfba1478ee68d7bd0c2ef891da1/packages/flutter_test",
+      "pubspecSha256": "9596f58e0496dc277dd753a706feb4cc3495202c8a381ab4b14008d436074b54",
+      "notices": [
+        {
+          "file": "flutter_test/FLUTTER-LICENSE",
+          "sha256": "a598db94b6290ffbe10b5ecf911057b6a943351c727fdda9e5f2891d68700a20",
+          "inheritedFrom": "Flutter SDK LICENSE"
+        }
+      ],
+      "sourceSha256": "69841b201ca5fdb1c78a007fe8c0acd4cdcc0ba7aa3ae55ea6ce1b1f8b009d39",
+      "sourceFiles": 49,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "glob",
+      "version": "2.1.3",
+      "source": "https://pub.dev/packages/glob/versions/2.1.3",
+      "archiveSha256": "c3f1ee72c96f8f78935e18aa8cecced9ab132419e8625dc187e1c2408efc20de",
+      "pubspecSha256": "7801944569d2be60962f16283014551e34e9414dd9119a6f5771076221892dcc",
+      "notices": [
+        {
+          "file": "glob/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "14a0c43774cc2c5ce57ddece48692d55dc6e23ffa9f5c8164516bedc5794f472",
+      "sourceFiles": 7,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "gsettings",
+      "version": "0.2.8",
+      "source": "https://pub.dev/packages/gsettings/versions/0.2.8",
+      "archiveSha256": "1b0ce661f5436d2db1e51f3c4295a49849f03d304003a7ba177d01e3a858249c",
+      "pubspecSha256": "5c026da38c0777b7c40b2b8f15c25771c4fc9c523244d2303a029d02fdeaae39",
+      "notices": [
+        {
+          "file": "gsettings/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+        }
+      ],
+      "sourceSha256": "23b885e7b5fb797cf0fc4e8d53c3bd07d9f44df697fed6ec77adac346c477636",
+      "sourceFiles": 13,
+      "linuxNativePlugin": false,
+      "license": "MPL-2.0",
+      "purpose": "Linux desktop theme/settings and native integration; no desktop component is modified.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    },
+    {
+      "name": "gtk",
+      "version": "2.2.0",
+      "source": "https://pub.dev/packages/gtk/versions/2.2.0",
+      "archiveSha256": "4ff85b2a16724029dd9e5bbb5a94b6918f9973f74ba571c949d2002801879cf5",
+      "pubspecSha256": "e9429829b8e37bffd88c109bf9857b8bbd073e0fd62801273bcb23bde56933e6",
+      "notices": [
+        {
+          "file": "gtk/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+        }
+      ],
+      "sourceSha256": "381c33863816d711a1c39fc29ebae46785bd92f1974dc0e6c8fd18bb62212284",
+      "sourceFiles": 15,
+      "linuxNativePlugin": true,
+      "license": "MPL-2.0",
+      "purpose": "Linux desktop theme/settings and native integration; no desktop component is modified.",
+      "distribution": "Imported Dart sources where selected and linked Linux native Flutter plugin; ordinary compiled assets only, no package scripts or development executables.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    },
+    {
+      "name": "http",
+      "version": "1.6.0",
+      "source": "https://pub.dev/packages/http/versions/1.6.0",
+      "archiveSha256": "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412",
+      "pubspecSha256": "ab9b20099e285fcabbdb52188d8a9205adee7eeb9b51f00727206edeb1e72420",
+      "notices": [
+        {
+          "file": "http/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "7e2e13caa23f2050a324eb145d84c9bc0de700a8bc9c42f171e60b1ed50b2dce",
+      "sourceFiles": 27,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported HTTP parsing/client utilities; their presence is not permission for API requests or unapproved retrieval.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "http_parser",
+      "version": "4.1.2",
+      "source": "https://pub.dev/packages/http_parser/versions/4.1.2",
+      "archiveSha256": "178d74305e7866013777bab2c3d8726205dc5a4dd935297175b19a23a2e66571",
+      "pubspecSha256": "88a08953bcff87d5b003d46d689a87d4149d4abca5200f7d6534dd2e2aba4751",
+      "notices": [
+        {
+          "file": "http_parser/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "efc24adbb2950e3a3caf05f97867675213da73913fbcf6a42841d6c9a524c6a9",
+      "sourceFiles": 11,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported HTTP parsing/client utilities; their presence is not permission for API requests or unapproved retrieval.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "image",
+      "version": "4.9.1",
+      "source": "https://pub.dev/packages/image/versions/4.9.1",
+      "archiveSha256": "6300175e00616bbc832e2fc91bfa4d776af5402c81c7151bee6905bb08473c52",
+      "pubspecSha256": "e2c76379a0c8e1836cebadae7c3b7f1809ffd83495caf3e1240e97d11fd29567",
+      "notices": [
+        {
+          "file": "image/LICENSE",
+          "sha256": "f3c17da84e0780e1c334325c73098257c32221d62498ed55ef3c1361904925aa"
+        },
+        {
+          "file": "image/LICENSE-other.md",
+          "sha256": "dea0e9e446e57c0987d241d5471e47e7b66796fb286706ec993c3fa6696cb08e"
+        }
+      ],
+      "sourceSha256": "b4de2fc1ac7fb0b99640a4bda7040588aaaf994e1a165d0ac68c3602826f8eed",
+      "sourceFiles": 352,
+      "linuxNativePlugin": false,
+      "license": "MIT AND Apache-2.0 AND BSD-3-Clause",
+      "purpose": "Transitive vector/SVG image and codec support; original third-party codec notices retained.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain main MIT and all LICENSE-other.md JPEG/WebP/TIFF/OpenEXR/PVRTC/QuickPVR notices, full Apache 2.0 terms and BSD conditions. No BusyAPI codec modification."
+    },
+    {
+      "name": "intl",
+      "version": "0.20.3",
+      "source": "https://pub.dev/packages/intl/versions/0.20.3",
+      "archiveSha256": "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867",
+      "pubspecSha256": "e4dd54c2d05d7d9c0cf7a38ba91f7687d92f30dabbd1232bcc2b0786e36800d4",
+      "notices": [
+        {
+          "file": "intl/LICENSE",
+          "sha256": "7e124af6a556f045cb3a20cafbdaa31602ac2c82cbcb3c3b15faaaf514b06028"
+        }
+      ],
+      "sourceSha256": "fd536a898fa7453589bda61b3589b87436d252602ac35978177b439bb01d1df9",
+      "sourceFiles": 290,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Localized native labels/date/number formatting and upstream generated CLDR locale data.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "json_annotation",
+      "version": "4.12.0",
+      "source": "https://pub.dev/packages/json_annotation/versions/4.12.0",
+      "archiveSha256": "2a743920d81b7910627f68ee2c9ac1fc0bfee32b9fc3403587d7c6791ca12f80",
+      "pubspecSha256": "8074c8976be68bb88be4959a8732faabb62e5446848ae9065ce4012387bcf4eb",
+      "notices": [
+        {
+          "file": "json_annotation/LICENSE",
+          "sha256": "143839f62c9b7f88143ea9f688361c27050888acde7696b34e04414bd254fafc"
+        }
+      ],
+      "sourceSha256": "f9aba55bcd1f68b6309fba736c3bb8c8df99bc14b23601fc7f32d25e2adf67b1",
+      "sourceFiles": 11,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported serialization and Dart language annotations.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "leak_tracker",
+      "version": "11.0.2",
+      "source": "https://pub.dev/packages/leak_tracker/versions/11.0.2",
+      "archiveSha256": "33e2e26bdd85a0112ec15400c8cbffea70d0f9c3407491f672a2fad47915e2de",
+      "pubspecSha256": "baa761e9bf38ebeff3ccf67d4ea542ede08e7286695df569f91be867134b03a5",
+      "notices": [
+        {
+          "file": "leak_tracker/LICENSE",
+          "sha256": "08a004aa8956c3cf3b24f7f69c966247233953e18e6afaa61191ea47b7eb70f6"
+        }
+      ],
+      "sourceSha256": "0d770e2e996888e88f886b4e7c099a6ef2d3962baf5e227730b9ef4ac162f6a1",
+      "sourceFiles": 31,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "leak_tracker_flutter_testing",
+      "version": "3.0.10",
+      "source": "https://pub.dev/packages/leak_tracker_flutter_testing/versions/3.0.10",
+      "archiveSha256": "1dbc140bb5a23c75ea9c4811222756104fbcd1a27173f0c34ca01e16bea473c1",
+      "pubspecSha256": "230b28feb29c520794eb49924bad2c19073080d4cdf94240d222a73250877abb",
+      "notices": [
+        {
+          "file": "leak_tracker_flutter_testing/LICENSE",
+          "sha256": "08a004aa8956c3cf3b24f7f69c966247233953e18e6afaa61191ea47b7eb70f6"
+        }
+      ],
+      "sourceSha256": "a11d6a34e146e5eb09da0a77eeb0a9985a3376afea2ccf07cec5f140f49dbe11",
+      "sourceFiles": 8,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "leak_tracker_testing",
+      "version": "3.0.2",
+      "source": "https://pub.dev/packages/leak_tracker_testing/versions/3.0.2",
+      "archiveSha256": "8d5a2d49f4a66b49744b23b018848400d23e54caf9463f4eb20df3eb8acb2eb1",
+      "pubspecSha256": "bda15ec4370d21476ed0eca93f25e86f2dfe3887c19720335821348c390f0b21",
+      "notices": [
+        {
+          "file": "leak_tracker_testing/LICENSE",
+          "sha256": "08a004aa8956c3cf3b24f7f69c966247233953e18e6afaa61191ea47b7eb70f6"
+        }
+      ],
+      "sourceSha256": "fc59794767f1fd75a9f8cecb17f77b89a5f846412b32e97521436ead07f37c2d",
+      "sourceFiles": 5,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "markdown",
+      "version": "7.3.1",
+      "source": "https://pub.dev/packages/markdown/versions/7.3.1",
+      "archiveSha256": "ee85086ad7698b42522c6ad42fe195f1b9898e4d974a1af4576c1a3a176cada9",
+      "pubspecSha256": "70e9ee78c118b0b801d74b0187f80461655eda3543537f89d802277b51497077",
+      "notices": [
+        {
+          "file": "markdown/LICENSE",
+          "sha256": "0aa335b5e036b9efbb35ad7a35835cd32e4eb656c08bfe040550a9f6fa84fcc7"
+        }
+      ],
+      "sourceSha256": "f8bc3c0d15242ae9c538c55a1d222ba5a3c5a0969ea996a85dffe312ff0b4f07",
+      "sourceFiles": 61,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Safe native/headless CommonMark projection and HTML named-character data; not the canonical contract parser.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "matcher",
+      "version": "0.12.20",
+      "source": "https://pub.dev/packages/matcher/versions/0.12.20",
+      "archiveSha256": "31bd099b47c10cd1aeb55146a2d46ce0277630ecef3f7dae54ad7873f36696cd",
+      "pubspecSha256": "6a130b3eeae616a766feef41bf2906a46d7aae4e92656f118eb8c5340649cac4",
+      "notices": [
+        {
+          "file": "matcher/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "57bed80cd53bcda484ec4bb2f67288dcf464d13e56613d5ba6f5eafd5d717904",
+      "sourceFiles": 32,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "material_color_utilities",
+      "version": "0.13.0",
+      "source": "https://pub.dev/packages/material_color_utilities/versions/0.13.0",
+      "archiveSha256": "9c337007e82b1889149c82ed242ed1cb24a66044e30979c44912381e9be4c48b",
+      "pubspecSha256": "4c32df8a37a2548d4ccc5ad892b9f3780236ad655685273d366ca34aee39fa1d",
+      "notices": [
+        {
+          "file": "material_color_utilities/LICENSE",
+          "sha256": "d103f246ef4c18dab8af0c1dcf6a8af884e5cff554da7261a48ac43c17d98f2e"
+        }
+      ],
+      "sourceSha256": "b83ad4804a7251198f521671cc3f5b027cdf31b82838e9f79d8523db8b8fe1a9",
+      "sourceFiles": 39,
+      "linuxNativePlugin": false,
+      "license": "Apache-2.0",
+      "purpose": "Native theme/accent color calculations.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain Apache 2.0 text and applicable original attribution/NOTICE material; mark modifications if made. Patent/trademark conditions remain applicable; no BusyAPI vendor modification."
+    },
+    {
+      "name": "meta",
+      "version": "1.19.0",
+      "source": "https://pub.dev/packages/meta/versions/1.19.0",
+      "archiveSha256": "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9",
+      "pubspecSha256": "a003fe612d160e22c942289e654b50e6563f67c61847603485cf1eac6686e995",
+      "notices": [
+        {
+          "file": "meta/LICENSE",
+          "sha256": "b71519245009a3b8f126196a5408ec031e216e8e0d985085958c6543f82a8a2a"
+        }
+      ],
+      "sourceSha256": "b41a611926415cd3ed86119455be2569bbc08df42d452a2534b8ff621a37103a",
+      "sourceFiles": 3,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported serialization and Dart language annotations.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "package_config",
+      "version": "2.2.0",
+      "source": "https://pub.dev/packages/package_config/versions/2.2.0",
+      "archiveSha256": "f096c55ebb7deb7e384101542bfba8c52696c1b56fca2eb62827989ef2353bbc",
+      "pubspecSha256": "7c5033e163a22d6b19269f717983ae6eaa43db91f97ee2a34568a0e353f225f6",
+      "notices": [
+        {
+          "file": "package_config/LICENSE",
+          "sha256": "0371d1da6a57fb791db29d29b95333429205f51f3cb2eb3a0c12d91838a38744"
+        }
+      ],
+      "sourceSha256": "c555d772a9dff81bc1a8b093a3f9d8f2fe7e0fae5fa9f8feede234700a10119c",
+      "sourceFiles": 11,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported source-location, parsing and platform/path support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "path",
+      "version": "1.9.1",
+      "source": "https://pub.dev/packages/path/versions/1.9.1",
+      "archiveSha256": "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5",
+      "pubspecSha256": "94bc2793c42741c611722b22b0bc0f1a000ae4914f5ab52810d91e18ce4b1f6d",
+      "notices": [
+        {
+          "file": "path/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "01a71c170821e2cdbdcfb3facdca0d9cf22883f598aa12d0dd620b65d5f674d1",
+      "sourceFiles": 13,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported source-location, parsing and platform/path support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "path_parsing",
+      "version": "1.1.0",
+      "source": "https://pub.dev/packages/path_parsing/versions/1.1.0",
+      "archiveSha256": "883402936929eac138ee0a45da5b0f2c80f89913e6dc3bf77eb65b84b409c6ca",
+      "pubspecSha256": "c57fcafb9a849203db7c4c65e94c5e7a74e897c6e5f602867226f4e696bf0bc5",
+      "notices": [
+        {
+          "file": "path_parsing/LICENSE",
+          "sha256": "f4fc0fe1e273823b06540b3b948640ff81f3a5c5dc7088972eef662fe450ad77"
+        }
+      ],
+      "sourceSha256": "965f45c553f13cef1c970b3f7d21488fd6d3d90bc4c821aa6d495015fcb2b7b4",
+      "sourceFiles": 3,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Local SVG/vector asset parsing and rendering support; no remote assets are authorized.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "petitparser",
+      "version": "7.0.2",
+      "source": "https://pub.dev/packages/petitparser/versions/7.0.2",
+      "archiveSha256": "91bd59303e9f769f108f8df05e371341b15d59e995e6806aefab827b58336675",
+      "pubspecSha256": "852ea6753432f6f3d5fa1a35f3b2343fe848c8a9b6c2d4e3ad2015221ff0f3d0",
+      "notices": [
+        {
+          "file": "petitparser/LICENSE",
+          "sha256": "d2e8ffdbe89acbc10d5d1f2b03e7dbddf0a9f1742e809176682b62ef3d573b3e"
+        }
+      ],
+      "sourceSha256": "db41871767083bf392c59d3b54b2b8c611307cd60167433a5ca42f279065291f",
+      "sourceFiles": 132,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Local SVG/vector asset parsing and rendering support; no remote assets are authorized.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "platform",
+      "version": "3.1.6",
+      "source": "https://pub.dev/packages/platform/versions/3.1.6",
+      "archiveSha256": "5d6b1b0036a5f331ebc77c850ebc8506cbc1e9416c27e59b439f917a902a4984",
+      "pubspecSha256": "f5a5f8d6babddb3fe6d7ed437537383a5e1c18d36b7e485d381ea528040bf64f",
+      "notices": [
+        {
+          "file": "platform/LICENSE",
+          "sha256": "143839f62c9b7f88143ea9f688361c27050888acde7696b34e04414bd254fafc"
+        }
+      ],
+      "sourceSha256": "12c39d71d6577ad831b12aa2af779a021aab4b1f98dfe76358159a14753b4c7d",
+      "sourceFiles": 4,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported source-location, parsing and platform/path support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "platform_linux",
+      "version": "0.1.2+1",
+      "source": "https://pub.dev/packages/platform_linux/versions/0.1.2+1",
+      "archiveSha256": "907b7c6da6ee6eea61cd1266b7bd72e2d5bbf7e85160221e8ac5583a44e7a1c7",
+      "pubspecSha256": "e785d903c3cd8147a9bf308e0582c6f100c0ae05b30c4e546dfc8422990069b3",
+      "notices": [
+        {
+          "file": "platform_linux/LICENSE",
+          "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"
+        }
+      ],
+      "sourceSha256": "6ace38d493018f134ddcf5542857261c7a233a610b4ddaeded39e0120c52575c",
+      "sourceFiles": 4,
+      "linuxNativePlugin": false,
+      "license": "MPL-2.0",
+      "purpose": "Linux desktop theme/settings and native integration; no desktop component is modified.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    },
+    {
+      "name": "plugin_platform_interface",
+      "version": "2.1.8",
+      "source": "https://pub.dev/packages/plugin_platform_interface/versions/2.1.8",
+      "archiveSha256": "4820fbfdb9478b1ebae27888254d445073732dae3d6ea81f0b7e06d5dedc3f02",
+      "pubspecSha256": "f43e701a2009e7a535d2ef393f9375a0c131c0719243347a266827eea4c36c08",
+      "notices": [
+        {
+          "file": "plugin_platform_interface/LICENSE",
+          "sha256": "89519eca6f7b9529b35bdddd623a58c3af06a88c458dbd6531ddb4675acf75a9"
+        }
+      ],
+      "sourceSha256": "aa8b2739c5ae38bdeb6e5d1b3134d450e8c2f92a2a56de45ea894c0ddf88fff0",
+      "sourceFiles": 1,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Native file selection and imported platform wrappers. Only the recorded Linux native implementation is linked; other platform implementations are not packaged.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "pool",
+      "version": "1.5.2",
+      "source": "https://pub.dev/packages/pool/versions/1.5.2",
+      "archiveSha256": "978783255c543aa3586a1b3c21f6e9d720eb315376a915872c61ef8b5c20177d",
+      "pubspecSha256": "cb6ff50a9a3f161df6bd0be90600f23829e848bd6027f33048963f6f3ad84558",
+      "notices": [
+        {
+          "file": "pool/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "1d49f4597bf24fde545380959284777892e9718d214910a91505236a7b3a9bb3",
+      "sourceFiles": 1,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "riverpod",
+      "version": "3.3.2",
+      "source": "https://pub.dev/packages/riverpod/versions/3.3.2",
+      "archiveSha256": "17100416c51db7810c71a7bb2c34d1f881faa0074fd452afb0c4db6f8f126c76",
+      "pubspecSha256": "8027f8ec2ebb7524d143cd59148e1c1524dfdf24b7885c3669b4334a213ca47e",
+      "notices": [
+        {
+          "file": "riverpod/LICENSE",
+          "sha256": "757d9c09a9a2a701144328c0fd596234ea287ff62952b39cd22f9ad4caed1171"
+        }
+      ],
+      "sourceSha256": "1bf180918ae7b3eb2d7dc10ecfde00da3d02a5c8529347546caa526716615d89",
+      "sourceFiles": 55,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Native workspace state and ownership/lifecycle scheduling.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "screen_retriever",
+      "version": "0.2.2",
+      "source": "https://pub.dev/packages/screen_retriever/versions/0.2.2",
+      "archiveSha256": "ace919117a7520c13a50a6259e60c4a0d4cbe98809468792a91b5c5adada2aa6",
+      "pubspecSha256": "01583d7cf586099de3383cde0ddc6fb549665003b8f884481fdfbe6cfc239b3d",
+      "notices": [
+        {
+          "file": "screen_retriever/LICENSE",
+          "sha256": "4c275c4e1ab3ffb97508c3c66a87db1c6e4f5d0233205fff8ca57ac35d20199f"
+        }
+      ],
+      "sourceSha256": "1fed103f59356f47b52f748cd710214081f7b4bcb6c9207d1ee7d0533b747b9b",
+      "sourceFiles": 2,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Native Linux window bounds, placement and lifecycle integration.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "screen_retriever_linux",
+      "version": "0.2.2",
+      "source": "https://pub.dev/packages/screen_retriever_linux/versions/0.2.2",
+      "archiveSha256": "7b52006a5ceae1f3d5af7f77188c3290d6e7d8ded16d99809bea84967c65c257",
+      "pubspecSha256": "9e17a22815f2c12c18395d89015a9ff0307afa1eb5f99c549019d1bbe5685aaf",
+      "notices": [
+        {
+          "file": "screen_retriever_linux/LICENSE",
+          "sha256": "4c275c4e1ab3ffb97508c3c66a87db1c6e4f5d0233205fff8ca57ac35d20199f"
+        }
+      ],
+      "sourceSha256": "1ef1f50dc212d5d4929c189c54c71728b535cd5e72d95b2ab706fcd7d3efa152",
+      "sourceFiles": 5,
+      "linuxNativePlugin": true,
+      "license": "MIT",
+      "purpose": "Native Linux window bounds, placement and lifecycle integration.",
+      "distribution": "Imported Dart sources where selected and linked Linux native Flutter plugin; ordinary compiled assets only, no package scripts or development executables.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "screen_retriever_platform_interface",
+      "version": "0.2.2",
+      "source": "https://pub.dev/packages/screen_retriever_platform_interface/versions/0.2.2",
+      "archiveSha256": "94a5535277510a63184ca178ce12a1449bc0b38618879aa1c18bf57369c5064a",
+      "pubspecSha256": "aa75bc19a012ea6cad1894b37435b2f87aff056c4b7031472db49cff5c9e2756",
+      "notices": [
+        {
+          "file": "screen_retriever_platform_interface/LICENSE",
+          "sha256": "4c275c4e1ab3ffb97508c3c66a87db1c6e4f5d0233205fff8ca57ac35d20199f"
+        }
+      ],
+      "sourceSha256": "d74fde6f0e6119a5a2a7b7547e91f2f3e884e11bf43e920e84bcc05ff8d25af2",
+      "sourceFiles": 6,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Native Linux window bounds, placement and lifecycle integration.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "source_maps",
+      "version": "0.10.13",
+      "source": "https://pub.dev/packages/source_maps/versions/0.10.13",
+      "archiveSha256": "190222579a448b03896e0ca6eca5998fa810fda630c1d65e2f78b3f638f54812",
+      "pubspecSha256": "07a16197fb86f62a73a5f3ecf0648d19af175d2588a8a270b8dc147415f56e55",
+      "notices": [
+        {
+          "file": "source_maps/LICENSE",
+          "sha256": "ff0b91d4f3c32b25cb6ec84985e8da89b0ba2a2b2f7eef353cda5e5423a20390"
+        }
+      ],
+      "sourceSha256": "ddf748d23d5ba112783fffd2db3230295b10ef1f942c39e34c0674b20463ab7e",
+      "sourceFiles": 8,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported source-location, parsing and platform/path support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "source_span",
+      "version": "1.10.2",
+      "source": "https://pub.dev/packages/source_span/versions/1.10.2",
+      "archiveSha256": "56a02f1f4cd1a2d96303c0144c93bd6d909eea6bee6bf5a0e0b685edbd4c47ab",
+      "pubspecSha256": "ef70b95ff6588bbe25c695f6fdd7f3eed6525b70955bf429fd08e676a6fc6d02",
+      "notices": [
+        {
+          "file": "source_span/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "c67c173a3b6aea0915fc80d539529f5df4fe8b4e45d021657a154e340d5722f1",
+      "sourceFiles": 12,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported source-location, parsing and platform/path support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "stack_trace",
+      "version": "1.12.1",
+      "source": "https://pub.dev/packages/stack_trace/versions/1.12.1",
+      "archiveSha256": "8b27215b45d22309b5cddda1aa2b19bdfec9df0e765f2de506401c071d38d1b1",
+      "pubspecSha256": "4a268375024e12885ed4d195dbb5a9fc168b43e867932efcf80bebb87ca75520",
+      "notices": [
+        {
+          "file": "stack_trace/LICENSE",
+          "sha256": "ff0b91d4f3c32b25cb6ec84985e8da89b0ba2a2b2f7eef353cda5e5423a20390"
+        }
+      ],
+      "sourceSha256": "f57d816d04d2c9bd67b301ca2fd23b4e6b4689fe4ab39d721339f6590131db27",
+      "sourceFiles": 10,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported source-location, parsing and platform/path support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "state_notifier",
+      "version": "1.0.0",
+      "source": "https://pub.dev/packages/state_notifier/versions/1.0.0",
+      "archiveSha256": "b8677376aa54f2d7c58280d5a007f9e8774f1968d1fb1c096adcb4792fba29bb",
+      "pubspecSha256": "1e9f4d517e55de26a3b2a50884d3ef12972b1b536d819ecb8481ef4f61dde820",
+      "notices": [
+        {
+          "file": "state_notifier/LICENSE",
+          "sha256": "757d9c09a9a2a701144328c0fd596234ea287ff62952b39cd22f9ad4caed1171"
+        }
+      ],
+      "sourceSha256": "27be3ccb229679daa9483c74d1961e0171136151c6df74d54ad8f8ed364b0c4a",
+      "sourceFiles": 1,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Native workspace state and ownership/lifecycle scheduling.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "stream_channel",
+      "version": "2.1.4",
+      "source": "https://pub.dev/packages/stream_channel/versions/2.1.4",
+      "archiveSha256": "969e04c80b8bcdf826f8f16579c7b14d780458bd97f56d107d3950fdbeef059d",
+      "pubspecSha256": "bb9e840e71b1b060c6e32c4c33b73c845f1b9f9dfddd7a2f01c1d8ebb5ac5cae",
+      "notices": [
+        {
+          "file": "stream_channel/LICENSE",
+          "sha256": "ff15faa32a2e638107b7789592b14426162a75ba620044ee2340a20ec6ce5e73"
+        }
+      ],
+      "sourceSha256": "21306fee15eb235d2a2fc047cd772c8dea33321e7acc818bdfb3ea5895327170",
+      "sourceFiles": 12,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "string_scanner",
+      "version": "1.4.1",
+      "source": "https://pub.dev/packages/string_scanner/versions/1.4.1",
+      "archiveSha256": "921cd31725b72fe181906c6a94d987c78e3b98c2e205b397ea399d4054872b43",
+      "pubspecSha256": "e2e5e7815773dd7525a75cb446f05bfa6525457c3310ff9a676119b432296106",
+      "notices": [
+        {
+          "file": "string_scanner/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "1ffd8b514bb65d7aa2a3e88c9f20617612ec960178c0218a56c2f72c4a7f08e9",
+      "sourceFiles": 9,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported source-location, parsing and platform/path support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "term_glyph",
+      "version": "1.2.2",
+      "source": "https://pub.dev/packages/term_glyph/versions/1.2.2",
+      "archiveSha256": "7f554798625ea768a7518313e58f83891c7f5024f88e46e7182a4558850a4b8e",
+      "pubspecSha256": "8cc3f20df49edba351049c9a4080ac6f629da8c073fc7c63c5acc2de1230317a",
+      "notices": [
+        {
+          "file": "term_glyph/LICENSE",
+          "sha256": "ea97a7558a7bd7cee4e2355f7529e3cbebb0dcbb546ddb9a90f10c9eb6b08da5"
+        }
+      ],
+      "sourceSha256": "fe15c8cb4e2b072369bc3b17acc457d7a1b57bf723d298acdd88d27ef062c668",
+      "sourceFiles": 5,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported source-location, parsing and platform/path support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "test",
+      "version": "1.31.1",
+      "source": "https://pub.dev/packages/test/versions/1.31.1",
+      "archiveSha256": "ca578dc12bb8b2f40b67b7d3bd2fac4f31c01a6ff7130a14e2597b919934507f",
+      "pubspecSha256": "ceddf4148e4e58654efb8965232596da97756c807b0ec57d1b45d14690740f9f",
+      "notices": [
+        {
+          "file": "test/LICENSE",
+          "sha256": "3c32b53167c7dae9190c38dab5dd9fe1789c53623ebc7d1babcb29914c5b3f16"
+        }
+      ],
+      "sourceSha256": "9681581018615edfb3bd20b7359328f8e844391b86cf953ca2bdf3cebb1d413e",
+      "sourceFiles": 39,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "test_api",
+      "version": "0.7.12",
+      "source": "https://pub.dev/packages/test_api/versions/0.7.12",
+      "archiveSha256": "2a122cbe059f8b610d3a5415f42e255b6c17b1f21eee1d960f31080237fb4f11",
+      "pubspecSha256": "50cbb715c5dcc6cb62f9b682456dd6ba96d85abffc8f02e4b3f9c40b0a014fbb",
+      "notices": [
+        {
+          "file": "test_api/LICENSE",
+          "sha256": "ff1b9f0df9036c04be424b1e3ce12789bea880ad5ffc3a48e069ae2d40a087a4"
+        }
+      ],
+      "sourceSha256": "ef7a7d82470e7a111c09297a84fc47387960a2399d30e61ada1b21303f74cc29",
+      "sourceFiles": 44,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "test_core",
+      "version": "0.6.18",
+      "source": "https://pub.dev/packages/test_core/versions/0.6.18",
+      "archiveSha256": "d2e98ec12998368dc59ddd47ab709f2cd55acd6b66dc7db764455a44082f4bc5",
+      "pubspecSha256": "cc92e721abe75942c5769586abe7884cfa50e7dd10c9791ff0baef43b82e9486",
+      "notices": [
+        {
+          "file": "test_core/LICENSE",
+          "sha256": "ff1b9f0df9036c04be424b1e3ce12789bea880ad5ffc3a48e069ae2d40a087a4"
+        }
+      ],
+      "sourceSha256": "cbcf7ccc6862d6ae9e4487052cd26c93bf30776a646a29c96ca6f4c305a3a5b0",
+      "sourceFiles": 75,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "typed_data",
+      "version": "1.4.0",
+      "source": "https://pub.dev/packages/typed_data/versions/1.4.0",
+      "archiveSha256": "f9049c039ebfeb4cf7a7104a675823cd72dba8297f264b6637062516699fa006",
+      "pubspecSha256": "a9f411c96b3904fdb471b2c34b5c88569b899bc5b6bcb74fd08d1abfcdc1c79f",
+      "notices": [
+        {
+          "file": "typed_data/LICENSE",
+          "sha256": "ff15faa32a2e638107b7789592b14426162a75ba620044ee2340a20ec6ce5e73"
+        }
+      ],
+      "sourceSha256": "4ab11f2570bae4aa3e9bdf16c051cc83abb846559adfd455c6daa146b59f93ef",
+      "sourceFiles": 4,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Imported Dart collection, asynchronous and file/byte utility support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "uuid",
+      "version": "4.6.0",
+      "source": "https://pub.dev/packages/uuid/versions/4.6.0",
+      "archiveSha256": "9b129329f58692f6e6578329498a8fe9fbe98f090beb764ffbb8ee2eadd01dcd",
+      "pubspecSha256": "f22a82dceacc2f885ed9879652c815bbd7ee03ba1666615005b5d1508aa6d4ec",
+      "notices": [
+        {
+          "file": "uuid/LICENSE",
+          "sha256": "ad3e5523e51004e94ba9ce728805b1b4242dbccdb65e62b523800e35a8a7cfdc"
+        }
+      ],
+      "sourceSha256": "a9147917860c56d1f8b161fd9101e0bdbd5c0d973263ed27a6812b1d9a5ec542",
+      "sourceFiles": 15,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Native view/window identity support.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "vector_graphics",
+      "version": "1.2.2",
+      "source": "https://pub.dev/packages/vector_graphics/versions/1.2.2",
+      "archiveSha256": "2306c03da2ba81724afeb589c351ebbc0aa7d86005925be8f8735856dbe5e42d",
+      "pubspecSha256": "9aed9513e3fa06ece50c613b6fe730cea861851749ef5bac4b0a0b20d8249cc8",
+      "notices": [
+        {
+          "file": "vector_graphics/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "03e8e941179ad352b3a0ea2fa0a6ffdc693f111cc7d9d26455046f880eebfafe",
+      "sourceFiles": 11,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Local SVG/vector asset parsing and rendering support; no remote assets are authorized.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "vector_graphics_codec",
+      "version": "1.1.13",
+      "source": "https://pub.dev/packages/vector_graphics_codec/versions/1.1.13",
+      "archiveSha256": "99fd9fbd34d9f9a32efd7b6a6aae14125d8237b10403b422a6a6dfeac2806146",
+      "pubspecSha256": "81a6b8f147b3fc5adace19d3c1461d4b8303f8dcfbbf9a97a844f68bf486a38f",
+      "notices": [
+        {
+          "file": "vector_graphics_codec/LICENSE",
+          "sha256": "89519eca6f7b9529b35bdddd623a58c3af06a88c458dbd6531ddb4675acf75a9"
+        }
+      ],
+      "sourceSha256": "2d2f29615f96fc64d4a2e5510e2c03fc3a360147e51fce747d1e1ff9284e9c90",
+      "sourceFiles": 2,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Local SVG/vector asset parsing and rendering support; no remote assets are authorized.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "vector_graphics_compiler",
+      "version": "1.2.6",
+      "source": "https://pub.dev/packages/vector_graphics_compiler/versions/1.2.6",
+      "archiveSha256": "142a9146f447d15b10bdc00e21d5f4d83e5b32bb5f8f8f5a04c75311344923a3",
+      "pubspecSha256": "8a07664d7b19d0ac4b68d9a177bb034d8d386cab80b54d2607295c2a01e528c3",
+      "notices": [
+        {
+          "file": "vector_graphics_compiler/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "9da4aa765bf9541165f78cbfcdf1dc617986072d456cf3d431fff1aeb93b16ce",
+      "sourceFiles": 37,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Local SVG/vector asset parsing and rendering support; no remote assets are authorized.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "vector_math",
+      "version": "2.4.2",
+      "source": "https://pub.dev/packages/vector_math/versions/2.4.2",
+      "archiveSha256": "f36f9f3be64c6198714492bb455c11056e33e2f85d9a0b676a48301e44fdcf47",
+      "pubspecSha256": "a9607bae21e0a36a03558558995828c89af0b0eccbc80581a396f634fcd07486",
+      "notices": [
+        {
+          "file": "vector_math/LICENSE",
+          "sha256": "420f7739f169097f0aad1242045169cd643c8f1d94e62866fad265ae4c369b7d"
+        }
+      ],
+      "sourceSha256": "de3f889b3c950981a5605830246cb75067c5a01c1d5e891e21f7fe95e47d7722",
+      "sourceFiles": 73,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Flutter geometry and rendering math.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "vm_service",
+      "version": "15.2.0",
+      "source": "https://pub.dev/packages/vm_service/versions/15.2.0",
+      "archiveSha256": "0016aef94fc66495ac78af5859181e3f3bf2026bd8eecc72b9565601e19ab360",
+      "pubspecSha256": "118c1786c2b702acd6bb0cf9e8410b3e1564807efed3afdf2daa5bbdd403df31",
+      "notices": [
+        {
+          "file": "vm_service/LICENSE",
+          "sha256": "ad6a71997da90924b2cfb1fb47ec46537f70faf469efe016168794ae45ed6888"
+        }
+      ],
+      "sourceSha256": "5a5e19c1e008f97339781cdfd37c8bd766ee177bfa5a8296093929bcfdd1b26a",
+      "sourceFiles": 10,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Conservative compiler input reached through the selected Flutter/Riverpod imports; not a shipped test runner or development executable.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "window_manager",
+      "version": "0.5.2",
+      "source": "https://pub.dev/packages/window_manager/versions/0.5.2",
+      "archiveSha256": "05c231fd7b23d2380f14c5cc10b7b93d60d4fa4a2fb4e0f032de27e44b5560e9",
+      "pubspecSha256": "faacbe1d2c0c02e80f27f13ea9f0de0fc41e4daa67bb770c7f67880b5cacb0f5",
+      "notices": [
+        {
+          "file": "window_manager/LICENSE",
+          "sha256": "516e1f470fd0e4c5c6cf02b6876153a9145283660a5de03fe9812b207dc34db5"
+        }
+      ],
+      "sourceSha256": "e2798400d403ae88f1dae1ae4c4ba3c80728a410c72d87baf42334461b136b28",
+      "sourceFiles": 15,
+      "linuxNativePlugin": true,
+      "license": "MIT",
+      "purpose": "Native Linux window bounds, placement and lifecycle integration.",
+      "distribution": "Imported Dart sources where selected and linked Linux native Flutter plugin; ordinary compiled assets only, no package scripts or development executables.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "xdg_directories",
+      "version": "1.1.0",
+      "source": "https://pub.dev/packages/xdg_directories/versions/1.1.0",
+      "archiveSha256": "7a3f37b05d989967cdddcbb571f1ea834867ae2faa29725fd085180e0883aa15",
+      "pubspecSha256": "496acd920fa2de8cf62b9b57b35b9b97c59d197d1c02aaf865507ab0fc963c67",
+      "notices": [
+        {
+          "file": "xdg_directories/LICENSE",
+          "sha256": "89519eca6f7b9529b35bdddd623a58c3af06a88c458dbd6531ddb4675acf75a9"
+        }
+      ],
+      "sourceSha256": "ed7fb9f4ff07b329d8097ed39ac61b2f20ede6e084667cb0d5d81e402a027aad",
+      "sourceFiles": 1,
+      "linuxNativePlugin": false,
+      "license": "BSD-3-Clause",
+      "purpose": "Linux desktop theme/settings and native integration; no desktop component is modified.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
+    },
+    {
+      "name": "xml",
+      "version": "7.0.1",
+      "source": "https://pub.dev/packages/xml/versions/7.0.1",
+      "archiveSha256": "67f0aff7be013d107995e9b75bf4e7f2c3ef2dfdb2c8e68024bba0a7fd5756a4",
+      "pubspecSha256": "de65521a3bb1df93eb2a9cc17642771db8c506ab09206eb1eef475cde4e84cdb",
+      "notices": [
+        {
+          "file": "xml/LICENSE",
+          "sha256": "0be767174b97278f17da4923a74169e8645631f03ea3d8482ec3523c9b1a0dd3"
+        }
+      ],
+      "sourceSha256": "617f43b12ff299e56c8f5fbcf9097dc5be09163fb61d4c2b814196008e690c7b",
+      "sourceFiles": 171,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Local SVG/vector asset parsing and rendering support; no remote assets are authorized.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "yaml",
+      "version": "3.1.3",
+      "source": "https://pub.dev/packages/yaml/versions/3.1.3",
+      "archiveSha256": "b9da305ac7c39faa3f030eccd175340f968459dae4af175130b3fc47e40d76ce",
+      "pubspecSha256": "cbad2cf80759ac9a0b2cb062de6756df59a626e389a948a315a226c5cae6293f",
+      "notices": [
+        {
+          "file": "yaml/LICENSE",
+          "sha256": "d47b93335401b052d79a2f5a3710e4cf7b5aed782faedf84d40fbdd6eb934ec7"
+        }
+      ],
+      "sourceSha256": "7b32aa780ace0f86dabf6bf66763ae1353a2b2f7f27ff4ed9134fdbe9858a806",
+      "sourceFiles": 16,
+      "linuxNativePlugin": false,
+      "license": "MIT",
+      "purpose": "Dart project configuration parsing; canonical contract parsing remains the locked TypeScript yaml distribution.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain original copyright, permission and warranty/disclaimer notices; no endorsement or paid service is granted."
+    },
+    {
+      "name": "yaru",
+      "version": "10.2.0",
+      "source": "https://pub.dev/packages/yaru/versions/10.2.0",
+      "archiveSha256": "95e801c52dfda458bcb772baee6b2575c711fd951616a24910d6d30e70f5fb0d",
+      "pubspecSha256": "f8d54a2d4fdfeb5108fc455373b43e0090738b3be1ced1593ecae358b0b77921",
+      "notices": [
+        {
+          "file": "yaru/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+        }
+      ],
+      "sourceSha256": "21d292a563596b77996df76453e4bc7e27e5d8d5fa37a21f3a235fb7c1a58570",
+      "sourceFiles": 105,
+      "linuxNativePlugin": false,
+      "license": "MPL-2.0",
+      "purpose": "Established Yaru native widgets and Linux window integration; unmodified covered library/native sources made available separately.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    },
+    {
+      "name": "yaru_window",
+      "version": "0.2.2",
+      "source": "https://pub.dev/packages/yaru_window/versions/0.2.2",
+      "archiveSha256": "58539a9abe9901891dadce142c7a5d303920b780dd0f7bd21f076a80adeeb744",
+      "pubspecSha256": "d49368ad532cb117743012bf95dc8ae0bddce7eea1626ed69246d5e50bf2fb4c",
+      "notices": [
+        {
+          "file": "yaru_window/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+        }
+      ],
+      "sourceSha256": "36eefd7b2295b4050792cd5ad38508b08dd7805e606f2a02f6cfabc21969f1b7",
+      "sourceFiles": 2,
+      "linuxNativePlugin": false,
+      "license": "MPL-2.0",
+      "purpose": "Established Yaru native widgets and Linux window integration; unmodified covered library/native sources made available separately.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    },
+    {
+      "name": "yaru_window_linux",
+      "version": "0.2.2",
+      "source": "https://pub.dev/packages/yaru_window_linux/versions/0.2.2",
+      "archiveSha256": "885ad0ba5832d350c42862ce02da478599ef550280eb7f6b15285481fcff6f53",
+      "pubspecSha256": "89f512091bec33d335b24c8b1830cfe976ae838581d0506a4f1055a1257e70c9",
+      "notices": [
+        {
+          "file": "yaru_window_linux/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+        }
+      ],
+      "sourceSha256": "63878f6e210e5e8d6d055ee096e0c280c54d9142540966e0332ff1ce5ac4ef02",
+      "sourceFiles": 6,
+      "linuxNativePlugin": true,
+      "license": "MPL-2.0",
+      "purpose": "Established Yaru native widgets and Linux window integration; unmodified covered library/native sources made available separately.",
+      "distribution": "Imported Dart sources where selected and linked Linux native Flutter plugin; ordinary compiled assets only, no package scripts or development executables.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    },
+    {
+      "name": "yaru_window_manager",
+      "version": "0.1.3",
+      "source": "https://pub.dev/packages/yaru_window_manager/versions/0.1.3",
+      "archiveSha256": "6288fd6ccd8bb9d5be56073c6f277e2da08dd38e346507bf88bc9332b08dd180",
+      "pubspecSha256": "9bdd038ec2eb74e1b9fa0aacfa279a0a908a5e27c795ca7b6de778bfe32652fd",
+      "notices": [
+        {
+          "file": "yaru_window_manager/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+        }
+      ],
+      "sourceSha256": "240c54ffb14758f4fdc0805938db8729216a114ca3d1598ce1aeb03bc18c318a",
+      "sourceFiles": 2,
+      "linuxNativePlugin": false,
+      "license": "MPL-2.0",
+      "purpose": "Established Yaru native widgets and Linux window integration; unmodified covered library/native sources made available separately.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    },
+    {
+      "name": "yaru_window_platform_interface",
+      "version": "0.1.3",
+      "source": "https://pub.dev/packages/yaru_window_platform_interface/versions/0.1.3",
+      "archiveSha256": "d514387cc96750112ecf1933b6f12a1912beca199178d00052c0e87a94e232fa",
+      "pubspecSha256": "e6a0524b442a81187895342bb0e0bc0cce44fcad6305b76912a817726163ce49",
+      "notices": [
+        {
+          "file": "yaru_window_platform_interface/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+        }
+      ],
+      "sourceSha256": "bf8f7cbecd99f5a1c080e323f9366423c91c84a0a4ad4700cbfe19b450e097fa",
+      "sourceFiles": 4,
+      "linuxNativePlugin": false,
+      "license": "MPL-2.0",
+      "purpose": "Established Yaru native widgets and Linux window integration; unmodified covered library/native sources made available separately.",
+      "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
+      "obligations": "Retain MPL 2.0 and file notices, make the unmodified covered library/native source available, identify the source access path, and do not restrict recipients' MPL rights. Separate larger-work files are not relicensed. No covered source modification."
+    }
+  ],
+  "supplements": [
+    {
+      "name": "UNICODE-16-LICENSE",
+      "packages": [
+        "characters"
+      ],
+      "noticePackage": "characters",
+      "notice": "third_party/Unicode_Consortium/UNICODE_LICENSE.txt",
+      "noticeSha256": "f5062c9a188d81dfe66b56db4182dcf9e4b17c0d9b0d311a8e20b3a1b075c443",
+      "license": "Unicode-3.0",
+      "source": "https://pub.dev/packages/characters/versions/1.4.1",
+      "purpose": "Original Unicode 16 dataset notice shipped with the exact characters 1.4.1 archive.",
+      "obligations": "Retain Unicode copyright, permission and disclaimer notice in associated documentation; no promotional use of the holder's name."
+    },
+    {
+      "name": "CLDR-48-LICENSE",
+      "packages": [
+        "intl"
+      ],
+      "notice": "packages/busyapi_core/licenses/CLDR-48-LICENSE",
+      "noticeSha256": "b4c0ae8ef04f7059f96ce5bbe0467f9fe6f6d81bbe13517701dfeb961fb4d0b6",
+      "license": "Unicode-3.0",
+      "source": "https://github.com/unicode-org/cldr/blob/acd6d88ae493633240e19a87a721076a8a75c310/LICENSE",
+      "purpose": "Original Unicode/CLDR release-48 license for the locale tables identified by intl 0.20.3's generated-file headers.",
+      "obligations": "Retain Unicode copyright, permission and disclaimer notice in associated documentation; no promotional use of the holder's name."
+    },
+    {
+      "name": "Apache-2.0",
+      "packages": [
+        "image"
+      ],
+      "noticePackage": "clock",
+      "notice": "LICENSE",
+      "noticeSha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "license": "Apache-2.0",
+      "source": "https://pub.dev/packages/clock/versions/1.1.2",
+      "purpose": "Unmodified full standard Apache 2.0 text, including its appendix, accompanying image's separately retained original JPEG/TIFF copyright/attribution notices. This is a redistribution supplement, not a fabricated upstream image LICENSE.",
+      "obligations": "Retain full license and applicable notices; respect patent, trademark and no-endorsement conditions."
+    },
+    {
+      "name": "WHATWG-HTML-ENTITIES-LICENSE",
+      "packages": [
+        "markdown"
+      ],
+      "notice": "packages/busyapi_core/licenses/WHATWG-HTML-ENTITIES-LICENSE",
+      "noticeSha256": "34701ed1d26151393ab4fcf61012364cc18c874a410d2aa46028808bcb603818",
+      "license": "BSD-3-Clause source-code incorporation grant",
+      "source": "https://html.spec.whatwg.org/entities.json",
+      "purpose": "HTML named-character-reference decoding; 2125 semicolon-terminated names from the 2231-entry upstream source.",
+      "obligations": "Retain original WHATWG copyright, source-code incorporation grant, redistribution conditions and disclaimer; no endorsement."
+    }
+  ],
+  "datasets": [
+    {
+      "package": "characters",
+      "file": "lib/src/grapheme_clusters/table.dart",
+      "sha256": "cacb85604514320e2701d93038b2cc44afe2f8b5ff85ceec79b146d6103a2d55",
+      "source": "https://www.unicode.org/Public/16.0.0/ucd/",
+      "license": "Unicode-3.0",
+      "supplement": "UNICODE-16-LICENSE",
+      "purpose": "Unicode 16 grapheme/emoji/derived-property table.",
+      "modifications": "Upstream compressed Dart table generation; no BusyAPI vendor modification."
+    },
+    {
+      "package": "intl",
+      "file": "lib/date_symbol_data_local.dart",
+      "sha256": "9ab7fde1fe34ab748eb996cf7511298a4f65b4fa198fce1e2b670e8c3eb6acd5",
+      "source": "https://github.com/unicode-org/cldr/tree/acd6d88ae493633240e19a87a721076a8a75c310",
+      "license": "Unicode-3.0",
+      "supplement": "CLDR-48-LICENSE",
+      "purpose": "CLDR 48 locale formatting data, as explicitly identified by the installed generated-file header.",
+      "modifications": "Upstream ICU/CLDR-to-Dart data generation with retained original Dart header; no BusyAPI vendor modification."
+    },
+    {
+      "package": "intl",
+      "file": "lib/date_time_patterns.dart",
+      "sha256": "5af15e10eb9bd6e3b6cb192df2757f08d8910413caeb48435455a4b72f95c5ae",
+      "source": "https://github.com/unicode-org/cldr/tree/acd6d88ae493633240e19a87a721076a8a75c310",
+      "license": "Unicode-3.0",
+      "supplement": "CLDR-48-LICENSE",
+      "purpose": "CLDR 48 locale formatting data, as explicitly identified by the installed generated-file header.",
+      "modifications": "Upstream ICU/CLDR-to-Dart data generation with retained original Dart header; no BusyAPI vendor modification."
+    },
+    {
+      "package": "intl",
+      "file": "lib/number_symbols_data.dart",
+      "sha256": "35c8e1c84e64df14ab7cc0aa1dcfad02e9ae6f439c0d368241c70f575df19a87",
+      "source": "https://github.com/unicode-org/cldr/tree/acd6d88ae493633240e19a87a721076a8a75c310",
+      "license": "Unicode-3.0",
+      "supplement": "CLDR-48-LICENSE",
+      "purpose": "CLDR 48 locale formatting data, as explicitly identified by the installed generated-file header.",
+      "modifications": "Upstream ICU/CLDR-to-Dart data generation with retained original Dart header; no BusyAPI vendor modification."
+    },
+    {
+      "package": "markdown",
+      "file": "lib/src/assets/html_entities.dart",
+      "sha256": "f84fd602c69cdce74659434dbbf9d17380fa00e0855a8600c633df5861d86cf1",
+      "source": "https://html.spec.whatwg.org/entities.json",
+      "sourceSha256": "d741d877ac77c4194c4ad526b5b4a19aef8dfe411ab840a466891cdbb9f362e6",
+      "license": "BSD-3-Clause source-code incorporation grant",
+      "purpose": "HTML named-character-reference decoding; 2125 semicolon-terminated names from the 2231-entry upstream source.",
+      "modifications": "Upstream Dart generation into a semicolon-only name/characters constant map. No BusyAPI vendor modification.",
+      "supplement": "WHATWG-HTML-ENTITIES-LICENSE"
+    }
+  ]
+}

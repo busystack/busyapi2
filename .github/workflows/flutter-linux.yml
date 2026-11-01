@@ -1,0 +1,63 @@
+name: Flutter Linux
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.15.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+      - run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libhandy-1-dev libwebkit2gtk-4.1-dev libsecret-1-dev openjdk-17-jdk-headless xvfb dbus-x11 strace
+      - name: Acquire the locked M3 build tool
+        run: python3 tools/prepare_m3_tools.py --output build/m3-tools --provision
+      - name: Provision exact build-only policy declarations
+        run: python3 tools/provision_policy_inputs.py --provision --node-include "$(dirname "$(dirname "$(command -v node)")")/include/node"
+      - name: Cache locked generation assets
+        uses: actions/cache@v4
+        with:
+          path: build/generator
+          key: busyapi-generator-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/generator/**', 'tools/prepare_generator.py', 'tools/contract_engine/native/build-inputs.lock.json') }}
+      - name: Prepare official generator and private Java runtime
+        run: python3 tools/prepare_generator.py --output build/generator --provision
+      - name: Identify corrected-engine cache inputs
+        id: engine-inputs
+        run: |
+          dpkg-query -W -f='${Package}=${Version}\n' clang cmake ninja-build libc6 libgtk-3-dev libsecret-1-dev > "$RUNNER_TEMP/busyapi-engine-inputs.txt"
+          cat /etc/os-release >> "$RUNNER_TEMP/busyapi-engine-inputs.txt"
+          echo "key=$(python3 tools/verify_flutter_engine.py --cache-key --mode release --target linux-x64 --build-inputs "$RUNNER_TEMP/busyapi-engine-inputs.txt")" >> "$GITHUB_OUTPUT"
+      - name: Restore corrected release engine
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/busyapi-engine/flutter/engine/src/out/host_release
+          key: busyapi-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.engine-inputs.outputs.key }}
+      - name: Build the isolated pinned Linux engine
+        run: |
+          busyapi_engine_out="$RUNNER_TEMP/busyapi-engine/flutter/engine/src/out"
+          if ! python3 tools/verify_flutter_engine.py --home "$busyapi_engine_out" --sdk "$FLUTTER_ROOT" --mode release; then
+            if test -d "$busyapi_engine_out/host_release"; then
+              echo 'Restored engine failed provenance verification; refusing cached bytes.' >&2
+              exit 1
+            fi
+            python3 tools/build_flutter_engine.py --workspace "$RUNNER_TEMP/busyapi-engine" --provision --mode release
+          fi
+      - name: Verify Linux engine regressions and stage the release mode
+        run: |
+          busyapi_native_runtime="$(mktemp -d "$RUNNER_TEMP/busyapi-native-runtime.XXXXXX")"
+          XDG_RUNTIME_DIR="$busyapi_native_runtime" xvfb-run -a dbus-run-session -- "$RUNNER_TEMP/busyapi-engine/flutter/engine/src/out/host_release/flutter_linux_unittests"
+          python3 tools/prepare_flutter_engine.py --home "$RUNNER_TEMP/busyapi-engine/flutter/engine/src/out" --sdk "$FLUTTER_ROOT" --mode release
+      - name: Verify application once and build the qualified release
+        run: BUSYAPI_WIDGET_RUNNER=both tools/build_linux.sh
+      - name: Verify migration fixtures before desktop input
+        run: python3 -m unittest tools.test_native_migration_preflight
+      - name: Verify kernel capabilities, unsupported refusal and restricted execution
+        # Unsupported hosts prove refusal then fail explicitly with exit 2.
+        run: python3 tools/test_policy_isolation.py --capability-aware
+      - run: python3 -m unittest tools.test_contract_assets tools.test_package_linux tools.test_m3_assets tools.test_generator tools.test_build_toolchain tools.test_publication_sync tools.test_policy_isolation_assets tools.test_policy_provision tools.test_native_sources tools.test_secret_value_policy tools.test_exec_fixture tools.test_snap_extension_notices tools.test_snap_package tools.test_native_focus tools.test_widget_runner tools.test_benchmark_engine
+      - run: python3 tools/test_flutter_engine.py
+      - name: Verify GTK presentation lifetime through engine shutdown
+        run: xvfb-run -a python3 -m unittest tools.test_gtk_widget_lifetime

@@ -1,0 +1,236 @@
+--- a/client/gtk2/ibusimcontext.c
++++ b/client/gtk2/ibusimcontext.c
+@@ -88,6 +88,7 @@
+     /* cancellable */
+     GCancellable    *cancellable;
+     GQueue          *events_queue;
++    GQueue          *busyapi_inflight;
+ 
+ #if GTK_CHECK_VERSION (3, 98, 4)
+     GdkSurface      *surface;
+@@ -376,9 +377,89 @@
+    return FALSE;
+ }
+ 
++/* BusyAPI-only optional completion bridge. The stock module has no observers.
++ * Tokens capture the original Flutter input owner. Completion means the IBus
++ * reply has arrived, including no-text keys; Flutter separately acknowledges
++ * every editing-state message before it releases its native key queue. */
++typedef gpointer (*BusyApiKeyStarted) (GdkEvent *event);
++typedef gboolean (*BusyApiKeyFinished) (gpointer token, GdkEvent *event,
++                                       gboolean handled);
++typedef gboolean (*BusyApiKeyForwarded) (gpointer token, GdkEvent *event);
++static BusyApiKeyStarted busyapi_started;
++static BusyApiKeyFinished busyapi_finished;
++static BusyApiKeyForwarded busyapi_forwarded;
++static GHashTable *busyapi_queued;
++
++typedef struct {
++    gpointer token;
++    BusyApiKeyFinished finished;
++} BusyApiQueuedKey;
++
++G_MODULE_EXPORT guint
++busyapi_ibus_completion_abi (void)
++{
++    return 1;
++}
++
++G_MODULE_EXPORT void
++busyapi_ibus_set_key_completion (BusyApiKeyStarted started,
++                                 BusyApiKeyFinished finished,
++                                 BusyApiKeyForwarded forwarded)
++{
++    g_return_if_fail (started && finished && forwarded);
++    g_return_if_fail (!busyapi_started);
++    busyapi_started = started;
++    busyapi_finished = finished;
++    busyapi_forwarded = forwarded;
++    busyapi_queued = g_hash_table_new (g_direct_hash, g_direct_equal);
++}
++
++static void
++busyapi_queue_event (GdkEvent *event)
++{
++    gpointer token;
++    BusyApiQueuedKey *key;
++    if (!busyapi_started || !(token = busyapi_started (event)))
++        return;
++    key = g_new0 (BusyApiQueuedKey, 1);
++    key->token = token;
++    key->finished = busyapi_finished;
++    g_hash_table_insert (busyapi_queued, event, key);
++}
++
++static gboolean
++busyapi_finish_queued (GdkEvent *event, gboolean handled)
++{
++    BusyApiQueuedKey *key = busyapi_queued ?
++            g_hash_table_lookup (busyapi_queued, event) : NULL;
++    gboolean owned = FALSE;
++    if (key) {
++        g_hash_table_steal (busyapi_queued, event);
++        owned = key->finished (key->token, event, handled);
++        g_free (key);
++    }
++    return owned;
++}
++
++static void
++busyapi_free_queued (GdkEvent *event)
++{
++    /* Destruction cancels this captured owner; never forward into a new field. */
++    busyapi_finish_queued (event, TRUE);
++#if GTK_CHECK_VERSION (3, 98, 4)
++    gdk_event_unref (event);
++#else
++    gdk_event_free (event);
++#endif
++}
++
+ typedef struct {
+     GdkEvent *event;
+     IBusIMContext *ibusimcontext;
++    GWeakRef busyapi_context;
++    gpointer busyapi_token;
++    BusyApiKeyFinished busyapi_completion;
++    BusyApiKeyForwarded busyapi_forward;
+ } ProcessKeyEventData;
+ 
+ typedef struct {
+@@ -397,6 +478,15 @@
+ 
+     ProcessKeyEventData *data = (ProcessKeyEventData *)user_data;
+     GdkEvent *event = data->event;
++    gpointer token = data->busyapi_token;
++    BusyApiKeyFinished completion = data->busyapi_completion;
++    IBusIMContext *owner = g_weak_ref_get (&data->busyapi_context);
++    gboolean owned = FALSE;
++    if (owner) {
++        g_queue_remove (owner->busyapi_inflight, data);
++        g_object_unref (owner);
++    }
++    g_weak_ref_clear (&data->busyapi_context);
+ #if GTK_CHECK_VERSION (3, 98, 4)
+     IBusIMContext *ibusimcontext = data->ibusimcontext;
+ #endif
+@@ -413,7 +503,13 @@
+         g_error_free (error);
+     }
+ 
+-    if (retval == FALSE) {
++#if !GTK_CHECK_VERSION (3, 98, 4)
++    if (!retval)
++        ((GdkEventKey *)event)->state |= IBUS_IGNORED_MASK;
++#endif
++    if (token && completion)
++        owned = completion (token, event, retval);
++    if (retval == FALSE && !owned) {
+ #if GTK_CHECK_VERSION (3, 98, 4)
+         g_return_if_fail (GTK_IS_IM_CONTEXT (ibusimcontext));
+         gtk_im_context_filter_key (
+@@ -516,6 +612,21 @@
+     data->event = gdk_event_copy (event);
+ #endif
+     data->ibusimcontext = ibusimcontext;
++    g_weak_ref_init (&data->busyapi_context, ibusimcontext);
++    if (busyapi_started) {
++        BusyApiQueuedKey *key = g_hash_table_lookup (busyapi_queued, event);
++        data->busyapi_completion = busyapi_finished;
++        data->busyapi_forward = busyapi_forwarded;
++        if (key) {
++            g_hash_table_steal (busyapi_queued, event);
++            data->busyapi_token = key->token;
++            data->busyapi_completion = key->finished;
++            g_free (key);
++        } else {
++            data->busyapi_token = busyapi_started (event);
++        }
++    }
++    g_queue_push_tail (ibusimcontext->busyapi_inflight, data);
+     ibus_input_context_process_key_event_async (context,
+             keyval,
+             keycode - 8,
+@@ -1103,6 +1214,7 @@
+ #endif
+ 
+     ibusimcontext->events_queue = g_queue_new ();
++    ibusimcontext->busyapi_inflight = g_queue_new ();
+ 
+     // Create slave im context
+     ibusimcontext->slave = gtk_im_context_simple_new ();
+@@ -1190,13 +1302,10 @@
+         pango_attr_list_unref (ibusimcontext->preedit_attrs);
+     }
+ 
+-#if GTK_CHECK_VERSION (3, 98, 4)
+     g_queue_free_full (ibusimcontext->events_queue,
+-                       (GDestroyNotify)gdk_event_unref);
+-#else
+-    g_queue_free_full (ibusimcontext->events_queue,
+-                       (GDestroyNotify)gdk_event_free);
+-#endif
++                       (GDestroyNotify)busyapi_free_queued);
++    /* Async requests retain only weak context ownership and still finish once. */
++    g_queue_free (ibusimcontext->busyapi_inflight);
+ 
+     G_OBJECT_CLASS(parent_class)->finalize (obj);
+ }
+@@ -1313,7 +1422,11 @@
+                        gdk_event_copy ((GdkEvent *)event));
+ #endif
+ 
+-    if (g_queue_get_length (ibusimcontext->events_queue) > MAX_QUEUED_EVENTS) {
++    busyapi_queue_event (g_queue_peek_tail (ibusimcontext->events_queue));
++    /* Protected queues are backpressured by the host, never dropped here. */
++    if (g_queue_get_length (ibusimcontext->events_queue) > MAX_QUEUED_EVENTS &&
++        !(busyapi_queued && g_hash_table_contains (busyapi_queued,
++                  g_queue_peek_head (ibusimcontext->events_queue)))) {
+         g_warning ("Events queue growing too big, will start to drop.");
+ #if GTK_CHECK_VERSION (3, 98, 4)
+         gdk_event_unref ((GdkEvent *)
+@@ -2125,7 +2238,13 @@
+             keycode -= 8;
+     }
+     GdkEventKey *event = _create_gdk_event (ibusimcontext, keyval, keycode, state);
+-    gdk_event_put ((GdkEvent *)event);
++    ProcessKeyEventData *pending = g_queue_peek_head (
++            ibusimcontext->busyapi_inflight);
++    gboolean owned = pending && pending->busyapi_token &&
++            pending->busyapi_forward && pending->busyapi_forward (
++                    pending->busyapi_token, (GdkEvent *)event);
++    if (!owned)
++        gdk_event_put ((GdkEvent *)event);
+     gdk_event_free ((GdkEvent *)event);
+ #endif
+ }
+@@ -2328,8 +2447,17 @@
+     }
+ 
+     if (context == NULL) {
++        GdkEvent *event;
+         g_warning ("Create input context failed: %s.", error->message);
+         g_error_free (error);
++        while ((event = g_queue_pop_head (ibusimcontext->events_queue))) {
++#if !GTK_CHECK_VERSION (3, 98, 4)
++            event->key.state |= IBUS_IGNORED_MASK;
++#endif
++            if (!busyapi_finish_queued (event, FALSE))
++                gdk_event_put (event);
++            busyapi_free_queued (event);
++        }
+     }
+     else {
+         gboolean requested_surrounding_text = FALSE;
+@@ -2401,7 +2529,10 @@
+             GdkEventKey *event;
+ #endif
+             while ((event = g_queue_pop_head (ibusimcontext->events_queue))) {
+-                _process_key_event (context, event, ibusimcontext);
++                gboolean handled = _process_key_event (
++                        context, event, ibusimcontext);
++                /* Async submission transferred its token into request data. */
++                busyapi_finish_queued ((GdkEvent *)event, handled);
+ #if GTK_CHECK_VERSION (3, 98, 4)
+                 gdk_event_unref (event);
+ #else

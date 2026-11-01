@@ -1,0 +1,32 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const YAML=require('yaml');
+const {planFileMove}=require('./dist/refactoring_file.cjs');
+const {SourceDocument}=require('./dist/document.cjs');
+const {createGraph}=require('./dist/model.cjs');
+for(const version of ['3.1.2','3.2.1'])for(const json of [false,true])test(`opaque serialized source moves never promote payloads into graph documents ${version} ${json?'JSON':'YAML'}`,()=>{
+ const ext=json?'json':'yaml',root='file:///project/root.'+ext,source='file:///project/payload.'+ext,destination='file:///project/moved%20%E9%9B%AA.'+ext;
+ const data={openapi:version,info:{title:'Opaque move',version:'1'},paths:{},components:{examples:{External:{externalValue:'payload.'+ext+'#literal%7E%2Ffragment'},Literal:{value:{externalValue:'payload.'+ext,$ref:'must not load'}}}},'x-data':{$ref:'payload.'+ext}};
+ const text=json?JSON.stringify(data,null,2):YAML.stringify(data),opaque='{"openapi":"3.2.1","$self":"not a URI", "paths": { deliberately invalid data 900719925474099312345678901 雪😀';
+ const resources=[{id:root,text,generation:1}],moveSource={id:source,text:opaque,generation:4,identity:'opaque-bytes'};
+ const input={snapshot:'opaque-move',resources,moveSource,contexts:[{root,resources:[root]}],target:{resource:source,generation:4},destinationResource:destination};
+ const plan=planFileMove(input);assert.equal(plan.file.opaque,true);assert.equal(plan.file.source,source);assert.equal(plan.file.destination,destination);
+ assert.equal(plan.edits.some(edit=>edit.buffer===source),false);
+ assert(plan.changes.some(change=>change.resource===source&&change.before===opaque&&change.after===opaque&&change.pathOnly));
+ const edit=plan.edits.find(edit=>edit.buffer===root);assert(edit);assert.equal(text.slice(edit.start,edit.end),edit.expected);
+ const after=text.slice(0,edit.start)+edit.replacement+text.slice(edit.end),doc=new SourceDocument(after,root);
+ assert.equal(doc.node('/components/examples/External/externalValue').value,'moved%20%E9%9B%AA.'+ext+'#literal%7E%2Ffragment');
+ assert.equal(doc.node('/components/examples/Literal/value/externalValue').value,'payload.'+ext);assert.equal(doc.node('/x-data/$ref').value,'payload.'+ext);
+ assert.equal(plan.usages.length,1);assert.equal(plan.usages[0].connection,'externalValue');assert.deepEqual(resources,[{id:root,text,generation:1}]);assert.equal(moveSource.text,opaque);
+ assert.deepEqual(createGraph({root,resources:[{...resources[0],text:after}]}).graph.issues,[]);
+ const noOp=planFileMove({...input,destinationResource:source});assert.deepEqual(noOp.edits,[]);assert.deepEqual(noOp.transitions,[]);
+ assert.throws(()=>planFileMove({...input,moveSource:{...moveSource,generation:5}}),error=>error.code==='edit.stale');
+ const manifest={id:'file:///project/busyapi.yaml',text:'version: 1\nroots: [{name: Main, path: root.'+ext+'}]\n',generation:1};
+ const retained=planFileMove({...input,manifest,retainIdentity:true});assert(!retained.edits.some(edit=>edit.buffer===source||edit.buffer===root));assert.equal(retained.file.retainedIdentity,source);
+});
+test('unused opaque files can move without a made-up API root or an invented declaration',()=>{
+ const root='file:///project/root.json',source='file:///project/unused.json';
+ const resource={id:root,text:'{"openapi":"3.2.1","info":{"title":"Root","version":"1"},"paths":{}}',generation:1},moveSource={id:source,text:'not JSON: [ exact arbitrary source',generation:2};
+ const input={snapshot:'unused',resources:[resource],moveSource,contexts:[{root,resources:[root]}],target:{resource:source,generation:2},destinationResource:'file:///project/new.json'};
+ const plan=planFileMove(input);assert.equal(plan.file.opaque,true);assert.deepEqual(plan.edits,[]);assert.deepEqual(plan.usages,[]);assert.equal(plan.changes[0].before,moveSource.text);assert.equal(plan.changes[0].after,moveSource.text);
+});

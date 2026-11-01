@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "preset": "swagger",
+  "package": "swagger-ui",
+  "packageVersion": "5.33.2",
+  "publishedModuleSha256": "258dd349ce184e3183d1f130edb192bddbe370c066dda89cb7b75056dfa11cf9",
+  "sourceMapSha256": "adbb14c44e9fb10ef5071f6d1de21bb0db349dd5eacfccea12cf9f780d8c3475",
+  "stylesheetSha256": "1ac324f7dcd27e4b9386b4bd6421271ec147e922a22c05ba24b11515e9aa6321",
+  "sourceRelease": {
+    "source": "https://registry.npmjs.org/swagger-ui/-/swagger-ui-5.33.2.tgz",
+    "integrity": "sha512-U47CPlVqtD4JgEdXWFsRH/BtisOkA4SGOPomAksA9wSBO9gq3CCPpWP6s1vpTTCmIlWTLqHjbE9/6UbRcxBNyQ==",
+    "declaredLicense": "Apache-2.0",
+    "publisher": "swagger-api",
+    "repository": "git+ssh://git@github.com/swagger-api/swagger-ui.git",
+    "gitHead": "e89a91f13cdee432d97ca9d3d1ac1969ff797036",
+    "embeddedBuild": {
+      "gitCommit": "g7f262364",
+      "dirty": true,
+      "buildTime": "Mon, 12 Oct 2026 11:12:15 GMT"
+    },
+    "interpretation": "Identity is the exact published npm browser-module bytes, not a claimed reproduction from the newer release-tag source. All 34 embedded utility source-map inputs match the exact recorded npm distributions byte-for-byte."
+  },
+  "extractedNotices": {
+    "file": "licenses/swagger-embedded/swagger-ui-es-bundle-core.js.LICENSE.txt",
+    "sha256": "bf5cc2bed1ccdb8226570e53b495cf514d0344dbc3f8718e59b7ebec9e0d9280",
+    "source": "https://registry.npmjs.org/swagger-ui-dist/-/swagger-ui-dist-5.33.2.tgz#swagger-ui-es-bundle-core.js.LICENSE.txt",
+    "proof": "The source distribution supplies an extracted-notice file omitted by the module package; their published browser-module bytes are identical."
+  },
+  "packages": [
+    {
+      "name": "buffer",
+      "version": "6.0.3",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/buffer/-/buffer-6.0.3.tgz",
+      "integrity": "sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==",
+      "packageJsonSha256": "5b105ac0abbf5985cbe62ad28a34032d85c7ef623e0eb01f39441b0feb419004",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/buffer-6.0.3-LICENSE.txt",
+          "sha256": "06bafa45fdad2579ba0e43b0c9b2c6290287c99c4203c300254a462b38a307f6",
+          "originalFile": "LICENSE",
+          "originalSha256": "06bafa45fdad2579ba0e43b0c9b2c6290287c99c4203c300254a462b38a307f6",
+          "source": "https://registry.npmjs.org/buffer/-/buffer-6.0.3.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "index.js": "c25853fd31addfce188b01061fe85bfe667d5fb6c7a7bbb1c83d0ddfd8627acc"
+      }
+    },
+    {
+      "name": "deep-extend",
+      "version": "0.6.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/deep-extend/-/deep-extend-0.6.0.tgz",
+      "integrity": "sha512-LOHxIOaPYdHlJRtCQfDIVZtfw/ufM8+rVj649RIHzcm/vGwQRXFt6OPqIFWsm2XEMrNIEtWR64sY1LEKD2vAOA==",
+      "packageJsonSha256": "21b307891704eb34e9be621d7563d13734f75f41d8f97825862b05ca5bc2d217",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/deep-extend-0.6.0-LICENSE.txt",
+          "sha256": "e17120ad3deff741c2ca5cbe511971ca33971a1ba6e49694c6498309bb2680b9",
+          "originalFile": "LICENSE",
+          "originalSha256": "e17120ad3deff741c2ca5cbe511971ca33971a1ba6e49694c6498309bb2680b9",
+          "source": "https://registry.npmjs.org/deep-extend/-/deep-extend-0.6.0.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "lib/deep-extend.js": "87aadac5b3cc8081b570a243c17c575c195c4ae642e98834495291fa626ed9d6"
+      }
+    },
+    {
+      "name": "events",
+      "version": "3.3.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/events/-/events-3.3.0.tgz",
+      "integrity": "sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==",
+      "packageJsonSha256": "878ad3687fef7efe3757c1872a3af998c95197129a7445d632486a9591ee542e",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/events-3.3.0-LICENSE.txt",
+          "sha256": "631987b7616a325a5b97566c232418481ddf7dbb5ecadefb991e791876cc2599",
+          "originalFile": "LICENSE",
+          "originalSha256": "631987b7616a325a5b97566c232418481ddf7dbb5ecadefb991e791876cc2599",
+          "source": "https://registry.npmjs.org/events/-/events-3.3.0.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "events.js": "b6d7d26a2395a94dd1b9dc0d06e699bb50b4ec664589fd477ce7cc344e20e172"
+      }
+    },
+    {
+      "name": "inherits",
+      "version": "2.0.4",
+      "license": "ISC",
+      "source": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz",
+      "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
+      "packageJsonSha256": "be645800bc94fd8de29c8ae91690549b316cc437100108aeea7b2f347693cc80",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/inherits-2.0.4-LICENSE.txt",
+          "sha256": "5ffe28e7ade7d8f10d85d5337a73fd793dac5c462fb9a28fbf8c5046c7fbca3b",
+          "originalFile": "LICENSE",
+          "originalSha256": "5ffe28e7ade7d8f10d85d5337a73fd793dac5c462fb9a28fbf8c5046c7fbca3b",
+          "source": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "inherits_browser.js": "ad322a7b1dec60f3d2ebda2091816469efb55b567d241cf3cf0fa4c5a4afe500"
+      }
+    },
+    {
+      "name": "process",
+      "version": "0.11.10",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/process/-/process-0.11.10.tgz",
+      "integrity": "sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==",
+      "packageJsonSha256": "8501b4909630e60c9e9f68c4ca8ccb1964688500e61c60408a26d5480a9dd3d4",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/process-0.11.10-LICENSE.txt",
+          "sha256": "59a400d04c5078579acc27ddd6452c1bdf763f9506e01364700935fbb1a7c91b",
+          "originalFile": "LICENSE",
+          "originalSha256": "59a400d04c5078579acc27ddd6452c1bdf763f9506e01364700935fbb1a7c91b",
+          "source": "https://registry.npmjs.org/process/-/process-0.11.10.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "browser.js": "a199f9fdd8f0f94be4bfe5407c4969d261aa6f080c372c1a359815dc6187f32c"
+      }
+    },
+    {
+      "name": "randombytes",
+      "version": "2.1.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/randombytes/-/randombytes-2.1.0.tgz",
+      "integrity": "sha512-vYl3iOX+4CKUWuxGi9Ukhie6fsqXqS9FE2Zaic4tNFD2N2QQaXOMFbuKK4QmDHC0JO6B1Zp41J0LpT0oR68amQ==",
+      "packageJsonSha256": "ea9d562e49b25bd81e6a19003e29781fbb4aa47d3b93a56c839c10df61255943",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/randombytes-2.1.0-LICENSE.txt",
+          "sha256": "ddc0dd5947bd2966b9a4cfde098566b011de0acfbe7814536955636ce9e3eced",
+          "originalFile": "LICENSE",
+          "originalSha256": "ddc0dd5947bd2966b9a4cfde098566b011de0acfbe7814536955636ce9e3eced",
+          "source": "https://registry.npmjs.org/randombytes/-/randombytes-2.1.0.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "browser.js": "c5245d2d375ccb7dd5b42cd88b7c23b771ba6c759e9d081174db2caff1346a50"
+      }
+    },
+    {
+      "name": "readable-stream",
+      "version": "3.6.2",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/readable-stream/-/readable-stream-3.6.2.tgz",
+      "integrity": "sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==",
+      "packageJsonSha256": "469ea81f64037d1f179bcd46412217903a2924dd2e7d7d9b728659b6f12c3e69",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/readable-stream-3.6.2-LICENSE.txt",
+          "sha256": "ec62dc96da0099b87f4511736c87309335527fb7031639493e06c95728dc8c54",
+          "originalFile": "LICENSE",
+          "originalSha256": "ec62dc96da0099b87f4511736c87309335527fb7031639493e06c95728dc8c54",
+          "source": "https://registry.npmjs.org/readable-stream/-/readable-stream-3.6.2.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "errors-browser.js": "346033597378d23e59068d120d6257f7cd85ae88c40b1f85c3329cece0d119c4",
+        "lib/_stream_duplex.js": "e2e55263df344f33d016a3e051de1a86e2206989a2162951e651e5557665954c",
+        "lib/_stream_passthrough.js": "af6250df6a49a0148eed8b5f2e28b2f692c3ffa9df538a59dc716a4bd10901e2",
+        "lib/_stream_readable.js": "9837de8cae91f9a80da75368855b45c3ada9a858983355fd873d8885cab1c5ab",
+        "lib/_stream_transform.js": "a2f6e6d17a74dfa75bc7b34b50546ebcb76eeb2f4aac6d1090f80915aee20342",
+        "lib/_stream_writable.js": "0f3f2accecd343dfae91d7daa72f3ad125b6f139d5883ff51362042d8cb65cf6",
+        "lib/internal/streams/async_iterator.js": "56a7dde0d36ee9f55032df01e78229602c6afed6b6915362f33dc65bc0359972",
+        "lib/internal/streams/buffer_list.js": "15b266db6ad5c6ee0309d13ed4ce137d8974d2fd236c1af7f3d602b7028a90df",
+        "lib/internal/streams/destroy.js": "e1c1a185a2cc4bee2be5e7d33b5e294eb0fb55c1a47b61853a8c43e50cb822a4",
+        "lib/internal/streams/end-of-stream.js": "2c35cabc9b279cb81e73d0d14859b2056ea10d9688d16a12199d2ca9904b93ae",
+        "lib/internal/streams/from-browser.js": "4b4404c7bd6f66a2175cb7a29c60ce4395c055775ec45eaa35af4357656f604f",
+        "lib/internal/streams/pipeline.js": "6d51b72e1ae5ee0965f0f549e27ececdb4963605995ffad8b698d5359a9999c2",
+        "lib/internal/streams/state.js": "bf9c5ce1ccde2131d474422bef258dc968d6d19ccac72f9b178e8246faf0c9ed",
+        "lib/internal/streams/stream-browser.js": "72d46a15491627d8fb1489a47d03583cfe5c21902918016ab532b53e615e5a9a"
+      }
+    },
+    {
+      "name": "safe-buffer",
+      "version": "5.2.1",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
+      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
+      "packageJsonSha256": "e4018fdbfe625433371f48274fee26f520bbe865e0d8c85bf3aa07424134b90c",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/safe-buffer-5.2.1-LICENSE.txt",
+          "sha256": "c7cc929b57080f4b9d0c6cf57669f0463fc5b39906344dfc8d3bc43426b30eac",
+          "originalFile": "LICENSE",
+          "originalSha256": "c7cc929b57080f4b9d0c6cf57669f0463fc5b39906344dfc8d3bc43426b30eac",
+          "source": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "index.js": "184d5c4a83512e3f49d4d5b52f7073f601f933bad11f1fbb3ad364ca5e6478e1"
+      }
+    },
+    {
+      "name": "sha.js",
+      "version": "2.4.12",
+      "license": "(MIT AND BSD-3-Clause)",
+      "source": "https://registry.npmjs.org/sha.js/-/sha.js-2.4.12.tgz",
+      "integrity": "sha512-8LzC5+bvI45BjpfXU8V5fdU2mfeKiQe1D1gIMn7XUlF3OTUrpdJpPPH4EMAnF0DsHHdSZqCdSss5qCmJKuiO3w==",
+      "packageJsonSha256": "de7af2f085793d09119bf049f5bec4cf81e68d751d13d90fe027c85ccc31b125",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/sha.js-2.4.12-LICENSE.txt",
+          "sha256": "58dcf38be1438f739412b87eb70d64bf00e9976d529bb119f700d8b3167924f0",
+          "originalFile": "LICENSE",
+          "originalSha256": "58dcf38be1438f739412b87eb70d64bf00e9976d529bb119f700d8b3167924f0",
+          "source": "https://registry.npmjs.org/sha.js/-/sha.js-2.4.12.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "hash.js": "5755cb8f4ba12e2552b784d6ad3d87020dd40d34659de997008c46799cd2ea98",
+        "index.js": "11ecac23200703e24364e3f733b62cc975f30cb9b38293bd7ce084fb345682a5",
+        "sha.js": "04d4c3536aba137275b8f55f44caf7bf5a30944ec357b1cd2e69a26bae10ce90",
+        "sha1.js": "aa22b7aeab6cb36171515be7de16b17bdfc71ece3decdbdce003cf9d6a4983d2",
+        "sha224.js": "13661a9d720f48514b24cc270db25bc99acfd5c52e245a9250bda03f9403d177",
+        "sha256.js": "0a87a79896cd0d84a7c4588145498c46f761b6eaae796ae5a19c34ae08c798cb",
+        "sha384.js": "586bbbd949dea30aca86168c205f2c95652c547c71062a6868df0ad630c21bcd",
+        "sha512.js": "d7552361d4d41ac1262e49b648216ba22210c076b88e8ead222f67010d2cb855"
+      }
+    },
+    {
+      "name": "stream-browserify",
+      "version": "3.0.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/stream-browserify/-/stream-browserify-3.0.0.tgz",
+      "integrity": "sha512-H73RAHsVBapbim0tU2JwwOiXUj+fikfiaoYAKHF3VJfA0pe2BCzkhAHBlLG6REzE+2WNZcxOXjK7lkso+9euLA==",
+      "packageJsonSha256": "cab91da3e12d579c710604d760e51862a24726e832308ae005923c5d2bd71216",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/stream-browserify-3.0.0-LICENSE.txt",
+          "sha256": "96e5193183476a03da6667d217ce14110191d26ee105338086e94339edf40d5a",
+          "originalFile": "LICENSE",
+          "originalSha256": "96e5193183476a03da6667d217ce14110191d26ee105338086e94339edf40d5a",
+          "source": "https://registry.npmjs.org/stream-browserify/-/stream-browserify-3.0.0.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "index.js": "cc832133a4385d63203d4693f3dcb7fb5dbee3e2104c3e3bf948b6996e60e777"
+      }
+    },
+    {
+      "name": "string_decoder",
+      "version": "1.3.0",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/string_decoder/-/string_decoder-1.3.0.tgz",
+      "integrity": "sha512-hkRX8U1WjJFd8LsDJ2yQ/wWWxaopEsABU1XfkM8A+j0+85JAGppt16cr1Whg6KIbb4okU6Mql6BOj+uup/wKeA==",
+      "packageJsonSha256": "31984c85cd4f3df0aa75075acdec98c25961496897d1f46d04ed4a701f129c54",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/string_decoder-1.3.0-LICENSE.txt",
+          "sha256": "11f2aafb37d06b3ee5bdaf06e9811141d0da05263c316f3d627f45c20d43261b",
+          "originalFile": "LICENSE",
+          "originalSha256": "11f2aafb37d06b3ee5bdaf06e9811141d0da05263c316f3d627f45c20d43261b",
+          "source": "https://registry.npmjs.org/string_decoder/-/string_decoder-1.3.0.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "lib/string_decoder.js": "f1d36d47b2c579063392c1a68963467f2d4f51a069af09eb068d974c63ee3b37"
+      }
+    },
+    {
+      "name": "util-deprecate",
+      "version": "1.0.2",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz",
+      "integrity": "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==",
+      "packageJsonSha256": "7bba467f049074957e693fc06672848b040c38fa071b6eed8690f5fbe090a8b2",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/util-deprecate-1.0.2-LICENSE.txt",
+          "sha256": "0154425673db15cdfa80ecba2c9b1f1a867f7197a006764712849bfc3a93cbb7",
+          "originalFile": "LICENSE",
+          "originalSha256": "0154425673db15cdfa80ecba2c9b1f1a867f7197a006764712849bfc3a93cbb7",
+          "source": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "browser.js": "abaef53ebcdc98f3655331f834986a2d11b6a824f58d670369669246d1b7b69b"
+      }
+    },
+    {
+      "name": "xml",
+      "version": "1.0.1",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/xml/-/xml-1.0.1.tgz",
+      "integrity": "sha512-huCv9IH9Tcf95zuYCsQraZtWnJvBtLVE0QHMOs8bWyZAFZNDcYjsPq1nEx8jKA9y+Beo9v+7OBPRisQTjinQMw==",
+      "packageJsonSha256": "5cf857a6bdda759c053c171444f9e2ad77c8fd4f8b0007f447f210228a42241c",
+      "purpose": "Utility source embedded in the exact published Swagger browser module",
+      "distribution": "embedded-in-published-swagger-ui-module",
+      "obligations": "Retain original copyright/license/permission/disclaimer and all applicable combined BSD/ISC/MIT conditions; no endorsement",
+      "requiredNotices": [
+        {
+          "file": "licenses/swagger-embedded/xml-1.0.1-LICENSE.txt",
+          "sha256": "d2b3e2f62078f282f21a8c5119a44cc7313fe6aa4a22094c8ad93f4b577b7901",
+          "originalFile": "LICENSE",
+          "originalSha256": "d2b3e2f62078f282f21a8c5119a44cc7313fe6aa4a22094c8ad93f4b577b7901",
+          "source": "https://registry.npmjs.org/xml/-/xml-1.0.1.tgz#LICENSE",
+          "lineEndings": "LF copy with final newline; original wording retained"
+        }
+      ],
+      "sourceMapInputs": {
+        "lib/escapeForXML.js": "6c4536a9df134c9997227b73dee4d24eb820675af90141bb581653a60b1d831e",
+        "lib/xml.js": "718af9ab309520ca2ed7985af3c0f1c33d7555643bb63d9662716567b617902f"
+      }
+    }
+  ]
+}

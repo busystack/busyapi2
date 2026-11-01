@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "packages": {
+    "@redocly/redoc-opentelemetry@0.5.1": {
+      "name": "@redocly/redoc-opentelemetry",
+      "version": "0.5.1",
+      "license": "MIT",
+      "declarationSource": "https://registry.npmjs.org/@redocly/redoc-opentelemetry/0.5.1",
+      "source": "https://registry.npmjs.org/@redocly/redoc-opentelemetry/-/redoc-opentelemetry-0.5.1.tgz",
+      "integrity": "sha512-mZkFsR/51RYi5YTAZCogyg3S3Z/7AwfXFpOON3+mt/1sadc0+r0FcPWVTrgSZmXFpYl4gaaqQ0JtHbjwORX+8g==",
+      "archiveSha256": "4100263a2b3fe06cc4060b5a20737fc1e075e79fcd21cc8a8fd5cbb5f6fc1322",
+      "packageJsonSha256": "3b5fb600541f844ce3cf8535c9d1f32ab2e183950a42343a4bee11dd3c3bcc77",
+      "copyrightSha256": "6e7003d948dfe282e12aadd419e6b57cfb6f2b716bc19d420c803b1d2fd57a9c",
+      "copyrightFile": "redoc-opentelemetry-0.5.1-COPYRIGHT",
+      "supplement": "licenses/redoc-opentelemetry-0.5.1-MIT.txt",
+      "supplementSha256": "05ac18088f0e80302e67e24605f0d977862bfc16b4e6c50dcfea45642bc13a28",
+      "purpose": "Embedded Redoc CE telemetry implementation; execution disabled by the read-only documentation adapter",
+      "distribution": "Embedded in the locked Redoc CE documentation asset; complete application/release qualification remains separate",
+      "obligations": "Retain the published MIT declaration, original copyright, standard MIT permission and disclaimer with application and documentation copies",
+      "publisherEvidence": {
+        "source": "npm registry version metadata",
+        "publisher": "GitHub Actions",
+        "trustedPublisher": "github",
+        "oidcConfigId": "054f4294-5229-479d-91ae-94edf190659f",
+        "registrySigningKey": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+        "registrySignaturesVerified": 2,
+        "sourceAttestation": "Not supplied in this version's registry metadata; no source-repository attestation is claimed"
+      },
+      "interpretation": "Published package.json and registry metadata consistently declare MIT. The separate original LICENSE contains a copyright notice, not a contradictory license restriction. Standard MIT terms are supplied as a BusyAPI redistribution notice, never as a fabricated upstream file. This record does not cover other embedded packages or native distribution obligations."
+    }
+  }
+}

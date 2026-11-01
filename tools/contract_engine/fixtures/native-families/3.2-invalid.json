@@ -1,0 +1,88 @@
+{
+  "openapi": "3.2.1",
+  "servers": [
+    {
+      "url": "https://api.invalid/v1"
+    }
+  ],
+  "info": {
+    "title": "Native 雪😀",
+    "version": "business-version"
+  },
+  "paths": {
+    "/pets/{id}": {
+      "get": {
+        "operationId": "getPet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pet"
+                },
+                "example": {
+                  "id": 9007199254740993.00,
+                  "name": "雪😀"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Pet": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 9007199254740993.00
+          },
+          "name": {
+            "type": "string"
+          },
+          "next": {
+            "$ref": "#/components/schemas/Pet"
+          }
+        },
+        "additionalProperties": false,
+        "required": "id"
+      }
+    },
+    "securitySchemes": {
+      "Key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Key"
+      }
+    }
+  },
+  "security": [
+    {
+      "Key": []
+    }
+  ],
+  "x-literal": {
+    "$ref": "payload only",
+    "empty": "",
+    "zero": 0,
+    "no": false,
+    "nothing": null
+  }
+}

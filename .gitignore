@@ -1,3 +1,19 @@
+.dart_tool/
+.packages
+build/
+node_modules/
+tools/probes/bin/
+dist/
+coverage/
+*.iml
+linux/flutter/ephemeral/
+linux/flutter/generated_*
+lib/l10n/generated/
+
+.flutter-plugins-dependencies
+
+__pycache__/
+*.pyc
 
 .idea/
 .codex/

@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "frameworkRevision": "6a19cca56475dbfba1478ee68d7bd0c2ef891da1",
+  "package": {
+    "name": "yaru",
+    "version": "10.2.0",
+    "pubspecSha256": "f8d54a2d4fdfeb5108fc455373b43e0090738b3be1ced1593ecae358b0b77921",
+    "archiveSha256": "95e801c52dfda458bcb772baee6b2575c711fd951616a24910d6d30e70f5fb0d"
+  },
+  "groups": [
+    {
+      "name": "Ubuntu",
+      "package": "yaru",
+      "version": "10.2.0",
+      "source": "https://pub.dev/api/archives/yaru-10.2.0.tar.gz",
+      "archiveSha256": "95e801c52dfda458bcb772baee6b2575c711fd951616a24910d6d30e70f5fb0d",
+      "license": "Ubuntu-font-1.0",
+      "copyright": "Copyright 2010,2011 Canonical Ltd.; Ubuntu Mono metadata: Copyright 2011 Canonical Ltd.",
+      "purpose": "Existing native typography",
+      "allowBuildModification": false,
+      "notices": [
+        {
+          "file": "assets/fonts/LICENCE.txt",
+          "sha256": "2f0015108d68627bd788d313f529c21ff4da2c2c42a5e1f3883acc83480f9002"
+        },
+        {
+          "file": "assets/fonts/copyright.txt",
+          "sha256": "7157a91522724ce079ddfa533a1b1025e31d3b227e194cf8d801593ba6929147"
+        },
+        {
+          "file": "assets/fonts/TRADEMARKS.txt",
+          "sha256": "e8119cf38bda67ffbf5cdd59aabf2bcaf02033b42f6d591cf3704a147a57ed2d"
+        },
+        {
+          "file": "assets/fonts/README.txt",
+          "sha256": "b250a23f112fd03648aef309a51daf7759c048146d405bc91be86d2e1de16d97"
+        }
+      ],
+      "fonts": [
+        {
+          "file": "assets/fonts/Ubuntu-L.ttf",
+          "asset": "packages/yaru/assets/fonts/Ubuntu-L.ttf",
+          "sha256": "f1d38342828dd095d2f9367f5d556bd028f5fd9e3a0ab6a2b44f6b970e14caee"
+        },
+        {
+          "file": "assets/fonts/Ubuntu-LI.ttf",
+          "asset": "packages/yaru/assets/fonts/Ubuntu-LI.ttf",
+          "sha256": "f26d36217918f02e193bdf84c102ad3f9ed5753df0418919b6695a5db1bd79d9"
+        },
+        {
+          "file": "assets/fonts/Ubuntu-R.ttf",
+          "asset": "packages/yaru/assets/fonts/Ubuntu-R.ttf",
+          "sha256": "27988e92167b4a4bd2333068f2e9f1657d3ffa5a45b70acbb24a1ee2db3d0b2d"
+        },
+        {
+          "file": "assets/fonts/Ubuntu-RI.ttf",
+          "asset": "packages/yaru/assets/fonts/Ubuntu-RI.ttf",
+          "sha256": "424434915edc481b7a32fd455bc21a27ef9ec8db32ab676d22beefd9b2ed7a0a"
+        },
+        {
+          "file": "assets/fonts/Ubuntu-M.ttf",
+          "asset": "packages/yaru/assets/fonts/Ubuntu-M.ttf",
+          "sha256": "98253e483955d28147ad428fbf9fb410fcfc19a32c40f53a97b8b7c75af8465a"
+        },
+        {
+          "file": "assets/fonts/Ubuntu-MI.ttf",
+          "asset": "packages/yaru/assets/fonts/Ubuntu-MI.ttf",
+          "sha256": "7c9bdd9d7e19b8c12e16a0367dc02f4ce41e768aec67ecd1d239bfa900abc3a6"
+        },
+        {
+          "file": "assets/fonts/Ubuntu-B.ttf",
+          "asset": "packages/yaru/assets/fonts/Ubuntu-B.ttf",
+          "sha256": "f7de62896e7045aff7d5d1061a320ce172c411b437d350d5e80d9120ffe826eb"
+        },
+        {
+          "file": "assets/fonts/Ubuntu-BI.ttf",
+          "asset": "packages/yaru/assets/fonts/Ubuntu-BI.ttf",
+          "sha256": "40bf740ef47724af39349644d028b73069b5dc66beaae3a12a5f14fc0514ef10"
+        }
+      ],
+      "distribution": "Application font data. Standalone documentation presets do not redistribute these fonts.",
+      "obligations": "Retain original copyright and Ubuntu Font Licence; retain font names for unchanged originals. Font modifications require the licence's naming conditions. No trademark or endorsement grant; font terms do not change the application licence."
+    },
+    {
+      "name": "YaruIcons",
+      "package": "yaru",
+      "version": "10.2.0",
+      "source": "https://pub.dev/api/archives/yaru-10.2.0.tar.gz",
+      "archiveSha256": "95e801c52dfda458bcb772baee6b2575c711fd951616a24910d6d30e70f5fb0d",
+      "license": "CC-BY-SA-4.0",
+      "copyright": "Yaru contributors; font metadata: Copyright icon_font_generator 2025",
+      "purpose": "Existing native control icon font",
+      "allowBuildModification": false,
+      "notices": [
+        {
+          "file": "assets/LICENSE.CCBYSA",
+          "sha256": "7a8af68d18de818e54697230278c0ade42e6bac15d4116ef9560f74176431118"
+        },
+        {
+          "file": "README.md",
+          "sha256": "ea258069439fd477f290896c4f6d77b6473fe30eebbd63e1eb180dc192125e37"
+        }
+      ],
+      "fonts": [
+        {
+          "file": "assets/yaru_icons.otf",
+          "asset": "packages/yaru/assets/yaru_icons.otf",
+          "sha256": "17ebce595bdc436d2302d7cfed53704a0b6049593b7c20870940e6c7c9554b96"
+        }
+      ],
+      "distribution": "Application font data. Standalone documentation presets do not redistribute these fonts.",
+      "obligations": "Retain supplied attribution, copyright, source URI and CC BY-SA 4.0 text/disclaimer; indicate modifications. Redistributed adaptations of the font remain under CC BY-SA 4.0 with no additional restrictions. No trademark or endorsement grant."
+    },
+    {
+      "name": "UbuntuMono",
+      "package": "yaru",
+      "version": "10.2.0",
+      "source": "https://pub.dev/api/archives/yaru-10.2.0.tar.gz",
+      "archiveSha256": "95e801c52dfda458bcb772baee6b2575c711fd951616a24910d6d30e70f5fb0d",
+      "license": "Ubuntu-font-1.0",
+      "copyright": "Copyright 2010,2011 Canonical Ltd.; Ubuntu Mono metadata: Copyright 2011 Canonical Ltd.",
+      "purpose": "Existing native typography",
+      "allowBuildModification": false,
+      "notices": [
+        {
+          "file": "assets/fonts/LICENCE.txt",
+          "sha256": "2f0015108d68627bd788d313f529c21ff4da2c2c42a5e1f3883acc83480f9002"
+        },
+        {
+          "file": "assets/fonts/copyright.txt",
+          "sha256": "7157a91522724ce079ddfa533a1b1025e31d3b227e194cf8d801593ba6929147"
+        },
+        {
+          "file": "assets/fonts/TRADEMARKS.txt",
+          "sha256": "e8119cf38bda67ffbf5cdd59aabf2bcaf02033b42f6d591cf3704a147a57ed2d"
+        },
+        {
+          "file": "assets/fonts/README.txt",
+          "sha256": "b250a23f112fd03648aef309a51daf7759c048146d405bc91be86d2e1de16d97"
+        }
+      ],
+      "fonts": [
+        {
+          "file": "assets/fonts/UbuntuMono-Regular.ttf",
+          "asset": "packages/yaru/assets/fonts/UbuntuMono-Regular.ttf",
+          "sha256": "3b83b9ca3a1186b4bf8fbcbc8078b360bdb78a77a859f8eeabc9b14fb165da9a"
+        }
+      ],
+      "distribution": "Application font data. Standalone documentation presets do not redistribute these fonts.",
+      "obligations": "Retain original copyright and Ubuntu Font Licence; retain font names for unchanged originals. Font modifications require the licence's naming conditions. No trademark or endorsement grant; font terms do not change the application licence."
+    },
+    {
+      "name": "MaterialIcons",
+      "package": "flutter-sdk",
+      "version": "flutter_infra_release/flutter/fonts/3012db47f3130e62f7cc0beabff968a33cbec8d8/fonts.zip",
+      "source": "https://storage.googleapis.com/flutter_infra_release/flutter/fonts/3012db47f3130e62f7cc0beabff968a33cbec8d8/fonts.zip",
+      "license": "CC-BY-4.0",
+      "copyright": "Copyright 2019 Google LLC. All Rights Reserved.",
+      "purpose": "Existing Flutter control icon font",
+      "allowBuildModification": false,
+      "notices": [
+        {
+          "file": "bin/cache/artifacts/material_fonts/MaterialIcons_LICENSE.txt",
+          "sha256": "be698262aecd042c0de6f886cc0af622f8def446462026992cc530275d8a9e74"
+        }
+      ],
+      "fonts": [
+        {
+          "file": "bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf",
+          "asset": "fonts/MaterialIcons-Regular.otf",
+          "sha256": "d9865b671a09d683d13a863089d8825e0f61a37696ce5d7d448bc8023aa62453"
+        }
+      ],
+      "distribution": "Application font data. Standalone documentation presets do not redistribute these fonts.",
+      "obligations": "Retain supplied attribution, copyright, source URI and CC BY 4.0 text/disclaimer; indicate modifications; do not restrict the recipient's licensed asset rights. No trademark or endorsement grant."
+    }
+  ]
+}

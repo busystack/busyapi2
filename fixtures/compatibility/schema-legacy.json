@@ -1,0 +1,15 @@
+{
+  "Thing": {
+    "type": "object",
+    "description": "Schema property sentinel",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    }
+  },
+  "a/b": {
+    "type": "string",
+    "description": "Escaped pointer sentinel"
+  }
+}

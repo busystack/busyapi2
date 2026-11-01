@@ -1,0 +1,31 @@
+BusyAPI redistribution notice: @redocly/redoc-opentelemetry 0.5.1
+
+License declaration: MIT, from the exact published package's package.json.
+Declaration source: https://registry.npmjs.org/@redocly/redoc-opentelemetry/0.5.1
+Distribution: https://registry.npmjs.org/@redocly/redoc-opentelemetry/-/redoc-opentelemetry-0.5.1.tgz
+
+The original copyright notice is retained below. The following standard MIT
+terms accompany redistribution under that published SPDX declaration. This
+BusyAPI notice is not an upstream LICENSE file and does not modify the package.
+
+(c) Copyright 2025 Redocly Inc, all rights reserved.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
