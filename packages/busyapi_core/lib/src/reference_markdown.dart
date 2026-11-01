@@ -154,6 +154,7 @@ Uri? referenceLink(String value, {Uri? base}) {
     if (!relative.hasScheme &&
         !relative.hasAuthority &&
         relative.path.isEmpty &&
+        !relative.hasQuery &&
         relative.hasFragment)
       return relative;
     final target = base == null ? relative : base.resolveUri(relative);

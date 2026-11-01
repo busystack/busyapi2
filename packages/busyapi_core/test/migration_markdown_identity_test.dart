@@ -73,7 +73,7 @@ void main() {
             MigrationStatus.faithfullyConvertible,
             reason: '${review.result}',
           );
-          expect(review.result['producerVersion'], '26');
+          expect(review.result['producerVersion'], '27');
           expect(review.unsaved, isTrue);
           expect(Directory(destination).existsSync(), isFalse);
           await expectLater(
@@ -165,7 +165,7 @@ void main() {
             reason: '${prepared.stdout}\n${prepared.stderr}',
           );
           final report = jsonDecode(prepared.stdout as String) as Map;
-          expect(report['producerVersion'], '26');
+          expect(report['producerVersion'], '27');
           expect(report['published'], isFalse);
           final published = await cli([
             '--apply',
@@ -218,59 +218,43 @@ void main() {
             final project = await BusyProject.open(file.path, engine);
             addTearDown(project.close);
             final root = project.roots.single.id,
-                destination = '${directory.path}/blocked';
+                destination = '${directory.path}/mapped';
             final review = await project.prepareMigration(
               root,
               destination,
               targetVersion: target,
             );
             addTearDown(review.close);
-            expect(review.status, MigrationStatus.blocked);
-            expect(review.result['complete'], false);
-            final issue = (review.result['problems'] as List)
-                .whereType<Map>()
-                .singleWhere(
-                  (p) => p['code'] == 'migration.description.relative-links',
-                );
-            expect(issue['resource'], root);
-            expect(issue['pointer'], '/components/schemas/Value/description');
-            final range = issue['range'] as List;
-            expect(
-              source.substring(range[0] as int, range[1] as int),
-              contains('Guide'),
-            );
+            expect(review.status, MigrationStatus.faithfullyConvertible,
+                reason: '${review.result}');
+            expect(review.result['complete'], true);
+            expect((review.result['presentationChanges'] as List).whereType<Map>()
+                .any((value) => value['resource'] == root &&
+                    value['pointer'] == '/components/schemas/Value/description'), true);
             expect(Directory(destination).existsSync(), false);
-            await expectLater(
-              review.publish(),
-              throwsA(
-                isA<CoreFailure>().having(
-                  (e) => e.code,
-                  'code',
-                  'migration.blocked',
-                ),
-              ),
-            );
-            expect(Directory(destination).existsSync(), false);
+            await review.publish();
             expect(file.readAsBytesSync(), bytes);
+            final output = File('$destination/openapi.$format');
+            final migrated = await BusyProject.open(output.path, engine);
+            addTearDown(migrated.close);
+            final migratedRoot = migrated.roots.single.id;
+            final schema = await migrated.inspectObject(migratedRoot, migratedRoot,
+                target == '2.0' ? '/definitions/Value' : '/components/schemas/Value');
+            expect(schema['value']['description'], '[Guide](<https://schemas.example.invalid/guide>)');
+            expect((await migrated.check(migratedRoot))['complete'], true);
             final cli = await Process.run(
               '$testBundle/busyapi',
-              [
-                'migrate',
-                file.path,
-                '--target',
-                target,
-                '--output',
-                destination,
-                '--json',
-              ],
+              ['migrate', file.path, '--target', target,
+                '--output', '${directory.path}/cli-mapped', '--json'],
               environment: const {'PATH': '', 'LANG': 'C.UTF-8'},
               includeParentEnvironment: false,
             );
-            expect(cli.exitCode, isNot(0));
+            expect(cli.exitCode, 0, reason: '${cli.stdout} ${cli.stderr}');
             final report = jsonDecode(cli.stdout as String) as Map;
-            expect(report['complete'], false);
-            expect(report['producerVersion'], '26');
-            expect(Directory(destination).existsSync(), false);
+            expect(report['complete'], true);
+            expect(report['producerVersion'], '27');
+            expect(report['published'], false);
+            expect(Directory('${directory.path}/cli-mapped').existsSync(), false);
             expect(file.readAsBytesSync(), bytes);
           },
         );

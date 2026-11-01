@@ -69,6 +69,12 @@ void main() {
       'https://docs.example/guide?q=1',
     );
     expect(referenceLink('#section', base: base).toString(), '#section');
+    expect(referenceLink('?q=2#section', base: base).toString(),
+        'https://docs.example/original/schema.yaml?q=2#section');
+    expect(referenceLink('?#section', base: Uri.parse('https://docs.example/page?old')).toString(),
+        'https://docs.example/page?#section');
+    expect(referenceLink('?q=2#section', base: Uri.file('/private/api.yaml')), isNull);
+
     expect(
       referenceLink('./other', base: Uri.file('/private/api.yaml')),
       isNull,

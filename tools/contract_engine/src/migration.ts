@@ -14,7 +14,7 @@ import {coldGraph} from './reference_selection';
 import {documentUriBase,resolveUri,pointerFragment as fragment} from './reference_graph';
 import {documentUriOccurrences} from './document_uris';
 import {serverTemplate} from './derived_bundle';
-import {captureMigrationMarkdown,proveMigrationMarkdown} from './migration_markdown';
+import {captureMigrationMarkdown,rewriteMigrationMarkdown,proveMigrationMarkdown} from './migration_markdown';
 import {migrationRequestSignatures} from './migration_invariants';
 import {migrateEncodings} from './migration_encoding';
 import {checkOperationTarget,checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
@@ -26,7 +26,7 @@ import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='26';
+const migrationProducerVersion='27';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -253,8 +253,27 @@ export async function planMigration(input:MigrationInput) {
     // an optional project mapping must not be needed for a local self-reference.
     const outputResources=resources.map(resource=>({...resource,id:identifiers.get(resource.id)!,text:sources.get(resource.id)!.doc.text,aliases:[identifiers.get(resource.id)!,resource.id,...resource.aliases??[]],generation:0}));
     const outputRoot=identifiers.get(input.root)!;
-    const relocated=createGraph({...input,root:outputRoot,resources:outputResources});
-    proveMigrationMarkdown(markdownContexts.filter(context=>!omittedMarkdownOwners.has(key(context.owner.resource,context.owner.pointer))),relocated.graph,location=>(origins.get(key(location.resource,location.pointer))??[]).map(location=>({resource:identifiers.get(location.resource)!,pointer:location.pointer})),issue);
+    let relocated=createGraph({...input,root:outputRoot,resources:outputResources});
+    const retainedMarkdown=markdownContexts.filter(context=>!omittedMarkdownOwners.has(key(context.owner.resource,context.owner.pointer)));
+    const mappedMarkdown=(location:MigrationLocation)=>(origins.get(key(location.resource,location.pointer))??[])
+        .map(location=>({resource:identifiers.get(location.resource)!,pointer:location.pointer}));
+    const rewrittenMarkdown=rewriteMigrationMarkdown(retainedMarkdown,relocated.graph,mappedMarkdown,issue,location=>{
+        const original=sourceLocation(location.resource,location.pointer);
+        presentationChanges.push({resource:original.resource,pointer:original.pointer});
+    });
+    try{
+        for(const scope of relocated.graph.scopesFor('schema')){
+            const changed=rewrittenMarkdown.get(scope.resource);
+            if(changed)assertRoleAnnotations(relocated.graph,scope,changed,scope.pointer);
+        }
+    }catch(error){refused(error,{resource:input.root,pointer:''});}
+    if(problems.length)return {...common(),changes:[],outputs:[]};
+    for(const resource of outputResources){
+        const changed=rewrittenMarkdown.get(resource.id);
+        if(changed)resource.text=changed.text;
+    }
+    relocated=createGraph({...input,root:outputRoot,resources:outputResources});
+    proveMigrationMarkdown(retainedMarkdown,relocated.graph,mappedMarkdown,issue);
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const mappings=new Map([...paths].map(([id,path])=>[identifiers.get(id)!,path]));
     for(const scope of relocated.graph.scopes.values())if(scope.pointer===''){

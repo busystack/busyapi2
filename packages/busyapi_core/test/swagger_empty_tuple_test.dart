@@ -288,7 +288,7 @@ tests:
             reason: '${review.result}',
           );
           expect(review.unsaved, true);
-          expect(review.result['producerVersion'], '26');
+          expect(review.result['producerVersion'], '27');
           await review.publish();
           expect(await file.readAsBytes(), originalRoot);
           expect(await shared.readAsBytes(), originalShared);

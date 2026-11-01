@@ -80,7 +80,7 @@ for (const format of ['yaml', 'json']) for (const targetVersion of ['3.0.0','3.0
     const result = await planMigration({...input, targetVersion, destination: 'file:///output/review/'});
     assert.equal(result.status, 'faithfully-convertible', JSON.stringify(result.problems));
     assert.equal(result.complete, true);
-    assert.equal(result.producerVersion, '26');
+    assert.equal(result.producerVersion, '27');
     const entry = result.outputs.find(output => output.id === result.outputRoot), doc = new SourceDocument(entry.text, entry.id);
     assert.equal(doc.root.value.openapi, targetVersion);
     assert.equal(doc.root.value.info.version, 'business');
