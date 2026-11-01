@@ -39,6 +39,11 @@ class MockPlan {
     String outputId,
     RunCancellation? cancellation,
   ) async {
+    if (!await _owner._externalExampleInputsCurrent(snapshot, saved: saved,
+        cancelled: () => cancellation?.cancelled == true)) {
+      throw CoreFailure('mock.stale', 'An external example changed after capture');
+    }
+    _ensureStartCurrent(cancellation);
     final settled = Completer<void>();
     final requestId =
         'mock-${snapshot.identity.substring(0, 16)}-${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(settled)}';
@@ -298,6 +303,10 @@ class MockRun {
     final snap = Platform.environment['SNAP'];
     final setsid = snap == null ? '/usr/bin/setsid' : '$snap/usr/bin/setsid';
     final grouped = Platform.isLinux && await File(setsid).exists();
+    if (!await plan._owner._externalExampleInputsCurrent(plan.snapshot, saved: plan.saved,
+        cancelled: () => cancellation?.cancelled == true)) {
+      throw CoreFailure('mock.stale', 'An external example changed before mock startup');
+    }
     plan._ensureStartCurrent(cancellation);
     final process = await Process.start(
       grouped ? setsid : node,

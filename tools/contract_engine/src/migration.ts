@@ -1,3 +1,4 @@
+import type {ExternalExampleResourcePacket} from './external_examples';
 import {assertRoleAnnotations} from './schema_role_annotations';
 import {createHash} from 'node:crypto';
 import {analyse,createGraph,Resource} from './engine';
@@ -28,7 +29,15 @@ const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 const migrationProducerVersion='26';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
-export type MigrationInput=Readonly<{root:string;snapshot:string;resources:Resource[];targetVersion:string;destination:string;decisions?:Readonly<Record<string,string>>}>;
+export type MigrationInput=Readonly<{
+    root:string;
+    snapshot:string;
+    resources:Resource[];
+    exampleResources?:readonly ExternalExampleResourcePacket[];
+    targetVersion:string;
+    destination:string;
+    decisions?:Readonly<Record<string,string>>;
+}>;
 export type MigrationDisposition='faithfully-convertible'|'requires-decision'|'blocked';
 
 /** Explicit, bounded graph transformation over captured CST planning copies.

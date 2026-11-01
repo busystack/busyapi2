@@ -30,10 +30,12 @@ import {installSwaggerSchemaDialect,schemaEvaluationScopes,swaggerMetaAddress,sw
 import {swaggerFileContexts} from './swagger_file';
 import {swaggerSchemaRulesRevision} from './swagger_schema_artifact';
 import {evaluateSerializedExamples} from './serialized_examples';
+import {externalExampleRevision} from './external_examples';
 import {exampleRepresentation,mediaExampleRepresentations,type ExampleValueField} from './example_representation';
 import {embeddedMimeTextRevision} from './embedded_mime_text';
 
-export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+44',configuration:[
+export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+45',configuration:[
+ `external-example-bytes-v${externalExampleRevision}`,
  `swagger-schema-rules-v${swaggerSchemaRulesRevision}`,
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',
@@ -124,7 +126,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
  };
  try {
   standards();exact.install();
-  const {docs,graph}=context??createGraph(input);
+  const {docs,graph,exampleResources}=context??createGraph(input);
   const bundled=new Set<string>();
   for(const resource of input.resources)if(resource.bundled===true) {
    const expected=await standardResource({uri:resource.id});
@@ -316,7 +318,7 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
     const field=graph.scope(owner.id,pointer).family==='3.2'&&Object.hasOwn(value,'dataValue')?'dataValue':Object.hasOwn(value,'value')?'value':undefined;
     if(field){if(scope.kind!=='media'||mediaData(scope,owner,pointer+'/'+escape(field),field))append(schema,owner,pointer+'/'+escape(field),'authored-data');}
     else if(!(modernFamily(scope.family)&&scope.kind==='media'&&graph.scope(owner.id,pointer).family==='3.2'&&Object.hasOwn(value,'serializedValue')))
-     skip({resource:owner.id,pointer,reason:Object.hasOwn(value,'externalValue')?'external-value-not-retrieved':Object.hasOwn(value,'serializedValue')?'serialized-value-not-parsed':'no-authored-data'});
+     skip({resource:owner.id,pointer,reason:Object.hasOwn(value,'externalValue')?'external-value-serialization-stage':Object.hasOwn(value,'serializedValue')?'serialized-value-not-parsed':'no-authored-data'});
    }
   }
   for(const example of examples) {
@@ -371,9 +373,9 @@ export async function evaluateSchemas(input:any,observeFailure?:(error:unknown)=
   const authoredData={complete,instances};
   const runtime=input.runtimeInstances??[];
   const runtimeOwner={snapshot:input.snapshot,graph,scopes:evaluationScopes,exact,compile:getCompiled,schemaReady:(scope:SchemaEvaluationScope)=>!states.get(scopeId(scope)),producer:schemaProducer,observeFailure};
-  const serialized=await evaluateSerializedExamples(graph,values=>evaluateRuntimeInstances(values,runtimeOwner));
+  const serialized=await evaluateSerializedExamples(graph,values=>evaluateRuntimeInstances(values,runtimeOwner),exampleResources);
   complete=complete&&serialized.complete;instances+=serialized.instances;
-  for(const finding of serialized.findings)add(finding.document,finding.pointer,finding.code,finding.message,finding.severity??'warning',finding.details);
+  for(const finding of serialized.findings)add(finding.document,finding.pointer,finding.code,finding.message,finding.severity??'warning',{...finding.details,incomplete:finding.incomplete});
   const checkedRuntime=await evaluateRuntimeInstances(runtime,runtimeOwner);
   complete=complete&&checkedRuntime.complete;instances+=checkedRuntime.instances;
   runtimeEvaluations.push(...checkedRuntime.evaluations);runtimeFindings.push(...checkedRuntime.findings);

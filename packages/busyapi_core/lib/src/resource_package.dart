@@ -169,6 +169,44 @@ class ResourcePackage {
             'aliases': List<String>.from(record['aliases'] as List),
         });
       }
+      final externalExamples = <CapturedExternalExample>[];
+      final externalIds = <String>{};
+      final external = value['externalExamples'];
+      if (external != null && (external is! List || external.length > 2048)) {
+        throw const FormatException();
+      }
+      if (external is List) for (final entry in external) {
+        if (entry case {
+          'resource': final String id,
+          'path': final String path,
+          'identity': final String identity,
+          'aliases': final List aliases,
+        }) {
+          final uri = Uri.parse(id);
+          if (!uri.isAbsolute || uri.hasFragment || uri.userInfo.isNotEmpty ||
+              !externalIds.add(id) || !paths.add(path) || aliases.length > 256 ||
+              aliases.any((value) => value is! String) ||
+              path != 'examples/${textIdentity(id)}.bin' ||
+              !RegExp(r'^[0-9a-f]{64}$').hasMatch(identity)) throw const FormatException();
+          final ownedAliases = <String>[];
+          for (final alias in aliases) {
+            if (alias is! String) throw const FormatException();
+            final uri = Uri.parse(alias);
+            if (!uri.isAbsolute || uri.hasFragment || uri.userInfo.isNotEmpty) throw const FormatException();
+            ownedAliases.add(alias);
+          }
+          final bytes = await access.read(p.join(access.boundary, path));
+          if (bytes.length > 16 * 1024 * 1024 || await contentIdentityAsync(bytes) != identity) {
+            throw CoreFailure('bundle.package.changed', 'A packaged external example changed; no alternate URI is retrieved');
+          }
+          cost += bytes.length * 2;
+          if (cost > 48 * 1024 * 1024 || resources.length + externalExamples.length >= 2048) throw const FormatException();
+          externalExamples.add(CapturedExternalExample._(id: id, identity: identity,
+              generation: 0, aliases: ownedAliases, bytes: Uint8List.fromList(bytes)));
+        } else {
+          throw const FormatException();
+        }
+      }
       if (!ids.contains(value['root'])) throw const FormatException();
       await engine.start();
       if (engine.assetIdentity != value['engine'])
@@ -179,6 +217,7 @@ class ResourcePackage {
       final snapshot = AnalysisSnapshot(
         root: value['root'] as String,
         resources: resources,
+        exampleResources: externalExamples,
         engineIdentity: engine.assetIdentity,
       );
       final description = await engine.request(
@@ -350,6 +389,19 @@ extension _ResourcePackageCapture on BusyProject {
             ..sort(),
         });
       }
+      final externalExamples = <Map<String, Object?>>[];
+      for (final resource in snapshot.exampleResources.toList()..sort((a, b) => a.id.compareTo(b.id))) {
+        final bytes = resource.bytes;
+        if (bytes == null || await contentIdentityAsync(bytes) != resource.identity) {
+          throw CoreFailure('bundle.example.incomplete', 'An external example has no captured bytes; no package was published');
+        }
+        if (resource.aliases.length > 256) throw CoreFailure('limit.bundle.aliases',
+            'An external example exceeds the resource-package URI alias budget');
+        final path = 'examples/${textIdentity(resource.id)}.bin';
+        files[path] = bytes;
+        externalExamples.add({'resource': resource.id, 'path': path,
+          'identity': resource.identity, 'aliases': resource.aliases});
+      }
       final manifest = <String, Object?>{
         'version': 1,
         'format': _packageProducer,
@@ -363,6 +415,7 @@ extension _ResourcePackageCapture on BusyProject {
         'engine': engine.assetIdentity,
         'locations': _packageLocations,
         'resources': resources,
+        if (externalExamples.isNotEmpty) 'externalExamples': externalExamples,
         'identities': description['identities'],
         'loader': runtime.identity,
       };

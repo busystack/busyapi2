@@ -660,6 +660,11 @@ class OperationRequestPlan {
   ) async {
     ensureCurrentPreparation();
     cancellation?.throwIfCancelled();
+    if (!await _owner._externalExampleInputsCurrent(snapshot, saved: saved,
+        cancelled: () => cancellation?.cancelled == true)) {
+      throw CoreFailure('request.stale', 'An external example changed after request capture');
+    }
+    ensureCurrentPreparation();
     final work = _owner.engine.request(method, params, requestId: requestId);
     final result = cancellation == null
         ? await work
@@ -674,6 +679,10 @@ class OperationRequestPlan {
             }),
           ]);
     cancellation?.throwIfCancelled();
+    if (!await _owner._externalExampleInputsCurrent(snapshot, saved: saved,
+        cancelled: () => cancellation?.cancelled == true)) {
+      throw CoreFailure('request.stale', 'An external example changed during request preparation');
+    }
     ensureCurrentPreparation();
     return result;
   }
@@ -769,6 +778,14 @@ class OperationRequestPlan {
   }) async {
     ensureCurrentOwner();
     cancellation?.throwIfCancelled();
+    final preparingRequest = instances.any((value) => value.subject.startsWith('request-'));
+    if (preparingRequest) ensureCurrentPreparation();
+    if (preparingRequest && !await _owner._externalExampleInputsCurrent(snapshot, saved: saved,
+        cancelled: () => cancellation?.cancelled == true)) {
+      throw CoreFailure('runtime.stale', 'An external example changed after capture');
+    }
+    ensureCurrentOwner();
+    if (preparingRequest) ensureCurrentPreparation();
     final work = _owner.engine.request('evaluateSchemas', {
       ...snapshot.toJson(),
       'runtimeInstances': [for (final instance in instances) instance.toJson()],
@@ -786,6 +803,11 @@ class OperationRequestPlan {
             }),
           ]);
     cancellation?.throwIfCancelled();
+    final examplesCurrent = !preparingRequest || await _owner._externalExampleInputsCurrent(snapshot,
+        saved: saved, cancelled: () => cancellation?.cancelled == true);
+    if (!examplesCurrent) throw CoreFailure('runtime.stale',
+        'An external example changed while its captured runtime result was being evaluated');
+    if (preparingRequest) ensureCurrentPreparation();
     if (_closed ||
         _owner._closed ||
         result['version'] != 1 ||

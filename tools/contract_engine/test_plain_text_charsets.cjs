@@ -86,7 +86,7 @@ for(const version of ['2.0','3.0.4','3.1.2','3.2.1'])for(const format of ['yaml'
  for(const [name,mediaType,,,bytes]of cases){const response=await wire(proxy.port,'/'+name);assert.equal(response.status,200);assert.equal(response.headers['content-type'],mediaType);assert.deepEqual(response.bytes,bytes);assert.equal(response.headers['busyapi-response-validation-complete'],'true');const findings=JSON.parse(response.headers['sl-violations']??'[]');if(name==='bare')assert(findings.some(value=>value.code==='runtime.body.syntax'),JSON.stringify(findings));else assert.deepEqual(findings,[]);}
  assert.equal(JSON.stringify(input.capture),before);
 });
-test('plain-text evaluation has a revised captured identity',()=>{assert.equal(schemaProducer.version,'1.18.0+44');assert(schemaProducer.configuration.includes('runtime-media-v3'));assert(schemaProducer.configuration.includes('form-context-v2'));});
+test('plain-text evaluation has a revised captured identity',()=>{assert.equal(schemaProducer.version,'1.18.0+45');assert(schemaProducer.configuration.includes('runtime-media-v3'));assert(schemaProducer.configuration.includes('form-context-v2'));});
 test('text serialization context is bounded and requires a Unicode string instance',async()=>{
  const root='file:///controlled/protocol.json',resources=[{id:root,text:JSON.stringify(api('3.2.1')),generation:1}];
  for(const extra of [{textSerialization:'other',unicodeSerialization:true},{textSerialization:true,unicodeSerialization:true},{textSerialization:'embedded'},{textSerialization:'unicode',unicodeSerialization:false},{textSerialization:'embedded',unicodeSerialization:true,mediaBase64:true}]){

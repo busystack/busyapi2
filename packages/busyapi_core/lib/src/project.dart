@@ -35,10 +35,11 @@ part 'root_configuration.dart';
 part 'resource_package.dart';
 part 'generation.dart';
 part 'migration.dart';
+part 'external_examples.dart';
 
 // Semantic revisions are part of captured evaluator ownership, alongside the
 // wire protocol and snapshot identity.
-const _schemaProducerVersion = '1.18.0+44';
+const _schemaProducerVersion = '1.18.0+45';
 
 // Keep native-isolate IO wakeups bounded without serializing every resource.
 // Each batch finishes (including failures) before access can be released.
@@ -93,7 +94,9 @@ class AnalysisSnapshot {
     List<String> boundaries = const [],
     String? engineIdentity,
     List<Map<String, Object?>> configuration = const [],
-  }) : resources = List.unmodifiable(
+    List<CapturedExternalExample> exampleResources = const [],
+  }) : exampleResources = List.unmodifiable(exampleResources),
+       resources = List.unmodifiable(
          resources.map(
            (r) => Map<String, Object?>.unmodifiable({
              for (final entry in r.entries)
@@ -111,6 +114,7 @@ class AnalysisSnapshot {
          engineIdentity,
          true,
          configuration,
+         exampleResources,
        ),
        sourceIdentity = _snapshotIdentity(
          root,
@@ -119,6 +123,7 @@ class AnalysisSnapshot {
          engineIdentity,
          false,
          configuration,
+         exampleResources,
        );
   final String root, identity, sourceIdentity;
   static String _snapshotIdentity(
@@ -128,6 +133,7 @@ class AnalysisSnapshot {
     String? engine,
     bool generations,
     List<Map<String, Object?>> configuration,
+    List<CapturedExternalExample> exampleResources,
   ) {
     final entries =
         resources
@@ -154,6 +160,10 @@ class AnalysisSnapshot {
                 if (generations) 'generation': r['generation'],
               },
           ],
+        if (exampleResources.isNotEmpty) 'externalExamples': [
+          for (final resource in exampleResources.toList()..sort((a, b) => a.id.compareTo(b.id)))
+            {...resource.ownership, 'aliases': resource.aliases, if (!generations) 'generation': null},
+        ],
         'engine': {'version': '0.1.0', 'assets': engine},
         'configuration': 1,
         'boundaries': boundaries.toList()..sort(),
@@ -161,23 +171,40 @@ class AnalysisSnapshot {
     );
   }
 
+  final List<CapturedExternalExample> exampleResources;
   final List<Map<String, Object?>> resources, configuration;
   Iterable<Map<String, Object?>> get allInputs => [
     ...resources,
     ...configuration,
+    for (final resource in exampleResources) resource.ownership,
   ];
   Map<String, Object?> toJson() => {
     'root': root,
     'snapshot': identity,
     'resources': resources,
+    if (exampleResources.isNotEmpty) 'exampleResources': [
+      for (final resource in exampleResources) resource.toJson(),
+    ],
   };
-  bool current(BufferStore store) => allInputs.every(
-    (r) =>
-        !store.isVirtuallyAbsent(r['id'] as String) &&
-        (!store.buffers.containsKey(r['id']) ||
-            (store.get(r['id'] as String).generation == r['generation'] &&
-                store.get(r['id'] as String).sourceIdentity == r['identity'])),
-  );
+  bool current(BufferStore store) =>
+      allInputs.every((input) => _inputCurrent(store, input));
+
+  bool _examplesCurrent(BufferStore store) => exampleResources.every(
+      (resource) => _inputCurrent(store, resource.ownership));
+
+  static bool _inputCurrent(BufferStore store, Map<String, Object?> input) {
+    final id = input['id'] as String;
+    final buffer = store.buffers[id];
+    if (input['kind'] == 'external-example' && input['state'] == 'unavailable') {
+      return buffer == null ? input['workingIdentity'] == null
+          : buffer.generation == input['generation'] &&
+              buffer.sourceIdentity == input['workingIdentity'];
+    }
+    return !store.isVirtuallyAbsent(id) &&
+        (buffer == null || buffer.generation == input['generation'] &&
+            buffer.sourceIdentity == input['identity']);
+  }
+
 }
 
 /// Preserve original-source results when a required export check cannot pass.
@@ -754,6 +781,7 @@ class BusyProject {
   final Map<String, Map<String, String>> _policyLookupKinds = {};
   Map<String, Object?> lastTimings = {};
   final Map<String, String?> resourceFingerprints = {};
+  final Map<String, Set<String>> _exampleDependencies = {};
   final Map<String, Map<String, Object?>> _standardResources = {};
   Future<Set<String>>? _standardCatalogue;
   Future<void>? _standardRead;
@@ -1306,6 +1334,7 @@ class BusyProject {
       final resourceRevision = _resourceRevision;
       final resources = <String, Map<String, Object?>>{},
           disk = <String, String>{};
+      final exampleResources = <String, CapturedExternalExample>{};
       final configuration = configurationScope.source,
           resourceMappings = configurationScope.mappings;
       if (configuration != null &&
@@ -1414,6 +1443,7 @@ class BusyProject {
           boundaries: approvedContexts,
           engineIdentity: engine.assetIdentity,
           configuration: [if (configuration != null) configuration],
+          exampleResources: exampleResources.values.toList(),
         );
         final ipcStart = clock.elapsedMicroseconds;
         result = await engine.request('analyse', {
@@ -1452,6 +1482,57 @@ class BusyProject {
             continue; // Recheck after a dependency was removed; no stale resource can poison a clean graph.
           }
         }
+        final requestedExamples = <String>{};
+        final discovery = result['externalExamples'];
+        final versions = result['versions'];
+        if (discovery != null && discovery is! List ||
+            result['info'] != null && (discovery is! List || versions is! Map ||
+                versions['externalExampleRules'] != '1')) {
+          throw CoreFailure('engine.external-examples',
+              'The engine omitted the captured external example discovery revision');
+        }
+        if (discovery is List) for (final value in discovery) {
+          if (value is! Map || value['version'] != 1 ||
+              value['resource'] is! String || value['pointer'] is! String ||
+              value['targetResource'] != null && value['targetResource'] is! String ||
+              value['targetResource'] == null && value['problem'] is! Map) {
+            throw CoreFailure('engine.external-examples',
+                'The engine returned invalid external example discovery');
+          }
+          if (value['targetResource'] case final String target) {
+            requestedExamples.add(target);
+          }
+        }
+        var examplesChanged = false;
+        exampleResources.removeWhere((id, resource) {
+          final obsolete = !requestedExamples.any((target) =>
+              target == id || resource.aliases.contains(target));
+          examplesChanged |= obsolete;
+          return obsolete;
+        });
+        for (final target in requestedExamples) {
+          if (exampleResources.values.any((resource) =>
+              resource.id == target || resource.aliases.contains(target))) continue;
+          final captured = await _captureExternalExample(target, resourceMappings,
+              saved: saved, active: ensureActive);
+          exampleResources[captured.id] = captured._withAliases(
+              exampleResources[captured.id]?.aliases ?? const []);
+          examplesChanged = true;
+        }
+        final cost = resources.values.fold<int>(0,
+                (sum, value) => sum + (value['text'] as String).length * 6) +
+            exampleResources.values.fold<int>(0,
+                (sum, value) => sum + (value.bytes?.length ?? 0) * 2);
+        if (resources.length + exampleResources.length > 2048 ||
+            cost > 48 * 1024 * 1024) {
+          throw CoreFailure('limit.snapshot',
+              'Contracts and external examples exceed the captured resource budget');
+        }
+        if (examplesChanged) {
+          if (depth == 128) throw CoreFailure('limit.graph',
+              'External example discovery exceeds the captured graph depth limit');
+          continue;
+        }
         final missing = <String>{};
         for (final ref in result['references'] as List? ?? []) {
           final target = ref['targetResource'];
@@ -1462,7 +1543,7 @@ class BusyProject {
           }
         }
         if (missing.isEmpty) break;
-        if (resources.length + missing.length > 2048) {
+        if (resources.length + exampleResources.length + missing.length > 2048) {
           throw CoreFailure('limit.resources', 'Dependency count exceeds 2048');
         }
         final missingStart = clock.elapsedMicroseconds;
@@ -1500,6 +1581,8 @@ class BusyProject {
           coherent = false;
         }
       });
+      if (!await _externalExampleInputsCurrent(snapshot!,
+          saved: saved, rejectConflicts: false, cancelled: cancelled)) coherent = false;
       coherence += clock.elapsedMicroseconds - coherenceStart;
       coherent =
           coherent &&
@@ -1524,8 +1607,10 @@ class BusyProject {
           ...reachable,
           if (configuration != null) configuration['id'] as String,
         };
+        _exampleDependencies[root] = exampleResources.keys.toSet();
         final monitored = {
           ...store.buffers.keys,
+          for (final examples in _exampleDependencies.values) ...examples,
           for (final graph in dependencies.values) ...graph,
           for (final policy in _policyDependencies.values) ...policy,
         };
@@ -1541,6 +1626,14 @@ class BusyProject {
             resourceFingerprints.putIfAbsent(id, () => b.diskIdentity);
           } else {
             resourceFingerprints[id] = disk[id] ?? b?.diskIdentity;
+          }
+        }
+        for (final resource in exampleResources.values) {
+          final buffer = store.buffers[resource.id];
+          if (!saved && buffer != null && (buffer.dirty || buffer.externalConflict)) {
+            resourceFingerprints.putIfAbsent(resource.id, () => buffer.diskIdentity);
+          } else {
+            resourceFingerprints[resource.id] = resource.available ? resource.identity : null;
           }
         }
         for (final finding in result!['findings'] as List) {
@@ -1635,8 +1728,10 @@ class BusyProject {
             coherent = false;
           }
         });
+        final examplesCurrent = await _externalExampleInputsCurrent(snapshot,
+            saved: saved, rejectConflicts: false, cancelled: cancelled);
         ensureActive();
-        if (!coherent ||
+        if (!coherent || !examplesCurrent ||
             (!saved && !snapshot.current(store)) ||
             resourceRevision != _resourceRevision)
           continue;
@@ -3078,7 +3173,7 @@ class BusyProject {
     final resources = {
       for (final s in plan._snapshots)
         for (final r in s.allInputs)
-          if (r['bundled'] != true) r['id'] as String,
+          if (r['bundled'] != true && r['kind'] != 'external-example') r['id'] as String,
     };
     if (plan.edits.any((edit) => _standardResources.containsKey(edit.buffer)))
       throw CoreFailure(
@@ -3091,7 +3186,12 @@ class BusyProject {
       final b = await buffer(id);
       await refreshDisk(b);
     });
-    if (!valid() || resources.any((id) => store.get(id).externalConflict)) {
+    var examplesCurrent = true;
+    for (final snapshot in plan._snapshots) {
+      if (!await _externalExampleInputsCurrent(snapshot,
+          cancelled: current == null ? null : () => !current())) examplesCurrent = false;
+    }
+    if (!valid() || !examplesCurrent || resources.any((id) => store.get(id).externalConflict)) {
       throw CoreFailure(
         'refactor.stale',
         'A source file changed after review; no proposed edits were applied',
@@ -3207,6 +3307,8 @@ class BusyProject {
     return ResourceRefresh(changed, {
       for (final entry in dependencies.entries)
         if (entry.value.any(changed.contains)) entry.key,
+      for (final entry in _exampleDependencies.entries)
+        if (entry.value.any(changed.contains)) entry.key,
       for (final entry in _policyDependencies.entries)
         if (entry.value.any(changed.contains)) entry.key,
       for (final entry in _policyLookupKinds.entries)
@@ -3282,7 +3384,7 @@ class BusyProject {
     if (contextBound) {
       final inputs = {
         for (final input in snap.allInputs)
-          if (input['bundled'] != true) input['id'] as String,
+          if (input['bundled'] != true && input['kind'] != 'external-example') input['id'] as String,
       };
       // Watcher delivery is not a publication barrier. Reuse the anchored disk
       // refresh used by reviewed refactorings, including unopened context inputs.
@@ -3296,7 +3398,9 @@ class BusyProject {
         }
         await refreshDisk(input);
       });
-      if (_closed ||
+      final examplesCurrent = await _externalExampleInputsCurrent(snap,
+          cancelled: current == null ? null : () => !current());
+      if (_closed || !examplesCurrent ||
           (current != null && !current()) ||
           !snap.current(store) ||
           contextRevision != _resourceRevision ||

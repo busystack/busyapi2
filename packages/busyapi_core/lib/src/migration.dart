@@ -256,15 +256,16 @@ class MigrationOutput extends BundleOutput {
         'The reviewed migration inputs changed; create a new review',
       );
     final inputs = snapshot.allInputs
-        .where((input) => input['bundled'] != true)
+        .where((input) => input['bundled'] != true && input['kind'] != 'external-example')
         .map((input) => input['id'] as String)
         .toSet();
     await _resourceBatch(inputs, (id) async {
       final buffer = await _owner.buffer(id);
       await _owner.refreshDisk(buffer);
     });
+    final examplesCurrent = await _owner._externalExampleInputsCurrent(snapshot);
     if (_closed ||
-        outdated ||
+        outdated || !examplesCurrent ||
         inputs.any((id) => _owner.store.get(id).externalConflict))
       throw CoreFailure(
         'migration.stale',

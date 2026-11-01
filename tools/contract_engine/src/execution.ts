@@ -1,3 +1,4 @@
+import {ExternalExampleError} from './external_examples';
 import {multipartProjectionRevision} from './schema_reference_projection';
 import {embeddedMimeTextBytes,embeddedMimeTextRevision} from './embedded_mime_text';
 import {createHash} from 'node:crypto';
@@ -22,7 +23,7 @@ import {children} from './contexts';
 import {mediaTypeChoice} from './media_types';
 import {MultipartEncoding,supportsMultipartTransfer,type MultipartTransfer,type MultipartHeaderCandidate} from './multipart_encoding';
 import {evaluateSchemas} from './schema_evaluation';
-import {runtimeMediaDescription,runtimeFormMedia,runtimeMediaBytes} from './runtime_media';
+import {runtimeMediaDescription,runtimeFormMedia,runtimeMediaBytes,decodeRuntimeMedia,runtimeMediaKind} from './runtime_media';
 import {capturedMimeHeaderContent} from './mime_header_content';
 import {multipartHeaderValues,type MultipartHeaderLine} from './multipart_header_values';
 import {MultipartFileShapes} from './multipart_file_shapes';
@@ -328,7 +329,7 @@ export async function requestMultipartEncoding(input:any){
  * than as JavaScript values.
  */
 export function requestOperation(input:any,captured?:ReturnType<typeof createGraph>) {
-  const {docs,graph}=captured??createGraph(input);
+  const {docs,graph,exampleResources}=captured??createGraph(input);
   const generation=new Map((input.resources as Resource[]).map(resource=>[resource.id,resource.generation]));
   const operation=graph.scopes.get(input.resource+'#'+input.pointer);
   if(operation?.kind!=='operation')throw new SourceError('request.operation','Select an authored Operation Object');
@@ -407,6 +408,34 @@ export function requestOperation(input:any,captured?:ReturnType<typeof createGra
       const exampleFamily=graph.scope(r,p).family;
       const field=exampleFamily==='3.2'&&Object.hasOwn(v??{},'dataValue')?'dataValue':Object.hasOwn(v??{},'value')?'value':exampleFamily==='3.2'&&Object.hasOwn(v??{},'serializedValue')?'serializedValue':undefined;
       if(field)return projected(r,p+'/'+escape(field),field,name);
+      if(Object.hasOwn(v??{},'externalValue')){
+        const source=location(r,p+'/externalValue');
+        try{
+          const captured=exampleResources.read(graph,r,p+'/externalValue');
+          const bytes=runtimeMediaBytes(captured.base64,true);
+          const external={resource:captured.id,identity:captured.identity,byteLength:captured.byteLength};
+          const base={name,level,source,representation:'serialized',dataKind:'string',external,
+            wireBase64:captured.base64};
+          if(!mediaType)return {...base,raw:'',conversionError:'This external example needs a concrete media occurrence before request conversion.'};
+          const kind=runtimeMediaKind(mediaType);
+          if(kind==='json'){
+            const text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes);
+            return {...base,raw:text,text};
+          }
+          if(kind==='text'){
+            const decoded=decodeRuntimeMedia(base.wireBase64,r+'/external-example',mediaType,true);
+            const text=decoded.document.root.value;
+            if(typeof text==='string')return {...base,raw:text,text};
+          }
+          return {...base,raw:'',conversionError:'This external byte representation needs a captured binary request body.'};
+        }catch(error){
+          if(!(error instanceof SourceError)&&!(error instanceof TypeError))throw error;
+          return {name,level,source,representation:'serialized',raw:'',conversionError:error.message,
+            externalStatus:error instanceof ExternalExampleError?error.condition:error instanceof SourceError&&(error.kind==='unsupported'||error.code.startsWith('limit.'))?'unsupported':'invalid',
+            problem:{code:error instanceof SourceError?error.code:'runtime.media.encoding',message:error.message}};
+        }
+      }
+
     }
   };
   const examples=(resource:string,pointer:string,value:any,level='parameter',mediaType?:string)=>[

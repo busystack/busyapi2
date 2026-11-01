@@ -507,6 +507,7 @@ extension FileRefactoring on BusyProject {
     }
 
     remapSets(dependencies);
+    remapSets(_exampleDependencies);
     remapSets(_policyDependencies);
     final fingerprints = {
       for (final e in resourceFingerprints.entries) map(e.key): e.value,
