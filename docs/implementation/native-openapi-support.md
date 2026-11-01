@@ -43,6 +43,7 @@ source inspection or a successful build is not runtime acceptance.
 | Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants | Implemented but unverified; aliased/literal and cross-entry ownership remain incomplete |
 | Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback decisions remain explicit | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
 | Swagger discriminator migration | Shared named-model owner and migration specialization | Compatible captured namespaces mapped; shared ownership cases remain | Implemented but unverified |
+| Document identity downgrade | Migration URI owner, canonical graph and CST | `$self` lowering captures document URI fields, nested schema identities and reference bases; API URL context remains separate | Implemented but unverified; independent schema/literal ownership remains incomplete |
 | Changed-base Markdown | Shared destination-span proof, migration and maintenance owners | Unshared rendered occurrences mapped without rewriting code or prose | Implemented but unverified |
 | TypeScript compiler gate | Existing pinned engine build and CI paths | Repeatable compiler check wired before bundling | Implemented but unverified |
 | MIME result and Markdown parser typing | Engine execution and Markdown relocation | Literal revision ownership and explicit unknown-value narrowing | Implemented but unverified |
@@ -63,8 +64,8 @@ source inspection or a successful build is not runtime acceptance.
 - CONNECT behavior and remaining bounded response-witness generation.
 - Remaining URI-preserving inline, copy and relocation mappings and named-schema
   maintenance positions.
-- Detailed OpenAPI 3.2 identity, operation, parameter, media, tag, security and
-  discriminator rules, including the missing document-identity downgrade mapping.
+- Remaining OpenAPI 3.2 identity, operation, parameter, media, tag, security and
+  discriminator rules; independent schema/literal identity ownership is incomplete.
 
 A missing implementation is not an unrepresentable conversion. Migration must
 retain source-located blockers until a faithful mapping is implemented. It must
@@ -83,3 +84,13 @@ publication, cancellation, stale inputs and package/CLI reopen; the widget revie
 regression retains the existing controls. These additions have not been executed.
 Their authorities are Swagger 2.0 §6.4.18, OpenAPI 3.0.4 §§4.7.24–4.7.25 and
 OpenAPI 3.2.1 §4.30.
+
+Document-identity regressions use `test_migration_identity.cjs` through native
+planning, structural analysis and schema evaluation. They cover both 3.2 patches,
+YAML/JSON, direct and composed downgrades, nested resource IDs, dynamic anchors,
+cross-document references, moved files, exact values and missing resources.
+The external-example regression retains exact byte and defining-base checks;
+Core identity tests add unsaved inputs, cancellation, stale reviews and standalone
+reopen. These additions have not been executed. The URI authority is
+[OpenAPI 3.2.1 §§4.1.1–4.1.2 and 4.5.2](https://spec.openapis.org/oas/v3.2.1.html#relative-references-in-api-description-uris),
+together with RFC 3986 and JSON Schema Core resource and reference rules.

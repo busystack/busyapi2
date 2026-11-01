@@ -1,3 +1,4 @@
+const {SourceDocument} = require('./dist/document.cjs');
 const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {createHash} = require('node:crypto');
@@ -42,7 +43,7 @@ async function assertPortable(f, input = f.input) {
   const original = JSON.stringify(input);
   const plan = await planMigration(input);
   assert.equal(plan.complete, true, JSON.stringify(plan.problems));
-  assert.equal(plan.producerVersion, '32');
+  assert.equal(plan.producerVersion, '33');
   assert.equal(plan.exampleOutputs.length, 1);
   const copy = plan.exampleOutputs[0];
   if(input.resources[0].id.endsWith('.yaml'))assert(plan.outputs.find(value => value.id === plan.outputRoot).text.includes('# Keep Unicode 雪'));
@@ -174,14 +175,15 @@ for(const format of formats) {
     assert.equal(checked.complete, true, JSON.stringify(checked.findings));
     assert(checked.serializedEvaluations.every(value => value.complete && value.valid));
   });
-  test(`${format} a retained 3.2 document identity still reports its missing downgrade mapping`, async () => {
+  test(`${format} lowering a 3.2 document identity preserves external example bytes and defining bases`, async () => {
     const f = fixture('3.2.1', format, 'latin1');
     f.value.$self = 'https://contracts.invalid/api.' + format;
     f.input.resources[0].text = render(f.value, format);
     f.input.exampleResources[0].aliases = ['https://contracts.invalid/data/example.bin'];
     const original = JSON.stringify(f.input), plan = await planMigration(f.input);
-    assert.equal(plan.complete, false);assert.deepEqual(plan.outputs, []);assert.deepEqual(plan.exampleOutputs, []);
-    assert(plan.problems.some(value => value.code === 'migration.feature.newer' && value.pointer === '/$self'), JSON.stringify(plan.problems));
+    assert.equal(plan.complete, true, JSON.stringify(plan.problems));
+    assert.equal(new SourceDocument(plan.outputs.find(value => value.id === plan.outputRoot).text, plan.outputRoot).dataNode('/$self'), undefined);
+    await assertPortable(f);
     assert.equal(JSON.stringify(f.input), original);
   });
 }

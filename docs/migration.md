@@ -81,6 +81,15 @@ mappings. Downgrades that would introduce stronger request exclusions remain
 blocked until a faithful mapping is available. See the support matrix for
 verification status.
 
+Downgrading a 3.2 document resolves the URI meaning supplied by `$self` before
+removing that field. Document metadata, nested schema identities and captured
+references retain their resolved destinations; API server URLs keep their
+separate retrieval context. Dynamic reference bindings and delivered resource
+connections receive the same cold-reopen proofs as other migrations. The target
+uses its own supported identity rules; it does not claim an in-band `$self` field.
+Independent schema/literal ownership can still block conversion. Unknown external
+consumers are outside the captured graph's guarantees.
+
 Modern `dependentRequired` property dependencies can migrate to OpenAPI 3.0
 using equivalent presence conditions. False, zero and null still count as present.
 Swagger 2.0 conversion supports redundant dependencies and dependencies whose

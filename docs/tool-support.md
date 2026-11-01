@@ -883,6 +883,12 @@ decision as upgrades to 3.1/3.2. Removing a use recaptures its surviving graph;
 shared active uses keep their conversion and documentation checks. Target
 method restrictions remain separate blockers.
 
+Migration lowers `$self` by capturing URI meanings before changing document
+identity rules. Nested schema IDs, ordinary and dynamic references, metadata and
+API server bases remain distinct. Independent schema/literal ownership still
+requires an additional mapping; unsupported source evaluation never authorizes
+publication. Current qualification is tracked in the support matrix.
+
 Migration uses each captured entry's declared family for its conversion route.
 Native and CLI reviews expose those source/target versions. Connected modern
 entries are converted together for a direct Swagger downgrade; incompatible

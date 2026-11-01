@@ -25,6 +25,7 @@ import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 import {MigrationAccess} from './migration_access';
 import {migrateDirectionalSchemas} from './migration_direction';
 import {migrateDiscriminatorDefaults} from './migration_discriminator_defaults';
+import {migrateDocumentIdentities} from './migration_identity';
 import {migrateRequiredPresence} from './migration_required_presence';
 import {migrateSwaggerDiscriminators} from './migration_discriminator';
 import {MigrationExamples,proveMigrationExamples,type MigrationExampleCopy} from './migration_examples';
@@ -32,7 +33,7 @@ import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='32';
+const migrationProducerVersion='33';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -159,12 +160,18 @@ export async function planMigration(input:MigrationInput) {
                 const directionalUpgrade=before==='2.0'&&after==='3.0'||before==='3.0'&&modernFamily(after);
                 if(scope.kind==='schema'&&!directionalUpgrade&&!access.preserves(scope,before,after))issue(scope,'migration.schema.direction','Access annotations need a direction-specific schema mapping to preserve their captured property and required-list semantics in the target family','implementation');
                 if(before==='3.2'&&after!=='3.2'){
-                    const newer:Record<string,string[]>={root:['$self'], 'path-item':['query','additionalOperations'],media:['itemSchema','prefixEncoding','itemEncoding'],encoding:['prefixEncoding','itemEncoding'],tag:['summary','kind','parent'],xml:['nodeType'],discriminator:['defaultMapping']};
+                    const newer:Record<string,string[]>={'path-item':['query','additionalOperations'],media:['itemSchema','prefixEncoding','itemEncoding'],encoding:['prefixEncoding','itemEncoding'],tag:['summary','kind','parent'],xml:['nodeType'],discriminator:['defaultMapping']};
                     for(const name of newer[scope.kind]??[])if(Object.hasOwn(value??{},name))issue({...scope,pointer:scope.pointer+'/'+escape(name)},'migration.feature.newer','This 3.2 construct has no implemented faithful mapping to the selected older family','implementation');
                 }
                 if(before==='3.1'&&after==='3.0'&&scope.kind==='root'){
                     for(const name of ['webhooks'])if(Object.hasOwn(value??{},name))issue({...scope,pointer:'/'+name},'migration.root.newer','This root construct needs an explicit faithful 3.0 mapping','implementation');
                 }
+            }
+            if(problems.length)break;
+            if(stage.sources.includes('3.2')){
+                const identities=migrateDocumentIdentities(graph,sources,after,issue);
+                resources=resources.map(resource=>identities.has(resource.id)?
+                    {...resource,aliases:[...new Set([...identities.get(resource.id)!,...(resource.aliases??[])])]}:resource);
             }
             if(problems.length)break;
             for(const before of stage.sources)migrateServerVariableDefaults(graph,sources,before,after,issue);
