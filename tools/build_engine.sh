@@ -7,6 +7,7 @@ engine_dir=tools/contract_engine
 npm_args=(ci --prefix "$engine_dir" --ignore-scripts --no-audit --no-fund)
 if [[ "${BUSYAPI_BUILD_OFFLINE:-0}" == 1 ]]; then npm_args+=(--offline); fi
 SCARF_ANALYTICS=false npm_config_update_notifier=false "$node_bin" "$npm_cli" "${npm_args[@]}"
+"$node_bin" "$engine_dir/node_modules/typescript/bin/tsc" --project "$engine_dir/tsconfig.json" --pretty false
 case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/linux-x64/bin/esbuild";; *) echo 'Only the pinned Linux amd64 build is currently supported' >&2; exit 1;; esac
 "$esbuild_bin" "$engine_dir/src/server.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/engine.cjs"
 "$esbuild_bin" "$engine_dir/src/engine.ts" --bundle --platform=node --format=cjs --main-fields=module,main --outfile="$engine_dir/dist/model.cjs"

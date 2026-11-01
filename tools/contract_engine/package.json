@@ -7,7 +7,8 @@
     "node": "24.15.0"
   },
   "scripts": {
-    "build": "esbuild src/server.ts --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/engine.cjs && esbuild src/execution.ts --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/execution.cjs && esbuild src/mock_server.ts --bundle --platform=node --format=cjs --main-fields=module,main --alias:@jsdevtools/ono=./node_modules/@jsdevtools/ono/cjs/index.js --outfile=dist/mock-server.cjs",
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "build": "npm run typecheck && esbuild src/server.ts --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/engine.cjs && esbuild src/execution.ts --bundle --platform=node --format=cjs --main-fields=module,main --outfile=dist/execution.cjs && esbuild src/mock_server.ts --bundle --platform=node --format=cjs --main-fields=module,main --alias:@jsdevtools/ono=./node_modules/@jsdevtools/ono/cjs/index.js --outfile=dist/mock-server.cjs",
     "test": "node test_engine.cjs && node test_graph.cjs && node test_execution.cjs"
   },
   "dependencies": {

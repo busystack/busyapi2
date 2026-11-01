@@ -49,6 +49,22 @@ class BuildToolchain(unittest.TestCase):
         for name in ['build_linux.sh', 'build_engine.sh', 'build_documentation_assets.sh']:
             self.assertIn('busyapi_select_node', (ROOT / 'tools' / name).read_text())
 
+    def test_engine_type_gate_is_enforced_before_any_bundle(self):
+        script = (ROOT/'tools/build_engine.sh').read_text()
+        gate = '"$node_bin" "$engine_dir/node_modules/typescript/bin/tsc" --project "$engine_dir/tsconfig.json" --pretty false'
+        self.assertIn(gate, script)
+        self.assertLess(script.index('"$node_bin" "$npm_cli"'), script.index(gate))
+        self.assertLess(script.index(gate), script.index('"$esbuild_bin"'))
+        compiler = json.loads((ROOT/'tools/contract_engine/tsconfig.json').read_text())
+        self.assertTrue(compiler['compilerOptions']['noEmit'])
+        self.assertIn('src', compiler['include'])
+        package = json.loads((ROOT/'tools/contract_engine/package.json').read_text())
+        self.assertEqual(package['devDependencies']['typescript'], '5.7.3')
+        self.assertIn('--project tsconfig.json', package['scripts']['typecheck'])
+        self.assertTrue(package['scripts']['build'].startswith('npm run typecheck && '))
+        self.assertIn('tools/build_engine.sh', (ROOT/'tools/build_linux.sh').read_text())
+        self.assertIn('tools/build_linux.sh', (ROOT/'.github/workflows/flutter-linux.yml').read_text())
+
     def test_recording_boundaries_execute_both_production_scripts_with_selected_node(self):
         selected = self.root/'distribution/bin'
         selected.mkdir(parents=True)
@@ -79,7 +95,7 @@ class BuildToolchain(unittest.TestCase):
             for line in script.splitlines():
                 if not line.startswith('"$node_bin" ') or '"$npm_cli"' in line: continue
                 arguments = shlex.split(line)
-                script_arguments = [argument for argument in arguments[1:] if not argument.startswith('-') and argument.endswith(('.cjs', '.mjs'))]
+                script_arguments = [argument for argument in arguments[1:] if not argument.startswith('-') and (argument.endswith(('.cjs', '.mjs')) or argument.endswith('/typescript/bin/tsc'))]
                 self.assertEqual(len(script_arguments), 1, line)
                 argument = script_arguments[0].replace('$engine_dir', 'tools/contract_engine')
                 target = self.root/argument
@@ -93,6 +109,19 @@ class BuildToolchain(unittest.TestCase):
         self.assertGreater(len(calls), 40)
         self.assertTrue(all(call[0] == str(selected/'node') for call in calls), calls)
         self.assertTrue(any(call[1] == 'npm-child' for call in calls))
+        self.assertTrue(any(call[1].endswith('/typescript/bin/tsc') for call in calls))
+        # A compiler failure must stop the real shell before its first bundle.
+        checker = tools/'contract_engine/node_modules/typescript/bin/tsc'
+        checker.write_text(record + 'process.exit(23);')
+        bundle_marker = self.root/'bundler-started'
+        compiler.write_text('#!/bin/sh\nprintf called > "$BUNDLE_MARKER"\nexit 0\n')
+        result = subprocess.run(['/bin/bash', str(tools/'build_engine.sh')], cwd=self.root,
+            env=dict(self.env, BUSYAPI_NODE=str(selected/'node'), BUILD_CALLS=str(log),
+                BUNDLE_MARKER=str(bundle_marker), PATH=str(ambient)+':/usr/bin:/bin'),
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assertFalse(bundle_marker.exists())
+
 
     def test_concurrent_sdk_probes_have_unique_cleaned_metadata(self):
         flutter = self.root / 'flutter'
