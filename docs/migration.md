@@ -97,6 +97,11 @@ schema annotations without changing their effective behavior. A false value
 also referenced as a schema keeps a separate standard definition. Active
 annotations still need a faithful target mapping.
 
+When a modern boolean `additionalProperties` field is also referenced as a
+standalone schema, downgrade keeps the field's value and creates an equivalent
+standard schema definition for the references. Review shows that definition and
+the changed bindings. Other literal consumers retain their values.
+
 Downgrading a 3.2 document resolves the URI meaning supplied by `$self` before
 removing that field. Document metadata, nested schema identities and captured
 references retain their resolved destinations; API server URLs keep their

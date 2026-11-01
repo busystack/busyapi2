@@ -9,7 +9,7 @@ import {MigrationSchemaReferences} from './migration_schema_references';
 import {SchemaPropertyRequirements} from './schema_property_requirements';
 import {migrateDependentRequired,migrateDependentSchemas} from './migration_schema_dependencies';
 import {migrateInactiveSchemaAnnotations} from './migration_inactive_annotations';
-import {restrictedBooleanSchema} from './migration_schema_values';
+import {BooleanSchemaMigration} from './migration_boolean_schema';
 
 export type MigrationChoice=Readonly<{value:string;label:string;target:MigrationLocation&{range:readonly number[]}}>;
 export type MigrationProblem={resource:string;pointer:string;range:number[];code:string;message:string;reason:'target-representation'|'implementation'|'source-incomplete'|'decision';choices?:string[];choiceDetails?:readonly MigrationChoice[];id?:string};
@@ -21,16 +21,13 @@ export type MigrationChoose=(scope:MigrationIssueLocation,code:string,message:st
  * dialect to make a migration pass. These edits affect planning copies only. */
 export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,MigrationSource>,from:string,to:string,issue:MigrationIssue):void {
     const references=new MigrationSchemaReferences(graph),requirements=new SchemaPropertyRequirements(graph);
+    const booleans=new BooleanSchemaMigration(graph,sources,to);
     const scopes=[...graph.scopes.values()].filter(scope=>scope.kind==='schema'&&scope.family===from).sort((a,b)=>b.pointer.length-a.pointer.length);
     for(const scope of scopes){
         const source=sources.get(scope.resource)!,pointer=source.current(scope.pointer);if(pointer===undefined)continue;
         const original=graph.docs.get(scope.resource)!.dataNode(scope.pointer)!,value=original.value;
         if(typeof value==='boolean'){
-            if(scope.pointer.endsWith('/additionalProperties')){
-                if(!modernFamily(to)&&graph.references.some(reference=>reference.targetResource===scope.resource&&reference.targetPointer===scope.pointer))issue(scope,'migration.schema.boolean-dual-owner','A boolean additionalProperties value also used as a standalone schema needs a separate target representation','implementation');
-                continue;
-            }
-            if(!modernFamily(to))source.set(pointer,restrictedBooleanSchema(value,to));
+            if(!modernFamily(to))booleans.lower(scope,source,pointer,value);
             continue;
         }
         if(!value||typeof value!=='object'||Array.isArray(value))continue;

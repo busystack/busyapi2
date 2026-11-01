@@ -42,6 +42,7 @@ source inspection or a successful build is not runtime acceptance.
 | Scoped binary/byte migration | Migration binary owner | Established raw, text/JSON and base64 contexts mapped; mixed/constrained contexts remain | Implemented but unverified |
 | Modern required-property lowering | Migration required-presence owner | Scoped modern-to-3.0 presence assertions retain constraints | Implemented but unverified |
 | Inactive annotation downgrades | Schema migration and canonical ownership | False writeOnly/deprecated annotations lower to Swagger defaults; independently referenced boolean schemas retain collision-safe owners | Implemented but unverified; active directional annotations remain incomplete |
+| Shared boolean-schema downgrades | Schema migration, captured references and CST provenance | Boolean additionalProperties fields retain their values; independently referenced schema roles receive standard definitions with repaired references | Implemented but unverified |
 | Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants; affected YAML aliases receive separate planning-copy owners | Implemented but unverified; independently interpreted literal and cross-entry ownership remain incomplete |
 | YAML migration ownership | Existing source CST and migration provenance | Captured property/alias tokens split affected logical uses, retain exact data and comments, and preserve other consumers before conversion | Implemented but unverified; ordinary editing guards remain unchanged |
 | Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback choices bind eligible composition alternatives and exact instance witnesses | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
@@ -148,7 +149,7 @@ and Core publication tests cover scalar/collection/key anchors, repeated names,
 virtual descendants, different bases, exact numbers, literal payloads, unsaved
 source, cancellation, stale reviews and cold reopen. The old shared-Markdown
 refusal controls now require successful mapping plus unchanged literal values.
-These changes and tests are implemented but unverified. Migration producer 38
+These changes and tests are implemented but unverified. Migration producer 39
 is admitted consistently by engine, Core and native preflight; the permanent
 cross-component consistency regression remains active.
 
@@ -189,6 +190,21 @@ YAML/JSON, request/response evaluations, exact numbers and empty values, aliased
 literal consumers, independent false schemas, naming collisions and active-rule
 refusals. Core regressions cover unsaved captures, cancellation, stale publication
 and native Swagger reopen. These source changes and regressions have not run.
+
+Boolean `additionalProperties` fields retain their values during modern-to-3.0
+and modern-to-Swagger downgrades. Captured independent schema references receive
+separate standard definitions with equivalent object assertions. The unchanged
+field remains owned by its containing object, while schema-reference provenance
+selects the generated definition. Names are deterministic and collision-safe;
+normal named schemas called `additionalProperties` use ordinary schema rules.
+The authorities are OpenAPI 3.0.4 §4.7.24.1, Swagger 2.0 §6.4.18 and JSON Schema
+Core 2020-12 §4.3.2. `test_migration_boolean_owners.cjs` covers all published
+3.1/3.2 patches, YAML/JSON, both boolean values, standalone and cross-file
+consumers, chained references, accepted/rejected request/response instances,
+exact numbers, aliases, literal values, collisions and missing resources.
+Core regressions cover unsaved external captures, cancellation, stale reviews,
+publication and cold reopen. These changes and tests have not run. Remaining
+independent literal/contract ownership gaps are separate from this mapping.
 
 Numeric witness construction reads canonical numeric values in both YAML and
 JSON rather than requiring JSON's CST node kind. It uses the existing exact

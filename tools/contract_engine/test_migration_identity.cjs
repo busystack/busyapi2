@@ -47,7 +47,7 @@ test(`${version} ${format} $self=${JSON.stringify(self)} lowers to ${target} wit
     const before=input.resources[0].text,source=createGraph(input).graph;
     const base=source.scope(input.root,'').base,validity=await outcomes(input);
     const review=await planMigration(input);
-    assert.equal(review.complete,true,JSON.stringify(review.problems));assert.equal(review.producerVersion,'38');
+    assert.equal(review.complete,true,JSON.stringify(review.problems));assert.equal(review.producerVersion,'39');
     const output=review.outputs.find(value=>value.id===review.outputRoot),doc=new SourceDocument(output.text,output.id);
     assert.equal(doc.dataNode('/$self'),undefined);assert.equal(doc.node('/info/version').value,'business');
     assert.equal(doc.node('/info/contact/url').value,resolveUri('./contact',base).href);

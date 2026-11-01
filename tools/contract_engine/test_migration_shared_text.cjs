@@ -31,7 +31,7 @@ for(const version of ['2.0','3.0.0','3.0.1','3.0.2','3.0.3','3.0.4','3.1.0','3.1
 for(const [index,body]of cases.entries())test(`${version} shared Markdown ${index} retains each literal value and rendered destination`,async()=>{
     const input=fixture(version,body),original=input.resources[0].text;
     const review=await planMigration(input);
-    assert.equal(review.complete,true,JSON.stringify(review.problems));assert.equal(review.producerVersion,'38');
+    assert.equal(review.complete,true,JSON.stringify(review.problems));assert.equal(review.producerVersion,'39');
     const output=review.outputs.find(output=>output.id===review.outputRoot);
     const before=new SourceDocument(original,input.root),after=new SourceDocument(output.text,output.id);
     assert.equal(before.dataJson('/x-literal'),after.dataJson('/x-literal'));
