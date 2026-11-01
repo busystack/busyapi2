@@ -942,7 +942,7 @@ Native property-access evaluation uses the logical schema occurrence even when
 its source is a reusable or aliased definition. Swagger `readOnly` properties
 are excluded from requests through schema references; OpenAPI 3.0 retains its
 request/response `required` rules for readOnly/writeOnly. Modern annotations keep
-ordinary JSON Schema assertions. The shared evaluator revision is **1.18.0+37**;
+ordinary JSON Schema assertions. The shared evaluator revision is **1.18.0+46**;
 matching mock/worker revisions are required before readiness is reported.
 
 The derived bundler uses the canonical graph and exact CST reader. It preserves
@@ -998,6 +998,13 @@ supplies captured operations through Prism's public APIs and preserves authored
 example bytes through a CST overlay. Ordinary mock mode binds loopback and never
 forwards upstream. Validation proxying is a separate explicit action. Complete
 stateful behavior and exhaustive dynamic-reference support are not claimed.
+
+Numeric mock candidates retain exact YAML/JSON bounds, including strict bounds,
+integer constraints and combined decimal multiples. The original native schema
+evaluator must prove each selected value. Generated responses to valid requests
+are withheld if their final native response check is invalid or incomplete.
+Current regression and packaged qualification status is recorded in the
+[support matrix](implementation/native-openapi-support.md).
 
 oasdiff **1.33.0** is a checksum-verified Linux amd64 executable. It receives
 separately coherent captured revisions and classifies compatibility while retaining

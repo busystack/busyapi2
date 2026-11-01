@@ -7,7 +7,7 @@ import {modernFamily} from './specification';
 import {capturedMockResponseMedia,schemaLocation,type SchemaLocation,type SourceLocation,type NativeRuntimeInstance,type NativeRuntimeCheck} from './mock_projection';
 import {SchemaSampleCandidates} from './schema_sample_candidates';
 
-export const mockSampleProducer=Object.freeze({name:'busyapi-native-schema-samples',version:'2'});
+export const mockSampleProducer=Object.freeze({name:'busyapi-native-schema-samples',version:'3'});
 type Sample={raw:string;source:SourceLocation};
 type Evaluate=(instances:NativeRuntimeInstance[],signal:AbortSignal)=>Promise<NativeRuntimeCheck>;
 

@@ -73,8 +73,8 @@ void main() {
       };
       final generation = <String, String>{
         'name': 'busyapi-native-schema-samples',
-        'version': '2',
-        'configuration': 'captured-schema-candidates-v2:fixture-runtime',
+        'version': '3',
+        'configuration': 'captured-schema-candidates-v3:fixture-runtime',
       };
       final methods = <String, String>{
         'name': 'busyapi-native-methods',
@@ -115,10 +115,10 @@ void main() {
         case 'generation-configuration':
           generation['configuration'] = 'obsolete';
         case 'generation-previous':
-          generation['version'] = '1';
+          generation['version'] = '2';
         case 'generation-previous-configuration':
           generation['configuration'] =
-              'captured-schema-candidates-v1:fixture-runtime';
+              'captured-schema-candidates-v2:fixture-runtime';
         case 'generation-name':
           generation['name'] = 'unrelated';
         case 'method-name':

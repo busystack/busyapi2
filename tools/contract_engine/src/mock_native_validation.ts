@@ -80,7 +80,7 @@ export class MockNativeValidation {
     get responseIdentity(){return this.producer&&{...mockResponseProducer,configuration:'response-wire-v3:'+this.producer.configuration};}
     get parameterIdentity(){return this.producer&&{...mockParameterProducer,configuration:'parameter-wire-v3:'+this.producer.configuration};}
     get securityIdentity(){return this.producer&&{...mockSecurityProducer,configuration:'security-wire-v1:'+this.producer.configuration};}
-    get generationIdentity(){return this.producer&&{...mockSampleProducer,configuration:'captured-schema-candidates-v2:'+this.producer.configuration};}
+    get generationIdentity(){return this.producer&&{...mockSampleProducer,configuration:'captured-schema-candidates-v3:'+this.producer.configuration};}
     get methodIdentity(){return this.producer&&{...mockMethodProducer,configuration:'method-wire-v1:'+this.producer.configuration};}
 
     projectedOperations(document:Record<string,unknown>) {

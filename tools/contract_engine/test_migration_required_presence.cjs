@@ -34,7 +34,7 @@ const values=[
 for(const version of versions)for(const format of ['yaml','json'])for(const flag of ['readOnly','writeOnly'])for(const mode of ['direct','chain','composition','sibling'])
 test(`${version} ${format} ${flag} ${mode} lowering keeps shared request/response presence without weakening values`,async()=>{
  const input=capture(version,format,flag,mode),before=input.resources.map(value=>value.text),source=await outcomes(input,values),plan=await planMigration(input);
- assert.equal(plan.complete,true,JSON.stringify(plan.problems));assert.equal(plan.producerVersion,'35');
+ assert.equal(plan.complete,true,JSON.stringify(plan.problems));assert.equal(plan.producerVersion,'36');
  const output={root:plan.outputRoot,snapshot:'cold-presence',resources:plan.outputs.map(value=>({id:value.id,text:value.text,generation:0}))};
  assert.deepEqual(await outcomes(output,values),source);
  const graph=createGraph(output).graph,doc=graph.docs.get(output.root),model=doc.dataNode('/components/schemas/Model').value;

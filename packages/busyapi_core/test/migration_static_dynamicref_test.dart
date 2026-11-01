@@ -192,7 +192,7 @@ void _registerMigrationTests(String definitionKeyword) {
               reason: '${review.result}',
             );
             expect(review.unsaved, isTrue);
-            expect(review.result['producerVersion'], '35');
+            expect(review.result['producerVersion'], '36');
             final outputs = (review.result['outputs'] as List).cast<Map>();
             expect(
               outputs.any(

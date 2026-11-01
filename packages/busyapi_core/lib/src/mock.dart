@@ -433,9 +433,9 @@ class MockRun {
         nativeParameterValidation.configuration !=
             'parameter-wire-v3:${nativeValidation.configuration}' ||
         nativeSecurityValidation.version != '1' ||
-        nativeGeneration.version != '2' ||
+        nativeGeneration.version != '3' ||
         nativeGeneration.configuration !=
-            'captured-schema-candidates-v2:${nativeValidation.configuration}' ||
+            'captured-schema-candidates-v3:${nativeValidation.configuration}' ||
         nativeOperationRouting.version != '1' ||
         nativeOperationRouting.configuration !=
             'method-wire-v1:${nativeValidation.configuration}' ||

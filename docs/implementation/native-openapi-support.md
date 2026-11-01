@@ -43,6 +43,7 @@ source inspection or a successful build is not runtime acceptance.
 | Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants | Implemented but unverified; aliased/literal and cross-entry ownership remain incomplete |
 | Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback choices bind eligible composition alternatives and exact instance witnesses | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
 | Native 3.2 discriminator fallbacks | Canonical composition selector, authoring diagnostics and reference choices | Existing fallback targets checked against adjacent alternatives/allOf descendants; Design selection and Source completion share captured targets | Implemented but unverified |
+| Numeric mock witnesses | Shared exact decimal candidate construction and native response proof | YAML/JSON bounds, strict bounds, integer rounding and composed decimal lattices produce bounded suggestions; generated responses require valid native proof | Implemented but unverified; other bounded witness and CONNECT work remains incomplete |
 | Swagger discriminator migration | Shared named-model owner and migration specialization | Compatible captured namespaces mapped; shared ownership cases remain | Implemented but unverified |
 | Document identity downgrade | Migration URI owner, canonical graph and CST | `$self` lowering captures document URI fields, nested schema identities and reference bases; API URL context remains separate | Implemented but unverified; independent schema/literal ownership remains incomplete |
 | Changed-base Markdown | Shared destination-span proof, migration and maintenance owners | Rendered occurrences mapped without rewriting code or prose; migration separates affected YAML alias uses while preserving other exact data | Implemented but unverified; independently interpreted literal/contract occurrences still need separate ownership |
@@ -135,9 +136,22 @@ and Core publication tests cover scalar/collection/key anchors, repeated names,
 virtual descendants, different bases, exact numbers, literal payloads, unsaved
 source, cancellation, stale reviews and cold reopen. The old shared-Markdown
 refusal controls now require successful mapping plus unchanged literal values.
-These changes and tests are implemented but unverified. Migration producer 35
+These changes and tests are implemented but unverified. Migration producer 36
 is admitted consistently by engine, Core and native preflight; the permanent
 cross-component consistency regression remains active.
+
+Numeric witness construction reads canonical numeric values in both YAML and
+JSON rather than requiring JSON's CST node kind. It uses the existing exact
+decimal owner for bound comparison and bounded integer-lattice arithmetic for
+multiple constraints. Suggestions never authorize a response: native evaluation
+proves the whole original schema. Generated output for a valid mock request is
+withheld when its final response proof is invalid or incomplete; validation
+proxies retain their response-byte and error policies. The sample producer is
+revision 3, admitted consistently by Core and the existing readiness tests.
+`test_mock_numeric_candidates.cjs` and Core/packaged CLI regressions cover exact
+wire bytes, strict bounds in each family, fractions, composed constraints,
+overflow/underflow, external schemas, impossible numeric cases, captured unsaved
+buffers, cancellation and stale plans. These changes have not been executed.
 
 Flutter 3.47.5/Dart 3.13.4 and the existing framework/engine revisions are
 unchanged. `tools/flutter_sdk.lock.json` pins the

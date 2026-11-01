@@ -3,6 +3,7 @@ import {SourceError,escape,type Range} from './document';
 import {record} from './engine_worker_client';
 import {supportedSchemaDialect,type ReferenceGraph,type GraphTarget} from './reference_graph';
 import {modernFamily} from './specification';
+import {numericSampleCandidates} from './schema_numeric_candidates';
 export type SchemaSampleLocation=Readonly<{resource:string;pointer:string}>;
 export type SchemaSampleSource=Readonly<{resource:string;pointer:string;range:Range}>;
 type SchemaLocation=SchemaSampleLocation;
@@ -81,6 +82,10 @@ export class SchemaSampleCandidates {
             limit??=authored.limit;
             for(const candidate of authored.samples)if(!add(candidate.raw,candidate.source))break;
             const next=new Set(path).add(key),scopes=locations(target);
+            const numeric=numericSampleCandidates(scopes.map(location=>({scope:schemaContext(this.graph,location.resource,location.pointer)!,
+                document:this.graph.docs.get(location.resource)!})));
+            limit??=numeric.limit;
+            for(const candidate of numeric.samples)add(candidate.raw,candidate.source);
             const object:ObjectShape={properties:new Map(),required:new Set()};
             let hasObject=false;
             for(const location of scopes) {
@@ -105,17 +110,12 @@ export class SchemaSampleCandidates {
                         for(const candidate of build({...location,pointer:location.pointer+'/'+keyword+'/'+index},next,depth+1))
                             if(!add(candidate.raw,candidate.source))break;
                 }
-                for(const keyword of ['minimum','maximum'])if(node.children.has(keyword)) {
-                    const bound=doc.dataNode(location.pointer+'/'+keyword);
-                    if(bound?.kind==='number')add(doc.dataJson(bound.pointer),source({...location,pointer:bound.pointer}));
-                }
                 if(types.includes('string')) {
                     add('""');
                     const length=value.minLength??1;
                     if(!Number.isSafeInteger(length)||length<0||length>65536)limit??=source(location);
                     else for(const character of ['a','A','0'])add(JSON.stringify(character.repeat(length)));
                 }
-                if(types.some(type=>type==='number'||type==='integer'))for(const raw of ['0','1','-1'])add(raw);
                 if(types.includes('boolean'))for(const raw of ['false','true'])add(raw);
                 if(types.includes('null')||(scope.family==='3.0'&&typeof value.type==='string'&&value.nullable===true))add('null');
                 if(types.includes('array')||node.children.has('items')||node.children.has('prefixItems')) {

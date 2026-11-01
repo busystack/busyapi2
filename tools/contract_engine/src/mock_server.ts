@@ -23,6 +23,7 @@ import {MockGenerationAdapter,defaultSwaggerResponseMedia} from './mock_generati
 import {mediaTypes} from './media_types';
 import {encodePlainText} from './text_encoding';
 import {embeddedMimeTextBytes} from './embedded_mime_text';
+import {sourceLocation} from './mock_projection';
 
 const maximumInput = 64 * 1024 * 1024;
 const maximumRequestBody = 10 * 1024 * 1024;
@@ -522,6 +523,15 @@ async function main(): Promise<void> {
           ?await native.response(selected.right.path,selected.right.method,result.output.statusCode,result.output.headers??{},decodedResponses.get(result.output)??(Buffer.isBuffer(payload)?payload:Buffer.from(payload??'','utf8')),cancellation.signal)
           :{complete:false,valid:false,findings:[{code:'runtime.response.operation.unchecked',message:'The forwarded response has no captured operation owner',severity:'warning',kind:'unsupported',subject:'response-body',pointer:''}]};
         if(cancellation.signal.aborted||reply.destroyed)return;
+        if(!input.upstream&&selected._tag==='Right'&&result.validations.input.length===0&&nativeChecks.get(prismRequest)?.valid===true&&
+            nativeSecurityChecks.get(prismRequest)?.valid===true&&(!responseCheck.complete||!responseCheck.valid)){
+          const finding=responseCheck.findings.find(finding=>finding.severity==='error')??responseCheck.findings[0];
+          const source=sourceLocation(finding?.source)??native.operationSource(selected.right.path,selected.right.method);
+          throw new SourceError(
+            responseCheck.complete?'mock.sample.invalid':'mock.sample.unchecked',
+            'The generated response has no complete valid witness under the original captured contract'+
+            (finding?': '+finding.code:''),source.range,'unsupported',source);
+        }
         const violations = [...result.validations.input.map(value => violation(value, 'request')),...notes,
           ...nativeDiagnostics(responseCheck,'error',true).map(value=>violation(value,'response')),
           ...nativeDiagnostics(responseCheck,'warning',true).map(value=>violation(value,'response'))];

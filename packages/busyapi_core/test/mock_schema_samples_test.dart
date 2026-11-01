@@ -125,9 +125,9 @@ Future<_CliMock> _cli(String path) async {
   expect(message['input'], 'saved-source');
   expect(message['nativeGeneration'], {
     'name': 'busyapi-native-schema-samples',
-    'version': '2',
+    'version': '3',
     'configuration':
-        'captured-schema-candidates-v2:${message['nativeValidation']['configuration']}',
+        'captured-schema-candidates-v3:${message['nativeValidation']['configuration']}',
   });
   final host = message['host'], port = message['port'];
   if (host is! String || port is! int)
@@ -137,6 +137,58 @@ Future<_CliMock> _cli(String path) async {
 }
 
 void main() {
+  for (final version in ['2.0', '3.0.4', '3.1.2', '3.2.1']) {
+    for (final format in ['yaml', 'json']) {
+      test('$version $format exact bound generation uses captured buffers and the packaged CLI', () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'busyapi-mock-numeric-capture-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final file = File('${directory.path}/api.$format');
+        final fragment = File('${directory.path}/model.$format');
+        final original = _root(version, format);
+        final source = '${format == 'yaml' ? '# keep exact bounds\r\n' : ''}'
+            '{"Schema":{"type":"integer","minimum":9007199254740993.00,"maximum":9007199254740993.00}}\r\n';
+        await file.writeAsString(original);
+        await fragment.writeAsString(source);
+        final engine = EngineProcess(executable: runtimeNode, helper: runtimeHelper);
+        addTearDown(engine.close);
+        final project = await BusyProject.open(file.path, engine);
+        addTearDown(project.close);
+        final root = project.roots.single.id;
+        final model = await project.buffer(fragment.uri.toString());
+        final working = source.replaceAll('9007199254740993.00', '9007199254740995.00');
+        project.store.replace(model.id, working);
+        await expectLater(project.prepareMock(root, cancelled: () => true),
+            throwsA(isA<CoreFailure>().having((failure) => failure.code, 'code', 'cancelled')));
+        final plan = await project.prepareMock(root);
+        addTearDown(plan.close);
+        final run = await plan.start(
+          nodeExecutable: runtimeNode,
+          helper: '$testBundle/libexec/busyapi/mock-server.cjs',
+        );
+        addTearDown(run.stop);
+        final client = HttpClient();
+        addTearDown(() => client.close(force: true));
+        await _wire(client, run.baseUri, '9007199254740995');
+        project.store.replace(model.id, working.replaceAll('9007199254740995.00', '9007199254740997.00'));
+        expect(run.outdated, true);
+        await _wire(client, run.baseUri, '9007199254740995');
+        await expectLater(plan.start(
+          nodeExecutable: runtimeNode,
+          helper: '$testBundle/libexec/busyapi/mock-server.cjs',
+        ), throwsA(isA<CoreFailure>()));
+        await run.stop();
+        final cli = await _cli(file.path);
+        addTearDown(cli.close);
+        await _wire(client, cli.base, '9007199254740993');
+        await cli.close();
+        expect(await file.readAsString(), original);
+        expect(await fragment.readAsString(), source);
+        expect(model.dirty, true);
+      });
+    }
+  }
   for (final version in [
     '3.0.0',
     '3.0.1',
@@ -200,10 +252,10 @@ void main() {
             );
             addTearDown(run.stop);
             expect(run.nativeGeneration.name, 'busyapi-native-schema-samples');
-            expect(run.nativeGeneration.version, '2');
+            expect(run.nativeGeneration.version, '3');
             expect(
               run.nativeGeneration.configuration,
-              'captured-schema-candidates-v2:${run.nativeValidation.configuration}',
+              'captured-schema-candidates-v3:${run.nativeValidation.configuration}',
             );
             final client = HttpClient();
             addTearDown(() => client.close(force: true));
