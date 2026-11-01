@@ -96,8 +96,43 @@ test('bounded model selection is incomplete rather than silently omitting an inh
  const result=await evaluateSchemas(input);assert.equal(result.complete,false);assert(result.findings.some(value=>value.code==='limit.schema.discriminator'));
  const plan=await planMigration(input);assert.equal(plan.complete,false);assert.deepEqual(plan.outputs,[]);
 });
-test('model completeness changes invalidate the prior successful evaluator proof',()=>{
- assert.equal(schemaProducer.version,'1.18.0+46');assert(schemaProducer.configuration.includes('swagger-discriminator-models-v1'));
+test('model completeness identifies the current evaluator rules and excludes obsolete rules',()=>{
+ assert.equal(schemaProducer.version,'1.18.0+46');
+ const configuration=schemaProducer.configuration.split(':');
+ assert.equal(configuration.filter(value=>value==='discriminator-models-v2').length,1);
+ assert(!configuration.includes('swagger-discriminator-models-v1'));
+ assert(!configuration.includes('discriminator-models-v1'));
+});
+
+test('native mock admission rejects a complete proof with only obsolete discriminator rules',{timeout:20000},async t=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const {mockStart,startMock}=require('./mock_test_capture.cjs');
+ const input=mockStart({openapi:'3.0.4',info:{title:'Discriminator proof',version:'1'},paths:{'/value':{post:{responses:{204:{description:'Empty'}}}}}});
+ const proof=await evaluateSchemas(input.capture);
+ assert.equal(proof.complete,true,JSON.stringify(proof.findings));
+ assert.equal(proof.configuration,schemaProducer.configuration);
+ assert(!proof.findings.some(finding=>finding.severity==='error'));
+ const obsolete={...proof,configuration:proof.configuration.replace('discriminator-models-v2','swagger-discriminator-models-v1')};
+ assert.notEqual(obsolete.configuration,proof.configuration);
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'busyapi-discriminator-proof-'));
+ t.after(()=>fs.rm(directory,{recursive:true,force:true}));
+ // The unmodified BusyAPI mock consumes a controlled old wire proof. The real
+ // current evaluator above supplies every other field, including the capture.
+ const worker=`const {parentPort}=require('node:worker_threads');
+const assert=require('node:assert/strict');
+const capture=${JSON.stringify(input.capture)};
+const proof=${JSON.stringify(obsolete)};
+parentPort.on('message',request=>{
+ assert.equal(request.method,'evaluateSchemas');assert.deepEqual(request.params,capture);
+ const payload=new TextEncoder().encode(JSON.stringify({protocol:1,id:request.id,ok:true,result:proof}));
+ parentPort.postMessage(payload,[payload.buffer]);
+});\n`;
+ await fs.writeFile(path.join(directory,'engine.cjs'),worker);
+ const helper=path.join(directory,'mock-server.cjs');
+ await fs.copyFile(path.join(__dirname,'dist/mock-server.cjs'),helper);
+ const before=JSON.stringify(input),result=await startMock(t,input,{helper,failure:true});
+ assert.equal(result.event,'failed');assert.equal(result.failure.code,'mock.validation.revision');
+ assert.equal(JSON.stringify(input),before);
 });
 
 
