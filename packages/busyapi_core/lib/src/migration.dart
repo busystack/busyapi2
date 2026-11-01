@@ -1,5 +1,64 @@
 part of 'project.dart';
 
+bool _migrationOutputPath(String path) =>
+    path == p.posix.normalize(path) &&
+    !p.posix.isAbsolute(path) &&
+    !p.posix.split(path).any((part) => part == '..' || part == '.') &&
+    !path.contains('\\');
+
+void _verifyMigrationExampleCopies(
+  Map<String, dynamic> result,
+  _OutputInput input,
+  Set<String> paths,
+  Map<String, String> outputTexts,
+) {
+  Never invalid() => throw CoreFailure(
+    'migration.protocol', 'Migration returned unrelated external example bytes',
+  );
+  final captured = {for (final value in input.snapshot.exampleResources) value.id: value};
+  final affected = result['affectedExampleResources'];
+  if (affected is! List || affected.length != captured.length) invalid();
+  final affectedIds = <String>{};
+  for (final value in affected) {
+    if (value is! Map || value['id'] is! String || !affectedIds.add(value['id'] as String)) invalid();
+    final source = captured[value['id']];
+    if (source == null || value['identity'] != source.identity || value['generation'] != source.generation ||
+        value['state'] != (source.available ? 'available' : 'unavailable') ||
+        jsonEncode(value['aliases']) != jsonEncode(source.aliases)) invalid();
+  }
+  final copied = <String>{}, occurrences = <String>{};
+  final resources = {for (final value in input.snapshot.resources) value['id']: value};
+  final outputs = result['exampleOutputs'];
+  if (outputs is! List || outputs.length > 2048) invalid();
+  for (final value in outputs) {
+    if (value case {
+      'path': String path, 'id': String id, 'identity': String identity,
+      'base64': String base64, 'byteLength': int byteLength,
+      'source': {'resource': String resource, 'identity': String sourceIdentity, 'generation': int generation},
+      'occurrences': List locations,
+    }) {
+      final source = captured[resource], bytes = source?.bytes;
+      if (source == null || bytes == null || identity != source.identity || sourceIdentity != identity ||
+          generation != source.generation || bytes.length != byteLength || base64Encode(bytes) != base64 ||
+          path != 'examples/${textIdentity(resource).substring(0, 24)}.bin' ||
+          !_migrationOutputPath(path) || !paths.add(path) || !copied.add(resource) ||
+          id != Uri.directory(input.target).resolve(path).toString() ||
+          locations.isEmpty || locations.length > 20000) invalid();
+      for (final occurrence in locations) {
+        if (occurrence case {
+          'source': {'resource': String originalResource, 'pointer': String _, 'range': [int start, int end]},
+          'destination': {'resource': String destination, 'pointer': String pointer},
+        }) {
+          final original = resources[originalResource];
+          if (original == null || start < 0 || end < start || end > (original['text'] as String).length ||
+              !outputTexts.containsKey(destination) || !pointer.endsWith('/externalValue') ||
+              !occurrences.add(jsonEncode([destination, pointer])) || occurrences.length > 20000) invalid();
+        } else {invalid();}
+      }
+    } else {invalid();}
+  }
+}
+
 void _verifyMigrationReview(
   Map<String, dynamic> result,
   _OutputInput input,
@@ -12,9 +71,11 @@ void _verifyMigrationReview(
   if (result['version'] != 1 ||
       result['snapshot'] != input.snapshot.identity ||
       result['producer'] != 'busyapi-native-migration' ||
-      result['producerVersion'] != '30' ||
+      result['producerVersion'] != '31' ||
       result['problems'] is! List ||
       result['outputs'] is! List ||
+      result['exampleOutputs'] is! List ||
+      result['affectedExampleResources'] is! List ||
       result['changes'] is! List ||
       result['presentationChanges'] is! List ||
       result['affectedResources'] is! List ||
@@ -79,6 +140,7 @@ void _verifyMigrationReview(
   }
   if (!complete) {
     if ((result['outputs'] as List).isNotEmpty ||
+        (result['exampleOutputs'] as List).isNotEmpty ||
         (result['problems'] as List).isEmpty)
       invalid();
     return;
@@ -100,10 +162,7 @@ void _verifyMigrationReview(
       'identity': String identity,
       'hasBom': bool _,
     }) {
-      if (path != p.posix.normalize(path) ||
-          p.posix.isAbsolute(path) ||
-          p.posix.split(path).any((part) => part == '..' || part == '.') ||
-          path.contains('\\') ||
+      if (!_migrationOutputPath(path) ||
           !paths.add(path) ||
           id != Uri.directory(input.target).resolve(path).toString() ||
           textIdentity(text) != identity)
@@ -138,6 +197,7 @@ void _verifyMigrationReview(
   if (reviewed.length != resources.length ||
       outputTexts.length != reviewed.length)
     invalid();
+  _verifyMigrationExampleCopies(result, input, paths, outputTexts);
 }
 
 /// One captured API description's explicit source and target specifications.
@@ -198,6 +258,28 @@ class MigrationChange {
   final String resource, destination, before, after;
 }
 
+/// An exact opaque copy in the reviewed output; no payload interpretation or
+/// source mutation is performed by this publication record.
+class MigrationExampleCopy {
+  MigrationExampleCopy._(Map value)
+    : path = value['path'] as String,
+      destination = value['id'] as String,
+      identity = value['identity'] as String,
+      byteLength = value['byteLength'] as int,
+      resource = (value['source'] as Map)['resource'] as String,
+      _bytes = base64Decode(value['base64'] as String).asUnmodifiableView(),
+      sources = List.unmodifiable((value['occurrences'] as List).cast<Map>().map((occurrence) {
+        final source = occurrence['source'] as Map, range = source['range'] as List;
+        return CoreFailureSource(source['resource'] as String, source['pointer'] as String,
+            SourceRange(range[0] as int, range[1] as int));
+      }));
+  final String path, destination, identity, resource;
+  final int byteLength;
+  final Uint8List _bytes;
+  final List<CoreFailureSource> sources;
+  Uint8List get bytes => _bytes;
+}
+
 /// A review of one captured graph. Publishing owns a separate directory and
 /// rechecks source buffers, disk inputs and destination ownership at the last
 /// publication boundary. Original source is never an output target.
@@ -222,6 +304,9 @@ class MigrationOutput extends BundleOutput {
       changes = List.unmodifiable(
         (result['changes'] as List).cast<Map>().map(MigrationChange._),
       ),
+      exampleCopies = List.unmodifiable(
+        (result['exampleOutputs'] as List).cast<Map>().map(MigrationExampleCopy._),
+      ),
       target = SpecificationContext.fromJson(result['target']),
       entryRoutes = List.unmodifiable(
         (result['entryRoutes'] as List).cast<Map>().map(MigrationEntryRoute._),
@@ -240,6 +325,7 @@ class MigrationOutput extends BundleOutput {
   final MigrationStatus status;
   final List<MigrationProblem> problems;
   final List<MigrationChange> changes;
+  final List<MigrationExampleCopy> exampleCopies;
   final SpecificationContext target;
   final List<MigrationEntryRoute> entryRoutes;
   bool get publishable =>
@@ -300,6 +386,11 @@ class MigrationOutput extends BundleOutput {
         if (output['hasBom'] == true) ...const [239, 187, 191],
         ...utf8.encode(text),
       ];
+    }
+    for (final copy in exampleCopies) {
+      if (files.containsKey(copy.path) || contentIdentity(copy.bytes) != copy.identity)
+        throw CoreFailure('migration.protocol', 'Reviewed external example copy changed');
+      files[copy.path] = copy.bytes;
     }
     files['busyapi.yaml'] = utf8.encode('${jsonEncode(result['manifest'])}\n');
     files['migration.json'] = utf8.encode('${jsonEncode(metadata)}\n');
@@ -371,9 +462,15 @@ extension ContractMigration on BusyProject {
         'decisions': decisions,
         'presentationChanges': result['presentationChanges'],
         'invariants': result['invariants'],
+        'exampleCopies': [
+          for (final copy in (result['exampleOutputs'] as List).cast<Map>())
+            {for (final entry in copy.entries) if (entry.key != 'base64') entry.key as String: entry.value},
+        ],
         'sources': [
           for (final source in captured.snapshot.resources)
             {'resource': source['id'], 'identity': source['identity']},
+          for (final source in captured.snapshot.exampleResources)
+            {'resource': source.id, 'identity': source.identity, 'kind': 'external-example'},
         ],
       };
       return MigrationOutput._(this, captured, result, metadata);

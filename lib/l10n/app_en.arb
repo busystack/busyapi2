@@ -1143,6 +1143,8 @@
   "migrationBlocked": "Migration is blocked",
   "migrationHelp": "Review the target, affected resources and changes before creating a separate copy. Original documents are preserved.",
   "migrationPresentation": "Restructuring changes the presentation of some moved values. Review every affected resource.",
+  "migrationExampleCopy": "Copy {bytes} bytes unchanged: {source} → {destination}",
+  "@migrationExampleCopy": {"placeholders":{"bytes":{"type":"int"},"source":{"type":"String"},"destination":{"type":"String"}}},
   "migrationDiscardIgnored": "Discard ignored reference siblings in the copy",
   "migrationDiscardAnnotation": "Discard the inactive schema annotation in the copy",
   "migrationOmitIgnoredBody": "Omit the ignored request-body declaration from the copy",

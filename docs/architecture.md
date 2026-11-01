@@ -44,7 +44,12 @@ original capture. Resource packages store payload bytes separately and load them
 only through their approved package-directory capability. Unknown interpretation
 is an explicit incomplete result, not success or a new filesystem/network loader.
 
-## Explicit acquisition and CI reports
+`MigrationExamples` retains original Example
+locations through the existing CST provenance map. It publishes byte copies
+alongside contract outputs through the same atomic directory writer, with local
+URI routes for cold acquisition. Core verifies each copy against the captured
+snapshot before exposing typed review records; GUI and CLI list exact copied
+resources. Target evaluation consumes only the delivered byte set.## Explicit acquisition and CI reports
 
 `ProjectImporter` owns a bounded immutable acquisition and a held output-parent capability. Local reads and directory enumeration use `ProjectAccess`; URL dependencies are requested only from the existing canonical graph and require exact-URL approval. Credential-free GET acquisition uses the native HTTP transport's overall deadline/cancellation owner and verifies every redirect before connecting. Original bytes and retrieval mappings remain separate from derived bundles. Clone uses the trusted Git runner with isolated configuration, no hooks/filters/submodules or dependency installation. `ProjectImportPlan` reviews a captured file set and publishes only to a new directory through `AtomicDirectoryWriter`; source, foreign destinations and cancelled stages remain intact. Before a URL-import plan becomes publishable, its generated manifest passes the same bounded key/mapping reader used on reopen, including the root mapping, URI/path normalization and manifest byte limit. A complete acquired graph alone does not certify a readable project. Opening is separate from publication. The small native controller binds completion to its original workspace/navigation owner and disposes/cancels independently of the workspace's canonical buffers.
 

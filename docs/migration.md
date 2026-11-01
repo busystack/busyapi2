@@ -34,6 +34,14 @@ The identity binds the inputs, target, decisions, destination and migration
 implementation revision. Changed inputs or an occupied destination prevent
 publication. Original files and desktop working buffers remain intact.
 
+External-example migration includes available, fully evaluated payloads
+as unchanged byte copies under `examples/`. Review lists the source, destination
+and byte count; JSON review also includes content identities and occurrence
+provenance. Local URI mappings retain access after moving the output folder.
+Publication rechecks the captured bytes, including unsaved buffers, along with
+the documents. Missing, denied or unsupported interpretation still blocks the
+conversion. See the [support matrix](implementation/native-openapi-support.md) for coverage and verification status.
+
 Upgrades follow **2.0 → 3.0 → 3.1 → 3.2**, including composed upgrades. Downgrades
 check whether the actual declarations can be represented in the selected target.
 A target choice does not guarantee that every source construct can be converted.

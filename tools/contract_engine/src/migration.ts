@@ -25,11 +25,12 @@ import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 import {MigrationAccess} from './migration_access';
 import {migrateRequiredPresence} from './migration_required_presence';
 import {migrateSwaggerDiscriminators} from './migration_discriminator';
+import {MigrationExamples,proveMigrationExamples,type MigrationExampleCopy} from './migration_examples';
 import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='30';
+const migrationProducerVersion='31';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -56,7 +57,12 @@ export async function planMigration(input:MigrationInput) {
     const decisions=input.decisions??{};
     if(!decisions||typeof decisions!=='object'||Array.isArray(decisions)||Object.keys(decisions).length>2048)throw new SourceError('migration.decisions','Expected bounded explicit migration decisions');
     let resources:Resource[]=input.resources.map((resource:Resource)=>({...resource}));
-    const decisionRevision=digest(JSON.stringify([migrationProducerVersion,input.snapshot,input.targetVersion,input.resources.map((resource:Resource)=>[resource.id,resource.generation,resource.text,resource.aliases]).sort((a:any,b:any)=>String(a[0]).localeCompare(String(b[0])))]));
+    const exampleOwnership=(input.exampleResources??[]).map(resource=>({id:resource.id,identity:resource.identity,
+        generation:resource.generation,aliases:resource.aliases,state:resource.state})).sort((a,b)=>a.id.localeCompare(b.id));
+    const documentOwnership=input.resources.map(resource=>({id:resource.id,generation:resource.generation,
+        text:resource.text,aliases:resource.aliases})).sort((a,b)=>a.id.localeCompare(b.id));
+    const decisionRevision=digest(JSON.stringify({producerVersion:migrationProducerVersion,snapshot:input.snapshot,
+        targetVersion:input.targetVersion,resources:documentOwnership,examples:exampleOwnership}));
     const decisionChoices=new Map<string,string[]>();
     const problems:MigrationProblem[]=[],accepted=new Set<string>(),stages:{from:string;to:string}[]=[],presentationChanges:{resource:string;pointer:string}[]=[];
     const ignoredBodyOmissions:MigrationLocation[]=[];
@@ -87,10 +93,10 @@ export async function planMigration(input:MigrationInput) {
         if(!(error instanceof SourceError))throw error;
         issue(error.source??location,error.code,error.message,'implementation');
     };
-    const validate=async(values:Resource[],root:string,phase:'source'|'target'='target')=>{
+    const validate=async(values:Resource[],root:string,phase:'source'|'target'='target',exampleResources=input.exampleResources)=>{
         const roots=[root,...values.filter(value=>value.id!==root&&specificationDeclaration(new SourceDocument(value.text,value.id).root.value).status==='supported').map(value=>value.id)];
         for(const root of roots){
-            const capture={...input,resources:values,root},analysis=analyse(capture),schemas=await evaluateSchemas(capture);
+            const capture={...input,resources:values,root,exampleResources},analysis=analyse(capture),schemas=await evaluateSchemas(capture);
             if(!analysis.complete||!schemas.complete)issue({resource:root,pointer:''},'migration.validation.incomplete','Native validation did not complete; no migration can be published','source-incomplete');
             // Incomplete warnings identify evaluator limitations, not invalid
             // source. Preserve their locations alongside the overall refusal.
@@ -100,6 +106,9 @@ export async function planMigration(input:MigrationInput) {
     };
     const initialContexts=migrationDocumentContexts(input,initial,issue);
     await validate(resources,input.root,'source');
+    let externalExamples:MigrationExamples|undefined;
+    if(!problems.length)try{externalExamples=new MigrationExamples(initialContexts.map(context=>context.graph),input.exampleResources);}
+    catch(error){refused(error,{resource:input.root,pointer:''});}
     if(!problems.length)try{initial.graph.assertReferenceEditsSupported();}catch(error){refused(error,{resource:input.root,pointer:''});}
     const markdownContexts=problems.length?[]:captureMigrationMarkdown(initial.graph,issue);
     if(!problems.length)for(const context of initialContexts){checkOperationTarget(context.graph,target.family,issue);checkRequestBodyTarget(context,resources,target.family,issue);}
@@ -228,7 +237,8 @@ export async function planMigration(input:MigrationInput) {
             if(!decisionChoices.get(id)!.includes(String(choice)))throw new SourceError('migration.decisions.choice','Choose a listed migration decision');
         }
         return ({version:1,snapshot:input.snapshot,producer:'busyapi-native-migration',producerVersion:migrationProducerVersion,from,target,stages,entryRoutes:entryMigrationRoutes(initial.graph.specifications,target),status:status(),complete:!problems.length,problems,acceptedDecisions:[...accepted],presentationChanges,
-        affectedResources:resources.map(resource=>({resource:resource.id,generation:resource.generation,identity:resource.identity})),coverage:{source:'captured-native-graph',target:'native-structure-and-schema-evaluation',externalConsumers:'Only captured resources and their established connections are known'}});
+        affectedResources:resources.map(resource=>({resource:resource.id,generation:resource.generation,identity:resource.identity})),
+        affectedExampleResources:exampleOwnership,exampleOutputs:[],coverage:{source:'captured-native-graph',target:'native-structure-and-schema-evaluation',externalConsumers:'Only captured resources and their established connections are known'}});
     };
     if(problems.length)return {...common(),changes:[],outputs:[]};
     try{
@@ -269,9 +279,9 @@ export async function planMigration(input:MigrationInput) {
     const outputRoot=identifiers.get(input.root)!;
     let relocated=createGraph({...input,root:outputRoot,resources:outputResources});
     const retainedMarkdown=markdownContexts.filter(context=>!omittedMarkdownOwners.has(key(context.owner.resource,context.owner.pointer)));
-    const mappedMarkdown=(location:MigrationLocation)=>(origins.get(key(location.resource,location.pointer))??[])
+    const mappedOutputLocations=(location:MigrationLocation)=>(origins.get(key(location.resource,location.pointer))??[])
         .map(location=>({resource:identifiers.get(location.resource)!,pointer:location.pointer}));
-    const rewrittenMarkdown=rewriteMigrationMarkdown(retainedMarkdown,relocated.graph,mappedMarkdown,issue,location=>{
+    const rewrittenMarkdown=rewriteMigrationMarkdown(retainedMarkdown,relocated.graph,mappedOutputLocations,issue,location=>{
         const original=sourceLocation(location.resource,location.pointer);
         presentationChanges.push({resource:original.resource,pointer:original.pointer});
     });
@@ -287,7 +297,7 @@ export async function planMigration(input:MigrationInput) {
         if(changed)resource.text=changed.text;
     }
     relocated=createGraph({...input,root:outputRoot,resources:outputResources});
-    proveMigrationMarkdown(retainedMarkdown,relocated.graph,mappedMarkdown,issue);
+    proveMigrationMarkdown(retainedMarkdown,relocated.graph,mappedOutputLocations,issue);
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const mappings=new Map([...paths].map(([id,path])=>[identifiers.get(id)!,path]));
     for(const scope of relocated.graph.scopes.values())if(scope.pointer===''){
@@ -338,7 +348,24 @@ export async function planMigration(input:MigrationInput) {
         catch(error){refused(error,location);}
     }
     if(problems.length)return {...common(),changes:[],outputs:[]};
-    await validate(outputResources,outputRoot);
+    let exampleOutputs:readonly MigrationExampleCopy[]=[],outputExampleResources:readonly ExternalExampleResourcePacket[]=[];
+    try{
+        const graph=createGraph({...input,root:outputRoot,resources:outputResources}).graph;
+        const copied=externalExamples!.relocate(graph,mappedOutputLocations,input.destination,paths.values());
+        for(const scope of graph.scopesFor('schema')){
+            const changed=copied.sources.get(scope.resource);
+            if(changed)assertRoleAnnotations(graph,scope,changed.doc,scope.pointer);
+        }
+        for(const [uri,path]of copied.mappings){
+            if(mappings.has(uri)&&mappings.get(uri)!==path)throw new SourceError('migration.example.identity','An example URI conflicts with a contract mapping');
+            mappings.set(uri,path);
+        }
+        if(mappings.size>256)throw new SourceError('limit.migration.mappings','The migrated identity map exceeds the configured 256 URI mappings');
+        for(const resource of outputResources){const changed=copied.sources.get(resource.id);if(changed)resource.text=changed.doc.text;}
+        exampleOutputs=copied.outputs;outputExampleResources=copied.resources;
+    }catch(error){refused(error,{resource:input.root,pointer:''});}
+    if(problems.length)return {...common(),changes:[],outputs:[]};
+    await validate(outputResources,outputRoot,'target',outputExampleResources);
     const finalContext=createGraph({...input,root:outputRoot,resources:outputResources});
     const operationKeys=(graph:typeof initial.graph)=>graph.operations().map(operation=>JSON.stringify([operation.role,operation.method,operation.customMethod===true,operation.path])).sort();
     try {
@@ -379,11 +406,13 @@ export async function planMigration(input:MigrationInput) {
     for(const context of initialContexts){
         const root=context.graph.root,reopened=coldGraph(identifiers.get(root)!,coldResources());
         if(reopened.issues.length)issue({resource:root,pointer:''},'migration.reference.cold-reopen','The copied files and root identity mappings cannot reopen every captured dependency; a nested-resource relocation needs an additional mapping','implementation');
+        try{proveMigrationExamples(reopened,exampleOutputs,outputExampleResources);}
+        catch(error){refused(error,{resource:root,pointer:''});}
     }
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const manifest={version:1,roots:initialContexts.map(({graph})=>({name:graph.root===input.root?'migrated':'resource_'+digest(graph.root).slice(0,24),path:paths.get(graph.root)})),resourceMappings:Object.fromEntries(mappings)};
     const outputs=outputResources.map(resource=>({path:[...paths].find(([id])=>identifiers.get(id)===resource.id)![1],id:resource.id,text:resource.text,hasBom:input.resources.find((source:Resource)=>identifiers.get(source.id)===resource.id)?.hasBom===true,identity:digest(resource.text)}));
     const changes=resources.map(resource=>({resource:resource.id,destination:identifiers.get(resource.id),before:original.get(resource.id)!.text,after:outputResources.find(output=>output.id===identifiers.get(resource.id))!.text}));
     for(const decision of Object.keys(decisions))if(!accepted.has(decision))throw new SourceError('migration.decisions.stale','A supplied decision does not belong to this captured migration plan');
-    return {...common(),entry:paths.get(input.root),outputRoot,outputs,changes,manifest,identity:digest(JSON.stringify([migrationProducerVersion,input.snapshot,target,outputs,manifest,decisions])),validation:{complete:true,family:target.family},invariants:{operations:'preserved-method-and-path',requests:'effective-url-serialization-security-and-media',references:'canonical-target-relocation',examples:'exact-cst-values'}};
+    return {...common(),entry:paths.get(input.root),outputRoot,outputs,exampleOutputs,changes,manifest,identity:digest(JSON.stringify([migrationProducerVersion,input.snapshot,target,outputs,exampleOwnership,exampleOutputs,manifest,decisions])),validation:{complete:true,family:target.family},invariants:{operations:'preserved-method-and-path',requests:'effective-url-serialization-security-and-media',references:'canonical-target-relocation',examples:'exact-cst-values-and-captured-wire-bytes'}};
 }

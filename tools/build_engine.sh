@@ -149,6 +149,7 @@ case "$(uname -m)" in x86_64) esbuild_bin="$engine_dir/node_modules/@esbuild/lin
 "$node_bin" "$engine_dir/test_migration_access.cjs"
 "$node_bin" "$engine_dir/test_migration_required_presence.cjs"
 "$node_bin" "$engine_dir/test_migration_discriminator.cjs"
+"$node_bin" "$engine_dir/test_migration_external_examples.cjs"
 "$node_bin" "$engine_dir/test_execution.cjs"
 "$node_bin" "$engine_dir/test_multipart_encoding.cjs"
 "$node_bin" "$engine_dir/test_multipart_reference_bindings.cjs"

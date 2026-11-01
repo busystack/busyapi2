@@ -542,6 +542,8 @@ Future<void> runBusyApi(
             stdout.writeln('After:');
             stdout.writeln(change['after']);
           }
+          for (final copy in output.exampleCopies)
+            stdout.writeln('Copy ${copy.byteLength} bytes unchanged: ${copy.resource} → ${copy.destination}');
           stdout.writeln(
             options['apply'] != null ? 'Published ${output.destination}' : 'Review only; original documents and destination remain unchanged.',
           );

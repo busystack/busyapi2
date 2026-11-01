@@ -22,6 +22,14 @@ change that leaves the available shapes unchanged. Reopen the field to review
 its current context. These shape checks accompany the shared
 structural and schema validators; accepting a form does not certify the entire API.
 
+Available local or mapped `externalValue` payloads are captured as media bytes
+with their defining URI, schema and source ownership. Evaluation distinguishes
+invalid data from unavailable interpretation. Parameter/Header examples without
+a concrete media binding and direct opaque request-editor selection remain
+incomplete. Migration reviews byte copies and portable local routes; shared or
+aliased ownership can still block conversion. See the
+[support matrix](implementation/native-openapi-support.md) for verification status.
+
 References retain the declared family of each complete OpenAPI document. A
 `$ref` substitution crossing between Swagger 2.0 or OpenAPI 3.0 and another declared family
 reports `reference.family.unsupported`; dependent evaluation and bundling remain

@@ -452,6 +452,12 @@ class _MigrationReviewState extends State<_MigrationReview> {
             for (final resource
                 in (review.result['affectedResources'] as List).cast<Map>())
               SelectableText(resource['resource'] as String),
+          if (review.exampleCopies.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(l.examples),
+            for (final copy in review.exampleCopies)
+              SelectableText(l.migrationExampleCopy(copy.byteLength, copy.resource, copy.destination)),
+          ],
         ],
       ],
     );
