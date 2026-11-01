@@ -35,15 +35,61 @@ def ordinary(path):
 
 def source_identity(sdk):
     # Do not inherit Git redirection, hooks, fsmonitor or external diff commands.
-    environment = {'PATH': '/usr/bin:/bin', 'LANG': 'C', 'LC_ALL': 'C', 'GIT_OPTIONAL_LOCKS': '0'}
+    environment = {'PATH': '/usr/bin:/bin', 'LANG': 'C', 'LC_ALL': 'C',
+                   'GIT_OPTIONAL_LOCKS': '0', 'GIT_NO_REPLACE_OBJECTS': '1'}
     command = ['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-C', str(sdk)]
     revision = subprocess.check_output(command + ['rev-parse', 'HEAD'], env=environment, timeout=30).decode().strip()
     if revision != LOCK['frameworkRevision']:
         raise ValueError('Use the pinned original Flutter source revision')
-    result = subprocess.run(command + ['diff', '--no-ext-diff', '--no-textconv', '--quiet', 'HEAD', '--'],
+    result = subprocess.run(command + ['diff-index', '--cached', '--no-ext-diff', '--no-textconv', '--quiet', 'HEAD', '--'],
                             env=environment, timeout=30, check=False)
     if result.returncode != 0:
         raise ValueError('Modified or unavailable Flutter SDK source is not a build input')
+    # A worktree diff can execute Git clean/process filters. Read index identities
+    # and hash source bytes directly instead; no SDK-configured command runs.
+    entries = subprocess.check_output(command + ['ls-files', '--stage', '-v', '-z'], env=environment, timeout=30)
+    if len(entries) > 32 * 1024 * 1024:
+        raise ValueError('SDK source inventory exceeds its bounded inspection size')
+    total = 0
+    for entry in entries.split(b'\0'):
+        if not entry:
+            continue
+        header, raw_name = entry.split(b'\t', 1)
+        status, mode, expected, stage = header.split()
+        name = os.fsdecode(raw_name)
+        relative = Path(name)
+        if relative.is_absolute() or '..' in relative.parts or stage != b'0':
+            raise ValueError('Invalid SDK source index entry')
+        path = sdk / relative
+        if status.upper() == b'S' and not path.exists() and not path.is_symlink():
+            if relative.parts[0] in ('bin', 'packages'):
+                raise ValueError('Missing selected SDK source input')
+            # Release archives can omit unselected engine/development sources.
+            continue
+        if not path.parent.resolve(strict=True).is_relative_to(sdk):
+            raise ValueError('SDK source parent escapes its original tree')
+        if mode == b'120000':
+            if not path.is_symlink():
+                raise ValueError('Modified or unavailable Flutter SDK source is not a build input')
+            raw = os.fsencode(path.readlink())
+            actual = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+        elif mode in (b'100644', b'100755'):
+            ordinary(path)
+            info = path.stat()
+            total += info.st_size
+            if info.st_size > 64 * 1024 * 1024 or total > 2 * 1024 * 1024 * 1024:
+                raise ValueError('SDK source bytes exceed the bounded inspection size')
+            if bool(info.st_mode & 0o100) != (mode == b'100755'):
+                raise ValueError('Modified SDK source executable mode')
+            value = hashlib.sha1(b'blob ' + str(info.st_size).encode() + b'\0')
+            with path.open('rb') as source:
+                for block in iter(lambda: source.read(1024 * 1024), b''):
+                    value.update(block)
+            actual = value.hexdigest()
+        else:
+            raise ValueError('Unreviewed nested SDK source input')
+        if actual != expected.decode('ascii'):
+            raise ValueError('Modified or unavailable Flutter SDK source is not a build input')
 
 
 def verify(sdk, mode, library=None):

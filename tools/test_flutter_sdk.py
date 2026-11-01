@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -96,6 +97,20 @@ class SdkInputs(unittest.TestCase):
         marker.write_text('{}')
         with self.assertRaisesRegex(ValueError, 'custom engine stage'):
             sdk_check.verify(self.sdk, 'release')
+
+    def test_sdk_git_filters_are_not_executed_during_source_verification(self):
+        marker = self.root / 'filter-must-not-run'
+        (self.sdk / '.gitattributes').write_text('* filter=probe\n')
+        git = ['git', '-c', 'core.hooksPath=/dev/null', '-C', str(self.sdk)]
+        subprocess.run(git + ['add', '.gitattributes'], check=True)
+        subprocess.run(git + ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                             'commit', '--quiet', '-m', 'Controlled attribute input'], check=True)
+        revision = subprocess.check_output(git + ['rev-parse', 'HEAD']).decode().strip()
+        subprocess.run(git + ['config', 'filter.probe.clean',
+                             'printf forbidden > ' + shlex.quote(str(marker)) + '; cat'], check=True)
+        with mock.patch.dict(sdk_check.LOCK, {'frameworkRevision': revision}):
+            sdk_check.verify(self.sdk, 'release')
+        self.assertFalse(marker.exists())
 
     def test_invalid_cache_identity_and_linked_input_fail_without_repair(self):
         stamp = self.cache / 'engine.stamp'
