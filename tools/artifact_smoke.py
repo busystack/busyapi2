@@ -1,6 +1,8 @@
 """Installed headless commands and output ownership; no GUI/browser acceptance claim."""
 import pathlib,subprocess,tempfile,json,os,shutil,sys,hashlib
+from verify_flutter_sdk import verify_installed as verify_flutter_sdk
 bundle=pathlib.Path(sys.argv[1]).resolve();cli=bundle/'busyapi'
+verify_flutter_sdk(bundle)
 environment=dict(os.environ,PATH='/nonexistent',NODE_OPTIONS='--require=/project-injection-must-not-load.cjs',NODE_PATH='/project-injection',DISPLAY='',WAYLAND_DISPLAY='')
 def run(*args):return subprocess.run([str(cli),*map(str,args)],env=environment,cwd='/tmp',capture_output=True,text=True,timeout=30)
 

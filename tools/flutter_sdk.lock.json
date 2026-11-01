@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "frameworkVersion": "3.47.5",
+  "frameworkRevision": "6a19cca56475dbfba1478ee68d7bd0c2ef891da1",
+  "engineRevision": "af7e796e161ae0bb1ff0758c71a7105418bd9ded",
+  "dartVersion": "3.13.4",
+  "dartAotRuntimeSha256": "b5d1e787ec2243de46e1ceea0a35fdd48dbb6950dcf9cc54d940c66790af8fb6",
+  "target": "linux-x64",
+  "source": "https://github.com/flutter/flutter/tree/6a19cca56475dbfba1478ee68d7bd0c2ef891da1",
+  "archiveIndex": "https://docs.flutter.dev/install/archive",
+  "license": "BSD-3-Clause",
+  "modes": {"debug": "linux-x64", "profile": "linux-x64-profile", "release": "linux-x64-release"}
+}

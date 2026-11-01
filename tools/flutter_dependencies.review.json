@@ -8,7 +8,7 @@
     "engineContentHash": "ab598368592da0064197e2bc15c7f5b0a2c6bb1f",
     "engineNoticeSha256": "3c0040023a5789bf56d6bf41fd44f08b21758523d41f128fb7dd6beb398d1191",
     "engineNotice": "flutter-sdk/ENGINE-THIRD-PARTY-NOTICES",
-    "engineNoticeScope": "Original selected SDK aggregate; actual corrected-engine/native-library licence choices require their separate distribution review."
+    "engineNoticeScope": "Original selected SDK aggregate; actual upstream-engine/native-library licence choices require their separate distribution review."
   },
   "packages": [
     {
@@ -510,7 +510,7 @@
       "sourceFiles": 731,
       "linuxNativePlugin": false,
       "license": "BSD-3-Clause",
-      "purpose": "Selected Flutter native widget/semantics/localization framework; corrected engine has a separate source/notice review.",
+      "purpose": "Selected Flutter native widget/semantics/localization framework; upstream engine has a separate source/notice review.",
       "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
       "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
     },
@@ -530,7 +530,7 @@
       "sourceFiles": 357,
       "linuxNativePlugin": false,
       "license": "BSD-3-Clause",
-      "purpose": "Selected Flutter native widget/semantics/localization framework; corrected engine has a separate source/notice review.",
+      "purpose": "Selected Flutter native widget/semantics/localization framework; upstream engine has a separate source/notice review.",
       "distribution": "Selected compiler source input; AOT may remove unused symbols. No package tree, development executables, probes, or non-Linux native implementation is distributed.",
       "obligations": "Retain original copyright, redistribution conditions and disclaimer in source and binary documentation; no endorsement."
     },

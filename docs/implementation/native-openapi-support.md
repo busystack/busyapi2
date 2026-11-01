@@ -45,6 +45,7 @@ source inspection or a successful build is not runtime acceptance.
 | TypeScript compiler gate | Existing pinned engine build and CI paths | Repeatable compiler check wired before bundling | Implemented but unverified |
 | MIME result and Markdown parser typing | Engine execution and Markdown relocation | Literal revision ownership and explicit unknown-value narrowing | Implemented but unverified |
 | Migration preflight producer admission | Native fixture preflight, engine and Core | Current revision admitted; regression checks all three production consumers | Implemented but unverified |
+| Upstream Flutter/Dart build inputs | SDK verification, CMake, CI and distribution checks | Standard SDK engine installation; custom builders, patches and override removed | Implemented but unverified; original SDK archive provenance and runtime qualification pending |
 | Native and packaged acceptance | Existing qualification suites | Required acceptance remains incomplete | Not passed |
 
 ## Required functionality still open

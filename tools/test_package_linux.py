@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-REQUIRED = ['busyapi-desktop','busyapi','libexec/busyapi/node','libexec/busyapi/engine.cjs',
+REQUIRED = ['busyapi-desktop','busyapi','lib/libflutter_linux_gtk.so','share/busyapi/flutter-sdk.json','libexec/busyapi/node','libexec/busyapi/engine.cjs',
             'libexec/busyapi/policy-worker.cjs','lib/libbusyapi_documentation.so',
             'share/busyapi/documentation-runtime.json','libexec/busyapi/policy-isolation.node',
             'libexec/busyapi/policy-launcher','libexec/busyapi/policy-build.json',
@@ -25,6 +25,18 @@ def prerequisite_files(bundle, extra=()):
 
 
 class StandaloneAssets(unittest.TestCase):
+    def test_upstream_engine_and_capture_are_mandatory_distribution_inputs(self):
+        for absent in ['lib/libflutter_linux_gtk.so', 'share/busyapi/flutter-sdk.json']:
+            with self.subTest(absent=absent), tempfile.TemporaryDirectory() as directory:
+                bundle = pathlib.Path(directory)
+                prerequisite_files(bundle)
+                (bundle / absent).unlink()
+                result = subprocess.run([sys.executable,
+                    str(pathlib.Path(__file__).with_name('package_linux.py')), directory],
+                    capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Missing standalone asset: ' + absent, result.stderr)
+
     def test_distribution_choices_fail_before_toolchain_or_source_collection(self):
         for extra, expected in [
             ({'BUSYAPI_DISTRIBUTION': 'unsupported'}, 'Choose BUSYAPI_DISTRIBUTION'),

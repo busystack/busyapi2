@@ -140,7 +140,7 @@ Future<DartRuntimeNotices> collectDartRuntimeNotices(
     'DART-LICENSE is the original SDK root BSD licence, installed beside the headless package inventory. '
     'DART-PATENT_GRANT is an independent original grant with its own conditions. '
     'This index does not replace the controlling original texts, grant trademark/endorsement rights, '
-    'or clear the modified Flutter engine, copied native libraries or a confined distribution.\n',
+    'or clear the upstream Flutter engine, copied native libraries or a confined distribution.\n',
   );
   final inventory = <String, Object?>{
     ...value,

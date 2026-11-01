@@ -7,6 +7,7 @@ from verify_documentation_runtime import verify as verify_documentation_runtime
 from verify_resource_package_assets import verify as verify_resource_package_assets
 from verify_m3_assets import verify as verify_m3_assets
 from prepare_generator import verify as verify_generator
+from verify_flutter_sdk import verify_installed as verify_flutter_sdk
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('bundle',type=pathlib.Path)
 parser.add_argument('--platform-runtime',action='store_true',help='Verify a fresh CMake layout without copying libraries supplied by the Snap base/GNOME platform')
@@ -14,7 +15,7 @@ args=parser.parse_args()
 bundle=args.bundle.resolve()
 if args.platform_runtime and (bundle/'share/licenses/busyapi-native/dependencies.json').exists():
     raise RuntimeError('Platform-runtime packaging requires a fresh CMake install, not an assembled standalone layout')
-for required in ['busyapi-desktop', 'busyapi', 'libexec/busyapi/node',
+for required in ['busyapi-desktop', 'busyapi', 'lib/libflutter_linux_gtk.so', 'share/busyapi/flutter-sdk.json', 'libexec/busyapi/node',
                  'libexec/busyapi/engine.cjs', 'libexec/busyapi/policy-worker.cjs',
                  'lib/libbusyapi_documentation.so', 'share/busyapi/documentation-runtime.json',
                  'libexec/busyapi/policy-isolation.node', 'libexec/busyapi/policy-launcher',
@@ -39,6 +40,7 @@ verify_documentation_runtime(bundle)
 verify_resource_package_assets(bundle)
 verify_m3_assets(bundle)
 verify_generator(bundle/'libexec/busyapi/generator')
+verify_flutter_sdk(bundle)
 # A profile/debug build can leave its kernel asset in shared native staging.
 # The shipped AOT application reads libapp.so; do not package an old kernel.
 if (bundle/'lib/libapp.so').is_file():

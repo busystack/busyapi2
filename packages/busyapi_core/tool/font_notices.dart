@@ -34,7 +34,7 @@ collectFontNotices(
         .readAsString(),
   ) as Map;
   final engine = jsonDecode(
-    await File(p.join(repository.path, 'tools/flutter_engine/engine.lock.json'))
+    await File(p.join(repository.path, 'tools/flutter_sdk.lock.json'))
         .readAsString(),
   ) as Map;
   if (version['frameworkRevision'] != review['frameworkRevision'] ||

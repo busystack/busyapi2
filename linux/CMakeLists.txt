@@ -150,7 +150,7 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../assets/branding/busyapi_logo.svg"
   RENAME "io.busystack.busyapi.svg" COMPONENT Runtime)
 
 include(contract_assets.cmake)
-include(flutter_engine.cmake)
+include(flutter_sdk.cmake)
 include(dart_notices.cmake)
 include(resource_package_assets.cmake)
 include(font_notices.cmake)

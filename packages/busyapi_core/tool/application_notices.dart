@@ -110,16 +110,16 @@ Future<ApplicationNoticeInputs> inspectApplicationNotices({
   final engine = jsonDecode(
     utf8.decode(
       await read(
-        p.join(repository.path, 'tools/flutter_engine/engine.lock.json'),
+        p.join(repository.path, 'tools/flutter_sdk.lock.json'),
         limit: 65536,
       ),
     ),
   ) as Map;
   if (sdk['frameworkRevision'] != engine['frameworkRevision'] ||
       sdk['engineRevision'] != engine['engineRevision'] ||
-      sdk['frameworkVersion'] != engine['flutterVersion'])
+      sdk['frameworkVersion'] != engine['frameworkVersion'])
     throw StateError(
-      'Application notices require the selected framework and corrected-engine source identity',
+      'Application notices require the selected framework and upstream SDK source identity',
     );
   final lock = loadYaml(
     utf8.decode(
@@ -245,7 +245,7 @@ Future<ApplicationNoticeInputs> inspectApplicationNotices({
     'engineContentHash': sdk['engineContentHash'],
     'engineNoticeSha256': digest(aggregate),
     'engineNotice': 'flutter-sdk/ENGINE-THIRD-PARTY-NOTICES',
-    'engineNoticeScope': 'Original selected SDK aggregate; actual corrected-engine/native-library licence choices require their separate distribution review.',
+    'engineNoticeScope': 'Original selected SDK aggregate; actual upstream-engine/native-library licence choices require their separate distribution review.',
   };
   return ApplicationNoticeInputs(
     build,
@@ -469,7 +469,7 @@ assembleApplicationNotices({
     'packages': records,
     'supplements': supplements,
     'datasets': datasets,
-    'distributionScope': 'Application Dart inputs and linked Flutter Linux plugins. Original engine notice aggregate retained; copied/system native libraries and the modified engine need their separate distribution/source review.',
+    'distributionScope': 'Application Dart inputs and linked Flutter Linux plugins. Original engine notice aggregate retained; copied/system native libraries and the upstream engine need their separate distribution/source review.',
   };
   files['dependencies.json'] = utf8.encode(
     '${const JsonEncoder.withIndent('  ').convert(inventory)}\n',

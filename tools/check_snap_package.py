@@ -70,6 +70,8 @@ def verify(prime, *, packaged=False, application_assets=False):
         verify_m3_assets(prime)
         from tools.prepare_generator import verify as verify_generator
         verify_generator(prime / 'libexec/busyapi/generator')
+        from tools.verify_flutter_sdk import verify_installed as verify_flutter_sdk
+        verify_flutter_sdk(prime)
 
 
 if __name__ == '__main__':

@@ -22,6 +22,8 @@ if [[ -n "${BUSYAPI_NATIVE_SOURCE_CACHE:-}${BUSYAPI_NATIVE_SOURCE_INDEX:-}${BUSY
 fi
 source tools/node_toolchain.sh
 busyapi_select_node
+sdk_root="$(dirname "$(dirname "$(readlink -f "$(command -v "$flutter_bin")")")")"
+python3 tools/verify_flutter_sdk.py --sdk "$sdk_root" --mode release
 busyapi_sdk_metadata
 pub_args=(--enforce-lockfile)
 if [[ "${BUSYAPI_BUILD_OFFLINE:-0}" == 1 ]]; then pub_args+=(--offline); fi

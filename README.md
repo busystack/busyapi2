@@ -116,18 +116,23 @@ For `diff`, code `1` means the chosen failure threshold was met; for `test`, it 
 - **Flutter 3.47.5 / Dart 3.13.4**, **Node 24.15.0** (complete matching distribution, including npm), and **Python 3.11+**.
 - GTK 3, libhandy, libsecret, and GTK3-compatible **WebKitGTK 4.1**, plus `clang`, `cmake`, `ninja-build`, and `pkg-config`.
 - On distributions using Debian-style development packages: `libgtk-3-dev`, `libhandy-1-dev`, `libwebkit2gtk-4.1-dev`, and `libsecret-1-dev`.
-- The project's pinned, source-built Flutter Linux engine. Normal desktop builds use verified prepared engine assets; they do not silently fall back to a shared SDK engine.
+- The official, unmodified Flutter SDK at the pinned revision. Linux builds use its mode-matched engine and bundled Dart SDK.
 
 Set `BUSYAPI_FLUTTER` to the pinned Flutter SDK and `BUSYAPI_NODE` to the verified Node executable from its matching distribution. Dependency and tool preparation is explicit; BusyAPI does not install npm packages or download executable tools at application runtime.
 
 ### Prepare the toolchain
 
-Prepare the pinned Flutter engine in a separate, BusyAPI-owned workspace, then stage the matching debug/profile/release engines:
+Use the official Flutter 3.47.5 SDK with Dart 3.13.4 from the
+[Flutter SDK archive](https://docs.flutter.dev/install/archive). Before using an
+existing SDK, check its origin and verify the selected inputs without executing it:
 
 ```sh
-python3 tools/build_flutter_engine.py --workspace /path/to/busyapi-engine --provision --mode all
-python3 tools/prepare_flutter_engine.py --home /path/to/busyapi-engine/flutter/engine/src/out --sdk /path/to/flutter
+python3 tools/verify_flutter_sdk.py --sdk /path/to/flutter --mode release
 ```
+
+This checks the pinned source revision, unchanged tracked source, engine selection
+and reviewed Dart runtime bytes. It does not download, repair or replace an SDK.
+SDK archive provenance and native runtime acceptance require separate verification.
 
 Install locked project dependencies and prepare the contract and documentation assets:
 
@@ -155,7 +160,7 @@ BUSYAPI_WIDGET_RUNNER=both tools/build_linux.sh
 build/linux/x64/release/bundle/busyapi-desktop
 ```
 
-The CLI resides in the same release bundle. Run executables from the completed `bundle` directory, not `intermediates_do_not_run`. Once the required stages are prepared, normal `flutter run -d linux`, IDE debugging, and Flutter debug/profile/release builds install the matching assets through CMake.
+The CLI resides in the same release bundle. Run executables from the completed `bundle` directory, not `intermediates_do_not_run`. Normal `flutter run -d linux`, IDE debugging, and Flutter debug/profile/release builds use the same SDK and install the matching assets through CMake.
 
 ### Development checks
 

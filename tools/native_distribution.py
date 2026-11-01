@@ -195,15 +195,11 @@ def package_evidence(package: str) -> tuple[dict, dict[str, bytes]]:
 def installed_engine(bundle: Path, installed: Path) -> bool:
     if installed.name != 'libflutter_linux_gtk.so' or installed.is_symlink():
         return False
-    directory = bundle / 'share/busyapi/flutter-engine'
-    record = json.loads((directory / 'busyapi-engine.json').read_text())
-    lock = json.loads((Path(__file__).resolve().parent / 'flutter_engine/engine.lock.json').read_text())
-    if any(record.get(key) != value for key, value in lock.items()):
-        raise RuntimeError('Installed corrected-engine provenance does not match the lock')
-    if record.get('mode') not in lock['modes'] or digest(installed) != record.get('librarySha256'):
-        raise RuntimeError('Installed corrected-engine bytes do not match provenance')
-    if digest(directory / lock['patch']) != lock['patchSha256']:
-        raise RuntimeError('Installed corrected-engine patch does not match provenance')
+    try:
+        from tools.verify_flutter_sdk import verify_installed
+    except ModuleNotFoundError:
+        from verify_flutter_sdk import verify_installed
+    verify_installed(bundle)
     return True
 
 
@@ -251,8 +247,8 @@ def collect(bundle: Path) -> tuple[dict, dict[str, bytes], dict[str, Path]]:
                 if installed.is_symlink() or digest(installed) != digest(real) and not installed_engine(bundle, installed):
                     raise RuntimeError('Installed/native loader identity mismatch: ' + name)
                 # A plugin's direct-loader inspection can name the SDK's
-                # other-mode engine. Its independent installed lock/receipt,
-                # never that staging path, establishes the owned input.
+                # other-mode SDK engine. Use the captured installed mode,
+                # independently checked against its locked SDK identity.
                 real = installed
             previous = external.get(name)
             if real.is_relative_to(bundle):
@@ -366,7 +362,7 @@ def assemble(bundle: Path) -> dict:
         'dependencies.json identifies actual dynamically linked copied bytes, their exact installed binary/source packages, and retained original copyright/common-license files. '
         'It excludes the separately identified full system WebKit runtime and host C runtime/loader. '
         'Package-wide license labels are evidence, not a claim that every package source-file license applies to a shipped library.\n\n'
-        'The inventory intentionally does not assert completed license clearance. Corresponding-source, selected binary/source scope, native-library replacement/relinking and modified-engine obligations require the separate distribution review and accompanying materials. '
+        'The inventory intentionally does not assert completed license clearance. Corresponding-source, selected binary/source scope, native-library replacement/relinking and engine redistribution obligations require the separate distribution review and accompanying materials. '
         'Do not treat these notices alone as a source offer or permission grant. No proprietary BusyAPI source-disclosure conclusion is inferred.\n'
         '\nReplacing dynamically linked libraries\n'
         'Keep an unchanged backup. In a private copy of the standalone layout, rebuild the selected library from the matching source companion (original upstream archives plus distribution patches/build instructions), '

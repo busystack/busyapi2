@@ -35,8 +35,8 @@ class _Sources {
       'original aggregate\r\n',
     );
     write(
-      '${repository.path}/tools/flutter_engine/engine.lock.json',
-      jsonEncode({...version, 'flutterVersion': '3.47.5'}),
+      '${repository.path}/tools/flutter_sdk.lock.json',
+      jsonEncode(version),
     );
     write('${repository.path}/LICENSE', 'original application licence\n');
     write('${repository.path}/NOTICE', 'original adapted-source attribution\n');
