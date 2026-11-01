@@ -32,6 +32,18 @@ export class MigrationSource {
         for(const pointer of original.nodes.keys())this.origins.set(pointer,new Set([pointer]));
     }
     current(pointer:string):string|undefined{return this.origins.get(pointer)?.values().next().value;}
+    /** Capture a planning copy and its logical provenance before specialization.
+     * The converted CST may use different coordinates from the original source;
+     * rebuilding origins from its node names would lose moved/foreign owners. */
+    fork():MigrationSource {
+        const fork=new MigrationSource(this.original);
+        fork.doc=this.doc;
+        fork.origins.clear();
+        for(const [origin,locations]of this.origins)fork.origins.set(origin,new Set(locations));
+        for(const [origin,locations]of this.foreignOrigins)fork.foreignOrigins.set(origin,new Set(locations));
+        fork.presentationChanges.push(...this.presentationChanges);
+        return fork;
+    }
     *originSets():Generator<Set<string>>{yield* this.origins.values();yield* this.foreignOrigins.values();}
     private blockParent(pointer:string):boolean {
         let at=pointer;

@@ -1,5 +1,7 @@
+import {createHash} from 'node:crypto';
+import {componentNamePolicy,permitsMemberName} from './member_names';
 import {pointerFragment,type ReferenceGraph,type GraphScope} from './reference_graph';
-import {escape} from './document';
+import {escape,SourceError} from './document';
 import {MigrationSource} from './migration_source';
 import {documentUriValidity} from './document_uris';
 import type {MigrationIssue} from './migration_schema';
@@ -27,6 +29,18 @@ export function upgradeSwagger(graph:ReferenceGraph,sources:Map<string,Migration
     for(const [resource,specification]of graph.specifications)if(specification.family==='2.0'){
         const source=sources.get(resource)!;
         if(source.doc.nodes.has('/definitions'))source.move('/definitions','/components/schemas');
+        // Swagger's friendly model names exceed 3.0 component key syntax.
+        // Preserve the old provenance for reference and discriminator mapping;
+        // only the separately reviewed target key acquires a legal spelling.
+        for(const name of graph.docs.get(resource)!.dataNode('/definitions')?.children.keys()??[]){
+            if(permitsMemberName(componentNamePolicy('3.0'),name))continue;
+            const original='/definitions/'+escape(name),pointer=source.current(original);
+            if(pointer===undefined)throw new SourceError('migration.schema.name-owner','A named Swagger schema has no surviving converted owner');
+            const stem='_migrated_model_'+createHash('sha256').update(JSON.stringify([resource,original])).digest('hex').slice(0,24);
+            let next=stem,index=0;
+            while(source.doc.nodes.has('/components/schemas/'+next))next=stem+'_'+(++index);
+            source.rename(pointer,next);
+        }
     }
     const parameters=new ParameterSemantics(graph),media=swaggerMediaMigration(graph,sources,issue,contexts);
     const path=(scope:GraphScope)=>sources.get(scope.resource)!.current(scope.pointer);

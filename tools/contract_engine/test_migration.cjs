@@ -34,7 +34,6 @@ test('modern nullable annotation is never activated by a downgrade without a dec
 });
 test('genuine target incompatibilities and incomplete converter mappings remain located blockers with no output',async()=>{
  for(const [text,targetVersion,code]of [
-  ['swagger: "2.0"\ninfo: {title: Model, version: "1"}\npaths: {}\ndefinitions: {Base: {type: object, required: [kind], properties: {kind: {type: string}}, discriminator: kind}}\n','3.0.4','migration.discriminator.dispatch'],
   ['openapi: 3.2.1\ninfo: {title: Query, version: "1"}\npaths: {/x: {query: {responses: {204: {description: Empty}}}}}\n','3.1.2','migration.feature.newer'],
   ['openapi: 3.1.2\ninfo: {title: Resource, version: "1"}\npaths: {}\ncomponents: {schemas: {Value: {$id: value, $dynamicAnchor: tree, type: object, properties: {child: {$dynamicRef: "#tree"}}}}}\n','3.0.4','migration.schema.keyword'],
  ]){const input={...capture(text),targetVersion},result=await planMigration(input);assert.equal(result.status,'blocked');assert.equal(result.outputs.length,0);assert(result.problems.some(p=>p.code===code&&p.resource===input.root&&p.pointer&&p.range[1]>p.range[0]),JSON.stringify(result.problems));assert.equal(input.resources[0].text,text);}
@@ -121,4 +120,13 @@ paths:
   assert.equal(doc.dataNode(at+'/style'),undefined);assert.equal(doc.dataNode(at+'/explode'),undefined);
   assert.equal(doc.dataNode(at+'/contentType').value,source==='3.0.4'?'application/json':'text/plain');
  }
+});
+
+for(const format of ['yaml','json'])test(`${format} a Swagger base-only discriminator has a real selection mapping`,async()=>{
+ const value={swagger:'2.0',info:{title:'Model',version:'1'},paths:{},definitions:{Base:{type:'object',required:['kind'],properties:{kind:{type:'string'}},discriminator:'kind'}}};
+ const text=format==='json'?JSON.stringify(value):require('yaml').stringify(value),input={...capture(text,format),targetVersion:'3.0.4'};
+ const result=await planMigration(input);assert.equal(result.complete,true,JSON.stringify(result.problems));
+ const before=await evaluateSchemas({...input,runtimeInstances:['{}','{"kind":"Base"}','{"kind":"Unknown"}'].map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:input.root,pointer:'/definitions/Base'}}))});
+ const after=await evaluateSchemas({root:result.outputRoot,snapshot:'single-dispatch',resources:result.outputs.map(value=>({...value,generation:0})),runtimeInstances:['{}','{"kind":"Base"}','{"kind":"Unknown"}'].map(text=>({subject:'response-body',location:'application/json',text,schema:{resource:result.outputRoot,pointer:'/components/schemas/Base'}}))});
+ assert.equal(after.complete,true);assert.deepEqual(after.runtimeEvaluations.map(value=>value.valid),[false,true,false]);assert.deepEqual(after.runtimeEvaluations.map(value=>value.valid),before.runtimeEvaluations.map(value=>value.valid));assert.equal(input.resources[0].text,text);
 });

@@ -86,7 +86,7 @@ test('available source bytes remove false migration incompleteness without bypas
  const absent=await planMigration({...input,exampleResources:[]});assert.equal(absent.complete,false);assert(absent.problems.some(value=>value.code==='migration.validation.incomplete'));
  assert.equal(f.input.resources[0].text,f.source);
 });
-test('external byte semantics invalidate old evaluator proofs',()=>{assert.equal(schemaProducer.version,'1.18.0+45');assert(schemaProducer.configuration.includes('external-example-bytes-v1'));});
+test('external byte semantics invalidate old evaluator proofs',()=>{assert.equal(schemaProducer.version,'1.18.0+46');assert(schemaProducer.configuration.includes('external-example-bytes-v1'));});
 
 test('Swagger payload keys do not become external Example Object acquisitions',async()=>{
  const root='file:///approved/swagger.json',value={swagger:'2.0',info:{title:'Payload',version:'business'},paths:{'/':{get:{responses:{200:{description:'Reply',schema:{type:'object'},examples:{'application/json':{externalValue:'data-only.bin',$ref:'not-a-reference.json'}}}}}}}};

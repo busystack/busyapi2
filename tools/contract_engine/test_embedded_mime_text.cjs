@@ -96,7 +96,7 @@ test('a late framing failure preserves the whole literal input without partial t
  assert.throws(()=>prepare(unknown),error=>error.code==='runtime.mime-text.transfer.unsupported');
 });
 test('embedded MIME changes own a distinct evaluator identity',()=>{
- assert.equal(schemaProducer.version,'1.18.0+45');
+ assert.equal(schemaProducer.version,'1.18.0+46');
  assert(schemaProducer.configuration.includes('embedded-mime-text-v1'));
  assert(schemaProducer.configuration.includes('compound-unicode-v1'));
 });

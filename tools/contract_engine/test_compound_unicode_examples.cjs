@@ -59,7 +59,7 @@ for(const version of versions)for(const format of ['yaml','json'])test(`${versio
  const text=render(doc,format),result=await evaluateSchemas({root,snapshot:version+format,resources:[{id:root,text,generation:3}]});
  assert.equal(result.complete,true,JSON.stringify(result.findings));assert.equal(result.serializedEvaluations.length,1);assert(result.serializedEvaluations[0].complete&&result.serializedEvaluations[0].valid,JSON.stringify(result.findings));
 });
-test('compound Unicode semantics have a distinct captured evaluator identity',()=>{assert.equal(schemaProducer.version,'1.18.0+45');assert(schemaProducer.configuration.includes('compound-unicode-v1'));});
+test('compound Unicode semantics have a distinct captured evaluator identity',()=>{assert.equal(schemaProducer.version,'1.18.0+46');assert(schemaProducer.configuration.includes('compound-unicode-v1'));});
 
 async function transferCheck(version,format,codec,schemaEncoded,opaque,nonAscii=false){
  const root='file:///controlled/transfer.'+format,f=fixture('mixed','iso-8859-1');

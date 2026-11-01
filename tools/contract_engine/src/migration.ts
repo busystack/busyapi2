@@ -24,11 +24,12 @@ import {migrationDocumentContexts,proveMigrationConnections} from './migration_d
 import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 import {MigrationAccess} from './migration_access';
 import {migrateRequiredPresence} from './migration_required_presence';
+import {migrateSwaggerDiscriminators} from './migration_discriminator';
 import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='29';
+const migrationProducerVersion='30';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -159,6 +160,11 @@ export async function planMigration(input:MigrationInput) {
             for(const before of stage.sources)migrateSchemas(graph,sources,before,after,issue);
             for(const before of stage.sources)migrateEncodings(graph,sources,before,after,issue);
             const referenceTargets=stage.sources.includes('2.0')?upgradeSwagger(graph,sources,issue,contexts.map(context=>context.graph)):undefined;
+            if(problems.length)break;
+            const discriminator=stage.sources.includes('2.0')?migrateSwaggerDiscriminators(graph,sources,issue,contexts.map(context=>context.graph),location=>{
+                const original=sourceLocation(location.resource,location.pointer);
+                presentationChanges.push({resource:original.resource,pointer:original.pointer});
+            }):undefined;
             if(after==='2.0')for(const before of stage.sources)downgradeSwagger(graph,sources,before,issue);
             if(problems.length)break;
             for(const [id,specification]of graph.specifications){
@@ -177,10 +183,13 @@ export async function planMigration(input:MigrationInput) {
                 if(!['$ref','$dynamicRef','operationRef'].includes(reference.keyword)||reference.resolution!=='resolved')continue;
                 if(reference.keyword==='$dynamicRef'&&(modernFamily(after)||reference.dynamic))continue;
                 const destinations=[...sources].flatMap(([id,source])=>[...(id===reference.targetResource?source.origins.get(reference.targetPointer!):source.foreignOrigins.get(reference.targetResource+'#'+reference.targetPointer!))??[]].map(pointer=>({resource:id,pointer})));
-                const destination=referenceTargets?.get(reference.resource+'#'+reference.pointer)??(destinations.length===1?destinations[0]:undefined);
+                const primary=referenceTargets?.get(reference.resource+'#'+reference.pointer)??
+                    (reference.kind==='schema'?discriminator?.primaryTargets.get(key(reference.targetResource!,reference.targetPointer!)):undefined)??
+                    (destinations.length===1?destinations[0]:undefined);
                 for(const [id,source]of sources){
                     const locations=id===reference.resource?source.origins.get(reference.pointer+'/'+escape(reference.keyword)):source.foreignOrigins.get(reference.resource+'#'+reference.pointer+'/'+escape(reference.keyword));
                     for(const pointer of locations??[]){
+                        const destination=discriminator?.referenceTargets.get(key(id,pointer))??primary;
                         if(destination===undefined){issue(reference,'migration.reference.target','An established target has no surviving mapped source owner','implementation');continue;}
                         // An unchanged locator with the same proved target
                         // needs no physical edit, including shared YAML text.
@@ -303,13 +312,20 @@ export async function planMigration(input:MigrationInput) {
     const portableReferences=new Set(portable.references.filter(reference=>reference.resolution==='resolved'&&reference.keyword!=='$dynamicRef').map(reference=>
         JSON.stringify([reference.resource,reference.pointer,reference.keyword,reference.value,reference.targetResource,reference.targetPointer])));
     for(const reference of relocated.graph.references){
-        if(!['$ref','$dynamicRef','operationRef'].includes(reference.keyword)||reference.resolution!=='resolved')continue;
+        const relocatable=['$ref','$dynamicRef','operationRef'].includes(reference.keyword)||reference.connection==='discriminator';
+        if(!relocatable||reference.resolution!=='resolved')continue;
         if(portableReferences.has(JSON.stringify([reference.resource,reference.pointer,reference.keyword,reference.value,reference.targetResource,reference.targetPointer])))continue;
         const scope=relocated.graph.scope(reference.resource,reference.pointer),destination=relocated.graph.scopes.get(reference.targetResource!+'#'+reference.targetPointer!);
         const addressKeyword=reference.keyword==='$dynamicRef'&&!reference.dynamic?'$ref':reference.keyword;
         const value=destination&&referenceValue(relocated.graph,scope,destination,addressKeyword);
         const location={resource:reference.resource,pointer:reference.pointer+'/'+escape(reference.keyword)};
         if(value===undefined){issue(location,'migration.reference.relocation','A captured reference has no proved portable target spelling','implementation');continue;}
+        if(reference.connection==='discriminator'){
+            const rebound=relocated.graph.resolveConnection({...reference,...scope,kind:reference.kind,value});
+            if(rebound.resolution!=='resolved'||rebound.targetResource!==reference.targetResource||rebound.targetPointer!==reference.targetPointer){
+                issue(location,'migration.reference.binding','The proposed discriminator mapping does not preserve its captured model target','implementation');continue;
+            }
+        }
         if(reference.keyword==='$dynamicRef'){
             const rebound=relocated.graph.resolveReference(value,scope,'$dynamicRef');
             if(rebound.resolution!=='resolved'||rebound.targetResource!==reference.targetResource||rebound.targetPointer!==reference.targetPointer||Boolean(rebound.dynamic)!==Boolean(reference.dynamic)){

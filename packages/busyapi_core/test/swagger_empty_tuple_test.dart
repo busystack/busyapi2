@@ -183,7 +183,7 @@ tests:
             helper: '$testBundle/libexec/busyapi/mock-server.cjs',
           );
           addTearDown(mock.stop);
-          expect(mock.nativeValidation.version, '1.18.0+45');
+          expect(mock.nativeValidation.version, '1.18.0+46');
           final client = HttpClient();
           addTearDown(() => client.close(force: true));
           final mockRequest = await client.postUrl(
@@ -288,7 +288,7 @@ tests:
             reason: '${review.result}',
           );
           expect(review.unsaved, true);
-          expect(review.result['producerVersion'], '29');
+          expect(review.result['producerVersion'], '30');
           await review.publish();
           expect(await file.readAsBytes(), originalRoot);
           expect(await shared.readAsBytes(), originalShared);
