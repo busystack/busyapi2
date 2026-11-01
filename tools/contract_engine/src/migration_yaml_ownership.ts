@@ -13,8 +13,10 @@ export function migrationYamlOwnership(doc:SourceDocument,pointer:string,descend
         ?includeKey&&anchor.node.pointer===pointer||descendants&&anchor.node.pointer!==pointer&&inside(anchor.node.pointer,pointer)
         :inside(pointer,anchor.node.pointer)||descendants&&inside(anchor.node.pointer,pointer));
     const definitions=new Set(anchors.map(anchor=>anchor.node));
+    // A copied subtree must own nested alias values even when their anchor
+    // definitions stay outside it. Other consumers of those anchors stay put.
     const aliases=[...doc.nodes.values()].filter(node=>node.alias&&
-        (inside(pointer,node.pointer)||definitions.has(node.alias)));
+        (inside(pointer,node.pointer)||descendants&&inside(node.pointer,pointer)||definitions.has(node.alias)));
     if(!anchors.length&&!aliases.length)return {document:doc,changed:[]};
     const fail=(at:string,message:string,range:Range=doc.dataNode(at)?.range??doc.root.range):never=>{
         throw new SourceError('migration.yaml.ownership',message,range,'unsupported',{resource:doc.id,pointer:at,range});

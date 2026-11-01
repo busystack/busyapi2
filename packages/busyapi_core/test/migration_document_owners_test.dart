@@ -251,7 +251,7 @@ void main() {
           );
           addTearDown(review.close);
           expect(review.publishable, true, reason: '${review.result}');
-          expect(review.result['producerVersion'], '39');
+          expect(review.result['producerVersion'], '40');
           expect(review.unsaved, true);
           expect(review.changes, hasLength(4));
           expect((review.result['manifest'] as Map)['roots'], hasLength(3));

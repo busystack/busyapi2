@@ -756,7 +756,7 @@ identity map. Affected YAML uses receive separate planning-copy ownership throug
 captured anchor/alias tokens, including patch-only declarations and anchored
 destinations. Other consumers retain their exact values, and review shows the
 restructuring. Independently interpreted literal/contract occurrences still need
-their own mappings. The migration producer is **39**; Core rejects previous
+their own mappings. The migration producer is **40**; Core rejects previous
 producer responses before publication. Current qualification remains pending.
 
 Contract-case JSON reports include `dispatched` and `operationalFailure`. Coverage

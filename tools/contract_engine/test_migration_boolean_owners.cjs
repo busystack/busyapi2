@@ -57,7 +57,7 @@ for(const targetVersion of ['3.0.4','2.0'])
 test(`${version} ${format} additionalProperties ${policy} retains field and standalone behavior in ${targetVersion}`,async()=>{
     const input=fixture(version,format,policy,targetVersion),original=input.resources.map(resource=>resource.text);
     const before=await outcomes(input,policy),review=await planMigration(input);
-    assert.equal(review.complete,true,JSON.stringify(review.problems));assert.equal(review.producerVersion,'39');
+    assert.equal(review.complete,true,JSON.stringify(review.problems));assert.equal(review.producerVersion,'40');
     assert.deepEqual(review.acceptedDecisions,[]);assert(review.changes.length>0);
     const output=delivered(review),checked=analyse(output);
     assert.equal(checked.status,'complete',JSON.stringify(checked.findings));

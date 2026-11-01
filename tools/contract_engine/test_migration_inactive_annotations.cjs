@@ -47,7 +47,7 @@ test(`${version} ${format} inactive annotations downgrade to Swagger without cha
     const before=await outcomes(input,input.name);
     assert.deepEqual(before,[false,true,true,false,false,false,false,false,true,true,false,false,false,false]);
     const review=await planMigration(input);assert.equal(review.complete,true,JSON.stringify(review.problems));
-    assert.equal(review.producerVersion,'39');assert.deepEqual(review.acceptedDecisions,[]);
+    assert.equal(review.producerVersion,'40');assert.deepEqual(review.acceptedDecisions,[]);
     const output=delivered(review),analysis=analyse(output);assert.equal(analysis.status,'complete',JSON.stringify(analysis.findings));
     assert.deepEqual(await outcomes(output,input.name),before);
     const doc=new SourceDocument(output.resources[0].text,output.root),property=doc.dataNode('/definitions/Model/properties/'+escape(input.name)).value;
