@@ -64,7 +64,7 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
             migrateDependentSchemas(graph,scope,source,pointer,to,requirements,issue);
         }
         if(!modernFamily(to))for(const name of ['$dynamicAnchor','patternProperties','if','then','else','contains','minContains','maxContains','unevaluatedItems','unevaluatedProperties','propertyNames','contentSchema','contentEncoding','contentMediaType'])
-            if(Object.hasOwn(value,name))issue(field(name),'migration.schema.keyword','This schema keyword or resource identity has no implemented faithful mapping to '+to,'implementation');
+            if(Object.hasOwn(value,name)&&source.doc.nodes.has(pointer+'/'+name))issue(field(name),'migration.schema.keyword','This schema keyword or resource identity has no implemented faithful mapping to '+to,'implementation');
         if(!modernFamily(to)&&Array.isArray(value.prefixItems)){
             if(to==='2.0'){
                 if(Object.hasOwn(value,'items')&&typeof value.items!=='boolean')issue(field('items'),'migration.schema.tuple-tail','A constrained tuple tail needs a faithful Swagger representation','implementation');

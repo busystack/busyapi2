@@ -17,6 +17,7 @@ import {serverTemplate} from './derived_bundle';
 import {captureMigrationMarkdown,rewriteMigrationMarkdown,proveMigrationMarkdown} from './migration_markdown';
 import {migrationRequestSignatures} from './migration_invariants';
 import {migrateEncodings} from './migration_encoding';
+import {migrateBinarySchemas} from './migration_binary';
 import {checkOperationTarget,checkRequestBodyTarget,migrateOperationBodies} from './migration_operation';
 import {checkSecurityRequirementTarget} from './migration_security';
 import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
@@ -26,7 +27,7 @@ import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='27';
+const migrationProducerVersion='28';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -140,7 +141,6 @@ export async function planMigration(input:MigrationInput) {
                     if(siblings.length&&!modernFamily(after)&&modernFamily(before)&&scope.kind!=='schema')issue(scope,'migration.reference.annotations','The target cannot retain these Reference Object annotation overrides','target-representation');
                 }
                 if(scope.kind==='schema'&&!access.preserves(scope,before,after))issue(scope,'migration.schema.direction','Access annotations need a direction-specific schema mapping to preserve their captured property and required-list semantics in the target family','implementation');
-                if(before==='3.0'&&modernFamily(after)&&scope.kind==='schema'&&['binary','byte'].includes(value?.format))issue({...scope,pointer:scope.pointer+'/format'},'migration.schema.binary','Binary schemas need a media-aware modern content mapping','implementation');
                 if(before==='3.2'&&after!=='3.2'){
                     const newer:Record<string,string[]>={root:['$self'], 'path-item':['query','additionalOperations'],media:['itemSchema','prefixEncoding','itemEncoding'],encoding:['prefixEncoding','itemEncoding'],tag:['summary','kind','parent'],xml:['nodeType'],discriminator:['defaultMapping']};
                     for(const name of newer[scope.kind]??[])if(Object.hasOwn(value??{},name))issue({...scope,pointer:scope.pointer+'/'+escape(name)},'migration.feature.newer','This 3.2 construct has no implemented faithful mapping to the selected older family','implementation');
@@ -151,6 +151,8 @@ export async function planMigration(input:MigrationInput) {
             }
             if(problems.length)break;
             for(const before of stage.sources)migrateServerVariableDefaults(graph,sources,before,after,issue);
+            for(const before of stage.sources)migrateBinarySchemas(graph,sources,before,after,issue);
+            if(problems.length)break;
             for(const before of stage.sources)migrateSchemas(graph,sources,before,after,issue);
             for(const before of stage.sources)migrateEncodings(graph,sources,before,after,issue);
             const referenceTargets=stage.sources.includes('2.0')?upgradeSwagger(graph,sources,issue,contexts.map(context=>context.graph)):undefined;
