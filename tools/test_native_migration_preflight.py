@@ -3,15 +3,32 @@
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
 from tools.native_migration_preflight import (
-    MIGRATION_PRODUCER, preflight_migration,
+    MIGRATION_PRODUCER, preflight_migration, verify_migration_producer,
 )
 
 
 class PreflightTests(unittest.TestCase):
+    def test_revision_matches_production_engine_and_core(self):
+        repository = Path(__file__).resolve().parent.parent
+        engine = (repository / 'tools/contract_engine/src/migration.ts').read_text()
+        core = (repository / 'packages/busyapi_core/lib/src/migration.dart').read_text()
+        engine_revision = re.search(r"const migrationProducerVersion\s*=\s*'([^']+)'", engine)
+        core_revision = re.search(r"result\['producerVersion'\]\s*!=\s*'([^']+)'", core)
+        self.assertIsNotNone(engine_revision, 'Locate the production migration producer')
+        self.assertIsNotNone(core_revision, 'Locate Core migration admission')
+        self.assertEqual(engine_revision.group(1), core_revision.group(1))
+        self.assertEqual(MIGRATION_PRODUCER, engine_revision.group(1))
+
+    def test_current_revision_is_accepted_and_previous_package_is_rejected(self):
+        verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': '31'})
+        with self.assertRaisesRegex(RuntimeError, 'producer differ'):
+            verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': '25'})
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix='busyapi-native-preflight-test-')
         self.addCleanup(self.directory.cleanup)
@@ -35,7 +52,7 @@ class PreflightTests(unittest.TestCase):
                 'target': {'declaredVersion': '2.0'}, 'reviewIdentity': 'a' * 64, **updates}
 
     def test_obsolete_producer_is_rejected_without_publication(self):
-        for version in ['6', '23']:
+        for version in ['6', '23', '25']:
             with self.subTest(producerVersion=version):
                 binary = self.fake(self.review(producerVersion=version))
                 with self.assertRaisesRegex(RuntimeError, 'producer differ'):

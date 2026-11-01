@@ -8,6 +8,7 @@ type Event=Readonly<{entering:boolean;type:string;attributes:Readonly<Record<str
 type Candidate=Span&Readonly<{reference:boolean}>;
 type Edit=Candidate&Readonly<{replacement:string}>;
 const record=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+const scalar=(value:unknown):value is Scalar=>value===null||typeof value==='string'||typeof value==='number'||typeof value==='boolean';
 const relative=(value:string)=>!/^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|#)/.test(value);
 
 class Work {
@@ -25,15 +26,18 @@ class Work {
             if(count>400000)throw new SourceError('limit.migration.markdown','Documentation relocation exceeds its bounded node count');
             const event:unknown=walker.next();
             if(event===null)break;
-            if(!record(event)||typeof event.entering!=='boolean'||!record(event.node)||typeof event.node.type!=='string')
+            if(!record(event)||typeof event.entering!=='boolean')
                 throw new SourceError('migration.markdown.parser','The pinned CommonMark walker returned an invalid event');
-            const node=event.node,attributes:Record<string,Scalar>={};
+            const node=event.node;
+            if(!record(node)||typeof node.type!=='string')
+                throw new SourceError('migration.markdown.parser','The pinned CommonMark walker returned an invalid node');
+            const attributes:Record<string,Scalar>={};
             for(const key of ['literal','title','headingLevel','listType','listStart','listDelimiter','listTight','info','onEnter','onExit']){
                 const value=node[key];
                 if(value===undefined)continue;
-                if(value!==null&&!['string','number','boolean'].includes(typeof value))
+                if(!scalar(value))
                     throw new SourceError('migration.markdown.parser','The pinned CommonMark node has an unknown attribute shape');
-                if(value===null||typeof value==='string'||typeof value==='number'||typeof value==='boolean')attributes[key]=value;
+                attributes[key]=value;
             }
             let destination:string|undefined;
             if(node.type==='link'||node.type==='image'){

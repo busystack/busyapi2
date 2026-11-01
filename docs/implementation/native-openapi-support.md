@@ -43,6 +43,8 @@ source inspection or a successful build is not runtime acceptance.
 | Swagger discriminator migration | Shared named-model owner and migration specialization | Compatible captured namespaces mapped; shared ownership cases remain | Implemented but unverified |
 | Changed-base Markdown | Shared destination-span proof, migration and maintenance owners | Unshared rendered occurrences mapped without rewriting code or prose | Implemented but unverified |
 | TypeScript compiler gate | Existing pinned engine build and CI paths | Repeatable compiler check wired before bundling | Implemented but unverified |
+| MIME result and Markdown parser typing | Engine execution and Markdown relocation | Literal revision ownership and explicit unknown-value narrowing | Implemented but unverified |
+| Migration preflight producer admission | Native fixture preflight, engine and Core | Current revision admitted; regression checks all three production consumers | Implemented but unverified |
 | Native and packaged acceptance | Existing qualification suites | Required acceptance remains incomplete | Not passed |
 
 ## Required functionality still open

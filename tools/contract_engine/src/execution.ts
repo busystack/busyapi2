@@ -55,7 +55,7 @@ export function requestMimeTextBytes(input:unknown):MimeTextBytesResult {
     if(!(error instanceof SourceError)||error.code!=='runtime.form.syntax'&&error.code!=='runtime.mime-text.transfer')throw error;
     bytes=runtimeMediaBytes(text,false);problem={code:error.code,message:error.message};
   }
-  const result={version:1 as const,revision:embeddedMimeTextRevision,snapshot,mediaType,
+  const result:Omit<MimeTextBytesResult,'mode'|'problem'>={version:1,revision:embeddedMimeTextRevision,snapshot,mediaType,
     input:createHash('sha256').update(text).digest('hex'),byteLength:bytes.length,base64:bytes.toString('base64')};
   return problem?{...result,mode:'literal-invalid',problem}:{...result,mode:'encoded'};
 }
