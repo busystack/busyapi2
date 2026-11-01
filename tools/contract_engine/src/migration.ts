@@ -2,10 +2,10 @@ import type {ExternalExampleResourcePacket} from './external_examples';
 import {assertRoleAnnotations} from './schema_role_annotations';
 import {createHash} from 'node:crypto';
 import {analyse,createGraph,Resource} from './engine';
-import {SourceDocument,SourceError,escape} from './document';
+import {SourceDocument,SourceError,escape,segments} from './document';
 import {specificationDeclaration,modernFamily} from './specification';
 import {MigrationSource,MigrationLocation,migrationValueIdentity} from './migration_source';
-import {migrateSchemas,MigrationProblem,MigrationIssue} from './migration_schema';
+import {migrateSchemas,MigrationProblem,MigrationIssue,type MigrationChoose,type MigrationIssueLocation} from './migration_schema';
 import {upgradeSwagger} from './migration_swagger';
 import {downgradeSwagger} from './migration_downgrade';
 import {evaluateSchemas} from './schema_evaluation';
@@ -33,7 +33,7 @@ import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='33';
+const migrationProducerVersion='34';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -86,12 +86,20 @@ export async function planMigration(input:MigrationInput) {
         }
         return {resource:input.root,pointer:'',range:original.get(input.root)!.root.range};
     };
-    const issue:MigrationIssue=(location,code,message,reason,choices)=>{
-        const source=location.original?{...location.original,range:original.get(location.original.resource)!.node(location.original.pointer).range}:sourceLocation(location.resource,location.pointer),id=digest(key(source.resource,source.pointer)+code+decisionRevision).slice(0,24);
+    const issueIdentity=(location:MigrationIssueLocation,code:string)=>{
+        const source=location.original?{...location.original,range:original.get(location.original.resource)!.node(location.original.pointer).range}:sourceLocation(location.resource,location.pointer);
+        return {source,id:digest(JSON.stringify([source.resource,source.pointer,location.decisionKey??'',code,decisionRevision])).slice(0,24)};
+    };
+    const issue:MigrationIssue=(location,code,message,reason,choices,choiceDetails)=>{
+        const {source,id}=issueIdentity(location,code);
         if(reason==='decision'&&choices)decisionChoices.set(id,choices);
         if(reason==='decision'&&choices?.includes(decisions[id])){accepted.add(id);return true;}
-        if(!problems.some(problem=>problem.id===id))problems.push({...source,id,code,message,reason,...(choices?{choices}:{})});
+        if(!problems.some(problem=>problem.id===id))problems.push({...source,id,code,message,reason,...(choices?{choices}:{}),...(choiceDetails?{choiceDetails}:{})});
         return false;
+    };
+    const choose:MigrationChoose=(location,code,message,choices)=>{
+        if(!issue(location,code,message,'decision',choices.map(choice=>choice.value),choices))return;
+        return decisions[issueIdentity(location,code).id];
     };
     const refused=(error:unknown,location:MigrationLocation)=>{
         if(!(error instanceof SourceError))throw error;
@@ -257,7 +265,12 @@ export async function planMigration(input:MigrationInput) {
                 resources.push({id,text:sources.get(id)!.doc.text,generation:0,identity:digest(sources.get(id)!.doc.text)});
             if(after==='3.2'){
                 const migrated=createGraph({...input,resources});
-                migrateDiscriminatorDefaults(migrated.graph,sources,issue);
+                await migrateDiscriminatorDefaults({...input,resources},migrated.graph,sources,issue,choose,location=>{
+                    const source=sourceLocation(location.resource,location.pointer);
+                    const value=original.get(source.resource)!.dataNode(source.pointer)?.value;
+                    const name=typeof value?.title==='string'?value.title:segments(source.pointer).at(-1)??new URL(source.resource).pathname.split('/').at(-1)??'#';
+                    return {...source,label:Array.from(name||'#'+source.pointer).slice(0,240).join('')};
+                });
                 if(problems.length)break;
                 resources=resources.map(resource=>({...resource,text:sources.get(resource.id)!.doc.text}));
             }

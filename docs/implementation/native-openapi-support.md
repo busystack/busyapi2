@@ -41,7 +41,7 @@ source inspection or a successful build is not runtime acceptance.
 | Scoped binary/byte migration | Migration binary owner | Established raw, text/JSON and base64 contexts mapped; mixed/constrained contexts remain | Implemented but unverified |
 | Modern required-property lowering | Migration required-presence owner | Scoped modern-to-3.0 presence assertions retain constraints | Implemented but unverified |
 | Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants | Implemented but unverified; aliased/literal and cross-entry ownership remain incomplete |
-| Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback decisions remain explicit | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
+| Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback choices bind eligible composition alternatives and exact instance witnesses | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
 | Swagger discriminator migration | Shared named-model owner and migration specialization | Compatible captured namespaces mapped; shared ownership cases remain | Implemented but unverified |
 | Document identity downgrade | Migration URI owner, canonical graph and CST | `$self` lowering captures document URI fields, nested schema identities and reference bases; API URL context remains separate | Implemented but unverified; independent schema/literal ownership remains incomplete |
 | Changed-base Markdown | Shared destination-span proof, migration and maintenance owners | Unshared rendered occurrences mapped without rewriting code or prose | Implemented but unverified |
@@ -94,3 +94,19 @@ Core identity tests add unsaved inputs, cancellation, stale reviews and standalo
 reopen. These additions have not been executed. The URI authority is
 [OpenAPI 3.2.1 §§4.1.1–4.1.2 and 4.5.2](https://spec.openapis.org/oas/v3.2.1.html#relative-references-in-api-description-uris),
 together with RFC 3986 and JSON Schema Core resource and reference rules.
+
+Fallback selection uses the shared `discriminator_alternatives.ts` graph
+projection and `schema_sample_candidates.ts` suggestion construction. The native
+schema evaluator proves each candidate against the alternative and complete
+parent. Missing discriminator decisions remain pending specification metadata;
+this partial instance proof is not a complete validation result. Other
+incomplete evaluation blocks selection, and publication still requires full
+target validation. Core validates choice labels and captured source ranges; the
+existing native review uses localized labels. The normative authority is the
+[3.2.1 Discriminator Object](https://spec.openapis.org/oas/v3.2.1.html#discriminator-object).
+`test_migration_discriminator_defaults.cjs`, Core fallback-decision tests and the
+existing widget review cover target identity, accepted/rejected payloads, exact
+numbers, stale choices, cancellation and malformed review metadata. These changes
+and regressions are implemented but unverified. The discriminator producer
+regression now checks `discriminator-models-v2` and production mock rejection of
+obsolete `swagger-discriminator-models-v1` proofs; those tests have not run.

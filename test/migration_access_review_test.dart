@@ -194,11 +194,11 @@ void main() {
             expect(tester.widget<BusyApiDialogButton>(publish).onPressed, isNull);
             expect(Directory(path).existsSync(), false);
             final localizations = AppLocalizations.of(tester.element(choice))!;
-            menuChoice = localizations.migrationUseSchemaDefault;
+            menuChoice = localizations.migrationDiscriminatorAlternative('Child');
             await tester.ensureVisible(choice);
             await tester.tap(choice);
             await tester.pumpAndSettle();
-            expect(find.text(localizations.migrationUseSchemaDefault), findsOneWidget);
+            expect(find.text(localizations.migrationDiscriminatorAlternative('Child')), findsOneWidget);
             expect(find.text('use-schema-as-default'), findsNothing);
             await tester.runAsync(() => tester.tap(review));
           }

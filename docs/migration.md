@@ -75,8 +75,14 @@ all binding changes. Explicit mappings and captured implicit model names select
 the corresponding directional schema. External choices without a determinable
 wire name require an explicit source mapping.
 When conversion to 3.2 makes a discriminating property optional, the review
-requires an explicit fallback decision; earlier undefined behavior is not
-silently assigned a default. Aliased/literal and incompatible entry contexts still need additional ownership
+requires an explicit fallback decision. Choices identify eligible `oneOf`/`anyOf`
+alternatives or `allOf` descendants and their original source locations. The
+containing discriminator schema is not a fallback choice. A proposed object
+without the discriminating property must validate against both the alternative
+and the whole parent before that target is offered. Choosing a target does not
+replace parent assertions or change `oneOf` exclusivity. Circular, incompatible
+or unproved choices do not authorize publication. Earlier undefined behavior is
+not silently assigned a default. Aliased/literal and incompatible entry contexts still need additional ownership
 mappings. Downgrades that would introduce stronger request exclusions remain
 blocked until a faithful mapping is available. See the support matrix for
 verification status.

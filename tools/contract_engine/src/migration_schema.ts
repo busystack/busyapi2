@@ -9,8 +9,11 @@ import {MigrationSchemaReferences} from './migration_schema_references';
 import {SchemaPropertyRequirements} from './schema_property_requirements';
 import {migrateDependentRequired,migrateDependentSchemas} from './migration_schema_dependencies';
 
-export type MigrationProblem={resource:string;pointer:string;range:number[];code:string;message:string;reason:'target-representation'|'implementation'|'source-incomplete'|'decision';choices?:string[];id?:string};
-export type MigrationIssue=(scope:MigrationLocation&{original?:MigrationLocation},code:string,message:string,reason:MigrationProblem['reason'],choices?:string[])=>boolean;
+export type MigrationChoice=Readonly<{value:string;label:string;target:MigrationLocation&{range:readonly number[]}}>;
+export type MigrationProblem={resource:string;pointer:string;range:number[];code:string;message:string;reason:'target-representation'|'implementation'|'source-incomplete'|'decision';choices?:string[];choiceDetails?:readonly MigrationChoice[];id?:string};
+export type MigrationIssueLocation=MigrationLocation&{original?:MigrationLocation;decisionKey?:string};
+export type MigrationIssue=(scope:MigrationIssueLocation,code:string,message:string,reason:MigrationProblem['reason'],choices?:string[],choiceDetails?:readonly MigrationChoice[])=>boolean;
+export type MigrationChoose=(scope:MigrationIssueLocation,code:string,message:string,choices:readonly MigrationChoice[])=>string|undefined;
 
 /** Normative schema mappings. No schema is evaluated under another family's
  * dialect to make a migration pass. These edits affect planning copies only. */

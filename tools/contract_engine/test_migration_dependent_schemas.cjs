@@ -26,7 +26,7 @@ async function outcomes(input,pointer,values=samples,subject='response-body'){
 }
 async function faithful(input,targetVersion,values=samples){
  const original=input.resources.map(resource=>resource.text),result=await planMigration({...input,targetVersion});
- assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.complete,true);assert.equal(result.producerVersion,'33');assert(result.changes.length>0);
+ assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.complete,true);assert.equal(result.producerVersion,'34');assert(result.changes.length>0);
  const output=after(result),data=YAML.parse(result.outputs.find(output=>output.id===result.outputRoot).text),pointer=targetVersion==='2.0'?'/definitions/Model':'/components/schemas/Model';
  assert.equal(data.swagger??data.openapi,targetVersion);assert.equal(data.info.version,'API-1');assert.deepEqual(data['x-literal'].dependentSchemas,{trigger:false});assert(result.outputs.some(output=>output.text.includes('9007199254740993.00')));assert(!Object.hasOwn(data.swagger?data.definitions.Model:data.components.schemas.Model,'dependentSchemas'));
  assert.equal(analyse(output).status,'complete');

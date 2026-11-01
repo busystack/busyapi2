@@ -21,6 +21,7 @@ const code=(result,name)=>result.findings.filter(finding=>finding.code===name);
 for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(const kind of forms)for(const state of ['required','optional','default'])test(`${version} ${format} ${kind} retains ${state} discriminator presence semantics`,async()=>{
  const input=packet(version,format,kind,state),{structural,schema}=await checked(input);assert.equal(structural.status,'complete',JSON.stringify(structural.findings));assert.equal(schema.complete,true,JSON.stringify(schema.findings));
  const errors=schema.findings.filter(finding=>finding.severity==='error');
+ assert.equal(schema.coverage.schemaAssertions.complete,true);assert.equal(schema.coverage.schemaAssertions.valid,true);
  if(state==='optional'){assert.equal(errors.length,1,JSON.stringify(schema.findings));assert.equal(errors[0].code,'discriminator.default-mapping.required');assert.equal(errors[0].resource,input.root);assert.equal(errors[0].pointer,'/components/schemas/Subject/discriminator');assert(errors[0].range[1]>errors[0].range[0]);}
  else assert.deepEqual(errors,[]);
  assert.equal(code(schema,'discriminator.required.incomplete').length,0);
@@ -66,6 +67,8 @@ for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(c
   if(form==='bounded-absence'){schemas.Base.required=['other'];schemas.Base.properties.other={type:'integer'};}
  });
  const {schema}=await checked(input),incomplete=['dynamic-peer','unsupported-dialect','bounded-absence'].includes(form);assert.equal(schema.complete,!incomplete,JSON.stringify(schema.findings));
+ if(form==='unsupported-dialect')assert.equal(schema.coverage.schemaAssertions.complete,false);
+ if(form==='bounded-absence')assert.equal(schema.coverage.schemaAssertions.complete,true,'Pending discriminator metadata is separate from assertion evaluation');
  if(['dynamic-peer','bounded-absence'].includes(form)){assert.equal(code(schema,'discriminator.required.incomplete').length,1);assert.equal(code(schema,'discriminator.default-mapping.required').length,0);}
  if(form==='unsupported-dialect')assert(schema.findings.some(finding=>finding.code.includes('dialect')),JSON.stringify(schema.findings));
  if(!incomplete)assert(!schema.findings.some(finding=>finding.severity==='error'),JSON.stringify(schema.findings));
@@ -74,7 +77,7 @@ for(const version of ['3.2.0','3.2.1'])for(const format of ['yaml','json'])for(c
 const routes=modern.flatMap(from=>modern.filter(target=>target.slice(0,3)!==from.slice(0,3)).map(target=>[from,target]));
 for(const [from,target]of routes)for(const format of ['yaml','json'])for(const kind of ['dynamic-pointer','static-anchor','one-anchor','external-dynamic'])test(`${from} ${format} ${kind} migration to ${target} retains native reference and required semantics`,async()=>{
  const input=packet(from,format,kind),before=input.resources.map(resource=>resource.text),result=await planMigration({...input,targetVersion:target,destination:'file:///output/migrated/'});
- assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.complete,true);assert.equal(result.producerVersion,'30');assert.equal(result.validation.family,target.slice(0,3));const entry=result.outputs.find(output=>output.id===result.outputRoot),value=YAML.parse(entry.text);assert.equal(value.openapi,target);assert.equal(value.info.version,'unrelated-api-version');assert(entry.text.includes('$dynamicRef'));assert(entry.text.includes('9007199254740993.00'));
+ assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.complete,true);assert.equal(result.producerVersion,'34');assert.equal(result.validation.family,target.slice(0,3));const entry=result.outputs.find(output=>output.id===result.outputRoot),value=YAML.parse(entry.text);assert.equal(value.openapi,target);assert.equal(value.info.version,'unrelated-api-version');assert(entry.text.includes('$dynamicRef'));assert(entry.text.includes('9007199254740993.00'));
  const output={root:result.outputRoot,resources:result.outputs.map(output=>({id:output.id,text:output.text,generation:0})),snapshot:'migrated-'+input.snapshot+'-'+target};const checkedOutput=await evaluateSchemas(output);assert.equal(checkedOutput.complete,true,JSON.stringify(checkedOutput.findings));assert(!checkedOutput.findings.some(finding=>finding.severity==='error'),JSON.stringify(checkedOutput.findings));assert.deepEqual(input.resources.map(resource=>resource.text),before);
 });
 for(const version of modern)for(const format of ['yaml','json'])test(`${version} ${format} migration preserves actual dynamic anchors and all captured candidate owners`,async()=>{

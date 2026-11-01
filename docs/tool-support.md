@@ -873,8 +873,11 @@ reference chains. Neutral examples/defaults retain their original constraints;
 request exclusions and direction-sensitive required lists use separate generated
 assertions in standard schema resources. Captured implicit discriminator names
 and explicit mappings retain their directional targets without adding component
-names. OpenAPI 3.2 fallback behavior requires an explicit migration decision when
-property presence cannot be established. Aliased/literal ownership, incompatible entries and remaining
+names. OpenAPI 3.2 fallback decisions select eligible composition alternatives
+with a proved absent-property instance. Each reviewed option retains its captured
+source location; copied occurrences have independent decision identities. Parent
+assertions remain unchanged, and full target validation is still required after
+selection. Aliased/literal ownership, incompatible entries and remaining
 faithful downgrade mappings still produce located blockers. See the
 [migration guide](migration.md) and support matrix for coverage and verification.
 

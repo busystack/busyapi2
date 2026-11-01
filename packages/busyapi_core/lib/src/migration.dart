@@ -71,7 +71,7 @@ void _verifyMigrationReview(
   if (result['version'] != 1 ||
       result['snapshot'] != input.snapshot.identity ||
       result['producer'] != 'busyapi-native-migration' ||
-      result['producerVersion'] != '33' ||
+      result['producerVersion'] != '34' ||
       result['problems'] is! List ||
       result['outputs'] is! List ||
       result['exampleOutputs'] is! List ||
@@ -113,7 +113,7 @@ void _verifyMigrationReview(
       'id': String _,
       'resource': String resource,
       'pointer': String _,
-      'code': String _,
+      'code': String code,
       'message': String _,
       'reason': String reason,
       'range': [int start, int end],
@@ -134,6 +134,41 @@ void _verifyMigrationReview(
       if (choices != null &&
           (choices is! List || choices.any((choice) => choice is! String)))
         invalid();
+      final details = value['choiceDetails'];
+      final hasAlternative = choices is List && choices.any(
+        (choice) => choice is String && choice.startsWith('discriminator-alternative:'),
+      );
+      if ((code == 'migration.discriminator.default' || hasAlternative) &&
+          (choices is! List || choices.isEmpty || details is! List))
+        invalid();
+      if (details != null) {
+        if (details is! List || choices is! List ||
+            details.length != choices.length || details.length > 128)
+          invalid();
+        final described = <String>{};
+        for (final detail in details) {
+          if (detail case {
+            'value': String choice,
+            'label': String label,
+            'target': {
+              'resource': String targetResource,
+              'pointer': String pointer,
+              'range': [int start, int end],
+            },
+          }) {
+            final target = resources[targetResource];
+            if (!choices.contains(choice) || !described.add(choice) ||
+                label.isEmpty || label.length > 1024 || pointer.length > 65536 ||
+                pointer.isNotEmpty && !pointer.startsWith('/') ||
+                RegExp(r'~(?![01])').hasMatch(pointer) ||
+                target == null || start < 0 || end < start ||
+                end > (target['text'] as String).length)
+              invalid();
+          } else {
+            invalid();
+          }
+        }
+      }
     } else {
       invalid();
     }
@@ -239,6 +274,22 @@ enum MigrationProblemReason {
   decision,
 }
 
+class MigrationDecisionChoice {
+  MigrationDecisionChoice._(Map value)
+    : value = value['value'] as String,
+      label = value['label'] as String,
+      target = CoreFailureSource(
+        (value['target'] as Map)['resource'] as String,
+        (value['target'] as Map)['pointer'] as String,
+        SourceRange(
+          ((value['target'] as Map)['range'] as List)[0] as int,
+          ((value['target'] as Map)['range'] as List)[1] as int,
+        ),
+      );
+  final String value, label;
+  final CoreFailureSource target;
+}
+
 class MigrationProblem {
   MigrationProblem._(Map value)
     : id = value['id'] as String,
@@ -262,11 +313,16 @@ class MigrationProblem {
       ),
       choices = List.unmodifiable(
         (value['choices'] as List? ?? const []).cast<String>(),
+      ),
+      choiceDetails = Map.unmodifiable(
+        {for (final choice in (value['choiceDetails'] as List? ?? const []).cast<Map>())
+          choice['value'] as String: MigrationDecisionChoice._(choice)},
       );
   final String id, resource, pointer, code, message;
   final MigrationProblemReason reason;
   final SourceRange range;
   final List<String> choices;
+  final Map<String, MigrationDecisionChoice> choiceDetails;
 }
 
 class MigrationChange {

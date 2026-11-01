@@ -60,7 +60,7 @@ test(`${version} to ${target} ${format} ${flag} required=${required} preserves r
     const before=await values(input,payloads);
     const review=await planMigration(input);
     assert.equal(review.status,'faithfully-convertible',JSON.stringify(review.problems));
-    assert.equal(review.producerVersion,'33');assert.equal(review.complete,true);
+    assert.equal(review.producerVersion,'34');assert.equal(review.complete,true);
     assert(review.changes.length>0);assert(review.outputs.length>=3);
     const targetInput={root:review.outputRoot,snapshot:'cold:'+input.snapshot,
         resources:review.outputs.map(output=>({id:output.id,text:output.text,generation:0}))};
@@ -196,7 +196,7 @@ test('a newly optional 3.2 discriminating property requires an explicit fallback
     const review=await planMigration(input);
     assert.equal(review.status,'requires-decision',JSON.stringify(review.problems));assert.deepEqual(review.outputs,[]);
     assert(review.problems.every(problem=>problem.code==='migration.discriminator.default'));
-    const decided=await planMigration({...input,decisions:Object.fromEntries(review.problems.map(problem=>[problem.id,'use-schema-as-default']))});
+    const decided=await planMigration({...input,decisions:Object.fromEntries(review.problems.map(problem=>[problem.id,problem.choiceDetails.find(choice=>choice.label==='Child').value]))});
     assert.equal(decided.complete,true,JSON.stringify(decided.problems));
     const payloads=['{}','{"value":"café"}','{"value":false}'];
     assert.deepEqual(await values({root:decided.outputRoot,snapshot:'decided-cold',

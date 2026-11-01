@@ -5,7 +5,7 @@ import {record} from './engine_worker_client';
 import {supportedSchemaDialect,type ReferenceGraph,type GraphTarget} from './reference_graph';
 import {modernFamily} from './specification';
 import {capturedMockResponseMedia,schemaLocation,type SchemaLocation,type SourceLocation,type NativeRuntimeInstance,type NativeRuntimeCheck} from './mock_projection';
-import {MockSchemaShapes} from './mock_schema_shapes';
+import {SchemaSampleCandidates} from './schema_sample_candidates';
 
 export const mockSampleProducer=Object.freeze({name:'busyapi-native-schema-samples',version:'2'});
 type Sample={raw:string;source:SourceLocation};
@@ -18,10 +18,10 @@ export class MockSchemaSamples {
     private readonly references:Map<string,ReferenceGraph['references']>;
     private readonly proved=new Map<string,readonly Sample[]>();
     private readonly identities:ReadonlyMap<string,string>;
-    private readonly shapes:MockSchemaShapes;
+    private readonly shapes:SchemaSampleCandidates;
 
     constructor(private readonly graph:ReferenceGraph,private readonly evaluate:Evaluate,private readonly revision:string) {
-        this.shapes=new MockSchemaShapes(graph);
+        this.shapes=new SchemaSampleCandidates(graph,'mock.sample');
         this.identities=new Map([...graph.docs].map(([id,doc])=>[id,createHash('sha256').update(doc.text).digest('hex')]));
         this.references=new Map();
         for(const edge of graph.references)if(edge.kind==='schema'&&!edge.connection) {

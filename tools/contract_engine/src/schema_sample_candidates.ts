@@ -1,9 +1,12 @@
 import {schemaContext} from './schema_context';
-import {SourceError,escape} from './document';
+import {SourceError,escape,type Range} from './document';
 import {record} from './engine_worker_client';
 import {supportedSchemaDialect,type ReferenceGraph,type GraphTarget} from './reference_graph';
 import {modernFamily} from './specification';
-import type {SchemaLocation,SourceLocation} from './mock_projection';
+export type SchemaSampleLocation=Readonly<{resource:string;pointer:string}>;
+export type SchemaSampleSource=Readonly<{resource:string;pointer:string;range:Range}>;
+type SchemaLocation=SchemaSampleLocation;
+type SourceLocation=SchemaSampleSource;
 
 export type SchemaSample={raw:string;source:SourceLocation};
 type Suggestions=(schema:SchemaLocation)=>{samples:SchemaSample[];limit?:SourceLocation};
@@ -11,9 +14,9 @@ type ObjectShape={properties:Map<string,GraphTarget[]>;required:Set<string>};
 
 /** Bounded construction of suggestions, never schema evaluation. The caller
  * proves every completed value against the captured whole response schema. */
-export class MockSchemaShapes {
+export class SchemaSampleCandidates {
     private readonly references=new Map<string,ReferenceGraph['references']>();
-    constructor(private readonly graph:ReferenceGraph) {
+    constructor(private readonly graph:ReferenceGraph,private readonly failurePrefix='schema.sample') {
         for(const edge of graph.references)if(edge.kind==='schema'&&!edge.connection) {
             const key=JSON.stringify([edge.resource,edge.pointer]);
             this.references.set(key,[...(this.references.get(key)??[]),edge]);
@@ -50,7 +53,7 @@ export class MockSchemaShapes {
             const scope=schemaContext(this.graph,target.resource,target.pointer);
             if(!scope||!supportedSchemaDialect(scope)) {
                 const origin=source(target);
-                throw new SourceError('mock.sample.dialect','Nested sample construction requires the captured supported dialect',origin.range,'unsupported',origin);
+                throw new SourceError(this.failurePrefix+'.dialect','Nested sample construction requires the captured supported dialect',origin.range,'unsupported',origin);
             }
             const node=this.graph.docs.get(target.resource)?.dataNode(target.pointer);
             if(!node||!record(node.value))return [];

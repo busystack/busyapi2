@@ -25,7 +25,7 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(MIGRATION_PRODUCER, engine_revision.group(1))
 
     def test_current_revision_is_accepted_and_previous_package_is_rejected(self):
-        verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': '33'})
+        verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': '34'})
         with self.assertRaisesRegex(RuntimeError, 'producer differ'):
             verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': '25'})
 
@@ -52,7 +52,7 @@ class PreflightTests(unittest.TestCase):
                 'target': {'declaredVersion': '2.0'}, 'reviewIdentity': 'a' * 64, **updates}
 
     def test_obsolete_producer_is_rejected_without_publication(self):
-        for version in ['6', '23', '25', '31', '32']:
+        for version in ['6', '23', '25', '31', '32', '33']:
             with self.subTest(producerVersion=version):
                 binary = self.fake(self.review(producerVersion=version))
                 with self.assertRaisesRegex(RuntimeError, 'producer differ'):

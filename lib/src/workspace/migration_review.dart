@@ -423,8 +423,8 @@ class _MigrationReviewState extends State<_MigrationReview> {
                     ? l.migrationOmitIgnoredBody
                     : value == 'interpret-terms-as-uri'
                     ? l.migrationInterpretTermsUri
-                    : value == 'use-schema-as-default'
-                    ? l.migrationUseSchemaDefault
+                    : value.startsWith('discriminator-alternative:')
+                    ? l.migrationDiscriminatorAlternative(problem.choiceDetails[value]!.label)
                     : value,
                 enabled: !busy,
                 onSelected: (value) => setState(() {
