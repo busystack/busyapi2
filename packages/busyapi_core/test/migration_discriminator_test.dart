@@ -76,7 +76,7 @@ void main() {
         final review = await project.prepareMigration(root, destination, targetVersion: target);
         addTearDown(review.close);
         expect(review.status, MigrationStatus.faithfullyConvertible, reason: '${review.result}');
-        expect(review.result['producerVersion'], '34');expect(review.unsaved, true);
+        expect(review.result['producerVersion'], '35');expect(review.unsaved, true);
         await review.publish();expect(buffer.bytes(), working);expect(file.readAsBytesSync(), original);
         if (external) expect(model.readAsBytesSync(), originalModel);
         final output = File('$destination/openapi.$format');
@@ -123,7 +123,7 @@ void main() {
           environment: const {'PATH': '', 'LANG': 'C.UTF-8'}, includeParentEnvironment: false);
         expect(cli.exitCode, 0, reason: '${cli.stdout} ${cli.stderr}');
         final report = jsonDecode(cli.stdout as String) as Map;
-        expect(report['producerVersion'], '34');expect(report['complete'], true);expect(report['published'], false);
+        expect(report['producerVersion'], '35');expect(report['complete'], true);expect(report['published'], false);
         expect(Directory('${directory.path}/cli-review').existsSync(), false);
         expect(file.readAsBytesSync(), original);if (external) expect(model.readAsBytesSync(), originalModel);
       });

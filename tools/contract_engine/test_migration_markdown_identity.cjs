@@ -1,6 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),YAML=require('yaml');
 const {planMigration}=require('./dist/migration.cjs');
 const {createGraph}=require('./dist/model.cjs');
+const {SourceDocument}=require('./dist/document.cjs');
 const {documentUriBase,resolveUri}=require('./dist/reference_graph.cjs');
 const description='[Guide](../guides/Guide%20One.md?q=a%2Fb#Intro) and ![図](./diagram.svg)';
 function fixture(version,format,self){
@@ -96,7 +97,7 @@ test(`${version} ${format} migration repairs rendered Markdown only, retaining c
  document.info.description=rich;
  input.resources[0].text=(format==='json'?JSON.stringify(document):'# Keep source\r\n'+YAML.stringify(document).replaceAll('\n','\r\n'))+'\r\n';
  const before=input.resources[0].text,result=await planMigration(input);
- assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.producerVersion,'34');
+ assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.producerVersion,'35');
  const output=result.outputs.find(value=>value.id===result.outputRoot),target=createGraph({root:result.outputRoot,resources:result.outputs.map(value=>({...value,generation:0}))}).graph;
  const actual=target.docs.get(result.outputRoot).dataNode('/info/description').value;
  assert.deepEqual(rendered(actual,result.outputRoot),rendered(rich,input.root));
@@ -140,9 +141,14 @@ for(const format of ['yaml','json'])test(`${format} a rendered description also 
 for(const body of [
  'info: {title: Keep, version: "1", description: &docs "[Guide](../guide)"}\nx-data: *docs\n',
  'info: &info {title: Keep, version: "1", description: "[Guide](../guide)"}\nx-data: *info\n',
-])test('a shared YAML documentation edit retains its ownership refusal and originals',async()=>{
+])test('a shared YAML documentation edit specializes the copy and retains literal consumers and originals',async()=>{
  const root='file:///approved/contracts/api.yaml',text='openapi: 3.1.2\n'+body+'paths: {}\n';
  const input={root,snapshot:'shared-markdown',targetVersion:'3.2.1',destination:'file:///reviewed/',resources:[{id:root,text,generation:1}]};
- const result=await planMigration(input);assert.equal(result.status,'blocked');assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);
- assert(result.problems.some(value=>value.code==='edit.shared'),JSON.stringify(result.problems));assert.equal(input.resources[0].text,text);
+ const result=await planMigration(input);assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.complete,true);
+ const output=result.outputs.find(value=>value.id===result.outputRoot),original=new SourceDocument(text,root),changed=new SourceDocument(output.text,output.id);
+ assert.equal(changed.dataJson('/x-data'),original.dataJson('/x-data'));
+ assert(changed.dataNode('/info/description').value.includes('file:///approved/guide'));
+ assert(output.text.includes(body.includes('&docs')?'&docs':'&info'));
+ assert(result.presentationChanges.some(value=>value.resource===root&&value.pointer==='/x-data'));
+ assert.equal(input.resources[0].text,text);
 });

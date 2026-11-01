@@ -45,7 +45,7 @@ source inspection or a successful build is not runtime acceptance.
 | Native 3.2 discriminator fallbacks | Canonical composition selector, authoring diagnostics and reference choices | Existing fallback targets checked against adjacent alternatives/allOf descendants; Design selection and Source completion share captured targets | Implemented but unverified |
 | Swagger discriminator migration | Shared named-model owner and migration specialization | Compatible captured namespaces mapped; shared ownership cases remain | Implemented but unverified |
 | Document identity downgrade | Migration URI owner, canonical graph and CST | `$self` lowering captures document URI fields, nested schema identities and reference bases; API URL context remains separate | Implemented but unverified; independent schema/literal ownership remains incomplete |
-| Changed-base Markdown | Shared destination-span proof, migration and maintenance owners | Unshared rendered occurrences mapped without rewriting code or prose | Implemented but unverified |
+| Changed-base Markdown | Shared destination-span proof, migration and maintenance owners | Rendered occurrences mapped without rewriting code or prose; migration separates affected YAML alias uses while preserving other exact data | Implemented but unverified; independently interpreted literal/contract occurrences still need separate ownership |
 | TypeScript compiler gate | Existing pinned engine build and CI paths | Repeatable compiler check wired before bundling | Implemented but unverified |
 | MIME result and Markdown parser typing | Engine execution and Markdown relocation | Literal revision ownership and explicit unknown-value narrowing | Implemented but unverified |
 | Migration preflight producer admission | Native fixture preflight, engine and Core | Current revision admitted; regression checks all three production consumers | Implemented but unverified |
@@ -56,8 +56,8 @@ source inspection or a successful build is not runtime acceptance.
 
 - Remaining aliased/literal and cross-entry directional ownership;
   request/response specialization in faithful downgrade mappings.
-- Shared/aliased/literal ownership and incompatible entry contexts, including
-  discriminator and Markdown specialization.
+- Shared schema/literal ownership and incompatible entry contexts, including
+  discriminator specialization and independently interpreted Markdown uses.
 - Mixed or constrained binary contexts, opaque content, file unions and reusable
   media lacking sufficient occurrence context.
 - Remaining typed/dynamic, nested and positional multipart, parameter/header
@@ -84,7 +84,7 @@ Core access and derived-resource regressions cover captured ownership,
 publication, cancellation, stale inputs and package/CLI reopen; the widget review
 regression uses the existing controls and localized fallback selection. These additions have not been executed.
 Their authorities are Swagger 2.0 §6.4.18, OpenAPI 3.0.4 §§4.7.24–4.7.25 and
-OpenAPI 3.2.1 §4.30.
+the OpenAPI 3.2.1 Discriminator Object.
 
 Document-identity regressions use `test_migration_identity.cjs` through native
 planning, structural analysis and schema evaluation. They cover both 3.2 patches,
@@ -122,6 +122,22 @@ unsupported dialects, exact source preservation, Undo/Redo, cancellation, stale
 captures and cold reopen. These regressions have not run. Three older valid
 controls used unrelated fallback schemas; they now use listed alternatives or
 actual allOf descendants, as required by the normative Discriminator Object.
+
+Shared Markdown migration retains logical description provenance through YAML
+aliases. `migration_shared_text.ts` prepares localized replacements only in the
+migration copy, insulates alias consumers before changing a definition, and
+compares the entire exact data projection against the requested string changes.
+Alias expansions and presentation changes appear in the existing review.
+Ordinary editing retains its shared-node guards. A single occurrence interpreted
+as both literal data and rendered contract text remains an ownership gap.
+`test_migration_shared_text.cjs`, existing Markdown identity/location regressions
+and Core publication tests cover scalar/collection/key anchors, repeated names,
+virtual descendants, different bases, exact numbers, literal payloads, unsaved
+source, cancellation, stale reviews and cold reopen. The old shared-Markdown
+refusal controls now require successful mapping plus unchanged literal values.
+These changes and tests are implemented but unverified. Migration producer 35
+is admitted consistently by engine, Core and native preflight; the permanent
+cross-component consistency regression remains active.
 
 Flutter 3.47.5/Dart 3.13.4 and the existing framework/engine revisions are
 unchanged. `tools/flutter_sdk.lock.json` pins the

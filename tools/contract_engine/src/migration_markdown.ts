@@ -2,6 +2,7 @@ import {richTextField} from './authoring';
 import {segments,SourceDocument,SourceError} from './document';
 import {relativeMarkdownDestinations} from './markdown_links';
 import {relocateMarkdownLinks} from './markdown_relocation';
+import {specializeMigrationText} from './migration_shared_text';
 import type {MigrationLocation} from './migration_source';
 import type {MigrationIssue} from './migration_schema';
 import {documentUriBase,type GraphScope,type ReferenceGraph} from './reference_graph';
@@ -28,7 +29,7 @@ export function captureMigrationMarkdown(graph:ReferenceGraph,issue:MigrationIss
     const captured:CapturedMarkdown[]=[];
     for(const scope of graph.scopes.values()){
         const field=description(graph,scope);if(!field)continue;
-        const original={resource:scope.resource,pointer:field.pointer};
+        const original={resource:scope.resource,pointer:scope.pointer+'/description'};
         try{
             if(relativeMarkdownDestinations(field.value).length)captured.push({
                 original,owner:{resource:scope.resource,pointer:scope.pointer},value:field.value,
@@ -47,28 +48,28 @@ function targets(captured:readonly CapturedMarkdown[],graph:ReferenceGraph,mappe
     const owners=new Map<string,GraphScope[]>(),result:Target[]=[];
     for(const scope of graph.scopes.values()){
         const field=description(graph,scope);if(!field)continue;
-        const identity=key({resource:scope.resource,pointer:field.pointer}),values=owners.get(identity)??[];
+        const identity=key({resource:scope.resource,pointer:scope.pointer+'/description'}),values=owners.get(identity)??[];
         values.push(scope);owners.set(identity,values);
     }
     for(const source of captured){
         const ownerLocations=mapped(source.owner);
         for(const location of mapped(source.original)){
             const field=graph.docs.get(location.resource)?.dataNode(location.pointer);
-            const candidates=field?owners.get(key({resource:location.resource,pointer:field.pointer}))??[]:[];
+            const candidates=field?owners.get(key(location))??[]:[];
             const selected=ownerLocations.length?candidates.filter(scope=>ownerLocations.some(owner=>owner.resource===scope.resource&&owner.pointer===scope.pointer)):candidates;
             if(!selected.length||typeof field?.value!=='string'){
                 issue({...location,original:source.original},'migration.description.context','The original documentation has no proved surviving rendered context','implementation');
                 continue;
             }
-            for(const scope of selected)result.push({source,location:{resource:location.resource,pointer:field.pointer},scope,value:field.value});
+            for(const scope of selected)result.push({source,location,scope,value:field.value});
         }
     }
     return result;
 }
 
 /** Produce planning-copy CST edits, then prove the same rendered tree and
- * destinations. Shared/literal owners need specialization rather than an
- * annotation edit that would change another occurrence's data value. */
+ * destinations. Logical YAML uses may split; a single occurrence interpreted
+ * as both rendered text and literal data still needs separate semantic owners. */
 export function rewriteMigrationMarkdown(captured:readonly CapturedMarkdown[],graph:ReferenceGraph,mapped:Mapped,issue:MigrationIssue,
     changed:(location:MigrationLocation)=>void):ReadonlyMap<string,SourceDocument> {
     const desired=new Map<string,{target:Target;value:string}>(),documents=new Map<string,SourceDocument>();
@@ -95,18 +96,22 @@ export function rewriteMigrationMarkdown(captured:readonly CapturedMarkdown[],gr
             issue(finding,error.code,error.message,error.code.startsWith('limit.')?'source-incomplete':'implementation');
         }
     }
+    const grouped=new Map<string,Map<string,string>>();
     for(const {target,value}of desired.values()){
         if(value===target.value)continue;
-        const {location,source}=target;
+        const values=grouped.get(target.location.resource)??new Map<string,string>();
+        values.set(target.location.pointer,value);grouped.set(target.location.resource,values);
+    }
+    for(const [resource,values]of grouped){
         try{
-            const doc=documents.get(location.resource)??graph.docs.get(location.resource)!;
-            doc.assertSafe(location.pointer);doc.assertUnshared(location.pointer);
-            const text=doc.set(location.pointer,value);
-            documents.set(location.resource,new SourceDocument(text,location.resource));
-            changed(location);
+            const result=specializeMigrationText(graph.docs.get(resource)!,values);
+            documents.set(resource,result.document);
+            for(const pointer of result.changed)changed({resource,pointer});
         }catch(error){
             if(!(error instanceof SourceError))throw error;
-            issue({...location,original:source.original},error.code,error.message,'implementation');
+            const {target}=desired.get(key({resource,pointer:values.keys().next().value!}))!;
+            const {location,source}=target;
+            issue({...location,original:source.original},error.code,error.message,error.code.startsWith('limit.')?'source-incomplete':'implementation');
         }
     }
     return documents;

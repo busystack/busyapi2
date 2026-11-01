@@ -25,9 +25,11 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(MIGRATION_PRODUCER, engine_revision.group(1))
 
     def test_current_revision_is_accepted_and_previous_package_is_rejected(self):
-        verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': '34'})
-        with self.assertRaisesRegex(RuntimeError, 'producer differ'):
-            verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': '25'})
+        verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': '35'})
+        for obsolete in ('25', '34'):
+            with self.subTest(obsolete=obsolete):
+                with self.assertRaisesRegex(RuntimeError, 'producer differ'):
+                    verify_migration_producer({'producer': 'busyapi-native-migration', 'producerVersion': obsolete})
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix='busyapi-native-preflight-test-')

@@ -33,7 +33,7 @@ import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='34';
+const migrationProducerVersion='35';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -87,7 +87,7 @@ export async function planMigration(input:MigrationInput) {
         return {resource:input.root,pointer:'',range:original.get(input.root)!.root.range};
     };
     const issueIdentity=(location:MigrationIssueLocation,code:string)=>{
-        const source=location.original?{...location.original,range:original.get(location.original.resource)!.node(location.original.pointer).range}:sourceLocation(location.resource,location.pointer);
+        const source=location.original?{...location.original,range:original.get(location.original.resource)!.dataNode(location.original.pointer)!.range}:sourceLocation(location.resource,location.pointer);
         return {source,id:digest(JSON.stringify([source.resource,source.pointer,location.decisionKey??'',code,decisionRevision])).slice(0,24)};
     };
     const issue:MigrationIssue=(location,code,message,reason,choices,choiceDetails)=>{
@@ -123,6 +123,8 @@ export async function planMigration(input:MigrationInput) {
     catch(error){refused(error,{resource:input.root,pointer:''});}
     if(!problems.length)try{initial.graph.assertReferenceEditsSupported();}catch(error){refused(error,{resource:input.root,pointer:''});}
     const markdownContexts=problems.length?[]:captureMigrationMarkdown(initial.graph,issue);
+    for(const {original:location}of markdownContexts)if(!origins.has(key(location.resource,location.pointer)))
+        origins.set(key(location.resource,location.pointer),[location]);
     if(!problems.length)for(const context of initialContexts){checkOperationTarget(context.graph,target.family,issue);checkRequestBodyTarget(context,resources,target.family,issue);}
     if(!problems.length)for(const context of initialContexts)checkSecurityRequirementTarget(context.graph,target.family,issue);
     const route=migrationBatches(initial.graph.specifications,target.family);
@@ -135,6 +137,13 @@ export async function planMigration(input:MigrationInput) {
         if(!active)throw new SourceError('migration.route.owner','The conversion stage has no captured source entry');
         let graph=active.graph;
         const sources=new Map([...context.docs].map(([id,doc])=>[id,new MigrationSource(doc)]));
+        // Virtual description fields keep logical alias provenance through
+        // existing container moves; they do not acquire ordinary edit rights.
+        for(const captured of markdownContexts)for(const location of origins.get(key(captured.original.resource,captured.original.pointer))??[]){
+            const source=sources.get(location.resource);
+            if(source?.doc.dataNode(location.pointer)&&!source.origins.has(location.pointer))
+                source.origins.set(location.pointer,new Set([location.pointer]));
+        }
         try {
             const terms=new Map<string,string>();
             for(const context of contexts)migrateTerms(context.graph,sources,stage.sources,terms,issue);
