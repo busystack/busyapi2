@@ -130,9 +130,14 @@ existing SDK, check its origin and verify the selected inputs without executing 
 python3 tools/verify_flutter_sdk.py --sdk /path/to/flutter --mode release
 ```
 
-This checks the pinned source revision, unchanged tracked source, engine selection
-and reviewed Dart runtime bytes. It does not download, repair or replace an SDK.
-SDK archive provenance and native runtime acceptance require separate verification.
+This checks the pinned source revision, unchanged tracked source and selected
+engine/runtime bytes against independent upstream identities. A local SDK hash or
+receipt alone is insufficient. Original engine and Dart ZIPs can be supplied in
+`BUSYAPI_FLUTTER_UPSTREAM_ARTIFACTS`; the verifier authenticates their pinned
+SHA-256 identities before reading members. Independently established member pins
+also support verification without retaining archives. Missing provenance blocks
+qualification. The verifier does not download, install, repair or replace an SDK.
+Native runtime acceptance remains a separate check.
 
 Install locked project dependencies and prepare the contract and documentation assets:
 

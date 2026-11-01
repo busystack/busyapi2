@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from unittest import mock
 
 from tools import verify_flutter_sdk as sdk_check
@@ -46,17 +47,36 @@ class SdkInputs(unittest.TestCase):
             library = self.cache / 'artifacts/engine' / directory / 'libflutter_linux_gtk.so'
             library.parent.mkdir(parents=True)
             library.write_bytes(('Controlled ' + mode + ' library fixture').encode())
+        self.archives = self.root / 'upstream-archives'
+        self.archives.mkdir()
+        upstream = copy.deepcopy(sdk_check.LOCK['upstream'])
+        def archived(record, relative, content):
+            path = self.archives / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(path, 'w') as archive:
+                archive.writestr(record['member'], content)
+            record['size'] = path.stat().st_size
+            record['sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            record.pop('memberSha256', None)
+        for mode in ('debug', 'profile', 'release'):
+            archived(upstream['engine'][mode], 'linux-x64-' + mode + '/linux-x64-flutter-gtk.zip',
+                     ('Controlled ' + mode + ' library fixture').encode())
+        archived(upstream['dart'], 'dart-sdk-linux-x64.zip', b'Controlled runtime fixture; never executed')
         # Tests bind real read-only Git/cache boundaries to a small synthetic SDK.
         # These fixture identities are not qualification of a distributed SDK.
         lock = mock.patch.dict(sdk_check.LOCK, {
             'frameworkRevision': revision,
             'dartAotRuntimeSha256': hashlib.sha256(runtime.read_bytes()).hexdigest(),
+            'upstream': upstream,
         })
         lock.start()
         self.addCleanup(lock.stop)
         variables = ('BUSYAPI_FLUTTER_ENGINE_HOME', 'FLUTTER_ENGINE', 'FLUTTER_ENGINE_SRC_PATH',
                      'FLUTTER_PREBUILT_ENGINE_VERSION', 'FLUTTER_REALM')
-        environment = mock.patch.dict(os.environ, {name: '' for name in variables})
+        environment = mock.patch.dict(os.environ, {
+            **{name: '' for name in variables},
+            'BUSYAPI_FLUTTER_UPSTREAM_ARTIFACTS': str(self.archives),
+        })
         environment.start()
         self.addCleanup(environment.stop)
 
@@ -141,7 +161,7 @@ class SdkInputs(unittest.TestCase):
             sdk_check.main()
         self.library('release').write_bytes(b'Replaced after build capture')
         with mock.patch.object(sys, 'argv', args + ['--check-receipt']):
-            with self.assertRaisesRegex(ValueError, 'changed after build capture'):
+            with self.assertRaisesRegex(ValueError, 'independently authenticated upstream archive member'):
                 sdk_check.main()
         self.assertEqual(receipt.read_bytes(), before)
 
@@ -179,6 +199,47 @@ class SdkInputs(unittest.TestCase):
         obsolete.mkdir()
         with self.assertRaisesRegex(ValueError, 'obsolete custom engine output'):
             sdk_check.verify_installed(bundle)
+
+    def test_matching_local_library_hash_and_forged_receipt_are_not_provenance(self):
+        bundle = self.root / 'bundle'
+        library = bundle / 'lib/libflutter_linux_gtk.so'
+        library.parent.mkdir(parents=True)
+        record = sdk_check.verify(self.sdk, 'release')
+        library.write_bytes(b'Untrusted replacement with a matching self-authored receipt')
+        record['librarySha256'] = hashlib.sha256(library.read_bytes()).hexdigest()
+        sdk_check.capture(bundle / sdk_check.RECEIPT, record)
+        with self.assertRaisesRegex(ValueError, 'independent upstream provenance'):
+            sdk_check.verify_installed(bundle)
+        self.library('release').write_bytes(library.read_bytes())
+        with self.assertRaisesRegex(ValueError, 'independently authenticated upstream archive member'):
+            sdk_check.verify(self.sdk, 'release')
+
+    def test_missing_or_modified_original_archive_cannot_authenticate_sdk_bytes(self):
+        with mock.patch.dict(os.environ, {'BUSYAPI_FLUTTER_UPSTREAM_ARTIFACTS': ''}):
+            with self.assertRaisesRegex(ValueError, 'Original upstream archives'):
+                sdk_check.verify(self.sdk, 'release')
+        archive = self.archives / 'linux-x64-release/linux-x64-flutter-gtk.zip'
+        archive.write_bytes(b'Untrusted archive')
+        before = self.library('release').read_bytes()
+        with self.assertRaisesRegex(ValueError, 'upstream archive size'):
+            sdk_check.verify(self.sdk, 'release')
+        self.assertEqual(self.library('release').read_bytes(), before)
+
+    def test_old_self_hash_receipt_is_rejected(self):
+        bundle = self.root / 'bundle'
+        record = sdk_check.verify(self.sdk, 'release')
+        record['version'] = 1
+        sdk_check.capture(bundle / sdk_check.RECEIPT, record)
+        with self.assertRaisesRegex(ValueError, 'SDK identity'):
+            sdk_check.verify_installed(bundle)
+
+    def test_independent_member_pins_can_qualify_an_existing_sdk_without_archives(self):
+        upstream = copy.deepcopy(sdk_check.LOCK['upstream'])
+        upstream['engine']['release']['memberSha256'] = hashlib.sha256(b'Controlled release library fixture').hexdigest()
+        upstream['dart']['memberSha256'] = hashlib.sha256(b'Controlled runtime fixture; never executed').hexdigest()
+        with mock.patch.dict(sdk_check.LOCK, {'upstream': upstream}), \
+                mock.patch.dict(os.environ, {'BUSYAPI_FLUTTER_UPSTREAM_ARTIFACTS': ''}):
+            self.assertEqual(sdk_check.verify(self.sdk, 'release')['version'], 2)
 
 
 class BuildOwnership(unittest.TestCase):

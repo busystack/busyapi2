@@ -2,8 +2,8 @@
 
 The SDK is provisioned separately from the official Flutter release. This tool
 never builds an engine, downloads inputs, executes Flutter/Dart or changes the SDK.
-Its receipt binds subsequent install checks to the captured SDK/cache bytes;
-it is not a publisher signature or an independent archive attestation.
+Selected engine/runtime bytes must match independently pinned upstream archive
+members. A hash of the selected SDK or its receipt is not provenance evidence.
 """
 import argparse
 import hashlib
@@ -12,6 +12,11 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+
+if __package__:
+    from .flutter_archive import member_identity
+else:
+    from flutter_archive import member_identity
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = json.loads((ROOT / 'tools/flutter_sdk.lock.json').read_text())
@@ -31,6 +36,17 @@ def ordinary(path):
     if path.is_symlink() or not path.is_file():
         raise ValueError('Missing or linked upstream SDK input: ' + path.name)
     return path
+
+
+def archive_root(sdk=None, selected=None):
+    configured = selected or os.environ.get('BUSYAPI_FLUTTER_UPSTREAM_ARTIFACTS')
+    if configured:
+        return Path(configured)
+    if sdk is not None:
+        cached = Path(sdk) / 'bin/cache/downloads/storage.googleapis.com/flutter_infra_release'
+        if cached.is_dir():
+            return cached
+    return None
 
 
 def source_identity(sdk):
@@ -92,7 +108,7 @@ def source_identity(sdk):
             raise ValueError('Modified or unavailable Flutter SDK source is not a build input')
 
 
-def verify(sdk, mode, library=None):
+def verify(sdk, mode, library=None, upstream_artifacts=None):
     if mode not in LOCK['modes']:
         raise ValueError('Unknown Flutter build mode')
     for name in ('BUSYAPI_FLUTTER_ENGINE_HOME', 'FLUTTER_ENGINE', 'FLUTTER_ENGINE_SRC_PATH',
@@ -117,13 +133,23 @@ def verify(sdk, mode, library=None):
     for name in ('busyapi-engine.json', 'linux-input-ordering.patch'):
         if (selected.parent / name).exists() or (selected.parent / name).is_symlink():
             raise ValueError('A custom engine stage is not an upstream SDK cache')
+    archives = archive_root(sdk, upstream_artifacts)
+    engine_artifact = LOCK['upstream']['engine'][mode]
+    expected_library = member_identity(engine_artifact, archives)
+    expected_runtime = member_identity(LOCK['upstream']['dart'], archives)
+    if digest(ordinary(dart / 'bin/dartaotruntime')) != expected_runtime:
+        raise ValueError('Dart runtime differs from the independently authenticated upstream archive member')
     identity = digest(selected)
+    if identity != expected_library:
+        raise ValueError('Flutter library differs from the independently authenticated upstream archive member')
     if library is not None and digest(Path(library)) != identity:
         raise ValueError('Selected Flutter build library differs from its SDK mode')
-    return {'version': 1, 'producer': 'busyapi-upstream-flutter',
+    return {'version': 2, 'producer': 'busyapi-upstream-flutter',
             'frameworkVersion': LOCK['frameworkVersion'], 'frameworkRevision': LOCK['frameworkRevision'],
             'engineRevision': LOCK['engineRevision'], 'dartVersion': LOCK['dartVersion'],
-            'target': LOCK['target'], 'source': LOCK['source'], 'mode': mode, 'librarySha256': identity}
+            'target': LOCK['target'], 'source': LOCK['source'], 'mode': mode, 'librarySha256': identity,
+            'provenance': 'pinned-upstream-archives-v1', 'engineArchiveSha256': engine_artifact['sha256'],
+            'dartArchiveSha256': LOCK['upstream']['dart']['sha256'], 'dartRuntimeSha256': expected_runtime}
 
 
 def capture(path, record):
@@ -144,18 +170,26 @@ def capture(path, record):
             temporary.unlink(missing_ok=True)
 
 
-def verify_installed(bundle):
+def verify_installed(bundle, upstream_artifacts=None):
     bundle = Path(bundle)
     path = ordinary(bundle / RECEIPT)
     if path.stat().st_size > 64 * 1024:
         raise ValueError('Oversized Flutter SDK capture')
     record = json.loads(path.read_text())
-    expected = {'version': 1, 'producer': 'busyapi-upstream-flutter',
+    expected = {'version': 2, 'producer': 'busyapi-upstream-flutter', 'provenance': 'pinned-upstream-archives-v1',
                 **{key: LOCK[key] for key in ('frameworkVersion', 'frameworkRevision', 'engineRevision', 'dartVersion', 'target', 'source')}}
     if not isinstance(record, dict) or any(record.get(key) != value for key, value in expected.items()):
         raise ValueError('Installed Flutter SDK identity does not match the lock')
-    if record.get('mode') not in LOCK['modes']:
+    if not isinstance(record.get('mode'), str) or record['mode'] not in LOCK['modes']:
         raise ValueError('Invalid installed Flutter SDK mode')
+    archives = archive_root(selected=upstream_artifacts)
+    engine = LOCK['upstream']['engine'][record['mode']]
+    expected_library = member_identity(engine, archives)
+    expected_runtime = member_identity(LOCK['upstream']['dart'], archives)
+    if (record.get('engineArchiveSha256') != engine['sha256'] or
+            record.get('dartArchiveSha256') != LOCK['upstream']['dart']['sha256'] or
+            record.get('dartRuntimeSha256') != expected_runtime or record.get('librarySha256') != expected_library):
+        raise ValueError('Installed Flutter receipt differs from independent upstream provenance')
     if digest(ordinary(bundle / 'lib/libflutter_linux_gtk.so')) != record.get('librarySha256'):
         raise ValueError('Installed Flutter library differs from its captured SDK input')
     if (bundle / 'share/busyapi/flutter-engine').exists() or (bundle / 'share/busyapi/flutter-engine').is_symlink():
@@ -171,15 +205,17 @@ def main():
     parser.add_argument('--receipt', type=Path)
     parser.add_argument('--check-receipt', action='store_true')
     parser.add_argument('--bundle', type=Path)
+    parser.add_argument('--upstream-artifacts', type=Path,
+                        help='Read existing official ZIP archives; never download, install or replace SDK contents')
     args = parser.parse_args()
     if args.bundle:
         if any((args.sdk, args.mode, args.library, args.receipt, args.check_receipt)):
             parser.error('Choose an installed bundle or SDK inputs')
-        verify_installed(args.bundle)
+        verify_installed(args.bundle, args.upstream_artifacts)
     else:
         if not args.sdk or not args.mode:
             parser.error('SDK verification requires --sdk and --mode')
-        record = verify(args.sdk, args.mode, args.library)
+        record = verify(args.sdk, args.mode, args.library, args.upstream_artifacts)
         if args.check_receipt:
             if not args.receipt or json.loads(ordinary(args.receipt).read_text()) != record:
                 raise ValueError('Flutter SDK inputs changed after build capture')

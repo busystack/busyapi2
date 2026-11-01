@@ -48,7 +48,7 @@ source inspection or a successful build is not runtime acceptance.
 | TypeScript compiler gate | Existing pinned engine build and CI paths | Repeatable compiler check wired before bundling | Implemented but unverified |
 | MIME result and Markdown parser typing | Engine execution and Markdown relocation | Literal revision ownership and explicit unknown-value narrowing | Implemented but unverified |
 | Migration preflight producer admission | Native fixture preflight, engine and Core | Current revision admitted; regression checks all three production consumers | Implemented but unverified |
-| Upstream Flutter/Dart build inputs | SDK verification, CMake, CI and distribution checks | Standard SDK engine installation; custom builders, patches and override removed | Implemented but unverified; original SDK archive provenance and runtime qualification pending |
+| Upstream Flutter/Dart build inputs | SDK verification, CMake, CI and distribution checks | Standard SDK installation; independent official archive identities pinned; version-2 receipts require authenticated member identities | Metadata matched to official publications; selected binary provenance and runtime qualification remain blocked pending independent member evidence |
 | Native and packaged acceptance | Existing qualification suites | Required acceptance remains incomplete | Not passed |
 
 ## Required functionality still open
@@ -110,3 +110,19 @@ numbers, stale choices, cancellation and malformed review metadata. These change
 and regressions are implemented but unverified. The discriminator producer
 regression now checks `discriminator-models-v2` and production mock rejection of
 obsolete `swagger-discriminator-models-v1` proofs; those tests have not run.
+
+Flutter 3.47.5/Dart 3.13.4 and the existing framework/engine revisions are
+unchanged. `tools/flutter_sdk.lock.json` pins the
+[official Linux release catalog](https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json)
+and the SDK, Linux debug/profile/release engine and Dart archive identities from
+their published attestation subjects. The
+[3.47.5 SDK attestation](https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.5-stable.tar.xz.intoto.jsonl)
+agrees with the catalog's archive SHA-256. This establishes expected archive
+identities, not the authenticity of a selected local binary or cryptographic
+verification of attestation signatures. The verifier requires an independently
+established member pin or reads the original ZIP only after its complete hash
+matches that pin. Installed checks reject self-hash-only receipts and forged
+library/receipt pairs. No SDK acquisition or replacement occurs in this path.
+`tools/test_flutter_sdk.py` adds owned-fixture regressions for absent/modified
+archives, forged receipts and existing-SDK verification. Those tests and actual
+binary comparison have not run; native and packaged acceptance remain open.
