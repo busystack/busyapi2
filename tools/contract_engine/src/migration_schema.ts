@@ -8,6 +8,8 @@ import {createHash} from 'node:crypto';
 import {MigrationSchemaReferences} from './migration_schema_references';
 import {SchemaPropertyRequirements} from './schema_property_requirements';
 import {migrateDependentRequired,migrateDependentSchemas} from './migration_schema_dependencies';
+import {migrateInactiveSchemaAnnotations} from './migration_inactive_annotations';
+import {restrictedBooleanSchema} from './migration_schema_values';
 
 export type MigrationChoice=Readonly<{value:string;label:string;target:MigrationLocation&{range:readonly number[]}}>;
 export type MigrationProblem={resource:string;pointer:string;range:number[];code:string;message:string;reason:'target-representation'|'implementation'|'source-incomplete'|'decision';choices?:string[];choiceDetails?:readonly MigrationChoice[];id?:string};
@@ -28,7 +30,7 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
                 if(!modernFamily(to)&&graph.references.some(reference=>reference.targetResource===scope.resource&&reference.targetPointer===scope.pointer))issue(scope,'migration.schema.boolean-dual-owner','A boolean additionalProperties value also used as a standalone schema needs a separate target representation','implementation');
                 continue;
             }
-            if(!modernFamily(to))source.set(pointer,value?{}:to==='2.0'?{allOf:[{type:'string'},{type:'integer'}]}:{not:{}});
+            if(!modernFamily(to))source.set(pointer,restrictedBooleanSchema(value,to));
             continue;
         }
         if(!value||typeof value!=='object'||Array.isArray(value))continue;
@@ -81,7 +83,8 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
                 }
             }else issue(field('prefixItems'),'migration.schema.tuple','OpenAPI 3.0 has no positional tuple Schema Object keyword','target-representation');
         }
-        if(to==='2.0')for(const name of ['oneOf','anyOf','not','writeOnly','deprecated'])if(Object.hasOwn(value,name))issue(field(name),'migration.schema.keyword','This Schema Object field requires an explicit faithful Swagger mapping','implementation');
+        migrateInactiveSchemaAnnotations(graph,scope,source,sources,to);
+        if(to==='2.0')for(const name of ['oneOf','anyOf','not','writeOnly','deprecated'])if(Object.hasOwn(value,name)&&source.doc.dataNode(pointer+'/'+name))issue(field(name),'migration.schema.keyword','This Schema Object field requires an explicit faithful Swagger mapping','implementation');
         if(from==='3.0'&&modernFamily(to)){
             if(value.nullable===true&&typeof value.type==='string')source.set(pointer+'/type',[value.type,'null']);
             if(Object.hasOwn(value,'nullable'))source.remove(pointer+'/nullable');

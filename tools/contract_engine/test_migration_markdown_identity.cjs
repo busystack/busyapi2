@@ -97,7 +97,7 @@ test(`${version} ${format} migration repairs rendered Markdown only, retaining c
  document.info.description=rich;
  input.resources[0].text=(format==='json'?JSON.stringify(document):'# Keep source\r\n'+YAML.stringify(document).replaceAll('\n','\r\n'))+'\r\n';
  const before=input.resources[0].text,result=await planMigration(input);
- assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.producerVersion,'37');
+ assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.producerVersion,'38');
  const output=result.outputs.find(value=>value.id===result.outputRoot),target=createGraph({root:result.outputRoot,resources:result.outputs.map(value=>({...value,generation:0}))}).graph;
  const actual=target.docs.get(result.outputRoot).dataNode('/info/description').value;
  assert.deepEqual(rendered(actual,result.outputRoot),rendered(rich,input.root));

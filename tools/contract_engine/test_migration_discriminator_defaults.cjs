@@ -93,7 +93,7 @@ test(`${version} ${format} ${composition} offers only eligible proved alternativ
     const input=fixture(version,format,composition),original=input.resources[0].text;
     const before=await evaluate(input,{resource:input.root,pointer:'/components/schemas/Parent'});
     const review=await planMigration(input);
-    assert.equal(review.status,'requires-decision',JSON.stringify(review.problems));assert.equal(review.producerVersion,'37');
+    assert.equal(review.status,'requires-decision',JSON.stringify(review.problems));assert.equal(review.producerVersion,'38');
     assert.deepEqual(review.outputs,[]);assert.deepEqual(review.changes,[]);
     assert.equal(review.problems.length,1);
     const [problem]=review.problems;

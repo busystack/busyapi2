@@ -41,6 +41,7 @@ source inspection or a successful build is not runtime acceptance.
 | Portable external-example migration | Migration examples, Core publication and shared review | Exact byte copies, native locator repairs and delivered-resource proofs | Implemented but unverified |
 | Scoped binary/byte migration | Migration binary owner | Established raw, text/JSON and base64 contexts mapped; mixed/constrained contexts remain | Implemented but unverified |
 | Modern required-property lowering | Migration required-presence owner | Scoped modern-to-3.0 presence assertions retain constraints | Implemented but unverified |
+| Inactive annotation downgrades | Schema migration and canonical ownership | False writeOnly/deprecated annotations lower to Swagger defaults; independently referenced boolean schemas retain collision-safe owners | Implemented but unverified; active directional annotations remain incomplete |
 | Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants; affected YAML aliases receive separate planning-copy owners | Implemented but unverified; independently interpreted literal and cross-entry ownership remain incomplete |
 | YAML migration ownership | Existing source CST and migration provenance | Captured property/alias tokens split affected logical uses, retain exact data and comments, and preserve other consumers before conversion | Implemented but unverified; ordinary editing guards remain unchanged |
 | Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback choices bind eligible composition alternatives and exact instance witnesses | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
@@ -147,7 +148,7 @@ and Core publication tests cover scalar/collection/key anchors, repeated names,
 virtual descendants, different bases, exact numbers, literal payloads, unsaved
 source, cancellation, stale reviews and cold reopen. The old shared-Markdown
 refusal controls now require successful mapping plus unchanged literal values.
-These changes and tests are implemented but unverified. Migration producer 37
+These changes and tests are implemented but unverified. Migration producer 38
 is admitted consistently by engine, Core and native preflight; the permanent
 cross-component consistency regression remains active.
 
@@ -175,6 +176,19 @@ references, composed upgrades and faithful downgrade cases. Core tests cover
 unsaved models, cancellation, stale reviews, publication and reopen. Previously
 blocked representable alias cases now require successful conversion plus actual
 behavior and unchanged-data assertions. These changes have not been executed.
+
+Swagger downgrade removes only inactive false `writeOnly` and `deprecated`
+Schema Object annotations, preserving effective defaults and accepted request/
+response values. Active annotations retain their existing blockers. A modern
+false annotation referenced independently as a schema is moved to a standard
+definition using the shared restricted boolean-schema mapping; source provenance,
+references and namespace collisions remain explicit. The authorities are OpenAPI
+3.0.4 §4.7.24.2 and JSON Schema Validation 2020-12 §§9.3–9.4.
+`test_migration_inactive_annotations.cjs` covers every published 3.0–3.2 patch,
+YAML/JSON, request/response evaluations, exact numbers and empty values, aliased
+literal consumers, independent false schemas, naming collisions and active-rule
+refusals. Core regressions cover unsaved captures, cancellation, stale publication
+and native Swagger reopen. These source changes and regressions have not run.
 
 Numeric witness construction reads canonical numeric values in both YAML and
 JSON rather than requiring JSON's CST node kind. It uses the existing exact

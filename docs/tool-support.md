@@ -752,9 +752,12 @@ and remaining mappings.
 Migration preserves untouched YAML anchors and aliases, including exact numeric
 payloads and unchanged canonical reference/identity strings. Static locator
 retention is proved against the mapped graph and the delivered cold-reopen
-identity map. Changes to shared syntax remain source-located blockers, including
-patch-only declarations and empty anchored destinations. These cases use migration
-producer **3**; Core rejects previous producer responses before publication.
+identity map. Affected YAML uses receive separate planning-copy ownership through
+captured anchor/alias tokens, including patch-only declarations and anchored
+destinations. Other consumers retain their exact values, and review shows the
+restructuring. Independently interpreted literal/contract occurrences still need
+their own mappings. The migration producer is **38**; Core rejects previous
+producer responses before publication. Current qualification remains pending.
 
 Contract-case JSON reports include `dispatched` and `operationalFailure`. Coverage
 counts operation occurrences handed to the HTTP transport; refused preparation
@@ -883,9 +886,14 @@ names. OpenAPI 3.2 fallback decisions select eligible composition alternatives
 with a proved absent-property instance. Each reviewed option retains its captured
 source location; copied occurrences have independent decision identities. Parent
 assertions remain unchanged, and full target validation is still required after
-selection. Aliased/literal ownership, incompatible entries and remaining
+selection. Independently interpreted literal ownership, incompatible entries and remaining
 faithful downgrade mappings still produce located blockers. See the
 [migration guide](migration.md) and support matrix for coverage and verification.
+
+Swagger downgrade removes inactive false `writeOnly` and `deprecated` schema
+annotations, preserving their default behavior. Independently referenced boolean
+schema values receive standard definitions with repaired references. Active
+annotations are retained as mapping blockers rather than discarded.
 
 Migration from 3.0 to Swagger uses the same explicit ignored-body omission
 decision as upgrades to 3.1/3.2. Removing a use recaptures its surviving graph;

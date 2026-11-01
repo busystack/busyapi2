@@ -82,10 +82,20 @@ without the discriminating property must validate against both the alternative
 and the whole parent before that target is offered. Choosing a target does not
 replace parent assertions or change `oneOf` exclusivity. Circular, incompatible
 or unproved choices do not authorize publication. Earlier undefined behavior is
-not silently assigned a default. Aliased/literal and incompatible entry contexts still need additional ownership
+not silently assigned a default. Independently interpreted literal and incompatible entry contexts still need additional ownership
 mappings. Downgrades that would introduce stronger request exclusions remain
 blocked until a faithful mapping is available. See the support matrix for
 verification status.
+
+OpenAPI 3.0 requires a required discriminator property. An invalid optional
+property must be corrected in the source before migration. A valid required
+property stays required on upgrade and needs no fallback decision. Optional
+3.1 discriminators use the explicit 3.2 review described above.
+
+Swagger downgrade removes inactive `writeOnly: false` and `deprecated: false`
+schema annotations without changing their effective behavior. A false value
+also referenced as a schema keeps a separate standard definition. Active
+annotations still need a faithful target mapping.
 
 Downgrading a 3.2 document resolves the URI meaning supplied by `$self` before
 removing that field. Document metadata, nested schema identities and captured
@@ -150,7 +160,7 @@ destinations remain unchanged across conversion and relocation. This includes
 root-relative, network-path and normalized parent paths where their resolved
 addresses are identical. When a destination changes, BusyAPI rewrites only the
 parsed link/image destination and proves the resulting rendered destination.
-Code examples and prose remain untouched. Ambiguous or shared ownership still
+Code examples and prose remain untouched. Conflicting literal/rendered ownership still
 produces a source-located blocker. Removing a schema identity is included in that
 check.
 
@@ -178,10 +188,12 @@ their captured mappings.
 
 Untouched YAML anchors and aliases retain their authored spelling and shared
 values. An unchanged canonical reference can retain its spelling when the
-copied resources and reviewed identity mappings prove the same target. A change
-that would edit, copy or replace shared YAML syntax needs an ownership-preserving
-mapping; otherwise the review identifies the original field and blocks publication.
-This also applies to shared version declarations and anchored empty destinations.
+copied resources and reviewed identity mappings prove the same target. Review
+may expand affected aliases so a converted occurrence can change independently
+of its other consumers. This includes shared version declarations, schemas,
+references and anchored destinations. Other consumers keep their exact values;
+original documents stay intact. Conflicting contract/literal interpretations
+still receive source-located blockers until their ownership is resolved.
 
 See the [native support matrix](implementation/native-openapi-support.md) for
 verified workflows and remaining conversion limitations.
