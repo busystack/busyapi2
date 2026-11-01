@@ -170,7 +170,9 @@ python3 -m unittest tools.test_contract_assets tools.test_package_linux
 python3 tools/artifact_smoke.py build/linux/x64/release/bundle
 ```
 
-Native interaction, WebKit integration, strict-Snap packaging, and paint/input performance need separate platform qualification. Headless tests and CLI smoke checks do not establish those results.## Documentation
+Native interaction, WebKit integration, strict-Snap packaging, and paint/input performance need separate platform qualification. Headless tests and CLI smoke checks do not establish those results.
+
+## Documentation
 
 - [Architecture and security boundaries](docs/architecture.md)
 - [Tool support and compatibility](docs/tool-support.md)
