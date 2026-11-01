@@ -14,3 +14,10 @@ lib/l10n/generated/
 
 __pycache__/
 *.pyc
+
+.idea/
+.codex/
+.agents/
+diagnostics/
+qualification/
+*.private.log
