@@ -60,7 +60,7 @@ test(`${version} to ${target} ${format} ${flag} required=${required} preserves r
     const before=await values(input,payloads);
     const review=await planMigration(input);
     assert.equal(review.status,'faithfully-convertible',JSON.stringify(review.problems));
-    assert.equal(review.producerVersion,'36');assert.equal(review.complete,true);
+    assert.equal(review.producerVersion,'37');assert.equal(review.complete,true);
     assert(review.changes.length>0);assert(review.outputs.length>=3);
     const targetInput={root:review.outputRoot,snapshot:'cold:'+input.snapshot,
         resources:review.outputs.map(output=>({id:output.id,text:output.text,generation:0}))};

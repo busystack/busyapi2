@@ -36,8 +36,12 @@ for(const format of ['yaml','json'])for(const reverse of [false,true])test(`${fo
 });
 for(const alias of [false,true])test(`YAML implicit Server alias=${alias} retains physical ownership`,async()=>{
  const root='https://contracts.example.invalid/alias.yaml',text='openapi: 3.0.4\ninfo: {title: "Aliased default", version: "1"}\nx-held: &held []\nservers: '+(alias?'*held':'[]')+'\nx-copy: *held\npaths: {/items: {get: {responses: {"204": {description: "No body"}}}}}\n',input={root,snapshot:'alias',resources:[{id:root,text,generation:1}]},result=await planMigration({...input,targetVersion:'3.1.2',destination:'file:///output/alias/'});
- if(alias){assert.equal(result.status,'blocked');assert.deepEqual(result.outputs,[]);assert(result.problems.some(problem=>problem.code==='edit.shared'&&problem.reason==='implementation'&&problem.resource===root&&problem.pointer==='/servers'&&problem.range[1]>problem.range[0]));}
- else {assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));const output=result.outputs.find(output=>output.id===result.outputRoot),converted=YAML.parse(output.text);assert.deepEqual(converted['x-held'],[]);assert.deepEqual(converted['x-copy'],[]);assert(output.text.includes('x-held: &held []\n'));assert(output.text.includes('x-copy: *held\n'));assert.equal(converted.servers[0].url,'https://contracts.example.invalid/');}
+ assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));
+ const output=result.outputs.find(output=>output.id===result.outputRoot),converted=YAML.parse(output.text);
+ assert.deepEqual(converted['x-held'],[]);assert.deepEqual(converted['x-copy'],[]);
+ assert(output.text.includes('x-held: &held []\n'));assert(output.text.includes('x-copy: *held\n'));
+ assert.equal(converted.servers[0].url,'https://contracts.example.invalid/');
+ if(alias)assert(result.presentationChanges.some(change=>change.resource===root&&change.pointer==='/servers'));
  assert.equal(input.resources[0].text,text);
 });
 for(const format of ['yaml','json'])test(`3.2 ${format} implicit Server uses captured retrieval rather than $self`,async()=>{

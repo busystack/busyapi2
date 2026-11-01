@@ -47,7 +47,7 @@ test(`${version} ${format} $self=${JSON.stringify(self)} lowers to ${target} wit
     const before=input.resources[0].text,source=createGraph(input).graph;
     const base=source.scope(input.root,'').base,validity=await outcomes(input);
     const review=await planMigration(input);
-    assert.equal(review.complete,true,JSON.stringify(review.problems));assert.equal(review.producerVersion,'36');
+    assert.equal(review.complete,true,JSON.stringify(review.problems));assert.equal(review.producerVersion,'37');
     const output=review.outputs.find(value=>value.id===review.outputRoot),doc=new SourceDocument(output.text,output.id);
     assert.equal(doc.dataNode('/$self'),undefined);assert.equal(doc.node('/info/version').value,'business');
     assert.equal(doc.node('/info/contact/url').value,resolveUri('./contact',base).href);
@@ -129,14 +129,19 @@ test('missing resources still block document identity conversion without outputs
     assert(review.problems.some(problem=>problem.reason==='source-incomplete'));assert.equal(input.resources[0].text,before);
 });
 
-test('a shared YAML identity cannot be retired by deleting its anchor owner',async()=>{
+test('a shared YAML identity lowers while retaining other literal consumers',async()=>{
     const root='file:///identity/shared/api.yaml';
     const text='openapi: 3.2.1\r\n$self: &identity https://contracts.invalid/api\r\n'+
         'info: {title: Shared identity, version: "1"}\r\npaths: {}\r\nx-identity: *identity\r\n';
     const input={root,snapshot:'shared-identity',targetVersion:'3.1.2',destination:'file:///reviewed/shared-identity/',
         resources:[{id:root,text,generation:1}]};
     const review=await planMigration(input);
-    assert.equal(review.complete,false);assert.deepEqual(review.outputs,[]);assert.deepEqual(review.changes,[]);
-    assert(review.problems.some(problem=>problem.code==='edit.shared'&&problem.resource===root));
+    assert.equal(review.complete,true,JSON.stringify(review.problems));
+    const output=review.outputs.find(output=>output.id===review.outputRoot),doc=new SourceDocument(output.text,output.id);
+    assert.equal(doc.dataNode('/$self'),undefined);assert.equal(doc.dataNode('/openapi').value,'3.1.2');
+    assert.equal(doc.dataNode('/x-identity').value,'https://contracts.invalid/api');
+    const checked=analyse({root:output.id,snapshot:'cold-shared-identity',resources:review.outputs.map(output=>({...output,generation:0}))});
+    assert.equal(checked.status,'complete',JSON.stringify(checked.findings));
+    assert(review.presentationChanges.some(change=>change.resource===root&&change.pointer==='/x-identity'));
     assert.equal(input.resources[0].text,text);
 });

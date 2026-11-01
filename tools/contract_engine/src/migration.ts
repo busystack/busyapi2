@@ -31,9 +31,10 @@ import {migrateSwaggerDiscriminators} from './migration_discriminator';
 import {MigrationExamples,proveMigrationExamples,type MigrationExampleCopy} from './migration_examples';
 import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
+import {migrationLogicalPointers,migrationYamlOwnership} from './migration_yaml_ownership';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='36';
+const migrationProducerVersion='37';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -73,7 +74,7 @@ export async function planMigration(input:MigrationInput) {
     const relocatedResources=new Map<string,string>();
     const createdResources=new Map<string,string>();
     let origins=new Map<string,MigrationLocation[]>();
-    for(const doc of original.values())for(const pointer of doc.nodes.keys())origins.set(key(doc.id,pointer),[{resource:doc.id,pointer}]);
+    for(const doc of original.values())for(const pointer of migrationLogicalPointers(doc))origins.set(key(doc.id,pointer),[{resource:doc.id,pointer}]);
     const sourceLocation=(resource:string,pointer:string)=>{
         resource=relocatedResources.get(resource)??resource;
         let at=pointer;
@@ -305,6 +306,10 @@ export async function planMigration(input:MigrationInput) {
             if(!context.graph.specifications.has(resource.id))return resource;
             const source=new MigrationSource(context.docs.get(resource.id)!);
             source.set(target.declaration==='swagger'?'/swagger':'/openapi',target.declaredVersion);
+            for(const pointer of source.presentationChanges){
+                const original=sourceLocation(resource.id,pointer);
+                presentationChanges.push({resource:original.resource,pointer:original.pointer});
+            }
             return {...resource,text:source.doc.text};
         });
     }catch(error){refused(error,{resource:input.root,pointer:''});}
@@ -321,6 +326,10 @@ export async function planMigration(input:MigrationInput) {
         for(const occurrence of documentUriOccurrences(context.graph))if(occurrence.scope.kind!=='server')sources.get(occurrence.scope.resource)!.set(occurrence.pointer,resolveUri(occurrence.value,documentUriBase(context.graph,occurrence.scope)).href);
         for(const reference of context.graph.references)if(['$ref','$dynamicRef','operationRef'].includes(reference.keyword)&&reference.resolution==='resolved')sources.get(reference.resource)!.set(reference.pointer+'/'+escape(reference.keyword),resolveUri(reference.value,reference.base).href);
         for(const scope of context.graph.scopesFor('schema'))assertRoleAnnotations(context.graph,scope,sources.get(scope.resource)!.doc,scope.pointer);
+        for(const [resource,source]of sources)for(const pointer of source.presentationChanges){
+            const original=sourceLocation(resource,pointer);
+            presentationChanges.push({resource:original.resource,pointer:original.pointer});
+        }
     }catch(error){refused(error,{resource:input.root,pointer:''});}
     if(problems.length)return {...common(),changes:[],outputs:[]};
     // Each declared API must reopen with its containing directory as the
@@ -402,7 +411,14 @@ export async function planMigration(input:MigrationInput) {
         }
         if(value===reference.value)continue;
         const source=outputResources.find(resource=>resource.id===reference.resource)!;
-        try{const doc=new SourceDocument(source.text,source.id);source.text=doc.set(location.pointer,value);}
+        try{
+            const owned=migrationYamlOwnership(new SourceDocument(source.text,source.id),location.pointer);
+            source.text=owned.document.set(location.pointer,value);
+            for(const pointer of owned.changed){
+                const original=sourceLocation(source.id,pointer);
+                presentationChanges.push({resource:original.resource,pointer:original.pointer});
+            }
+        }
         catch(error){refused(error,location);}
     }
     if(problems.length)return {...common(),changes:[],outputs:[]};

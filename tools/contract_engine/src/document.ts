@@ -1,4 +1,4 @@
-import YAML, { isMap, isSeq, isScalar, isAlias } from 'yaml';
+import YAML, { isMap, isSeq, isScalar, isAlias, type CST } from 'yaml';
 import { parseTree, getNodeValue, printParseErrorCode } from 'jsonc-parser/lib/esm/main.js';
 export const limits = { bytes: 16 * 1024 * 1024, depth: 128, aliases: 64, resources: 2048 };
 export type Range = [
@@ -25,6 +25,7 @@ export type Node = {
     valuePrefix?: string;
     implicitFlow?: boolean;
 };
+export type SourceAnchor=Readonly<{node:Node;name:string;range:Range|null}>;
 export class RawJsonValue {
     constructor(public text: string) { }
 }
@@ -35,6 +36,30 @@ export class SourceError extends Error {
 }
 export const escape = (s: string) => s.replaceAll('~', '~0').replaceAll('/', '~1');
 export const segments = (p: string) => p === '' ? [] : p.slice(1).split('/').map(s => s.replaceAll('~1', '/').replaceAll('~0', '~'));
+/** The pinned parseDocument implementation uses these same public Parser and
+ * Composer entry points. Retain property tokens during that one parse,
+ * including root anchors; no second parser or resolver runs. */
+function capturedYaml(text:string) {
+    let source:CST.Document|undefined;
+    function* tokens():Generator<CST.Token> {
+        for(const token of new YAML.Parser().parse(text)){
+            if(token.type==='document')source??=token;
+            yield token;
+        }
+    }
+    const composer=new YAML.Composer({version:'1.2',schema:'core',keepSourceTokens:true,uniqueKeys:true,stringKeys:true,prettyErrors:false,strict:true});
+    let document:ReturnType<typeof YAML.parseDocument>|undefined;
+    for(const parsed of composer.compose(tokens(),true,text.length)){
+        if(!document)document=parsed;
+        else {
+            document.errors.push(new YAML.YAMLParseError([parsed.range[0],parsed.range[1]],'MULTIPLE_DOCS',
+                'Source contains multiple documents; please use YAML.parseAllDocuments()'));
+            break;
+        }
+    }
+    if(!document)throw new SourceError('yaml.parser','The pinned YAML composer omitted its required document');
+    return {document,source};
+}
 export class SourceDocument {
     nodes = new Map<string, Node>();
     issues: SourceError[] = [];
@@ -43,6 +68,8 @@ export class SourceDocument {
     format: string;
     newline: string;
     private syntaxTokens = new Map<string, any>();
+    private readonly yamlAnchors:SourceAnchor[]=[];
+    sourceAnchors():readonly SourceAnchor[]{return this.yamlAnchors;}
     constructor(public text: string, public id: string, public tolerant = false, syntax?:'json'|'yaml') {
         if (Buffer.byteLength(text) > limits.bytes)
             throw new SourceError('limit.bytes', 'Document exceeds the 16 MiB analysis limit');
@@ -95,7 +122,7 @@ export class SourceDocument {
             this.root = walk(tree, '', 0, getNodeValue(tree));
         }
         else {
-            const doc = YAML.parseDocument(text, { version: '1.2', schema: 'core', keepSourceTokens: true, uniqueKeys: true, stringKeys: true, prettyErrors: false, strict: true });
+            const captured=capturedYaml(text),doc=captured.document;
             for (const e of [...doc.errors, ...doc.warnings])
                 this.issues.push(new SourceError('yaml.' + e.code, e.message, [e.pos[0], e.pos[1]]));
             if (!tolerant && this.issues.length)
@@ -108,6 +135,13 @@ export class SourceDocument {
                 throw new SourceError('yaml.alias', 'Alias expansion exceeds the safe limit');
             }
             const dataAnchors=new Map<string,Node>();
+            const anchor=(node:Node,name:unknown,props:readonly CST.SourceToken[])=>{
+                if(typeof name!=='string')return;
+                const matches=props.filter(token=>token.type==='anchor'&&token.source==='&'+name);
+                const token=matches.length===1?matches[0]:undefined;
+                this.yamlAnchors.push({node,name,range:token?[token.offset,token.offset+token.source.length]:null});
+                dataAnchors.set(name,node);
+            };
             // A member owns syntax (including an explicit '?'), but not its
             // comma or surrounding comment trivia. Valueless pairs have no
             // value AST range; the key and CST separators still bound them.
@@ -122,13 +156,13 @@ export class SourceDocument {
                 const valueEnd = item.value ? value?.range?.[1] ?? start : start;
                 return [start, Math.max(start, keyEnd, valueEnd, ...ends)];
             };
-            const walk = (t: any, p: string, v: any, depth: number, inherited = false): Node => {
+            const walk = (t: any, p: string, v: any, depth: number, inherited = false, props:readonly CST.SourceToken[]=[]): Node => {
                 if (depth > limits.depth)
                     throw new SourceError('limit.depth', 'Maximum nesting depth exceeded', t?.range?.slice(0, 2));
                 const n = remember({ pointer: p, range: [t?.range?.[0] ?? 0, t?.range?.[1] ?? 0], end: t?.range?.[2] ?? t?.range?.[1] ?? 0, value: v, children: new Map(), kind: isMap(t) ? 'object' : isSeq(t) ? 'array' : 'scalar', flow: t?.flow ?? false, shared: inherited || !!t?.anchor || isAlias(t), style: t?.type, tag: t?.tag });
                 const sourceToken: any = t?.srcToken;
                 if(sourceToken)this.syntaxTokens.set(p,sourceToken);
-                if (typeof t?.anchor === 'string') dataAnchors.set(t.anchor,n);
+                anchor(n,t?.anchor,props);
                 // YAML permits an anchor name to be reused. Capture the
                 // preceding CST occurrence now, not the final name binding.
                 if (isAlias(t)) n.alias = dataAnchors.get(t.source);
@@ -155,9 +189,9 @@ export class SourceDocument {
                         // the member value at this pointer is a different node.
                         if (typeof pair.key.anchor === 'string') {
                             const source: Node = { pointer, range: pair.key.range.slice(0, 2) as Range, end: pair.key.range[2], value: key, children: new Map(), kind: 'scalar', flow: false, shared: true, key: true, style: pair.key.type, tag: pair.key.tag };
-                            dataAnchors.set(pair.key.anchor, source);
+                            anchor(source,pair.key.anchor,pair.srcToken?.start??[]);
                         }
-                        const c = walk(pair.value, pointer, v?.[key], depth + 1, n.shared);
+                        const c = walk(pair.value, pointer, v?.[key], depth + 1, n.shared,pair.srcToken?.sep??[]);
                         c.keyRange = pair.key.range?.slice(0, 2) as Range;
                         c.keyShared = !!pair.key.anchor;
                         if (!pair.value) {
@@ -178,8 +212,8 @@ export class SourceDocument {
                 }
                 if (isSeq(t))
                     for (const [i, c] of t.items.entries()) {
-                        const child = walk(c, p + '/' + i, v?.[i], depth + 1, n.shared);
                         const item = sourceToken?.items[i];
+                        const child = walk(c, p + '/' + i, v?.[i], depth + 1, n.shared,item?.start??[]);
                         const span = child.implicitFlow ? child.range : memberRange(item, undefined, c, child.range);
                         // A block item owns its sequence marker even when comments precede its value.
                         child.entryStart = span[0];
@@ -188,7 +222,7 @@ export class SourceDocument {
                     }
                 return n;
             };
-            this.root = walk(doc.contents, '', value, 0);
+            this.root = walk(doc.contents, '', value, 0,false,captured.source?.start??[]);
             const finiteNumber=(v:number,pointer:string)=>{
                 if(Number.isFinite(v))return true;
                 // Infinity in the JS projection can represent a perfectly

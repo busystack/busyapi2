@@ -36,9 +36,9 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
         const typeComposition=(types:string[])=>{
             const branches=types.map(type=>type==='null'?{type:'string',nullable:true,enum:[null]}:{type});
             source.remove(pointer+'/type');
-            if(source.doc.nodes.has(pointer+'/anyOf')){
-                if(!source.doc.nodes.has(pointer+'/allOf'))source.set(pointer+'/allOf',[]);
-                const index=source.doc.node(pointer+'/allOf').children.size;source.set(pointer+'/allOf/'+index,{});source.move(pointer+'/anyOf',pointer+'/allOf/'+index+'/anyOf');
+            if(source.doc.dataNode(pointer+'/anyOf')){
+                if(!source.doc.dataNode(pointer+'/allOf'))source.set(pointer+'/allOf',[]);
+                const index=source.doc.dataNode(pointer+'/allOf').children.size;source.set(pointer+'/allOf/'+index,{});source.move(pointer+'/anyOf',pointer+'/allOf/'+index+'/anyOf');
             }
             source.set(pointer+'/anyOf',branches);
         };
@@ -49,12 +49,12 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
             // the captured graph. Reference repair below maps their physical
             // owners before the target is evaluated without modern identities.
             for(const name of ['$id','$anchor'])source.remove(pointer+'/'+name);
-            for(const keyword of schemaDefinitionKeywords)if(source.doc.nodes.has(pointer+'/'+keyword)){
+            for(const keyword of schemaDefinitionKeywords)if(source.doc.dataNode(pointer+'/'+keyword)){
                 const entry=sources.get(graph.root)!;
-                for(const name of [...source.doc.node(pointer+'/'+keyword).children.keys()]){
+                for(const name of [...source.doc.dataNode(pointer+'/'+keyword).children.keys()]){
                     const at=pointer+'/'+keyword+'/'+escape(name),stem='_migrated_'+createHash('sha256').update(scope.resource+'#'+scope.pointer+'/'+keyword+'/'+escape(name)).digest('hex').slice(0,24);
                     let destination='/components/schemas/'+stem,index=0;
-                    while(entry.doc.nodes.has(destination))destination='/components/schemas/'+stem+'_'+(++index);
+                    while(entry.doc.dataNode(destination))destination='/components/schemas/'+stem+'_'+(++index);
                     if(entry===source)source.move(at,destination);
                     else {entry.copy(source,at,destination);source.remove(at);}
                 }
@@ -67,7 +67,7 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
             migrateDependentSchemas(graph,scope,source,pointer,to,requirements,issue);
         }
         if(!modernFamily(to))for(const name of ['$dynamicAnchor','patternProperties','if','then','else','contains','minContains','maxContains','unevaluatedItems','unevaluatedProperties','propertyNames','contentSchema','contentEncoding','contentMediaType'])
-            if(Object.hasOwn(value,name)&&source.doc.nodes.has(pointer+'/'+name))issue(field(name),'migration.schema.keyword','This schema keyword or resource identity has no implemented faithful mapping to '+to,'implementation');
+            if(Object.hasOwn(value,name)&&source.doc.dataNode(pointer+'/'+name))issue(field(name),'migration.schema.keyword','This schema keyword or resource identity has no implemented faithful mapping to '+to,'implementation');
         if(!modernFamily(to)&&Array.isArray(value.prefixItems)){
             if(to==='2.0'){
                 if(Object.hasOwn(value,'items')&&typeof value.items!=='boolean')issue(field('items'),'migration.schema.tuple-tail','A constrained tuple tail needs a faithful Swagger representation','implementation');
@@ -109,8 +109,8 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
             if(value.type==='null'&&to==='3.0')typeComposition(['null']);
             if(Object.hasOwn(value,'const')){
                 if(Object.hasOwn(value,'enum')){
-                    if(!source.doc.nodes.has(pointer+'/allOf'))source.set(pointer+'/allOf',[]);
-                    const branch=pointer+'/allOf/'+source.doc.node(pointer+'/allOf').children.size;
+                    if(!source.doc.dataNode(pointer+'/allOf'))source.set(pointer+'/allOf',[]);
+                    const branch=pointer+'/allOf/'+source.doc.dataNode(pointer+'/allOf').children.size;
                     source.set(branch,{});source.move(pointer+'/const',branch+'/enum');source.exact(branch+'/enum','['+graph.docs.get(scope.resource)!.dataJson(scope.pointer+'/const')+']');
                 }
                 else source.rename(pointer+'/const','enum'),source.exact(pointer+'/enum','['+graph.docs.get(scope.resource)!.dataJson(scope.pointer+'/const')+']');
@@ -120,7 +120,7 @@ export function migrateSchemas(graph:ReferenceGraph,sources:Map<string,Migration
                 // Existing allOf must remain an array; otherwise source is invalid.
                 const existing=source.doc.dataNode(pointer+'/allOf');
                 if(existing?.kind==='object'&&existing.children.size===0)source.set(pointer+'/allOf',[]);
-                const index=source.doc.node(pointer+'/allOf').children.size;
+                const index=source.doc.dataNode(pointer+'/allOf').children.size;
                 source.set(pointer+'/allOf/'+index,{});source.move(pointer+'/$ref',pointer+'/allOf/'+index+'/$ref');
             }
         }

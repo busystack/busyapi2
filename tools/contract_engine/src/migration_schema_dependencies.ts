@@ -49,8 +49,8 @@ export function migrateDependentRequired(graph:ReferenceGraph,scope:GraphScope,s
     if(active.length){
         let collection=pointer+'/allOf';
         const branches=active.map(entry=>required.has(entry.trigger)?{}:{anyOf:[{not:{required:[entry.trigger]}},{}]});
-        if(source.doc.nodes.has(collection)){
-            const branch=collection+'/'+source.doc.node(collection).children.size;
+        if(source.doc.dataNode(collection)){
+            const branch=collection+'/'+source.doc.dataNode(collection).children.size;
             source.set(branch,{allOf:branches});collection=branch+'/allOf';
         }else source.set(collection,branches);
         for(const [index,entry]of active.entries()){
@@ -87,14 +87,14 @@ export function migrateDependentSchemas(graph:ReferenceGraph,scope:GraphScope,so
     }
     if(entries.length){
         let collection=pointer+'/allOf';
-        if(source.doc.nodes.has(collection)){
-            const branch=collection+'/'+source.doc.node(collection).children.size;
+        if(source.doc.dataNode(collection)){
+            const branch=collection+'/'+source.doc.dataNode(collection).children.size;
             source.set(branch,{allOf:[]});collection=branch+'/allOf';
         }else source.set(collection,[]);
         for(const entry of entries){
             const at=source.current(entry.pointer);
             if(at===undefined){issue({...scope,pointer:entry.pointer},'migration.schema.dependency-owner','The dependent schema lost its planning owner','implementation');return;}
-            let destination=collection+'/'+source.doc.node(collection).children.size;
+            let destination=collection+'/'+source.doc.dataNode(collection).children.size;
             if(target!=='2.0'){
                 source.set(destination,{anyOf:[{not:{type:'object',required:[entry.trigger]}},{type:'object',required:[entry.trigger],allOf:[]}]});
                 destination+='/anyOf/1/allOf/0';

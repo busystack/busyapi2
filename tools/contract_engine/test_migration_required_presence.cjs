@@ -34,7 +34,7 @@ const values=[
 for(const version of versions)for(const format of ['yaml','json'])for(const flag of ['readOnly','writeOnly'])for(const mode of ['direct','chain','composition','sibling'])
 test(`${version} ${format} ${flag} ${mode} lowering keeps shared request/response presence without weakening values`,async()=>{
  const input=capture(version,format,flag,mode),before=input.resources.map(value=>value.text),source=await outcomes(input,values),plan=await planMigration(input);
- assert.equal(plan.complete,true,JSON.stringify(plan.problems));assert.equal(plan.producerVersion,'36');
+ assert.equal(plan.complete,true,JSON.stringify(plan.problems));assert.equal(plan.producerVersion,'37');
  const output={root:plan.outputRoot,snapshot:'cold-presence',resources:plan.outputs.map(value=>({id:value.id,text:value.text,generation:0}))};
  assert.deepEqual(await outcomes(output,values),source);
  const graph=createGraph(output).graph,doc=graph.docs.get(output.root),model=doc.dataNode('/components/schemas/Model').value;
@@ -68,18 +68,18 @@ for(const format of ['yaml','json'])test(`${format} property access annotations 
 
 
 for(const flag of ['readOnly','writeOnly'])for(const sharedOwner of [false,true])
-test(`YAML ${flag} whole-owner-shared=${sharedOwner} preserves scalar aliases or refuses the actual shared edit`,async()=>{
+test(`YAML ${flag} whole-owner-shared=${sharedOwner} preserves access assertions and other logical values`,async()=>{
  const root='file:///approved/api.yaml';
  const text='openapi: 3.1.2\ninfo: {title: Aliases, version: "1"}\npaths: {}\ncomponents:\n  schemas:\n    Model: '+(sharedOwner?'&model':'')+'\n'+
   '      type: object\n      required: [first, second] # keep required\n      properties:\n        first: &flag {type: string, '+flag+': true} # keep field\n        second: *flag\n'+
   'x-data: '+(sharedOwner?'*model':'*flag')+'\n';
  const input={root,snapshot:'presence-alias',targetVersion:'3.0.4',destination:'file:///reviewed/',resources:[{id:root,text,generation:1}]};
  const plan=await planMigration(input);
- if(sharedOwner){assert.equal(plan.complete,false);assert.deepEqual(plan.outputs,[]);assert(plan.problems.some(value=>value.code==='edit.shared'),JSON.stringify(plan.problems));}
- else{
+ {
   assert.equal(plan.complete,true,JSON.stringify(plan.problems));const output=plan.outputs.find(value=>value.id===plan.outputRoot);
   assert(output.text.includes('&flag {type: string, '+flag+': true} # keep field'));
-  assert(output.text.includes('second: *flag\n'));assert(output.text.includes('x-data: *flag\n'));assert(output.text.includes('# keep required'));
+  assert(output.text.includes('second: *flag\n'));if(!sharedOwner)assert(output.text.includes('x-data: *flag\n'));assert(output.text.includes('# keep required'));
+  assert.equal(new SourceDocument(output.text,output.id).dataJson('/x-data'),new SourceDocument(text,root).dataJson('/x-data'));
   const resources=plan.outputs.map(value=>({...value,generation:0}));
   for(const subject of ['request-body','response-body']){
    const check=async(root,resources)=>evaluateSchemas({root,snapshot:'aliases',resources,runtimeInstances:['{}','{"first":"café","second":"雪"}','{"first":"café"}','{"first":false,"second":"雪"}'].map(text=>({subject,text,location:'application/json',schema:{resource:root,pointer:'/components/schemas/Model'}}))});

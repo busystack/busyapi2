@@ -76,5 +76,16 @@ for(const format of ['yaml','json'])for(const metadata of ['schema','example','r
 
 test('an ignored body anchor shared by an active operation still needs ownership-preserving edits',async()=>{
  const input=capture('3.0.4','get','yaml');input.resources[0].text='openapi: 3.0.4\ninfo: {title: Shared, version: "1"}\nservers: [{url: https://api.invalid}]\npaths:\n  /payload:\n    get:\n      requestBody: &body\n        content:\n          application/json:\n            schema: {type: string}\n      responses: {204: {description: Empty}}\n    post:\n      requestBody: *body\n      responses: {204: {description: Empty}}\n';
- const before=input.resources[0].text,review=await planMigration(input),problem=review.problems.find(p=>p.code==='migration.body.ignored-activation');assert(problem);const result=await planMigration({...input,decisions:{[problem.id]:'omit-ignored-body'}});assert.equal(result.status,'blocked');assert.deepEqual(result.outputs,[]);assert(result.problems.some(p=>p.code==='edit.shared'));assert.equal(input.resources[0].text,before);
+ const before=input.resources[0].text,review=await planMigration(input),problem=review.problems.find(p=>p.code==='migration.body.ignored-activation');assert(problem);
+ const result=await planMigration({...input,decisions:{[problem.id]:'omit-ignored-body'}});
+ assert.equal(result.complete,true,JSON.stringify(result.problems));assert.deepEqual(result.acceptedDecisions,[problem.id]);
+ const target={root:result.outputRoot,snapshot:'cold-shared-body',resources:outputs(result)},analysis=analyse(target);
+ assert.equal(analysis.status,'complete',JSON.stringify(analysis.findings));
+ for(const method of ['get','post']){
+  const source=analysis.operations.find(operation=>operation.method===method);assert(source);
+  const description=requestOperation({...target,resource:source.resource,pointer:source.pointer,occurrence:source.occurrence});
+  assert.equal(description.requestBody!==undefined,method==='post');
+  if(method==='post')assert.deepEqual(description.requestBody.content.map(media=>media.mediaType),['application/json']);
+ }
+ assert.equal(input.resources[0].text,before);
 });

@@ -154,7 +154,7 @@ $_tail''').replaceAll('\n', '\r\n')}',
             MigrationStatus.faithfullyConvertible,
             reason: '${review.result}',
           );
-          expect(review.result['producerVersion'], '36');
+          expect(review.result['producerVersion'], '37');
           expect(review.unsaved, isTrue);
           expect(review.outdated, isFalse);
           expect(await Directory(review.destination).exists(), isFalse);
@@ -221,7 +221,7 @@ $_tail''').replaceAll('\n', '\r\n')}',
             reason: '${prepared.stdout}\n${prepared.stderr}',
           );
           final report = jsonDecode(prepared.stdout as String) as Map;
-          expect(report['producerVersion'], '36');
+          expect(report['producerVersion'], '37');
           expect(report['published'], false);
           expect(await Directory(cliDestination).exists(), isFalse);
           final published = await cli([
@@ -249,7 +249,7 @@ $_tail''').replaceAll('\n', '\r\n')}',
     }
   }
 
-  test('a shared declaration blocker remains source-located and cannot publish', () async {
+  test('a shared declaration review preserves its other consumer and publishes safely', () async {
     final directory = await Directory.systemTemp.createTemp(
       'busyapi-migration-shared-',
     );
@@ -271,24 +271,28 @@ $_tail''').replaceAll('\n', '\r\n')}',
       targetVersion: '3.1.2',
     );
     addTearDown(review.close);
-    expect(review.status, MigrationStatus.blocked);
-    expect(review.publishable, isFalse);
-    final problem = review.problems.single;
-    expect(problem.code, 'edit.shared');
-    expect(problem.resource, file.uri.toString());
-    expect(problem.pointer, '/openapi');
-    expect(text.substring(problem.range.start, problem.range.end), '"3.1.0"');
+    expect(review.status, MigrationStatus.faithfullyConvertible, reason: '${review.result}');
+    expect(review.publishable, isTrue);
+    expect((review.result['presentationChanges'] as List).whereType<Map>().any(
+        (change) => change['resource'] == file.uri.toString() && change['pointer'] == '/x-version'), true);
     await expectLater(
-      review.publish(),
+      review.publish(cancelled: () => true),
       throwsA(
         isA<CoreFailure>().having(
           (error) => error.code,
           'code',
-          'migration.blocked',
+          'cancelled',
         ),
       ),
     );
     expect(await Directory(review.destination).exists(), isFalse);
+    await review.publish();
+    final output = await BusyProject.open(review.destination, engine);
+    addTearDown(output.close);
+    final checked = await output.check(output.roots.single.id);
+    expect(checked['status'], 'complete', reason: '$checked');
+    expect(checked['projection']['specification']['declaredVersion'], '3.1.2');
+    expect((await output.buffer(output.roots.single.id)).text, contains('x-version: "3.1.0"'));
     expect(await file.readAsString(), text);
   });
 

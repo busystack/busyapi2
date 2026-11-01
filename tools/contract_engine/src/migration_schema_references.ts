@@ -13,7 +13,7 @@ export class MigrationSchemaReferences {
             this.references.set(JSON.stringify([reference.resource,reference.pointer]),reference);
     }
     lower(scope:GraphScope,source:MigrationSource,pointer:string,issue:MigrationIssue):void {
-        if(!source.doc.nodes.has(pointer+'/$dynamicRef'))return;
+        if(!source.doc.dataNode(pointer+'/$dynamicRef'))return;
         const location={...scope,pointer:scope.pointer+'/'+escape('$dynamicRef')};
         const reference=this.references.get(JSON.stringify([scope.resource,scope.pointer]));
         if(!reference||reference.resolution!=='resolved'){
@@ -23,8 +23,8 @@ export class MigrationSchemaReferences {
             issue(location,'migration.schema.dynamic-reference','This reference starts at a dynamic anchor; a faithful older-family dynamic-scope mapping is not implemented','implementation');return;
         }
         const allOf=pointer+'/allOf';
-        if(!source.doc.nodes.has(allOf))source.set(allOf,[]);
-        const branch=allOf+'/'+source.doc.node(allOf).children.size;
+        if(!source.doc.dataNode(allOf))source.set(allOf,[]);
+        const branch=allOf+'/'+source.doc.dataNode(allOf).children.size;
         source.set(branch,{});
         source.move(pointer+'/$dynamicRef',branch+'/$ref');
     }

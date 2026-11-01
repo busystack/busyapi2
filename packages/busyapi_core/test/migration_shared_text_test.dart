@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:busyapi_core/busyapi_core.dart';
@@ -56,10 +57,12 @@ void main() {
       addTearDown(output.close);
       final outputRoot = output.roots.single.id;
       final info = await output.inspectObject(outputRoot, outputRoot, '/info');
-      final literal = await output.inspectObject(outputRoot, outputRoot, '/x-literal');
+      final document = await output.inspectObject(outputRoot, outputRoot, '');
+      final target = Map<String, dynamic>.from((document['entries'] as List).singleWhere((entry) => entry['name'] == 'x-literal') as Map);
+      final literal = jsonDecode(await output.readDataValue(target)) as Map;
       expect(info['value']['description'], contains(file.uri.resolve('./unsaved.md').toString()));
-      expect(literal['value']['description'], '[Guide](./unsaved.md)');
-      expect(literal['value']['title'], 'Changed');
+      expect(literal['description'], '[Guide](./unsaved.md)');
+      expect(literal['title'], 'Changed');
       expect((await output.check(outputRoot))['complete'], true);
     });
   }

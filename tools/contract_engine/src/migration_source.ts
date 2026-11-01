@@ -1,4 +1,5 @@
 import {SourceDocument,SourceError,escape,segments,RawJsonValue} from './document';
+import {migrationYamlOwnership,migrationLogicalPointers} from './migration_yaml_ownership';
 
 export type MigrationLocation={resource:string;pointer:string};
 const inside=(pointer:string,parent:string)=>pointer===parent||pointer.startsWith(parent+'/');
@@ -29,7 +30,13 @@ export class MigrationSource {
     readonly presentationChanges:string[]=[];
     constructor(readonly original:SourceDocument) {
         this.doc=new SourceDocument(original.text,original.id);
-        for(const pointer of original.nodes.keys())this.origins.set(pointer,new Set([pointer]));
+        for(const pointer of migrationLogicalPointers(original))this.origins.set(pointer,new Set([pointer]));
+    }
+    own(pointer:string,descendants=true,includeKey=false):void {
+        this.located(pointer,()=>{
+            const result=migrationYamlOwnership(this.doc,pointer,descendants,includeKey);
+            this.doc=result.document;this.presentationChanges.push(...result.changed);
+        });
     }
     current(pointer:string):string|undefined{return this.origins.get(pointer)?.values().next().value;}
     /** Capture a planning copy and its logical provenance before specialization.
@@ -72,9 +79,13 @@ export class MigrationSource {
         }
     }
     ensure(pointer:string):void {
+        const existing=this.doc.nodes.get(pointer);
+        if(existing&&!existing.alias)return;
+        this.own(pointer,false);
         if(this.doc.nodes.has(pointer))return;
         const parts=segments(pointer);parts.pop();const parent=parts.length?'/'+parts.map(escape).join('/'):'';
         this.ensure(parent);
+        this.own(parent,false);
         const owner=this.doc.node(parent);
         if(this.doc.format==='yaml'&&owner.flow&&!owner.children.size&&this.blockParent(parent)){
             this.located(parent,()=>this.doc.assertUnshared(parent));
@@ -84,16 +95,19 @@ export class MigrationSource {
         else this.update(this.doc.set(pointer,{}));
     }
     set(pointer:string,value:unknown):void {
-        const current=this.doc.nodes.get(pointer);
+        const current=this.doc.dataNode(pointer);
         // An identical primitive needs no physical edit, even when authored
         // through an alias. Numbers require exact lexemes and are excluded.
         if(current&&(value===null||typeof value==='string'||typeof value==='boolean')&&current.value===value)return;
+        if(value instanceof RawJsonValue&&typeof current?.value==='number'&&this.doc.dataJson(pointer).trim()===value.text.trim())return;
+        this.own(pointer);
         const parts=segments(pointer);parts.pop();this.ensure(parts.length?'/'+parts.map(escape).join('/'):'');
         this.located(pointer,()=>this.update(this.doc.set(pointer,value)));
     }
     exact(pointer:string,text:string):void{this.set(pointer,new RawJsonValue(text));}
     remove(pointer:string,retire=true,preserveComments=true,preserveNestedComments=false):void {
-        if(!this.doc.nodes.has(pointer))return;
+        if(!this.doc.dataNode(pointer))return;
+        this.own(pointer,true,true);
         const authored=this.doc.node(pointer),keyAt=authored.keyRange?.[0];
         const nested=preserveNestedComments&&this.doc.format==='yaml'?this.doc.comments(pointer,true).map(range=>this.doc.text.slice(...range)):[];
         let comment:string|undefined,commentAt:number|undefined;
@@ -133,6 +147,7 @@ export class MigrationSource {
         }
     }
     rename(pointer:string,name:string):string {
+        this.own(pointer,false,true);
         const node=this.doc.node(pointer),parts=segments(pointer);parts.pop();
         const to=(parts.length?'/'+parts.map(escape).join('/'):'')+'/'+escape(name);
         if(this.doc.nodes.has(to))throw new SourceError('migration.collision','A mapped field already exists at '+to,node.range);
@@ -142,12 +157,14 @@ export class MigrationSource {
         return to;
     }
     copy(source:MigrationSource,from:string,to:string,entryComments=false):void {
+        source.own(from,true,true);
         const before=source.doc,node=before.node(from);
         source.located(from,()=>{before.assertSafe(from);before.assertUnshared(from,true);});
         const copied=[...[...source.origins].map(([origin,values])=>({origin:source.original.id+'#'+origin,values})),...[...source.foreignOrigins].map(([origin,values])=>({origin,values}))]
             .flatMap(({origin,values})=>[...values].filter(at=>inside(at,from)).map(at=>({origin,pointer:to+at.slice(from.length)})));
         const parts=segments(to),name=parts.pop()!,parent=parts.length?'/'+parts.map(escape).join('/'):'',expected=before.dataJson(from),identity=migrationValueIdentity(before,from);
         this.ensure(parent);
+        this.own(parent,false);
         if(this.doc.nodes.has(to))throw new SourceError('migration.collision','A migration destination already exists at '+to);
         const owner=this.doc.node(parent),block=before.format==='yaml'&&!node.flow&&(node.kind==='object'||node.kind==='array');
         // Collection ranges begin at their first value token. Comments between

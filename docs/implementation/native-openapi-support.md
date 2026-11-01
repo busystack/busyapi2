@@ -21,6 +21,7 @@ Normative specification text takes precedence over informational schemas:
   [RFC 2045](https://www.rfc-editor.org/rfc/rfc2045),
   [RFC 2046](https://www.rfc-editor.org/rfc/rfc2046) and
   [RFC 7578](https://www.rfc-editor.org/rfc/rfc7578)
+- [YAML 1.2.2 anchors and aliases](https://yaml.org/spec/1.2.2/#3222-anchors-and-aliases)
 
 ## Implementation and verification status
 
@@ -40,7 +41,8 @@ source inspection or a successful build is not runtime acceptance.
 | Portable external-example migration | Migration examples, Core publication and shared review | Exact byte copies, native locator repairs and delivered-resource proofs | Implemented but unverified |
 | Scoped binary/byte migration | Migration binary owner | Established raw, text/JSON and base64 contexts mapped; mixed/constrained contexts remain | Implemented but unverified |
 | Modern required-property lowering | Migration required-presence owner | Scoped modern-to-3.0 presence assertions retain constraints | Implemented but unverified |
-| Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants | Implemented but unverified; aliased/literal and cross-entry ownership remain incomplete |
+| Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants; affected YAML aliases receive separate planning-copy owners | Implemented but unverified; independently interpreted literal and cross-entry ownership remain incomplete |
+| YAML migration ownership | Existing source CST and migration provenance | Captured property/alias tokens split affected logical uses, retain exact data and comments, and preserve other consumers before conversion | Implemented but unverified; ordinary editing guards remain unchanged |
 | Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback choices bind eligible composition alternatives and exact instance witnesses | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
 | Native 3.2 discriminator fallbacks | Canonical composition selector, authoring diagnostics and reference choices | Existing fallback targets checked against adjacent alternatives/allOf descendants; Design selection and Source completion share captured targets | Implemented but unverified |
 | Numeric mock witnesses | Shared exact decimal candidate construction and native response proof | YAML/JSON bounds, strict bounds, integer rounding and composed decimal lattices produce bounded suggestions; generated responses require valid native proof | Implemented but unverified; other bounded witness and CONNECT work remains incomplete |
@@ -55,7 +57,7 @@ source inspection or a successful build is not runtime acceptance.
 
 ## Required functionality still open
 
-- Remaining aliased/literal and cross-entry directional ownership;
+- Remaining independently interpreted literal and cross-entry directional ownership;
   request/response specialization in faithful downgrade mappings.
 - Shared schema/literal ownership and incompatible entry contexts, including
   discriminator specialization and independently interpreted Markdown uses.
@@ -145,9 +147,34 @@ and Core publication tests cover scalar/collection/key anchors, repeated names,
 virtual descendants, different bases, exact numbers, literal payloads, unsaved
 source, cancellation, stale reviews and cold reopen. The old shared-Markdown
 refusal controls now require successful mapping plus unchanged literal values.
-These changes and tests are implemented but unverified. Migration producer 36
+These changes and tests are implemented but unverified. Migration producer 37
 is admitted consistently by engine, Core and native preflight; the permanent
 cross-component consistency regression remains active.
+
+Migration YAML ownership is handled by `migration_yaml_ownership.ts` through
+`MigrationSource`, including schema copies, required-presence lowering, ignored
+body omissions, document identities, declarations and reference relocation.
+It removes only captured anchor-property tokens and expands only affected
+alias-value tokens, then proves the entire exact data projection unchanged
+before the intended conversion. Bindings follow actual captured node identities,
+including reused names and key anchors. Logical alias provenance survives schema
+hoisting and multi-file copies. Other literal consumers and untouched aliases
+retain their values; restructuring is visible in the existing review.
+
+Source capture uses the same public Parser/Composer as the pinned yaml 2.9.0
+`parseDocument` implementation, retaining property tokens during its single
+parse. The exact dependency source is `yaml/dist/public-api.js` and the
+[2.9.0 public API](https://github.com/eemeli/yaml/blob/v2.9.0/src/public-api.ts);
+the existing MIT dependency attribution is unchanged. No third-party source or
+dependency version changed. `test_yaml_source_ownership.cjs` compares captured
+parsing with that pinned API, including invalid documents and ordinary shared
+edit refusals. `test_migration_alias_specialization.cjs` and the existing YAML,
+direction, required-presence, identity, ignored-body and server regressions cover
+source-preserving alias separation, exact numbers, literal consumers, recursive
+references, composed upgrades and faithful downgrade cases. Core tests cover
+unsaved models, cancellation, stale reviews, publication and reopen. Previously
+blocked representable alias cases now require successful conversion plus actual
+behavior and unchanged-data assertions. These changes have not been executed.
 
 Numeric witness construction reads canonical numeric values in both YAML and
 JSON rather than requiring JSON's CST node kind. It uses the existing exact

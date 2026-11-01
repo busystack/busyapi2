@@ -67,7 +67,7 @@ void main() {
         final review = await project.prepareMigration(root, destination, targetVersion: target);
         addTearDown(review.close);
         expect(review.status, MigrationStatus.faithfullyConvertible, reason: '${review.result}');
-        expect(review.result['producerVersion'], '36');
+        expect(review.result['producerVersion'], '37');
         expect(review.unsaved, true);
         expect(Directory(destination).existsSync(), false);
         await review.publish();
@@ -117,7 +117,7 @@ void main() {
         expect(cli.exitCode, 0, reason: '${cli.stdout} ${cli.stderr}');
         final report = jsonDecode(cli.stdout as String) as Map;
         expect(report['complete'], true);
-        expect(report['producerVersion'], '36');
+        expect(report['producerVersion'], '37');
         expect(report['published'], false);
         expect(Directory('${directory.path}/cli-review').existsSync(), false);
       });

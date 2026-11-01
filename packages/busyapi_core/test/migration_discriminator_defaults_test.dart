@@ -129,9 +129,10 @@ void main() {
         final parentReference = references.singleWhere((reference) => reference['pointer'] == r'/components/schemas/Parent/$ref');
         final parent = await output.inspectObject(output.roots.single.id,
             parentReference['targetResource'] as String, parentReference['targetPointer'] as String);
-        expect(parent['value']['required'], ['kind']);
-        expect(parent['value']['discriminator']['propertyName'], 'kind');
-        expect((parent['value']['discriminator'] as Map).containsKey('defaultMapping'), false);
+        final parentValue = jsonDecode(await output.readDataValue(parent)) as Map;
+        expect(parentValue['required'], ['kind']);
+        expect(parentValue['discriminator']['propertyName'], 'kind');
+        expect((parentValue['discriminator'] as Map).containsKey('defaultMapping'), false);
         expect(await root.readAsString(), original);expect(await models.readAsString(), definitions);
       });
     }
@@ -194,7 +195,7 @@ void main() {
           final fallback = references.singleWhere((reference) => reference['keyword'] == 'defaultMapping');
           expect(fallback['resolution'], 'resolved');expect(fallback['targetPointer'], '/Other');
           final selectedSchema = await output.inspectObject(output.roots.single.id, fallback['targetResource'] as String, '/Other');
-          final selectedValue = selectedSchema['value'] as Map;
+          final selectedValue = jsonDecode(await output.readDataValue(selectedSchema)) as Map;
           final assertions = composition == 'allOf' ? (selectedValue['allOf'] as List)[1] as Map : selectedValue;
           expect(assertions['required'], ['value']);expect((assertions['properties'] as Map)['value'], {'type': 'string'});
           expect(await root.readAsString(), original);

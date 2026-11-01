@@ -3,6 +3,17 @@ const {test}=require('node:test');
 const {planMigration}=require('./dist/migration.cjs');
 const {analyse}=require('./dist/model.cjs');
 const {evaluateSchemas}=require('./dist/schema_evaluation.cjs');
+const {SourceDocument}=require('./dist/document.cjs');
+
+function delivered(review){return {root:review.outputRoot,snapshot:'cold:'+review.identity,
+ resources:review.outputs.map(output=>({id:output.id,text:output.text,generation:0}))};}
+async function schemaValues(input,resource,pointer){
+ const checked=await evaluateSchemas({...input,runtimeInstances:['null','false','0','"café"','{}','[]'].map(text=>({
+  subject:'response-body',location:'application/json',text,schema:{resource,pointer},
+ }))});
+ assert.equal(checked.complete,true,JSON.stringify(checked.findings));
+ assert(checked.runtimeEvaluations.every(value=>value.complete));return checked.runtimeEvaluations.map(value=>value.valid);
+}
 
 const versions=['2.0','3.0.0','3.0.1','3.0.2','3.0.3','3.0.4','3.1.0','3.1.1','3.1.2','3.2.0','3.2.1'];
 const targets=['2.0','3.0.4','3.1.2','3.2.1'];
@@ -20,7 +31,7 @@ for(const version of versions)for(const targetVersion of targets)
 test(`migration preserves untouched YAML ownership ${version} → ${targetVersion}`,async()=>{
  const input={...capture(version),targetVersion},before=input.resources.map(value=>value.text);
  const result=await planMigration(input);
- assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.producerVersion,'36');
+ assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.producerVersion,'37');
  assert.equal(result.status,'faithfully-convertible');assert.deepEqual(input.resources.map(value=>value.text),before);
  const output=result.outputs.find(value=>value.id===result.outputRoot);
  assert(output.text.startsWith('# Keep organization\r\n'));
@@ -49,24 +60,30 @@ test(`an unchanged anchored declaration retains its alias ${version}`,async()=>{
 for(const [version,targetVersion,body,pointer]of [
  ['3.0.4','3.1.2','Value: &value {type: string, nullable: true}\nx-other: *value','/components/schemas/Value/type'],
  ['3.1.2','3.0.4','Value: &value false\nx-other: *value','/components/schemas/Value'],
-])test(`changed shared schema stays a located blocker ${version} → ${targetVersion}`,async()=>{
+])test(`changed shared schema gets independent migration ownership ${version} → ${targetVersion}`,async()=>{
  const text='openapi: "'+version+'"\ninfo: {title: Shared, version: "1"}\npaths: {}\ncomponents:\n  schemas:\n    '+body.split('\n')[0]+'\n'+body.split('\n')[1]+'\n';
  const input={root,snapshot:'shared',targetVersion,destination:'file:///reviewed/',resources:[{id:root,text,generation:1}]};
  const result=await planMigration(input);
- assert.equal(result.complete,false);assert.equal(result.status,'blocked');assert.deepEqual(result.outputs,[]);
- const problem=result.problems.find(value=>value.code==='edit.shared');
- assert(problem,JSON.stringify(result.problems));assert.equal(problem.resource,root);assert.equal(problem.pointer,pointer);
- assert(problem.range[1]>problem.range[0]);assert.equal(input.resources[0].text,text);
+ assert.equal(result.complete,true,JSON.stringify(result.problems));assert.equal(result.status,'faithfully-convertible');
+ const output=delivered(result),doc=new SourceDocument(result.outputs.find(value=>value.id===result.outputRoot).text,result.outputRoot);
+ assert.equal(doc.dataJson('/x-other'),new SourceDocument(text,root).dataJson('/x-other'));
+ assert.equal(analyse(output).status,'complete');
+ assert.deepEqual(await schemaValues(output,output.root,'/components/schemas/Value'),await schemaValues(input,root,'/components/schemas/Value'));
+ assert(result.presentationChanges.some(change=>change.resource===root&&change.pointer==='/x-other'));
+ assert.equal(input.resources[0].text,text);
 });
 
 for(const [version,targetVersion]of [['3.0.0','3.0.4'],['3.1.0','3.1.2'],['3.2.0','3.2.1']])
-test(`a changed shared patch declaration is a located review blocker ${version} → ${targetVersion}`,async()=>{
+test(`a changed shared patch declaration retains other consumers ${version} → ${targetVersion}`,async()=>{
  const input=capture(version,'x-version: *version\r\n');
  input.resources[0].text=input.resources[0].text.replace('openapi: "'+version+'"','openapi: &version "'+version+'"');
  const original=input.resources[0].text;
  const result=await planMigration({...input,targetVersion});
- assert.equal(result.status,'blocked');assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);
- assert(result.problems.some(value=>value.code==='edit.shared'&&value.resource===root&&value.pointer==='/openapi'&&value.range[1]>value.range[0]),JSON.stringify(result.problems));
+ assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.complete,true);
+ const output=new SourceDocument(result.outputs.find(value=>value.id===result.outputRoot).text,result.outputRoot);
+ assert.equal(output.dataNode('/openapi').value,targetVersion);assert.equal(output.dataNode('/x-version').value,version);
+ assert(result.presentationChanges.some(value=>value.resource===root&&value.pointer==='/openapi'));
+ assert(result.presentationChanges.some(value=>value.resource===root&&value.pointer==='/x-version'));
  assert.equal(input.resources[0].text,original);
 });
 
@@ -86,21 +103,37 @@ for(const [label,text,targetVersion,pointer]of [
  ['anchored reusable map','swagger: "2.0"\ninfo: {title: Shared, version: "1"}\npaths: {}\ndefinitions: &definitions {Value: {type: string}}\nx-copy: *definitions\n','3.0.4','/definitions'],
  ['copied body schema','swagger: "2.0"\ninfo: {title: Shared, version: "1"}\nconsumes: [application/json]\npaths: {/x: {post: {parameters: [{$ref: "#/parameters/Body"}], responses: {204: {description: Empty}}}}}\nparameters:\n  Body:\n    name: payload\n    in: body\n    schema:\n      type: object\n      default: &payload {}\nx-copy: *payload\n','3.0.4','/parameters/Body/schema/default'],
  ['relocated file locator','openapi: 3.1.2\ninfo: {title: Shared, version: "1"}\npaths: {}\ncomponents:\n  schemas:\n    Value:\n      $ref: &reference "models.yaml#/Item"\nx-reference: *reference\n','3.2.1','/components/schemas/Value/$ref'],
-])test(`migration refuses a changed ${label} at its physical owner`,async()=>{
+])test(`migration specializes a changed ${label} and preserves literal bindings`,async()=>{
  const input={root,snapshot:label,targetVersion,destination:'file:///reviewed/',resources:[{id:root,text,generation:1},
   ...(label==='relocated file locator'?[{id:model,text:'Item: {type: string}\n',generation:2}]:[])]};
  const original=input.resources.map(value=>value.text),result=await planMigration(input);
- assert.equal(result.status,'blocked');assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);
- assert(result.problems.some(value=>value.code==='edit.shared'&&value.resource===root&&value.pointer===pointer&&value.range[1]>value.range[0]),JSON.stringify(result.problems));
+ assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.complete,true);
+ const output=new SourceDocument(result.outputs.find(value=>value.id===result.outputRoot).text,result.outputRoot),before=new SourceDocument(text,root);
+ const literal=label==='relocated file locator'?'/x-reference':'/x-copy';
+ assert.equal(output.dataJson(literal),before.dataJson(literal));
+ assert.equal(analyse(delivered(result)).status,'complete');
+ assert(result.presentationChanges.some(value=>value.resource===root&&value.pointer===literal));
+ if(label==='anchored reusable map')assert.equal(output.dataNode('/components/schemas/Value/type').value,'string');
+ if(label==='copied body schema')assert(output.dataNode('/paths/~1x/post/requestBody'));
+ if(label==='relocated file locator'){
+  const reference=analyse(delivered(result)).references.find(reference=>reference.pointer==='/components/schemas/Value/$ref');
+  assert.equal(reference.resolution,'resolved');assert.equal(reference.targetPointer,'/Item');
+  assert.notEqual(reference.value,before.dataNode(pointer).value);
+ }
  assert.deepEqual(input.resources.map(value=>value.text),original);
 });
 
-test('a changed external shared schema reports the original resource and field',async()=>{
+test('a changed external shared schema retains its literal owner and validation behavior',async()=>{
  const input=capture('3.0.4');
  input.resources[1].text='Item: &value {type: string, nullable: true}\nx-copy: *value\n';
  const result=await planMigration(input);
- assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);
- assert(result.problems.some(value=>value.code==='edit.shared'&&value.resource===model&&value.pointer==='/Item/type'&&value.range[1]>value.range[0]),JSON.stringify(result.problems));
+ assert.equal(result.complete,true,JSON.stringify(result.problems));
+ const output=delivered(result),destination=result.changes.find(change=>change.resource===model).destination;
+ const after=new SourceDocument(result.outputs.find(value=>value.id===destination).text,destination);
+ assert.equal(after.dataJson('/x-copy'),new SourceDocument(input.resources[1].text,model).dataJson('/x-copy'));
+ assert.deepEqual(await schemaValues(output,destination,'/Item'),await schemaValues(input,model,'/Item'));
+ assert(result.presentationChanges.some(value=>value.resource===model&&value.pointer==='/Item'));
+ assert.equal(input.resources[1].text,'Item: &value {type: string, nullable: true}\nx-copy: *value\n');
 });
 
 for(const [components,pointer]of [['components: &components {}\nx-copy: *components\n','/components'],
@@ -109,7 +142,11 @@ test(`migration retains ownership of an empty anchored destination ${pointer}`,a
  const text='openapi: 3.1.2\ninfo: {title: Destination, version: "1"}\npaths:\n  /x:\n    get:\n      responses:\n        "200":\n          description: Captured\n          content:\n            application/json:\n              schema:\n                type: object\n                $defs:\n                  Value:\n                    type: string\n'+components;
  const input={root,snapshot:pointer,targetVersion:'3.0.4',destination:'file:///reviewed/',resources:[{id:root,text,generation:1}]};
  const result=await planMigration(input);
- assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);
- assert(result.problems.some(value=>value.code==='edit.shared'&&value.resource===root&&value.pointer===pointer&&value.range[1]>value.range[0]),JSON.stringify(result.problems));
+ assert.equal(result.complete,true,JSON.stringify(result.problems));
+ const output=new SourceDocument(result.outputs.find(value=>value.id===result.outputRoot).text,result.outputRoot);
+ assert.equal(output.dataJson('/x-copy'),new SourceDocument(text,root).dataJson('/x-copy'));
+ assert.equal(output.dataNode('/components/schemas').children.size,1);
+ assert.equal(analyse(delivered(result)).status,'complete');
+ assert(result.presentationChanges.some(value=>value.resource===root&&value.pointer===pointer));
  assert.equal(input.resources[0].text,text);
 });

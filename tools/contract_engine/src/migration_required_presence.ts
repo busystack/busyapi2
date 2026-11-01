@@ -48,11 +48,11 @@ export function migrateRequiredPresence(graph:ReferenceGraph,sources:Map<string,
         if(required?.kind!=='array'||!required.children.size)continue;
         if(pointer===undefined)throw new SourceError('migration.direction.owner','The required-property schema has no surviving source owner for its presence mapping',required.range,'unsupported',{resource:scope.resource,pointer:scope.pointer+'/required',range:required.range});
         const collection=pointer+'/allOf';
-        if(!source.doc.nodes.has(collection))source.set(collection,[]);
+        if(!source.doc.dataNode(collection))source.set(collection,[]);
         for(const child of required.children.values()){
             if(typeof child.value!=='string')throw new SourceError('migration.direction.required','The captured required list contains a non-string name',child.range);
             if(++branches>2048)throw new SourceError('limit.migration.direction','Required-presence mapping exceeds 2048 assertions',required.range,'unsupported',{resource:scope.resource,pointer:scope.pointer+'/required',range:required.range});
-            source.set(collection+'/'+source.doc.node(collection).children.size,
+            source.set(collection+'/'+source.doc.dataNode(collection).children.size,
                 {not:{type:'object',properties:{[child.value]:{not:{}}}}});
         }
     }

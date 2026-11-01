@@ -175,12 +175,7 @@ export function migrateDirectionalSchemas(original:ReferenceGraph,graph:Referenc
             report(scope,'migration.direction.shared-owner','This directional schema also owns literal or independently interpreted content; separate ownership is required');
             return;
         }
-        try{sources.get(scope.resource)!.doc.assertUnshared(scope.pointer,true);}
-        catch(error){
-            if(!(error instanceof SourceError)||error.code!=='edit.shared')throw error;
-            report(scope,'migration.schema.direction','Directional specialization needs an explicit owner for this anchored or aliased schema');
-            return;
-        }
+        sources.get(scope.resource)!.own(scope.pointer,true,true);
     }
     const pristine=new Map([...sources].map(([resource,source])=>[resource,source.fork()]));
     const entry=sources.get(graph.root)!;
