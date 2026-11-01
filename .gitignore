@@ -1,0 +1,7 @@
+
+.idea/
+.codex/
+.agents/
+diagnostics/
+qualification/
+*.private.log
