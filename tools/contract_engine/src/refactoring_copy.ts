@@ -4,14 +4,14 @@ import {createHash} from 'node:crypto';
 import {Resource} from './engine';
 import {SourceDocument,SourceError,escape,segments} from './document';
 import {referenceValue} from './reference_choices';
-import {fieldsForScope,componentFamily,componentLocation} from './authoring';
+import {fieldsForScope,componentFamily,componentLocation,richTextField} from './authoring';
 import {documentUriOccurrences} from './document_uris';
 import {documentUriBase,ReferenceGraph,resolveUri,pointerFragment} from './reference_graph';
 import {coldGraph} from './reference_selection';
 import {ParameterSemantics} from './parameter_semantics';
 import {standardOperationMethods} from './contexts';
 import {serverTemplate} from './derived_bundle';
-import {hasRelativeMarkdownLinks} from './markdown_links';
+import {relocateRefactoringMarkdown} from './refactoring_markdown';
 import {componentNamePolicy,permitsMemberName,reusableDefinitionPointer} from './member_names';
 
 const inside=(pointer:string,owner:string)=>pointer===owner||pointer.startsWith(owner+'/');
@@ -176,8 +176,27 @@ export function editsFor(resources:Resource[],outputs:Map<string,string>) {
  * supplies each base; this neither follows externalValue nor resolves a new
  * dependency. Absolute spellings avoid guessing a destination-relative route. */
 function relocateCopiedUris(before:ReferenceGraph,after:ReferenceGraph,from:{resource:string;pointer:string},to:{resource:string;pointer:string},
- outputs:Map<string,string>,repairs:Map<string,string>,admit:(id:string)=>void,intrinsicOnly=false) {
+ outputs:Map<string,string>,repairs:Map<string,string>,admit:(id:string)=>void,intrinsicOnly=false,replacedDescription=false) {
  let current=after.docs.get(to.resource)!;
+ for(const scope of before.scopes.values()){
+  if(scope.resource!==from.resource||!inside(scope.pointer,from.pointer)||!intrinsic(before,scope.resource,scope.pointer,from.pointer))continue;
+  if(replacedDescription&&scope.pointer===from.pointer)continue;
+  const data=before.docs.get(scope.resource)!.dataNode(scope.pointer)?.value;
+  if(typeof data?.description!=='string'||!richTextField(scope.kind,scope.family,data,'description',segments(scope.pointer).at(-1)??'',before.allowsReference(scope)))continue;
+  const field=before.docs.get(scope.resource)!.dataNode(scope.pointer+'/description')!;
+  const pointer=to.pointer+scope.pointer.slice(from.pointer.length),next=after.scopes.get(to.resource+'#'+pointer);
+  if(!next||next.kind!==scope.kind)throw new SourceError('refactor.copy.uri-context','A copied Markdown field has no matching rendered destination context',field.range,'unsupported',{resource:scope.resource,pointer:scope.pointer+'/description',range:field.range});
+  const wanted=relocateRefactoringMarkdown(data.description,documentUriBase(before,scope),documentUriBase(after,next),{resource:scope.resource,pointer:scope.pointer+'/description',range:field.range});
+  const at=pointer+'/description',key='markdown:'+to.resource+'#'+at,previous=repairs.get(key);
+  if(previous!==undefined&&previous!==wanted)throw new SourceError('refactor.context.ambiguous','Configured roots require different Markdown destination mappings');
+  const now=current.node(at).value;
+  if(now!==data.description&&now!==previous)throw new SourceError('refactor.copy.uri-context','The copied description changed before its rendered context was mapped');
+  repairs.set(key,wanted);
+  if(now===wanted)continue;
+  if(before.literalContainer(scope.resource,scope.pointer+'/description')!==undefined||after.literalContainer(to.resource,at)!==undefined)
+   throw new SourceError('refactor.literal.ownership','This documentation scalar is also literal data and needs separate context ownership',field.range,'unsupported',{resource:scope.resource,pointer:scope.pointer+'/description',range:field.range});
+  admit(to.resource);const text=current.set(at,wanted);outputs.set(to.resource,text);current=new SourceDocument(text,to.resource);
+ }
  for(const occurrence of documentUriOccurrences(before)){
   const {scope,pointer,value}=occurrence;
   if(scope.resource!==from.resource||!inside(scope.pointer,from.pointer))continue;
@@ -237,8 +256,6 @@ function planCopy(input:any,moving=false) {
  semanticOwner(owning,resource.id,target.pointer,node.range);
  if(cross)for(const g of owning)for(const at of g.graph.scopes.values())if(at.resource===resource.id&&inside(at.pointer,target.pointer)){
   const data=doc.node(at.pointer).value;
-  if(typeof data?.description==='string'&&hasRelativeMarkdownLinks(data.description))
-   throw new SourceError('refactor.copy.uri-context','A relative documentation link needs its original rendering context before cross-file extraction');
   if(at.kind==='schema'&&!inside(at.resourcePointer,target.pointer)){
    if(at.resourcePointer!==''||data&&typeof data==='object'&&['$anchor','$dynamicAnchor','$dynamicRef'].some(key=>Object.hasOwn(data,key)))
     throw new SourceError('refactor.copy.schema-resource','Extraction would move only part of an inherited schema resource or dynamic scope');
@@ -648,14 +665,6 @@ export function planInline(input:any) {
   };
   visit(definition.id,definitionPointer);
  }
- if(definition.id!==resource.id){
-  for(const g of owning)for(const at of g.graph.scopes.values())if(at.resource===definition.id&&inside(at.pointer,definitionPointer)&&intrinsic(g.graph,at.resource,at.pointer,definitionPointer)){
-   // CommonMark links depend on a rendering context, not the graph's URI
-   // fields. Their separate explicit-context decision remains required.
-   if(typeof definition.node(at.pointer).value?.description==='string'&&hasRelativeMarkdownLinks(definition.node(at.pointer).value.description))
-    throw new SourceError('refactor.inline.uri-context','A relative documentation link needs its original rendering context before cross-file inlining');
-  }
- }
  // Duplicating an identified schema resource/anchor would create conflicting
  // identifiers; removing them would change meaning. Likewise, dynamic scope
  // cannot be proved merely by comparing possible navigation candidates.
@@ -699,7 +708,7 @@ export function planInline(input:any) {
  for(const g of owning){
   const after=rebuilt(g);
   if(definition.id!==resource.id){
-   relocateCopiedUris(g.graph,after.graph,{resource:definition.id,pointer:definitionPointer},{resource:resource.id,pointer:destination},outputs,repairs,admit,true);
+   relocateCopiedUris(g.graph,after.graph,{resource:definition.id,pointer:definitionPointer},{resource:resource.id,pointer:destination},outputs,repairs,admit,true,scope.kind!=='schema'&&siblings.includes('description'));
    changed=new SourceDocument(outputs.get(resource.id)!,resource.id);
   }
   for(const at of g.graph.scopes.values())if(at.resource===definition.id&&inside(at.pointer,definitionPointer)&&at.kind==='schema'&&intrinsic(g.graph,at.resource,at.pointer,definitionPointer)){

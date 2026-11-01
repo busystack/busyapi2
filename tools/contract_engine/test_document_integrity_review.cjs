@@ -164,11 +164,16 @@ for(const description of ['[Manual][m]\n\n[m]: guide.md','[Manual][]\n\n[Manual]
  test(`cross-file operations protect rendered Markdown destinations: ${description.split('\n')[0]}`,()=>{
   const input=fixture('3.2.1',true,{components:{schemas:{Model:{type:'string',description}}}});
   const destination='file:///project/defs/models.json',target={id:destination,text:'{"openapi":"3.2.1","info":{"title":"Models","version":"1"},"paths":{}}',generation:1};
-  const resources=[...input.resources,target],contexts=[{root:input.root,resources:resources.map(r=>r.id)}];
-  assert.throws(()=>planMoveDefinition({...input,resources,contexts,target:{resource:input.root,pointer:'/components/schemas/Model',generation:1},destinationResource:destination,name:'Moved'}),error=>error.code==='refactor.copy.uri-context');
-  assert.throws(()=>planFileMove({...input,contexts:[{root:input.root,resources:[input.root]}],target:{resource:input.root,generation:1},destinationResource:destination}),error=>error.code==='file.move.documentation');
+  const resources=[...input.resources,target],contexts=[{root:input.root,resources:resources.map(r=>r.id)}],original=resources.map(value=>value.text);
+  const move=planMoveDefinition({...input,resources,contexts,target:{resource:input.root,pointer:'/components/schemas/Model',generation:1},destinationResource:destination,name:'Moved'});
+  const movedText=apply(target.text,{edits:move.edits.filter(edit=>edit.buffer===destination)});
+  assert(new SourceDocument(movedText,destination).dataNode('/components/schemas/Moved/description').value.includes('file:///project/api/'));
+  const file=planFileMove({...input,contexts:[{root:input.root,resources:[input.root]}],target:{resource:input.root,generation:1},destinationResource:destination});
+  assert(new SourceDocument(apply(input.resources[0].text,file),destination).dataNode('/components/schemas/Model/description').value.includes('file:///project/api/'));
   const use={...target,text:JSON.stringify({openapi:'3.2.1',info:{title:'Use',version:'1'},paths:{},components:{schemas:{Use:{$ref:'../api/root.json#/components/schemas/Model'}}}})};
-  assert.throws(()=>planInline({...input,resources:[input.resources[0],use],contexts:[{root:destination,resources:[input.root,destination]}],target:{root:destination,resource:destination,pointer:'/components/schemas/Use',generation:1}}),error=>error.code==='refactor.inline.uri-context');
+  const inline=planInline({...input,resources:[input.resources[0],use],contexts:[{root:destination,resources:[input.root,destination]}],target:{root:destination,resource:destination,pointer:'/components/schemas/Use',generation:1}});
+  assert(new SourceDocument(apply(use.text,inline),destination).dataNode('/components/schemas/Use/description').value.includes('file:///project/api/'));
+  assert.deepEqual(resources.map(value=>value.text),original);
  });
 for(const description of ['`[Manual](guide.md)`','[Manual][m]\n\n[m]: https://example.com/guide.md','[Manual](#section)','````\n[Manual][m]\n\n[m]: guide.md\n````'])
  test(`Markdown guard permits base-independent text: ${description.split('\n')[0]}`,()=>{

@@ -14,6 +14,8 @@ import {serverTemplate} from './derived_bundle';
 import {resolveServerUrl} from './server_semantics';
 import {securityConfigurationCopies,type SecurityBindingChange} from './security_configuration';
 import {caseFileLocators,movedCaseFileSource} from './case_file_configuration';
+import {richTextField} from './authoring';
+import {relocateRefactoringMarkdown} from './refactoring_markdown';
 
 const same=(a:any,b:any)=>a?.resource===b?.resource&&a?.pointer===b?.pointer;
 
@@ -294,6 +296,7 @@ export function planFileMove(input:any) {
  };
  if(destination!==source.id) {
   let serializedConsumer=false;
+  const markdownRepairs=new Map<string,string>();
   // Retain authored resource identities, outer first. A relative identifier is
   // rebased, not replaced with a new identity at its new filesystem location.
   for(const g of graphs)if(g.docs.has(source.id)) {
@@ -309,7 +312,7 @@ export function planFileMove(input:any) {
    }
    // Preserve each typed URI's actual base, not a universal retrieval base.
    // OAuth endpoints are Server-relative and deliberately absent here.
-   const afterUris=rebuild(g).graph,newRetrieval=afterUris.retrievals.get(destination)!;
+   const afterUris=rebuild(g).graph;
    for(const at of g.graph.scopes.values())if(at.resource===source.id)for(const field of documentUriFields(at,before.node(at.pointer).value)) {
     const pointer=at.pointer+'/'+escape(field),value=before.nodes.get(pointer)?.value;
     const oldBase=documentUriBase(g.graph,at),newBase=documentUriBase(afterUris,afterUris.scopes.get(destination+'#'+at.pointer)!);
@@ -320,9 +323,15 @@ export function planFileMove(input:any) {
     }
    }
    for(const at of g.graph.scopes.values())if(at.resource===source.id) {
-    const description=before.nodes.get(at.pointer+'/description')?.value;
-    if(newRetrieval!==retrieval&&typeof description==='string'&&hasRelativeMarkdownLinks(description))
-     throw new SourceError('file.move.documentation','An authored relative Markdown link needs an explicit reviewed source rebase before this file can move');
+    const value=before.dataNode(at.pointer)?.value,description=value?.description;
+    if(typeof description!=='string'||!richTextField(at.kind,at.family,value,'description',segments(at.pointer).at(-1)??'',g.graph.allowsReference(at)))continue;
+    const field=before.dataNode(at.pointer+'/description')!,next=afterUris.scopes.get(destination+'#'+at.pointer);
+    if(!next||next.kind!==at.kind)throw new SourceError('file.move.documentation','The moved description has no surviving rendered context',field.range,'unsupported',{resource:source.id,pointer:at.pointer+'/description',range:field.range});
+    const wanted=relocateRefactoringMarkdown(description,documentUriBase(g.graph,at),documentUriBase(afterUris,next),{resource:source.id,pointer:at.pointer+'/description',range:field.range});
+    const pointer=at.pointer+'/description',previous=markdownRepairs.get(pointer);
+    if(previous!==undefined&&previous!==wanted)throw new SourceError('refactor.context.ambiguous','Configured roots require different Markdown repairs for this moved file');
+    markdownRepairs.set(pointer,wanted);
+    if(wanted!==description)set(source.id,pointer,wanted,'documentation-relative-links');
    }
   }
   // externalValue locates opaque serialized bytes, not a schema/reference
@@ -471,4 +480,3 @@ export function planFileMove(input:any) {
   file:{source:source.id,destination,generation:source.generation,...(opaque?{opaque:true}:{}),...(retained?{retainedIdentity:retained}:{})},impact:{externalConsumers:'Unopened projects and external consumers are not rewritten; review their old physical locators separately.'}};
  return {...data,identity:createHash('sha256').update(JSON.stringify(data)).digest('hex')};
 }
-import {hasRelativeMarkdownLinks} from './markdown_links';
