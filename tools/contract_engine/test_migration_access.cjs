@@ -21,7 +21,7 @@ async function evaluations(input,pointer){
 }
 for(const [from,to]of routes)for(const flag of ['readOnly','writeOnly'])for(const format of ['yaml','json'])for(const mode of ['optional','chain','required','shared-required','root-use'])test(`${from} to ${to} ${format} ${flag} ${mode} retains access evaluation or refuses before publication`,async()=>{
  const input=capture(from,to,flag,format,mode),before=input.resources[0].text;assert.equal(analyse(input).status,'complete');const source=await evaluations(input,'/components/schemas/Model'),result=await planMigration(input);
- if(['required','shared-required','root-use'].includes(mode)){
+ if(from.startsWith('3.0.')&&['required','shared-required','root-use'].includes(mode)){
   assert.equal(result.status,'blocked');assert.equal(result.complete,false);assert.deepEqual(result.outputs,[]);assert.deepEqual(result.changes,[]);const problem=result.problems.find(p=>p.code==='migration.schema.direction');assert(problem,JSON.stringify(result.problems));assert.equal(problem.resource,input.root);assert(problem.range[1]>problem.range[0]);
  }else{
   assert.equal(result.status,'faithfully-convertible',JSON.stringify(result.problems));assert.equal(result.complete,true);const resources=result.outputs.map(o=>({id:o.id,generation:0,text:o.text})),target={root:result.outputRoot,snapshot:'cold-access',resources};assert.equal(analyse(target).status,'complete');assert.deepEqual(await evaluations(target,'/components/schemas/Model'),source);

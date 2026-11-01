@@ -9,7 +9,7 @@ const key=(scope:Pick<GraphScope,'resource'|'pointer'>)=>JSON.stringify([scope.r
  * need no required-list rewrite. Swagger's request exclusion is stronger. */
 export class MigrationAccess {
     private incoming=new Map<string,GraphScope[]>();
-    constructor(private graph:ReferenceGraph){
+    constructor(private graph:ReferenceGraph,private readonly presence:ReadonlySet<string>=new Set()){
         for(const reference of graph.references){
             if(reference.kind!=='schema'||reference.keyword!=='$ref'||reference.resolution!=='resolved')continue;
             const scope=graph.scopes.get(reference.resource+'#'+reference.pointer);
@@ -21,6 +21,7 @@ export class MigrationAccess {
 
     preserves(scope:GraphScope,from:string,to:string):boolean {
         if(from===to||modernFamily(from)&&modernFamily(to))return true;
+        if(modernFamily(from)&&to==='3.0'&&this.presence.has(key(scope)))return true;
         const value=this.graph.docs.get(scope.resource)!.dataNode(scope.pointer)?.value;
         if(value?.readOnly!==true&&value?.writeOnly!==true)return true;
         // Swagger upgrades already own their explicit read-only exclusion

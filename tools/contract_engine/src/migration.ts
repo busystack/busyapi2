@@ -23,11 +23,12 @@ import {checkSecurityRequirementTarget} from './migration_security';
 import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
 import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 import {MigrationAccess} from './migration_access';
+import {migrateRequiredPresence} from './migration_required_presence';
 import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='28';
+const migrationProducerVersion='29';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -130,7 +131,9 @@ export async function planMigration(input:MigrationInput) {
                 for(const [origin,locations]of origins)if(locations.length&&locations.every(location=>detached.has(key(location.resource,location.pointer))))omittedMarkdownOwners.add(origin);
                 graph=retained;
             }
-            const access=new MigrationAccess(graph);
+            const presence=new Set<string>();
+            for(const before of stage.sources)for(const id of migrateRequiredPresence(graph,sources,before,after))presence.add(id);
+            const access=new MigrationAccess(graph,presence);
             for(const scope of graph.scopes.values()){
                 const doc=graph.docs.get(scope.resource)!,value=doc.dataNode(scope.pointer)?.value,source=sources.get(scope.resource)!;
                 const before=scope.family;

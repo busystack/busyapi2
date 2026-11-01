@@ -21,7 +21,7 @@ void main() {
         (from, '2.0', required, 'readOnly', true),
     for (final from in ['3.1.2', '3.2.1'])
       for (final flag in ['readOnly', 'writeOnly'])
-        (from, '3.0.4', true, flag, true),
+        (from, '3.0.4', true, flag, false),
   ]) {
     for (final format in ['yaml', 'json']) {
       test(
@@ -144,17 +144,20 @@ void main() {
                 resolveSecret: (_) async => null,
               );
               addTearDown(run.close);
+              final valid = !required || payload != '{}';
+              expect(run.outgoing.complete, true);
+              expect(run.received.complete, true);
               expect(
-                run.outgoing.complete && run.outgoing.valid,
-                true,
+                run.outgoing.valid,
+                valid,
                 reason: '${run.outgoing.findings}',
               );
               expect(
-                run.received.complete && run.received.valid,
-                true,
+                run.received.valid,
+                valid,
                 reason: '${run.received.findings}',
               );
-              expect(run.conforming, true);
+              expect(run.conforming, valid);
               expect(await run.response.bytes(), utf8.encode(payload));
               expect(seen.last.$1, 'POST');
               expect(seen.last.$2, '/v1/value');
