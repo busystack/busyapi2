@@ -63,11 +63,23 @@ separate entry contexts, and BusyAPI coordinates connected entries before
 validating the target graph. Check every affected document in the review. Shared
 resources with incompatible interpretations produce source-located blockers.
 
-Optional `readOnly` and `writeOnly` properties can cross the 3.0/modern schema
-boundary when captured uses preserve their evaluation. Conversions that change
-required-property behavior or introduce Swagger's stronger request exclusion are
-blocked until a faithful mapping is available. The review identifies the source
-annotation; migration does not silently change which payloads are accepted.
+Directional upgrades create named request and response schema variants when
+Swagger request exclusions or OpenAPI 3.0 required-property rules differ from
+the target. Captured consumers receive the appropriate variant; neutral
+definitions, examples and defaults retain their own associations. References,
+recursion and shared Header reference chains use the same canonical graph and
+CST ownership. Generated variants live in separate standard YAML/JSON schema
+resources; they do not add implicit discriminator component names. The review
+includes each new file with an empty before view, its captured entry owner and
+all binding changes. Explicit mappings and captured implicit model names select
+the corresponding directional schema. External choices without a determinable
+wire name require an explicit source mapping.
+When conversion to 3.2 makes a discriminating property optional, the review
+requires an explicit fallback decision; earlier undefined behavior is not
+silently assigned a default. Aliased/literal and incompatible entry contexts still need additional ownership
+mappings. Downgrades that would introduce stronger request exclusions remain
+blocked until a faithful mapping is available. See the support matrix for
+verification status.
 
 Modern `dependentRequired` property dependencies can migrate to OpenAPI 3.0
 using equivalent presence conditions. False, zero and null still count as present.
@@ -121,8 +133,11 @@ produce a source-located blocker.
 Descriptions keep their original text when the captured link and image
 destinations remain unchanged across conversion and relocation. This includes
 root-relative, network-path and normalized parent paths where their resolved
-addresses are identical. A changed or unresolvable destination produces a
-source-located blocker. Removing a schema identity is included in that check.
+addresses are identical. When a destination changes, BusyAPI rewrites only the
+parsed link/image destination and proves the resulting rendered destination.
+Code examples and prose remain untouched. Ambiguous or shared ownership still
+produces a source-located blocker. Removing a schema identity is included in that
+check.
 
 URL-encoded forms with independent scalar fields can be downgraded to Swagger
 `formData` parameters. Media type casing and explicit UTF-8 charset parameters

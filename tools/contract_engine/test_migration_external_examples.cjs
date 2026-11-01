@@ -42,7 +42,7 @@ async function assertPortable(f, input = f.input) {
   const original = JSON.stringify(input);
   const plan = await planMigration(input);
   assert.equal(plan.complete, true, JSON.stringify(plan.problems));
-  assert.equal(plan.producerVersion, '31');
+  assert.equal(plan.producerVersion, '32');
   assert.equal(plan.exampleOutputs.length, 1);
   const copy = plan.exampleOutputs[0];
   if(input.resources[0].id.endsWith('.yaml'))assert(plan.outputs.find(value => value.id === plan.outputRoot).text.includes('# Keep Unicode 雪'));

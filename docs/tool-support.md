@@ -868,10 +868,15 @@ of derived single-file bundling. Source-linked actions belong to the native
 workspace; standalone HTML retains portable source provenance.
 
 Migration checks access annotations against their captured property uses.
-Proved optional-property conversions retain native request/response evaluation;
-required-direction changes and newly imposed Swagger request exclusion produce
-located blockers. These remaining mappings are implementation work, separate
-from native editing and validation of the original specification family.
+Directional upgrades specialize request/response schemas and shared Header
+reference chains. Neutral examples/defaults retain their original constraints;
+request exclusions and direction-sensitive required lists use separate generated
+assertions in standard schema resources. Captured implicit discriminator names
+and explicit mappings retain their directional targets without adding component
+names. OpenAPI 3.2 fallback behavior requires an explicit migration decision when
+property presence cannot be established. Aliased/literal ownership, incompatible entries and remaining
+faithful downgrade mappings still produce located blockers. See the
+[migration guide](migration.md) and support matrix for coverage and verification.
 
 Migration from 3.0 to Swagger uses the same explicit ignored-body omission
 decision as upgrades to 3.1/3.2. Removing a use recaptures its surviving graph;

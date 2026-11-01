@@ -2,7 +2,7 @@ import * as Instance from '@hyperjump/json-schema/instance/experimental';
 import {Validation,getSchema,canonicalUri} from '@hyperjump/json-schema/experimental';
 import {ReferenceGraph,schemaAddress} from './reference_graph';
 import {SourceError} from './document';
-import {SwaggerDiscriminatorModels} from './swagger_discriminator_models';
+import {DiscriminatorModels} from './discriminator_models';
 
 export const swaggerDiscriminatorKeyword='urn:busyapi:keyword:swagger-2.0-discriminator';
 type Owner={graph:ReferenceGraph;resource:string;pointer:string};
@@ -12,7 +12,7 @@ type Owner={graph:ReferenceGraph;resource:string;pointer:string};
  * select the same child forever. Each actual instance and base owns its guard. */
 export function swaggerDiscriminator(owner:(schema:any)=>Owner|undefined) {
     const active=new WeakMap<object,Set<string>>();
-    const selections=new WeakMap<ReferenceGraph,SwaggerDiscriminatorModels>();
+    const selections=new WeakMap<ReferenceGraph,DiscriminatorModels>();
     return {id:swaggerDiscriminatorKeyword,
         compile:async(_keyword:any,ast:any,parent:any)=>{
             const source=owner(parent);
@@ -20,7 +20,7 @@ export function swaggerDiscriminator(owner:(schema:any)=>Owner|undefined) {
             const {graph}=source,value=graph.docs.get(source.resource)!.dataNode(source.pointer)?.value;
             const models:Record<string,string>={};
             let selection=selections.get(graph);
-            if(!selection){selection=new SwaggerDiscriminatorModels(graph);selections.set(graph,selection);}
+            if(!selection){selection=new DiscriminatorModels(graph);selections.set(graph,selection);}
             for(const [name,scope]of selection.models(source)){
                 const model=await getSchema(schemaAddress(scope));
                 const uri=await Validation.compile(model,ast,model);

@@ -1,7 +1,7 @@
 import {isSchemaDefinitionKeyword} from './schema_definitions';
 import {children} from './contexts';
 import {discriminatorContextRevision} from './discriminator_semantics';
-import {swaggerDiscriminatorModelsRevision} from './swagger_discriminator_models';
+import {discriminatorModelsRevision} from './discriminator_models';
 import {SchemaPropertyRequirements} from './schema_property_requirements';
 import {multipartProjectionRevision} from './schema_reference_projection';
 import {createHash} from 'node:crypto';
@@ -37,7 +37,7 @@ import {embeddedMimeTextRevision} from './embedded_mime_text';
 
 export const schemaProducer={name:'hyperjump+busyapi-exact',version:'1.18.0+46',configuration:[
  `external-example-bytes-v${externalExampleRevision}`,
- `swagger-discriminator-models-v${swaggerDiscriminatorModelsRevision}`,
+ `discriminator-models-v${discriminatorModelsRevision}`,
  `swagger-schema-rules-v${swaggerSchemaRulesRevision}`,
  'oas20-draft4-restricted','structural20-2017-08-27','oas30-restricted','structural30-2024-10-18',
  'draft2020-12','structural31-2026-08-03','structural32-2026-08-30',

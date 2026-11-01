@@ -40,6 +40,8 @@ source inspection or a successful build is not runtime acceptance.
 | Portable external-example migration | Migration examples, Core publication and shared review | Exact byte copies, native locator repairs and delivered-resource proofs | Implemented but unverified |
 | Scoped binary/byte migration | Migration binary owner | Established raw, text/JSON and base64 contexts mapped; mixed/constrained contexts remain | Implemented but unverified |
 | Modern required-property lowering | Migration required-presence owner | Scoped modern-to-3.0 presence assertions retain constraints | Implemented but unverified |
+| Directional schema upgrades | Migration direction, canonical graph and CST owners | Swagger request exclusions, 3.0 required-list roles, separate schema resources, nested-target repairs and shared Header reference variants | Implemented but unverified; aliased/literal and cross-entry ownership remain incomplete |
+| Directional discriminator bindings | Shared named-model table, canonical connections and migration | Implicit/explicit model targets retained without adding component names; 3.2 fallback decisions remain explicit | Implemented but unverified; incompatible entry namespaces and indeterminate external names remain blocked |
 | Swagger discriminator migration | Shared named-model owner and migration specialization | Compatible captured namespaces mapped; shared ownership cases remain | Implemented but unverified |
 | Changed-base Markdown | Shared destination-span proof, migration and maintenance owners | Unshared rendered occurrences mapped without rewriting code or prose | Implemented but unverified |
 | TypeScript compiler gate | Existing pinned engine build and CI paths | Repeatable compiler check wired before bundling | Implemented but unverified |
@@ -50,8 +52,8 @@ source inspection or a successful build is not runtime acceptance.
 
 ## Required functionality still open
 
-- Directional upgrades, Swagger request exclusion and shared request/response
-  specialization; remaining faithful downgrade mappings.
+- Remaining aliased/literal and cross-entry directional ownership;
+  request/response specialization in faithful downgrade mappings.
 - Shared/aliased/literal ownership and incompatible entry contexts, including
   discriminator and Markdown specialization.
 - Mixed or constrained binary contexts, opaque content, file unions and reusable
@@ -74,3 +76,10 @@ Regression coverage includes production entry points, YAML/JSON, published
 patches, exact bytes and numbers, invalid inputs, unavailable resources,
 cancellation, stale captures, source preservation and publication failures.
 Current full-suite, native and packaged acceptance remains incomplete.
+Directional regressions are in `test_migration_direction.cjs` and
+`test_migration_access.cjs` through `planMigration` and native schema evaluation.
+Core access and derived-resource regressions cover captured ownership,
+publication, cancellation, stale inputs and package/CLI reopen; the widget review
+regression retains the existing controls. These additions have not been executed.
+Their authorities are Swagger 2.0 §6.4.18, OpenAPI 3.0.4 §§4.7.24–4.7.25 and
+OpenAPI 3.2.1 §4.30.

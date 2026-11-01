@@ -71,7 +71,7 @@ void _verifyMigrationReview(
   if (result['version'] != 1 ||
       result['snapshot'] != input.snapshot.identity ||
       result['producer'] != 'busyapi-native-migration' ||
-      result['producerVersion'] != '31' ||
+      result['producerVersion'] != '32' ||
       result['problems'] is! List ||
       result['outputs'] is! List ||
       result['exampleOutputs'] is! List ||
@@ -179,6 +179,8 @@ void _verifyMigrationReview(
       result['identity'] is! String)
     invalid();
   final reviewed = <String>{};
+  final originalReviewed = <String>{};
+  final reviewedDestinations = <String>{};
   for (final value in result['changes'] as List) {
     if (value case {
       'resource': String resource,
@@ -187,14 +189,32 @@ void _verifyMigrationReview(
       'after': String after,
     }) {
       if (!reviewed.add(resource) ||
-          resources[resource]?['text'] != before ||
+          !reviewedDestinations.add(destination) ||
           outputTexts[destination] != after)
         invalid();
+      if (resources.containsKey(resource)) {
+        if (resources[resource]?['text'] != before ||
+            value.containsKey('createdFrom'))
+          invalid();
+        originalReviewed.add(resource);
+      } else {
+        final owner = value['createdFrom'];
+        final usesCapturedIdentity = resources.values.any((input) {
+          final aliases = input['aliases'];
+          return aliases is List && aliases.contains(resource);
+        });
+        if (owner is! String ||
+            !entryResources.contains(owner) ||
+            before.isNotEmpty ||
+            usesCapturedIdentity)
+          invalid();
+      }
     } else {
       invalid();
     }
   }
-  if (reviewed.length != resources.length ||
+  if (originalReviewed.length != resources.length ||
+      reviewed.length > 256 ||
       outputTexts.length != reviewed.length)
     invalid();
   _verifyMigrationExampleCopies(result, input, paths, outputTexts);
@@ -254,8 +274,13 @@ class MigrationChange {
     : resource = value['resource'] as String,
       destination = value['destination'] as String,
       before = value['before'] as String,
-      after = value['after'] as String;
+      after = value['after'] as String,
+      createdFrom = value['createdFrom'] as String?;
   final String resource, destination, before, after;
+
+  /// Captured entry owning a newly derived standard schema resource.
+  final String? createdFrom;
+  bool get isCreated => createdFrom != null;
 }
 
 /// An exact opaque copy in the reviewed output; no payload interpretation or

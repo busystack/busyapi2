@@ -46,7 +46,7 @@ for(const targetVersion of targets)for(const format of ['yaml','json'])for(const
 test(`Swagger ${format} ${mode} -> ${targetVersion} specializes dispatch without flattening accepted values`,async()=>{
  const {input,cat,catPointer}=fixture(format,mode,targetVersion),original=input.resources.map(value=>value.text),texts=samples(cat,mode==='multi');
  const before=await evaluate(input,'/definitions/Base',texts),plan=await planMigration(input);
- assert.equal(plan.complete,true,JSON.stringify(plan.problems));assert.equal(plan.status,'faithfully-convertible');assert.equal(plan.producerVersion,'31');
+ assert.equal(plan.complete,true,JSON.stringify(plan.problems));assert.equal(plan.status,'faithfully-convertible');assert.equal(plan.producerVersion,'32');
  const output={root:plan.outputRoot,snapshot:'cold-dispatch',resources:plan.outputs.map(value=>({id:value.id,text:value.text,generation:0,aliases:Object.entries(plan.manifest.resourceMappings).filter(([,path])=>path===value.path).map(([uri])=>uri)}))};
  assert.equal(analyse(output).status,'complete',JSON.stringify(analyse(output).findings));
  assert.deepEqual(await evaluate(output,'/components/schemas/Base',texts),before);

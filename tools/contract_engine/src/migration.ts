@@ -23,6 +23,8 @@ import {checkSecurityRequirementTarget} from './migration_security';
 import {migrationDocumentContexts,proveMigrationConnections} from './migration_documents';
 import {migrationBatches,entryMigrationRoutes} from './migration_routes';
 import {MigrationAccess} from './migration_access';
+import {migrateDirectionalSchemas} from './migration_direction';
+import {migrateDiscriminatorDefaults} from './migration_discriminator_defaults';
 import {migrateRequiredPresence} from './migration_required_presence';
 import {migrateSwaggerDiscriminators} from './migration_discriminator';
 import {MigrationExamples,proveMigrationExamples,type MigrationExampleCopy} from './migration_examples';
@@ -30,7 +32,7 @@ import {migrateTerms} from './migration_terms';
 import {migrateServerVariableDefaults,retainDefaultServers} from './migration_servers';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
-const migrationProducerVersion='31';
+const migrationProducerVersion='32';
 const key=(resource:string,pointer:string)=>JSON.stringify([resource,pointer]);
 const patch:Record<string,string>={'2.0':'2.0','3.0':'3.0.4','3.1':'3.1.2','3.2':'3.2.1'};
 export type MigrationInput=Readonly<{
@@ -68,6 +70,7 @@ export async function planMigration(input:MigrationInput) {
     const ignoredBodyOmissions:MigrationLocation[]=[];
     const omittedMarkdownOwners=new Set<string>();
     const relocatedResources=new Map<string,string>();
+    const createdResources=new Map<string,string>();
     let origins=new Map<string,MigrationLocation[]>();
     for(const doc of original.values())for(const pointer of doc.nodes.keys())origins.set(key(doc.id,pointer),[{resource:doc.id,pointer}]);
     const sourceLocation=(resource:string,pointer:string)=>{
@@ -153,7 +156,8 @@ export async function planMigration(input:MigrationInput) {
                     if(siblings.length&&modernFamily(after)&&!modernFamily(before)&&issue(scope,'migration.reference.ignored-siblings','The target would activate ignored Reference Object siblings; explicitly discard those preserved values or revise the source','decision',['discard-ignored-siblings']))for(const name of siblings)source.remove(scope.pointer+'/'+escape(name));
                     if(siblings.length&&!modernFamily(after)&&modernFamily(before)&&scope.kind!=='schema')issue(scope,'migration.reference.annotations','The target cannot retain these Reference Object annotation overrides','target-representation');
                 }
-                if(scope.kind==='schema'&&!access.preserves(scope,before,after))issue(scope,'migration.schema.direction','Access annotations need a direction-specific schema mapping to preserve their captured property and required-list semantics in the target family','implementation');
+                const directionalUpgrade=before==='2.0'&&after==='3.0'||before==='3.0'&&modernFamily(after);
+                if(scope.kind==='schema'&&!directionalUpgrade&&!access.preserves(scope,before,after))issue(scope,'migration.schema.direction','Access annotations need a direction-specific schema mapping to preserve their captured property and required-list semantics in the target family','implementation');
                 if(before==='3.2'&&after!=='3.2'){
                     const newer:Record<string,string[]>={root:['$self'], 'path-item':['query','additionalOperations'],media:['itemSchema','prefixEncoding','itemEncoding'],encoding:['prefixEncoding','itemEncoding'],tag:['summary','kind','parent'],xml:['nodeType'],discriminator:['defaultMapping']};
                     for(const name of newer[scope.kind]??[])if(Object.hasOwn(value??{},name))issue({...scope,pointer:scope.pointer+'/'+escape(name)},'migration.feature.newer','This 3.2 construct has no implemented faithful mapping to the selected older family','implementation');
@@ -209,6 +213,23 @@ export async function planMigration(input:MigrationInput) {
                 }
             }
             if(problems.length)break;
+            const convertedInput={...input,root:graph.root,resources:resources.map(resource=>({...resource,text:sources.get(resource.id)!.doc.text}))};
+            const converted=createGraph(convertedInput);
+            const convertedContexts=migrationDocumentContexts(convertedInput,converted,issue);
+            if(problems.length)break;
+            migrateDirectionalSchemas(graph,converted.graph,sources,stage.sources,after,issue,()=>{
+                if(sources.size>=256)throw new SourceError('limit.migration.resources','Generated schema resources exceed the 256-resource migration bound');
+                const format=sources.get(graph.root)!.doc.format;
+                const stem='migration-schemas-'+digest(JSON.stringify([graph.root,after,migrationProducerVersion])).slice(0,24);
+                let id=new URL(stem+'.'+format,graph.root).href,index=0;
+                const unavailable=(id:string)=>sources.has(id)||converted.graph.identities.has(id)||
+                    input.exampleResources?.some(resource=>resource.id===id||resource.aliases?.includes(id));
+                while(unavailable(id))id=new URL(stem+'-'+(++index)+'.'+format,graph.root).href;
+                const source=new MigrationSource(new SourceDocument('{}\n',id));
+                sources.set(id,source);createdResources.set(id,graph.root);
+                return source;
+            },convertedContexts.map(context=>context.graph));
+            if(problems.length)break;
             for(const scope of graph.scopesFor('schema')){
                 const source=sources.get(scope.resource)!,at=source.current(scope.pointer);
                 if(at!==undefined||graph.hasOverlappingScope(scope.resource,scope.pointer))assertRoleAnnotations(graph,scope,source.doc,at??scope.pointer);
@@ -225,6 +246,14 @@ export async function planMigration(input:MigrationInput) {
             origins=next;
             for(const [resource,source]of sources)for(const pointer of source.presentationChanges)presentationChanges.push({resource,pointer});
             resources=resources.map(resource=>({...resource,text:sources.get(resource.id)!.doc.text}));
+            for(const [id]of createdResources)if(!resources.some(resource=>resource.id===id))
+                resources.push({id,text:sources.get(id)!.doc.text,generation:0,identity:digest(sources.get(id)!.doc.text)});
+            if(after==='3.2'){
+                const migrated=createGraph({...input,resources});
+                migrateDiscriminatorDefaults(migrated.graph,sources,issue);
+                if(problems.length)break;
+                resources=resources.map(resource=>({...resource,text:sources.get(resource.id)!.doc.text}));
+            }
             stages.push(...stage.sources.map(from=>({from,to:after})));await validate(resources,input.root);
         }catch(error){
             refused(error,{resource:input.root,pointer:''});
@@ -237,7 +266,7 @@ export async function planMigration(input:MigrationInput) {
             if(!decisionChoices.get(id)!.includes(String(choice)))throw new SourceError('migration.decisions.choice','Choose a listed migration decision');
         }
         return ({version:1,snapshot:input.snapshot,producer:'busyapi-native-migration',producerVersion:migrationProducerVersion,from,target,stages,entryRoutes:entryMigrationRoutes(initial.graph.specifications,target),status:status(),complete:!problems.length,problems,acceptedDecisions:[...accepted],presentationChanges,
-        affectedResources:resources.map(resource=>({resource:resource.id,generation:resource.generation,identity:resource.identity})),
+        affectedResources:input.resources.map(resource=>({resource:resource.id,generation:resource.generation,identity:resource.identity})),
         affectedExampleResources:exampleOwnership,exampleOutputs:[],coverage:{source:'captured-native-graph',target:'native-structure-and-schema-evaluation',externalConsumers:'Only captured resources and their established connections are known'}});
     };
     if(problems.length)return {...common(),changes:[],outputs:[]};
@@ -412,7 +441,14 @@ export async function planMigration(input:MigrationInput) {
     if(problems.length)return {...common(),changes:[],outputs:[]};
     const manifest={version:1,roots:initialContexts.map(({graph})=>({name:graph.root===input.root?'migrated':'resource_'+digest(graph.root).slice(0,24),path:paths.get(graph.root)})),resourceMappings:Object.fromEntries(mappings)};
     const outputs=outputResources.map(resource=>({path:[...paths].find(([id])=>identifiers.get(id)===resource.id)![1],id:resource.id,text:resource.text,hasBom:input.resources.find((source:Resource)=>identifiers.get(source.id)===resource.id)?.hasBom===true,identity:digest(resource.text)}));
-    const changes=resources.map(resource=>({resource:resource.id,destination:identifiers.get(resource.id),before:original.get(resource.id)!.text,after:outputResources.find(output=>output.id===identifiers.get(resource.id))!.text}));
+    const changes=resources.map(resource=>{
+        const source=original.get(resource.id),createdFrom=createdResources.get(resource.id);
+        if(!source&&!createdFrom)throw new SourceError('migration.resource.owner','A planned resource has no captured or derived owner');
+        const destination=identifiers.get(resource.id)!;
+        const output=outputResources.find(output=>output.id===destination);
+        if(!output)throw new SourceError('migration.resource.output','A reviewed resource has no validated output');
+        return {resource:resource.id,destination,before:source?.text??'',after:output.text,...(createdFrom?{createdFrom}:{})};
+    });
     for(const decision of Object.keys(decisions))if(!accepted.has(decision))throw new SourceError('migration.decisions.stale','A supplied decision does not belong to this captured migration plan');
     return {...common(),entry:paths.get(input.root),outputRoot,outputs,exampleOutputs,changes,manifest,identity:digest(JSON.stringify([migrationProducerVersion,input.snapshot,target,outputs,exampleOwnership,exampleOutputs,manifest,decisions])),validation:{complete:true,family:target.family},invariants:{operations:'preserved-method-and-path',requests:'effective-url-serialization-security-and-media',references:'canonical-target-relocation',examples:'exact-cst-values-and-captured-wire-bytes'}};
 }

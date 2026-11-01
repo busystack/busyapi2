@@ -4,7 +4,7 @@ import {documentUriOccurrences} from './document_uris';
 import {documentUriBase,pointerFragment,resolveUri,type GraphScope,type ReferenceGraph} from './reference_graph';
 import {MigrationSource,type MigrationLocation} from './migration_source';
 import type {MigrationIssue} from './migration_schema';
-import {SwaggerDiscriminatorModels} from './swagger_discriminator_models';
+import {DiscriminatorModels} from './discriminator_models';
 
 const key=(location:MigrationLocation)=>JSON.stringify([location.resource,location.pointer]);
 const inside=(pointer:string,root:string)=>pointer===root||pointer.startsWith(root+'/');
@@ -43,10 +43,10 @@ export function migrateSwaggerDiscriminators(graph:ReferenceGraph,sources:Map<st
         if(!result)throw new SourceError('migration.discriminator.owner','A selected schema needs one proved primary converted owner',sourceOf(original).range,'unsupported',sourceOf(original));
         return result;
     };
-    const tables=new Map<string,ReadonlyMap<string,GraphScope>>(),selections=new Map<ReferenceGraph,SwaggerDiscriminatorModels>();
+    const tables=new Map<string,ReadonlyMap<string,GraphScope>>(),selections=new Map<ReferenceGraph,DiscriminatorModels>();
     const models=(context:ReferenceGraph,base:GraphScope)=>{
         let selection=selections.get(context);
-        if(!selection){selection=new SwaggerDiscriminatorModels(context);selections.set(context,selection);}
+        if(!selection){selection=new DiscriminatorModels(context);selections.set(context,selection);}
         return selection.models(base);
     };
     for(const base of bases){

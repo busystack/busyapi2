@@ -194,6 +194,19 @@ export class MigrationSource {
             const values=map.get(key)??new Set<string>();values.add(pointer);map.set(key,values);
         }
     }
+    /** Associate a generated wrapper with the exact source schema it models.
+     * Descendants retain their own copy/move provenance; this adds no value or
+     * text equivalence claim for synthesized container fields. */
+    associate(source:MigrationSource,from:string,to:string):void {
+        source.doc.node(from);this.doc.node(to);
+        const owners=[...[...source.origins].filter(([,locations])=>locations.has(from)).map(([pointer])=>source.original.id+'#'+pointer),
+            ...[...source.foreignOrigins].filter(([,locations])=>locations.has(from)).map(([origin])=>origin)];
+        for(const origin of owners){
+            const own=origin.startsWith(this.original.id+'#'),map=own?this.origins:this.foreignOrigins;
+            const key=own?origin.slice(this.original.id.length+1):origin,locations=map.get(key)??new Set<string>();
+            locations.add(to);map.set(key,locations);
+        }
+    }
     move(from:string,to:string,entryComments=false):void {
         if(from===to)return;
         this.copy(this,from,to,entryComments);

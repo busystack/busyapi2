@@ -22,6 +22,12 @@ void main() {
     for (final from in ['3.1.2', '3.2.1'])
       for (final flag in ['readOnly', 'writeOnly'])
         (from, '3.0.4', true, flag, false),
+    for (final target in ['3.1.2', '3.2.1'])
+      for (final flag in ['readOnly', 'writeOnly'])
+        ('3.0.4', target, true, flag, false),
+    for (final target in ['3.0.4', '3.1.2', '3.2.1'])
+      for (final required in [false, true])
+        ('2.0', target, required, 'readOnly', false),
   ]) {
     for (final format in ['yaml', 'json']) {
       test(
@@ -51,44 +57,62 @@ void main() {
           });
           final file = File('${temp.path}/api.$format'),
               fields = File('${temp.path}/fields.$format');
-          final schema = {r'$ref': '#/components/schemas/Model'};
+          final legacy = from == '2.0';
+          final schema = {
+            r'$ref': legacy ? '#/definitions/Model' : '#/components/schemas/Model',
+          };
+          final model = {
+            'type': 'object',
+            if (required) 'required': ['value'],
+            'properties': {
+              'value': {r'$ref': 'fields.$format#/Alias'},
+            },
+          };
           final value = {
-            'openapi': from,
+            if (legacy) 'swagger': from else 'openapi': from,
             'info': {'title': 'Original 雪', 'version': 'api-version'},
-            'servers': [
-              {'url': 'http://127.0.0.1:${server.port}/v1'},
-            ],
+            if (legacy) ...{
+              'host': '127.0.0.1:${server.port}',
+              'basePath': '/v1',
+              'schemes': ['http'],
+              'consumes': ['application/json'],
+              'produces': ['application/json'],
+            } else
+              'servers': [
+                {'url': 'http://127.0.0.1:${server.port}/v1'},
+              ],
             'paths': {
               '/value': {
                 'post': {
-                  'requestBody': {
-                    'required': true,
-                    'content': {
-                      'application/json': {'schema': schema},
-                    },
-                  },
-                  'responses': {
-                    '200': {
-                      'description': 'Value',
+                  if (legacy)
+                    'parameters': [
+                      {'in': 'body', 'name': 'body', 'required': true, 'schema': schema},
+                    ]
+                  else
+                    'requestBody': {
+                      'required': true,
                       'content': {
                         'application/json': {'schema': schema},
                       },
                     },
+                  'responses': {
+                    '200': {
+                      'description': 'Value',
+                      if (legacy) 'schema': schema else
+                        'content': {
+                          'application/json': {'schema': schema},
+                        },
+                    },
                   },
                 },
               },
             },
-            'components': {
-              'schemas': {
-                'Model': {
-                  'type': 'object',
-                  if (required) 'required': ['value'],
-                  'properties': {
-                    'value': {r'$ref': 'fields.$format#/Alias'},
-                  },
+            if (legacy) 'definitions': {'Model': model} else
+              'components': {
+                'schemas': {
+                  'Model': model,
                 },
               },
-            },
             'x-kept': {'exact': 'EXACT', 'flag': false, 'empty': ''},
           };
           String text(Object data) =>
@@ -144,20 +168,25 @@ void main() {
                 resolveSecret: (_) async => null,
               );
               addTearDown(run.close);
-              final valid = !required || payload != '{}';
+              final present = payload != '{}';
+              final requestValid = legacy
+                  ? !required && !present
+                  : !required || present || from.startsWith('3.0.') && flag == 'readOnly';
+              final responseValid = !required || present ||
+                  from.startsWith('3.0.') && flag == 'writeOnly';
               expect(run.outgoing.complete, true);
               expect(run.received.complete, true);
               expect(
                 run.outgoing.valid,
-                valid,
+                requestValid,
                 reason: '${run.outgoing.findings}',
               );
               expect(
                 run.received.valid,
-                valid,
+                responseValid,
                 reason: '${run.received.findings}',
               );
-              expect(run.conforming, valid);
+              expect(run.conforming, requestValid && responseValid);
               expect(await run.response.bytes(), utf8.encode(payload));
               expect(seen.last.$1, 'POST');
               expect(seen.last.$2, '/v1/value');
@@ -213,7 +242,23 @@ void main() {
             );
             addTearDown(fresh.close);
             expect(fresh.publishable, true, reason: '${fresh.result}');
+            final derived = fresh.changes.where((change) => change.isCreated).toList();
+            if (legacy || from == '3.0.4' && required) expect(derived, isNotEmpty);
+            for (final change in derived) {
+              expect(change.createdFrom, buffer.id);
+              expect(change.before, isEmpty);
+              expect(await File.fromUri(Uri.parse(change.resource)).exists(), false);
+            }
+            await expectLater(
+              fresh.publish(cancelled: () => true),
+              throwsA(isA<CoreFailure>().having((error) => error.code, 'code', 'cancelled')),
+            );
+            expect(Directory(destination).existsSync(), false);
             await fresh.publish();
+            for (final change in derived) {
+              expect(await File.fromUri(Uri.parse(change.destination)).readAsString(), change.after);
+              expect(await File.fromUri(Uri.parse(change.resource)).exists(), false);
+            }
             final output = await BusyProject.open(destination, engine);
             addTearDown(output.close);
             final checked = await output.check(output.roots.single.id);
